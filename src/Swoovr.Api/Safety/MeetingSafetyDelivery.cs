@@ -24,9 +24,12 @@ public sealed class MeetingSafetyDelivery(SwoovrDbContext db,MeetingSafetyStore 
             +EmailHtml.Note("This is not marketing. Swoovr does not monitor emergencies or dispatch responders. Alerts are not guaranteed to arrive.")
             +EmailHtml.LinkLine("Withdraw or unsubscribe at any time:",manage),
             "You got this email because a Swoovr member entered this address as a trusted contact.");
+    /// <summary>The heading after the member's name, per update kind. Its own method (PR 368 review) so the name and the
+    /// kind can never be mixed up by operator precedence.</summary>
+    public static string UpdateTitle(string kind)=>kind switch{"missed"=>"a check-in is missed","help"=>"asked for help","closed"=>"monitoring has ended",_=>"shared a meeting safety plan"};
     /// <summary>Issue 355 (11-meeting-safety-update, approved, including "(000 in Australia)").</summary>
     public static string UpdateHtml(EmailBranding branding,string name,string kind,string status,Uri meeting,Uri withdraw)=>
-        EmailHtml.Page(branding,$"{name}: {status}",$"{name}: "+kind switch{"missed"=>"a check-in is missed","help"=>"asked for help","closed"=>"monitoring has ended",_=>"shared a meeting safety plan"},
+        EmailHtml.Page(branding,$"{name}: {status}",$"{name}: "+UpdateTitle(kind),
             EmailHtml.P($"**{name}:** {status}")
             +EmailHtml.Small("Member-provided, not independently verified. Verify with a short-lived code before viewing meeting times or a shared place.")
             +EmailHtml.Button("View meeting status",meeting)

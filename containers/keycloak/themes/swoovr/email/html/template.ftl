@@ -4,17 +4,19 @@
 <#assign pStyle="margin:0 0 16px;font-family:${font};font-size:16px;line-height:24px;color:#0A0A0A;">
 <#assign smallStyle="margin:0 0 12px;font-family:${font};font-size:14px;line-height:21px;color:#6B6B6B;">
 
-<#macro emailLayout title preheader footer>
+<#-- Defaults (PR 368 review): Keycloak's inherited templates (email-test, identity-provider-link, …) call
+     <@layout.emailLayout> with no arguments; they get the same frame with no heading and the member footer. -->
+<#macro emailLayout title="" preheader="" footer=msg("swoovrMemberFooter")>
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title?has_content?then(title, "Swoovr")}</title></head>
 <body style="margin:0;padding:0;background:#F4F4F4;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F4F4;">
 <tr><td align="center" style="padding:32px 16px;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
+<#if preheader?has_content><div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div></#if>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#FFFFFF;border:1px solid #E5E5E5;border-radius:20px;">
 <tr><td style="padding:32px 32px 8px;"><img src="${properties.swoovrLogoUrl}" width="129" height="40" alt="swoovr" style="display:block;border:0;"></td></tr>
 <tr><td style="padding:16px 32px 8px;">
-<h1 style="margin:0 0 20px;font-family:${font};font-size:26px;line-height:32px;font-weight:700;color:#0A0A0A;">${title}</h1>
+<#if title?has_content><h1 style="margin:0 0 20px;font-family:${font};font-size:26px;line-height:32px;font-weight:700;color:#0A0A0A;">${title}</h1></#if>
 <#nested>
 </td></tr>
 <tr><td style="padding:20px 32px 28px;border-top:1px solid #E5E5E5;">

@@ -58,6 +58,9 @@ static class EmailHtmlChecks
         Check("MFA requirement change has no warning box", !MfaEndpoints.SecurityChangedHtml(branding, "The multi-factor authentication requirement on your Swoovr account was changed.").Contains("If this wasn", StringComparison.Ordinal));
         Check("Staff escalation deep-links the case", emails["12-staff-urgent-report"].Contains("https://admin-uat.example.test/cases/3f2a9c1e-5b7d-4e8a-9c2f-1a2b3c4d5e6f", StringComparison.Ordinal));
         Check("Security alert links Security incidents", emails["13-staff-security-alert"].Contains("https://admin-uat.example.test/security", StringComparison.Ordinal));
+        // PR 368 review: each update kind gets its own heading, with the member's name in front.
+        foreach (var (kind, title) in new[] { ("missed", "Sam: a check-in is missed"), ("help", "Sam: asked for help"), ("closed", "Sam: monitoring has ended"), ("shared", "Sam: shared a meeting safety plan") })
+            Check("Meeting safety heading for " + kind, MeetingSafetyDelivery.UpdateHtml(branding, "Sam", kind, "status", new Uri("https://uat.example.test/m"), new Uri("https://uat.example.test/w")).Contains(">" + title + "</h1>", StringComparison.Ordinal));
         Check("Meeting safety update names 000", emails["11-meeting-safety-update"].Contains("(000 in Australia)", StringComparison.Ordinal));
         Check("Staff escalation without admin address has no button", !ModerationEndpoints.EscalationHtml(EmailBranding.None, false, Guid.Empty, "c", "q").Contains("Open Swoovr Admin", StringComparison.Ordinal));
         foreach (var (name, html) in emails)
