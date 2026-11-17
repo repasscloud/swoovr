@@ -1890,3 +1890,12 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
     - `Swoovr.Checks` with the platform PostgreSQL server: 766 persistence cases; `scheduled Home City check rules (57)`, which includes Codex's 15-of-22 example.
     - home-city-check: **62** checks with the helpdesk and 40 without. Added: a pending suggestion withdrawn on a Home City change and never delivered; a late, incomplete period giving no result.
 
+
+## #343 retention EXECUTE grant and restore routine review — 17 November 2026
+
+- **Found on UAT v1.0.3 (read-only):** `RetentionWorker` failed every run with `42501: permission denied for function swoovr_expire_access_prefix` (72 in 24 hours). `20261030040000_AccessLogRetention` revoked EXECUTE from PUBLIC and never granted it to swoovr_api. `restore_permission_sql` refused any routine, so `recovery-permissions` could not succeed on a migrated API dump (23 routines) or the Keycloak dump (2 contact-policy routines).
+- **Fix:** migration `20261117000000_RetentionFunctionExecute` grants EXECUTE on both retention functions to swoovr_api where the role exists. Restore repair checks routines against `REVIEWED_ROUTINES` (name + SECURITY DEFINER, no overloads), re-owns them, and re-grants retention EXECUTE to swoovr_api only.
+- **Evidence:**
+  - `tests/uat/test_restore_routines.py` (in `check.sh`): 5 checks, including that the reviewed lists equal the functions created in migrations, `*GuardSql.cs` and the Keycloak contact-policy changelog.
+  - Throwaway `postgres:17-alpine` run of the actual migration SQL and `restore_permission_sql` output: 14 checks PASS. It reproduced the UAT refusal, then swoovr_api could execute and swoovr_operator could not. Repair re-owned reviewed routines to swoovr_migrator/swoovr_keycloak, restored api EXECUTE, kept backup refused, and refused an unreviewed routine (API and Keycloak), an overload and a trigger changed to SECURITY DEFINER.
+- **Not done / gaps:** `tests/uat/database_bootstrap.py` now restores a reviewed routine and checks api EXECUTE, but was not run (no local `swoovr-uat-operator:phase-zero-check` image). Retention on UAT is confirmed only after v1.0.4 deploys and the next worker run logs no 42501. No hosted restore drill was run.

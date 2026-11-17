@@ -45,15 +45,33 @@ def database_bootstrap():
     print('Database roles/ownership/default privileges prepared. Run migration before serving; hosted permission acceptance remains separate.')
     return 0
 
+# Routines a restored dump may contain: (schema, name, SECURITY DEFINER). Re-owned to the schema owner on
+# restore; anything else, an overload or a changed DEFINER flag is refused (#343). Kept in step with
+# migrations, guard SQL and the Keycloak contact-policy provider by tests/uat/test_restore_routines.py.
+REVIEWED_ROUTINES={
+    'api':[('public',name,False) for name in ['ban_case_disposal_safe','ban_disposal_authority','ban_disposition_guard','ban_disposition_review_guard','ban_history_append_only','ban_history_bounded_delete','ban_history_disposal_safe','content_removal_content_disposal_safe','content_removal_guard','email_retirement_delete_safe','email_retirement_guard','email_retirement_review_guard','sensitive_access_log_append_only','swoovr_policy_acceptance','swoovr_policy_authority','swoovr_policy_publication','swoovr_policy_recipient','swoovr_transparency_fact_authority','swoovr_transparency_fact_disposal','swoovr_transparency_fact_immutable','swoovr_transparency_fact_source']]
+        +[('public','swoovr_expire_access_prefix',True),('public','swoovr_expire_operational_metadata',True)],
+    'keycloak':[('public','swoovr_retirement_source',False),('public','swoovr_retired_contact_guard',False)],
+}
+RETENTION_ROUTINES=('swoovr_expire_access_prefix','swoovr_expire_operational_metadata')
+
 def restore_permission_sql(target,kind):
     if not re.fullmatch(r'swoovr_restore_[0-9a-f]{32}',target) or kind not in ('api','keycloak'):raise ValueError('Owned restore target required.')
     owner='swoovr_migrator' if kind=='api' else 'swoovr_keycloak'
     schemas=['public','restricted'] if kind=='api' else ['public']
     schema_list=','.join("'"+v+"'" for v in schemas)
+    reviewed=','.join(f"('{schema}','{name}',{'true' if definer else 'false'})" for schema,name,definer in REVIEWED_ROUTINES[kind])
     commands=[f'ALTER DATABASE {target} OWNER TO {owner};',f'REVOKE ALL ON DATABASE {target} FROM PUBLIC;',f'GRANT CONNECT ON DATABASE {target} TO '+('swoovr_api,swoovr_operator,swoovr_backup' if kind=='api' else 'swoovr_keycloak,swoovr_backup')+';']
     for schema in schemas:commands.append(f'ALTER SCHEMA {schema} OWNER TO {owner};')
     commands.append(f"""DO $repair$ DECLARE item record; BEGIN
-      IF EXISTS(SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ({schema_list})) THEN RAISE EXCEPTION 'Custom routines require explicit ownership review'; END IF;
+      IF EXISTS(SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ({schema_list})
+        AND NOT EXISTS(SELECT FROM (VALUES {reviewed}) r(nspname,proname,secdef) WHERE r.nspname=n.nspname AND r.proname=p.proname AND r.secdef=p.prosecdef AND p.prokind='f'))
+        THEN RAISE EXCEPTION 'Custom routines require explicit ownership review'; END IF;
+      IF EXISTS(SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ({schema_list}) GROUP BY n.nspname,p.proname HAVING count(*)>1)
+        THEN RAISE EXCEPTION 'Overloaded routines require explicit ownership review'; END IF;
+      FOR item IN SELECT n.nspname,p.proname,pg_get_function_identity_arguments(p.oid) AS args FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname IN ({schema_list}) LOOP
+        EXECUTE format('ALTER FUNCTION %I.%I(%s) OWNER TO %I',item.nspname,item.proname,item.args,'{owner}');
+      END LOOP;
       FOR item IN SELECT n.nspname,c.relname,c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname IN ({schema_list}) AND c.relkind IN ('r','p','S','v','m') LOOP
         EXECUTE format('ALTER %s %I.%I OWNER TO %I',CASE item.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW' ELSE 'TABLE' END,item.nspname,item.relname,'{owner}');
       END LOOP;
@@ -65,6 +83,8 @@ def restore_permission_sql(target,kind):
         for actors,table,sequence in ([('swoovr_api,swoovr_operator','SELECT,INSERT,UPDATE,DELETE','USAGE,SELECT'),('swoovr_backup','SELECT','SELECT')] if kind=='api' else [('swoovr_backup','SELECT','SELECT')]):
             commands += [f'GRANT USAGE ON SCHEMA {schema} TO {actors};',f'GRANT {table} ON ALL TABLES IN SCHEMA {schema} TO {actors};',f'GRANT {sequence} ON ALL SEQUENCES IN SCHEMA {schema} TO {actors};',f'ALTER DEFAULT PRIVILEGES FOR ROLE {owner} IN SCHEMA {schema} GRANT {table} ON TABLES TO {actors};',f'ALTER DEFAULT PRIVILEGES FOR ROLE {owner} IN SCHEMA {schema} GRANT {sequence} ON SEQUENCES TO {actors};']
     if kind=='api':commands+=['GRANT USAGE ON SCHEMA swoovr_operations TO swoovr_api;','GRANT SELECT ON swoovr_operations.restore_guard TO swoovr_api;']
+    for name in RETENTION_ROUTINES if kind=='api' else ():
+        commands.append(f"DO $grant$ BEGIN IF EXISTS(SELECT FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='{name}') THEN REVOKE ALL ON FUNCTION public.{name}(timestamptz) FROM PUBLIC; GRANT EXECUTE ON FUNCTION public.{name}(timestamptz) TO swoovr_api; END IF; END $grant$;")
     return 'BEGIN;\n'+'\n'.join(commands)+'\nCOMMIT;\n'
 
 def recovery_permissions(api,kc):
