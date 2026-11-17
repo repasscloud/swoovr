@@ -43,7 +43,8 @@ provider="$work/provider.json"
 python3 - "$repo/deploy/vultr-uat/bin/envtool.py" > "$provider" <<'PY'
 import importlib.util, json, sys
 spec = importlib.util.spec_from_file_location('envtool', sys.argv[1]); envtool = importlib.util.module_from_spec(spec); spec.loader.exec_module(envtool)
-special = {'UAT_API_MAIL_SERVICE': 'twilio', 'UAT_KEYCLOAK_MAIL_SERVICE': 'twilio', 'UAT_SMS_SERVICE': 'mailpit',
+special = {'UAT_API_MAIL_SERVICE': 'postmark', 'UAT_KEYCLOAK_MAIL_SERVICE': 'postmark', 'UAT_SMS_SERVICE': 'mailpit',
+           'UAT_POSTMARK_MESSAGE_STREAM': 'outbound',
            'UAT_SMTP_PORT': '587', 'UAT_ZAMMAD_IMAP_PORT': '993', 'UAT_ZAMMAD_IMAP_SECURITY': 'ssl',
            'UAT_ZAMMAD_IMAP_KEEP_ON_SERVER': 'true', 'UAT_ZAMMAD_IMAP_FOLDER': 'INBOX', 'UAT_ZAMMAD_IMAP_HOST': '-',
            'UAT_MAIL_FROM': 'hello@example.test', 'UAT_MAIL_FROM_NAME': 'Swoovr', 'UAT_MAIL_HELPDESK_FROM_NAME': 'Swoovr Helpdesk',

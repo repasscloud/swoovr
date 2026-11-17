@@ -47,7 +47,7 @@ public sealed partial class ZammadTicketingProvider
         CheckUploads(attachments);
         if(email is not null)
         {
-            // D368: Zammad sends it from the group's email address and gives it a real Message-ID, so the operation
+            // D369: Zammad sends it from the group's email address and gives it a real Message-ID, so the operation
             // marker rides in the preferences (kept on agent articles) instead of the Message-ID.
             if(internalNote||customer||string.IsNullOrWhiteSpace(email.To)||email.To.Any(char.IsControl)||email.Subject.Any(char.IsControl))throw new ArgumentException("Invalid support email.");
             return ReadWrite(Article,await Send(HttpMethod.Post,"ticket_articles",new{ticket_id=Id(id),body,type="email",content_type="text/plain",@internal=false,sender="Agent",to=email.To,subject=email.Subject,

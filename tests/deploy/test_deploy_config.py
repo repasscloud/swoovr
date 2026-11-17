@@ -159,6 +159,28 @@ class InventoryChecks(unittest.TestCase):
                                    env={**os.environ, 'SWOOVR_GH_REPO': 'example/example'})
             self.assertNotEqual(rerun.returncode, 0)
 
+    def test_postmark_mail_settings(self):
+        """#357, D368: Postmark is the default for the API and Keycloak; it needs its token and a stream ID."""
+        base = {'SWOOVR_MAIL_FROM': 'support@example.test', 'SWOOVR_SMS_SERVICE': 'mailpit', 'SWOOVR_MAIL_SMTP_PORT': '587',
+                'SWOOVR_ZAMMAD_IMAP_PORT': '993', 'SWOOVR_API_MAIL_SERVICE': 'postmark', 'SWOOVR_KEYCLOAK_MAIL_SERVICE': 'postmark',
+                'SWOOVR_MAIL_POSTMARK_SERVER_TOKEN': 'fixture-token', 'SWOOVR_MAIL_POSTMARK_STREAM': 'outbound'}
+        self.assertEqual(envtool.mail_problems(base), [])
+        self.assertIn('SWOOVR_MAIL_POSTMARK_SERVER_TOKEN is empty',
+                      envtool.mail_problems({**base, 'SWOOVR_MAIL_POSTMARK_SERVER_TOKEN': ''}))
+        for stream in ['', 'Default Transaction Stream', 'Outbound', '-x']:
+            self.assertTrue(any('SWOOVR_MAIL_POSTMARK_STREAM' in p for p in envtool.mail_problems({**base, 'SWOOVR_MAIL_POSTMARK_STREAM': stream})), stream)
+        # Twilio keys are only needed while Twilio is selected; MailerSend is now allowed for the API too.
+        twilio = {**base, 'SWOOVR_API_MAIL_SERVICE': 'twilio', 'SWOOVR_KEYCLOAK_MAIL_SERVICE': 'twilio'}
+        self.assertIn('SWOOVR_MAIL_TWILIO_KEY_SID is empty', envtool.mail_problems(twilio))
+        self.assertIn('SWOOVR_MAIL_MAILERSEND_API_TOKEN is empty', envtool.mail_problems({**base, 'SWOOVR_API_MAIL_SERVICE': 'mailersend'}))
+        self.assertTrue(envtool.mail_problems({**base, 'SWOOVR_KEYCLOAK_MAIL_SERVICE': 'smtp'}))
+        template = (ROOT / 'deploy/vultr-uat/env/mail.env.example').read_text()
+        self.assertIn('SWOOVR_API_MAIL_SERVICE=postmark\nSWOOVR_KEYCLOAK_MAIL_SERVICE=postmark\n', template)
+        compose = (ROOT / 'deploy/vultr-uat/compose.yaml').read_text()
+        for line in ['Email__Provider: ${SWOOVR_API_MAIL_SERVICE:-postmark}', 'KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__SERVICE: ${SWOOVR_KEYCLOAK_MAIL_SERVICE:-postmark}',
+                     'Email__Postmark__ServerToken: ${SWOOVR_MAIL_POSTMARK_SERVER_TOKEN:-}', 'KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__POSTMARK_SERVER_TOKEN: ${SWOOVR_MAIL_POSTMARK_SERVER_TOKEN:-}']:
+            self.assertIn(line, compose)
+
     def test_mapping_targets_existing_template_keys(self):
         templates = ROOT / 'deploy/vultr-uat/env'
         for name, targets in envtool.PROVIDER_VALUES.items():

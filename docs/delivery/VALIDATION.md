@@ -1941,7 +1941,7 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
 - **Evidence:** `./scripts/check.sh` exit 0, including 23 staff checks (unfiltered URL has no empty filters; set filters are escaped; staff 400 wording) and 771 PostgreSQL persistence cases.
 - **Gap:** the fix is not yet verified on UAT; the owner checks it after deploy.
 
-## #362 (D368) Staff answer emailed tickets by email from Swoovr Admin — 18 November 2026
+## #362 (D369) Staff answer emailed tickets by email from Swoovr Admin — 18 November 2026
 
 - **Seen:** on UAT, mail to the support address became tickets, but replies written in Swoovr Admin never reached the sender. Every Admin reply was posted as an in-app `note` (D328 routed email replies through Zammad's web interface).
 - **Change:**

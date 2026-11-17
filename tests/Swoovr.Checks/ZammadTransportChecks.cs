@@ -51,7 +51,7 @@ internal static class ZammadTransportChecks
         handler.Body="[{\"id\":1,\"name\":\"close\",\"active\":true,\"perform\":{\"ticket.state_id\":{\"value\":4}}},{\"id\":2,\"name\":\"advanced\",\"active\":true,\"perform\":{\"ticket.tags\":{\"operator\":\"add\",\"value\":\"spam\"}}}]";
         var macros=await provider.MacrosAsync(default);
         if(!macros[0].Supported||macros[0].Change.StateId!=4||macros[1].Supported)throw new Exception("actual macro descriptors and unsupported actions fail closed");
-        // D368: a staff reply on an emailed ticket is an email article to the sender, marked in preferences, not the Message-ID.
+        // D369: a staff reply on an emailed ticket is an email article to the sender, marked in preferences, not the Message-ID.
         handler.Body="{\"id\":10,\"ticket_id\":42,\"body\":\"reply\",\"content_type\":\"text/plain\",\"internal\":false,\"sender\":\"Agent\",\"type\":\"email\",\"from\":\"Swoovr Support <support@example.test>\",\"created_at\":\"2026-11-18T00:00:00Z\",\"created_by_id\":5,\"preferences\":{\"swoovr_operation\":\"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb\"},\"attachments\":[]}";
         var emailed=await provider.ReplyWithOperationAsync(42,"reply",false,false,[],"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",default,new SupportEmail("Fictional Sender <sender@example.test>","Billing question"));
         using(var sent=System.Text.Json.JsonDocument.Parse(handler.Sent!))
@@ -66,7 +66,7 @@ internal static class ZammadTransportChecks
             catch(ArgumentException){}
         await provider.ReplyWithOperationAsync(42,"reply",false,false,[],"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",default);
         if(!handler.Sent!.Contains("\"type\":\"note\""))throw new Exception("no email instruction keeps an in-app note");
-        // D368: which tickets are answered by email, and to which address.
+        // D369: which tickets are answered by email, and to which address.
         SupportArticle A(long id,string sender,string type,string? reply=null)=>new(id,42,"b","text/plain",false,sender,DateTimeOffset.UnixEpoch,[]){Type=type,ReplyAddress=reply};
         if(TicketingEmail.Recipient([A(1,"Customer","email","first@example.test"),A(2,"Agent","note"),A(3,"Customer","email","later@example.test")])!="later@example.test")throw new Exception("latest emailed address");
         if(TicketingEmail.Recipient([A(2,"Customer","email","x@example.test"),A(1,"Customer","note")])is not null)throw new Exception("app ticket stays in-app even after an email arrives");

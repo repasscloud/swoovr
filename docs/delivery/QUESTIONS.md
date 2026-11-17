@@ -2894,3 +2894,8 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 - Issue: [#312](https://github.com/repasscloud/wanderconnect/issues/312). Status: ANSWERED (owner, 11 November 2026): **B**, an IMAP mailbox on the owner's own mail server, queued to General Support. Implemented as D360 (`env/mail.env` `SWOOVR_ZAMMAD_IMAP_*`).
 - UAT has no inbound email channel. **DEFAULT (A):** none; members use in-app support. **B:** an IMAP/POP3 mailbox for a UAT-only support address. **C:** MailerSend inbound routing to Zammad.
+
+### Q179 — Privacy Notice: email provider is now Postmark
+
+- Issue: [#359](https://github.com/repasscloud/wanderconnect/issues/359). Status: OPEN (asked 18 November 2026). Follows D368 (#357).
+- The Privacy Notice in force (0.19) names MailerSend (email) in the European Union. Swoovr email now goes through Postmark (ActiveCampaign), which processes in the United States. The notice is unchanged until the owner approves wording. **A (proposed):** name Postmark (email) among service providers and in the United States list, as 0.20 from a date the owner gives. **B:** the owner's own wording.

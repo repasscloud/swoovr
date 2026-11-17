@@ -370,7 +370,7 @@ public sealed class TicketingRuntime(AccountResolver accounts,CurrentAccount cur
         if(await ClosedAsync(ticket,ct))throw Refuse(409,"ticket-closed"); // issue 228: staff reopen it first
         ValidateText(request.Body,16000);
         if(!staff&&request.Private)throw Refuse();
-        // D368: staff's public reply on a ticket that started as an email goes out as an email (checked before the intent,
+        // D369: staff's public reply on a ticket that started as an email goes out as an email (checked before the intent,
         // so a refusal leaves nothing to reconcile).
         SupportEmail? email=null;
         if(staff&&!request.Private)

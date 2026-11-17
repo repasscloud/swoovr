@@ -13,7 +13,7 @@ public sealed record TicketDetail(TicketSummary Ticket,IReadOnlyList<TicketArtic
 {
     /// <summary>Issue 228: closed (or merged) in the helpdesk. Swoovr offers no reply on a closed request; staff reopen it by changing its status.</summary>
     public bool Closed { get; init; }
-    /// <summary>D368, staff only: the ticket started as an email, so a public reply is emailed to this address.</summary>
+    /// <summary>D369, staff only: the ticket started as an email, so a public reply is emailed to this address.</summary>
     public string? EmailReplyTo { get; init; }
 }
 public sealed record TicketStaffFields(long GroupId,long OwnerId,Guid? CustomerAccountId,IReadOnlyDictionary<string,string> Classification,bool Guest=false);

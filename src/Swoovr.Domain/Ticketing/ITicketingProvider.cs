@@ -23,10 +23,10 @@ public sealed record SupportArticle(long Id, long TicketId, string Body, string 
     /// <summary>For an emailed message: its Reply-To, else its From (as the helpdesk stored it).</summary>
     public string? ReplyAddress { get; init; }
 }
-/// <summary>D368: send a staff reply as an email from the group's support address.</summary>
+/// <summary>D369: send a staff reply as an email from the group's support address.</summary>
 public sealed record SupportEmail(string To, string Subject);
 /// <summary>
-/// D368 (owner, 18 November 2026): a ticket that started as an email is answered by email, also from Swoovr Admin. A ticket a
+/// D369 (owner, 18 November 2026): a ticket that started as an email is answered by email, also from Swoovr Admin. A ticket a
 /// member or guest raised in Swoovr is answered in Swoovr (recorded in the helpdesk), whatever later arrives by email.
 /// </summary>
 public static class TicketingEmail
