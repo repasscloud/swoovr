@@ -1899,3 +1899,13 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
   - `tests/uat/test_restore_routines.py` (in `check.sh`): 5 checks, including that the reviewed lists equal the functions created in migrations, `*GuardSql.cs` and the Keycloak contact-policy changelog.
   - Throwaway `postgres:17-alpine` run of the actual migration SQL and `restore_permission_sql` output: 14 checks PASS. It reproduced the UAT refusal, then swoovr_api could execute and swoovr_operator could not. Repair re-owned reviewed routines to swoovr_migrator/swoovr_keycloak, restored api EXECUTE, kept backup refused, and refused an unreviewed routine (API and Keycloak), an overload and a trigger changed to SECURITY DEFINER.
 - **Not done / gaps:** `tests/uat/database_bootstrap.py` now restores a reviewed routine and checks api EXECUTE, but was not run (no local `swoovr-uat-operator:phase-zero-check` image). Retention on UAT is confirmed only after v1.0.4 deploys and the next worker run logs no 42501. No hosted restore drill was run.
+
+## #345 staff-realm API identity client on UAT, staff names, alert callout — 17 November 2026
+
+- **Found on UAT v1.0.4 (read-only):** the staff realm had no `swoovr-api-staff` client and the API had no `StaffAdmin__*`, so every staff identity call failed ("Identity information is unavailable"). Staff list names were blank because SSO/break-glass accounts have no registered name.
+- **Fix:** `keycloak-reconcile` creates/updates `swoovr-api-staff` on every deployment from host-generated `staff-admin-secret`; compose, `api.env`/`realms.env` examples, `secret-bindings.json` and `services.bicep` carry it. Admin names fall back to the email (`AccountLabels.StaffName`). Bare alerts use `.notice`, and `[role="alert"]` is no longer bold.
+- **Evidence:**
+  - `tests/deploy/test_keycloak_reconcile.py`: 14 pass (3 new). They cover creation with only staff `view-users`/`manage-users`, the secret re-applied on repeat, refusal without a secret, and that admin-only runs never touch the client.
+  - **Real `keycloak:26.8.1`:** the actual `swoovr-deploy` client (as reconcile creates it) created then updated `swoovr-api-staff`. That client's token read a staff user with its credentials and sessions and updated the user, and was refused (403) for members users, master users and staff clients.
+  - `Swoovr.Checks` `staff display names (5 checks)`.
+- **Not done / gaps:** the Admin pages were not rendered (they need a signed-in staff session); confirm on UAT after the deploy.

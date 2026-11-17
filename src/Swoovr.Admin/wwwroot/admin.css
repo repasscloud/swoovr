@@ -82,7 +82,8 @@ h3 { font-size: .9375rem; }
 .card > :first-child { margin-top: 0; }
 .card > :last-child { margin-bottom: 0; }
 .notice { padding: 16px 20px; border-radius: 8px; border-left: 3px solid var(--primary); }
-[role="alert"], .validation-message, .validation-errors { font-weight: 600; }
+/* Alerts use the .notice callout (regular weight, readable in both themes); only form validation is bold. */
+.validation-message, .validation-errors { font-weight: 600; }
 .validation-message, .validation-errors { border-left: 3px solid currentColor; padding-left: 12px; }
 .facts { gap: 20px 28px; margin: 20px 0; }
 .facts dt { margin-bottom: 4px; }

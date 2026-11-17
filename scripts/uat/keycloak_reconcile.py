@@ -7,8 +7,9 @@ user other than reading them, and never prints a secret. In order:
 1. Admin credential: the master-realm service client `swoovr-deploy` (client credentials, secret generated on the
    host). If it is missing and the temporary bootstrap admin still works (fresh database), the temporary admin creates
    it. Its roles are limited to managing the three Swoovr realms plus reading master-realm users.
-2. Staff realm: the `swoovr-zammad` public PKCE client (helpdesk SSO), and the `entra` identity broker synced to the
-   configured tenant/application IDs and client secret.
+2. Staff realm: the `swoovr-zammad` public PKCE client (helpdesk SSO), the `entra` identity broker synced to the
+   configured tenant/application IDs and client secret, and the `swoovr-api-staff` confidential service client the API
+   uses to read and manage staff identities (StaffAdmin:ClientSecret; staff-realm view-users/manage-users only).
 3. Redirect URIs of the hosted web clients are verified against the UAT hostnames (refuses on drift, never rewrites).
 4. The realms named in SWOOVR_KEYCLOAK_ENABLED_REALMS are enabled (only members and staff may be listed).
 5. The temporary bootstrap admin is deleted once a personal master-realm admin with OTP exists; otherwise kept.
@@ -42,6 +43,8 @@ WEB_CLIENTS = {('swoovr-members', 'swoovr-web'): 'https://uat.swoovr.app',
                ('swoovr-venues', 'swoovr-venue-web'): 'https://venues-uat.swoovr.app'}
 HELPDESK = 'https://helpdesk-uat.swoovr.app'
 BOOTSTRAP_ADMIN = 'swoovr-bootstrap'
+STAFF_API_CLIENT = 'swoovr-api-staff'
+STAFF_API_ROLES = ('view-users', 'manage-users')
 
 
 def say(key, value):
@@ -124,6 +127,35 @@ def ensure_zammad_client(admin):
         return 'updated'
     admin.call('/swoovr-staff/clients', 'POST', client, (201,))
     return 'created'
+
+
+def ensure_staff_api_client(admin, secret):
+    """The API's staff-realm identity client (docs/delivery/STAFF-ACCOUNT-MANAGEMENT.md). Never the member or master
+    credential: a service account in swoovr-staff with only that realm's view-users and manage-users."""
+    if len(secret) < 32:
+        raise ValueError('The staff identity client secret is missing (SWOOVR_UAT_STAFF_ADMIN_SECRET in env/realms.env).')
+    wanted = {'clientId': STAFF_API_CLIENT, 'name': 'Swoovr API staff administration', 'enabled': True,
+              'protocol': 'openid-connect', 'publicClient': False, 'clientAuthenticatorType': 'client-secret',
+              'secret': secret, 'serviceAccountsEnabled': True, 'standardFlowEnabled': False,
+              'implicitFlowEnabled': False, 'directAccessGrantsEnabled': False, 'fullScopeAllowed': False,
+              'redirectUris': [], 'webOrigins': [], 'attributes': {'oauth2.device.authorization.grant.enabled': 'false',
+                                                                    'standard.token.exchange.enabled': 'false'}}
+    base = '/swoovr-staff'
+    existing = admin.call(base + '/clients?clientId=' + STAFF_API_CLIENT)
+    if existing:
+        # The secret is re-applied from the host value every time, like the Entra secret.
+        admin.call(base + '/clients/' + existing[0]['id'], 'PUT', {**existing[0], **wanted}, (204,))
+        state = 'updated'
+    else:
+        admin.call(base + '/clients', 'POST', wanted, (201,))
+        state = 'created'
+    client = admin.one(base + '/clients?clientId=' + STAFF_API_CLIENT, STAFF_API_CLIENT)
+    management = admin.one(base + '/clients?clientId=realm-management', 'staff realm-management')
+    user = admin.call(base + '/clients/' + client['id'] + '/service-account-user')
+    roles = [admin.call(base + '/clients/' + management['id'] + '/roles/' + name) for name in STAFF_API_ROLES]
+    admin.call(base + '/users/' + user['id'] + '/role-mappings/clients/' + management['id'], 'POST', roles, (204,))
+    admin.call(base + '/clients/' + client['id'] + '/scope-mappings/clients/' + management['id'], 'POST', roles, (204,))
+    return state
 
 
 def entra_config(tenant, client_id):
@@ -288,6 +320,7 @@ def reconcile(request, env, admin_only=False, resend_invite=False):
             raise ValueError(f'Realm {realm} is missing.')
     if not admin_only:
         say('zammad-client', ensure_zammad_client(admin))
+        say('staff-api-client', ensure_staff_api_client(admin, env.get('SWOOVR_UAT_STAFF_ADMIN_SECRET', '')))
         say('entra', sync_entra(admin, env))
         verify_web_clients(admin)
         say('web-clients', 'verified')

@@ -71,6 +71,7 @@ var apiEnv = concat(common,[
   { name: 'Keycloak__StaffRealm', value: 'swoovr-staff' }
   { name: 'Keycloak__StaffSsoAlias', value: 'entra' }
   { name: 'MemberAdmin__ClientId', value: 'swoovr-api-accounts' }
+  { name: 'StaffAdmin__ClientId', value: 'swoovr-api-staff' }
   { name: 'MemberAdmin__ContactRetirementEnabled', value: 'true' }
   { name: 'Phone__Required', value: 'true' }
   { name: 'Retention__Worker', value: 'true' }
@@ -162,6 +163,7 @@ var jobSpecs = [
 var operatorEnv = concat(common,[
   { name: 'Hosting__PublicOrigin', value: 'https://api-uat.swoovr.app' }
   { name: 'MemberAdmin__ClientId', value: 'swoovr-api-accounts' }
+  { name: 'StaffAdmin__ClientId', value: 'swoovr-api-staff' }
   { name: 'Keycloak__BaseUrl', value: 'https://auth-uat.swoovr.app' }
   { name: 'Keycloak__MembersRealm', value: 'swoovr-members' }
   { name: 'Media__R2__Endpoint', value: r2Endpoint }

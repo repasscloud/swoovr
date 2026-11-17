@@ -123,6 +123,7 @@ await PrototypeConversationClientChecks.Run();
 await NativeSignInChecks.Run();
 await RegistryClientChecks.Run();
 await StaffSessionRenewalChecks.Run();
+StaffNameChecks.Run();
 await PersistenceChecks.Run();
 
 var expected = new FoundationStatus("Swoovr.Api", "foundation");
