@@ -12,6 +12,7 @@ import keycloak_reconcile as kr  # noqa: E402
 
 TENANT, CLIENT = '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222'
 DEPLOY_SECRET, BOOTSTRAP_PASSWORD, ENTRA_SECRET = 'd' * 48, 'b' * 48, 'entra-secret-value-xyz'
+STAFF_SECRET = 's' * 48
 
 
 class FakeKeycloak:
@@ -20,7 +21,9 @@ class FakeKeycloak:
         self.realms = {r: {'realm': r, 'enabled': False} for r in kr.REALMS}
         self.clients = {('swoovr-members', 'swoovr-web'): self.web('https://uat.swoovr.app'),
                         ('swoovr-staff', 'swoovr-admin-web'): self.web('https://admin-uat.swoovr.app'),
-                        ('swoovr-venues', 'swoovr-venue-web'): self.web('https://venues-uat.swoovr.app')}
+                        ('swoovr-venues', 'swoovr-venue-web'): self.web('https://venues-uat.swoovr.app'),
+                        ('swoovr-staff', 'realm-management'): {'id': 'rm', 'clientId': 'realm-management'}}
+        self.staff_role_mappings, self.staff_scope_mappings = {}, {}
         self.idp = {'alias': 'entra', 'enabled': True, 'trustEmail': False, 'storeToken': False,
                     'config': {**kr.entra_config(TENANT, CLIENT), 'clientSecret': '**********'}}
         self.staff_users, self.links, self.master_people = [], {}, []
@@ -58,6 +61,18 @@ class FakeKeycloak:
             return 200, [found] if found else []
         if rest[0] == 'clients' and method == 'PUT':
             self.clients[(realm, data['clientId'])] = data
+            return 204, None
+        if rest[0] == 'clients' and rest[-1] == 'service-account-user':
+            assert realm == 'swoovr-staff' and rest[1] == kr.STAFF_API_CLIENT
+            return 200, {'id': 'sa-' + rest[1]}
+        if rest[0] == 'clients' and len(rest) == 4 and rest[2] == 'roles':
+            assert realm == 'swoovr-staff' and rest[1] == 'rm'
+            return 200, {'name': rest[3], 'client': 'realm-management'}
+        if rest[0] == 'users' and rest[2:4] == ['role-mappings', 'clients'] and method == 'POST':
+            self.staff_role_mappings.setdefault((realm, rest[1], rest[4]), set()).update(r['name'] for r in data)
+            return 204, None
+        if rest[0] == 'clients' and rest[2:4] == ['scope-mappings', 'clients'] and method == 'POST':
+            self.staff_scope_mappings.setdefault((realm, rest[1], rest[4]), set()).update(r['name'] for r in data)
             return 204, None
         if rest[:2] == ['identity-provider', 'instances']:
             if method == 'PUT':
@@ -119,7 +134,8 @@ def env(**extra):
     return {'SWOOVR_KC_DEPLOY_CLIENT_SECRET': DEPLOY_SECRET, 'KC_BOOTSTRAP_ADMIN_PASSWORD': BOOTSTRAP_PASSWORD,
             'SWOOVR_UAT_ENTRA_CLIENT_SECRET': ENTRA_SECRET, 'SWOOVR_ENTRA_TENANT_ID': TENANT,
             'SWOOVR_ENTRA_CLIENT_ID': CLIENT, 'SWOOVR_KEYCLOAK_ENABLED_REALMS': 'swoovr-members,swoovr-staff',
-            'SWOOVR_INITIAL_ADMIN_EMAIL': 'first.admin@example.test', **extra}
+            'SWOOVR_INITIAL_ADMIN_EMAIL': 'first.admin@example.test', 'SWOOVR_UAT_STAFF_ADMIN_SECRET': STAFF_SECRET,
+            **extra}
 
 
 def run(fake, values=None, admin_only=False, resend=False):
@@ -127,7 +143,7 @@ def run(fake, values=None, admin_only=False, resend=False):
     with contextlib.redirect_stdout(out):
         kr.reconcile(fake, values or env(), admin_only, resend)
     text = out.getvalue()
-    for secret in (DEPLOY_SECRET, BOOTSTRAP_PASSWORD, ENTRA_SECRET):
+    for secret in (DEPLOY_SECRET, BOOTSTRAP_PASSWORD, ENTRA_SECRET, STAFF_SECRET):
         assert secret not in text, 'a secret was printed'
     return dict(line.split(' ', 1)[1].split('=', 1) for line in text.splitlines())
 
@@ -228,6 +244,29 @@ class ReconcileChecks(unittest.TestCase):
         user['enabled'] = False
         fake.staff_users.pop()
         self.assertEqual(run(fake, admin_only=True)['initial-admin'], 'disabled')
+
+    def test_staff_api_client_created_with_only_staff_user_roles_then_kept_in_step(self):
+        fake = FakeKeycloak(deploy_client=True, bootstrap_admin=False)
+        self.assertEqual(run(fake)['staff-api-client'], 'created')
+        client = fake.clients[('swoovr-staff', kr.STAFF_API_CLIENT)]
+        self.assertEqual((client['secret'], client['serviceAccountsEnabled'], client['publicClient'], client['standardFlowEnabled'],
+                          client['directAccessGrantsEnabled'], client['fullScopeAllowed']), (STAFF_SECRET, True, False, False, False, False))
+        sa = 'sa-' + kr.STAFF_API_CLIENT
+        self.assertEqual(fake.staff_role_mappings, {('swoovr-staff', sa, 'rm'): {'view-users', 'manage-users'}})
+        self.assertEqual(fake.staff_scope_mappings, {('swoovr-staff', kr.STAFF_API_CLIENT, 'rm'): {'view-users', 'manage-users'}})
+        self.assertNotIn(('swoovr-members', kr.STAFF_API_CLIENT), fake.clients)
+        client['secret'] = 'rotated-by-hand'
+        self.assertEqual(run(fake)['staff-api-client'], 'updated')  # an upgrade re-applies the host secret
+        self.assertEqual(fake.clients[('swoovr-staff', kr.STAFF_API_CLIENT)]['secret'], STAFF_SECRET)
+
+    def test_staff_api_client_needs_its_secret(self):
+        with self.assertRaisesRegex(ValueError, 'SWOOVR_UAT_STAFF_ADMIN_SECRET'):
+            run(FakeKeycloak(deploy_client=True), env(SWOOVR_UAT_STAFF_ADMIN_SECRET='short'))
+
+    def test_admin_only_runs_never_touch_the_staff_api_client(self):
+        fake = FakeKeycloak(deploy_client=True, bootstrap_admin=False)
+        self.assertNotIn('staff-api-client', run(fake, env(SWOOVR_UAT_STAFF_ADMIN_SECRET=''), admin_only=True))
+        self.assertNotIn(('swoovr-staff', kr.STAFF_API_CLIENT), fake.clients)
 
     def test_missing_admin_email_is_reported_not_guessed(self):
         result = run(FakeKeycloak(deploy_client=True), env(SWOOVR_INITIAL_ADMIN_EMAIL=''), admin_only=True)

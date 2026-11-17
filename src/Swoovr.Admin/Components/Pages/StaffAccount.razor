@@ -5,8 +5,8 @@
 @if (message is not null) { <p class="notice" role="status">@message</p> }
 @if (detail is { } d)
 {
-    <p>@d.Account.FirstName @d.Account.LastName · @d.Account.Status · Revision @d.Account.Revision</p>
-    @if (!d.ProviderAvailable) { <p role="alert">Identity information is unavailable. Try again before making changes.</p> }
+    <p>@string.Join(" · ", new[] { AccountLabels.StaffName(d.Account.FirstName, d.Account.LastName, d.Account.Email), d.Account.Status, $"Revision {d.Account.Revision}" }.Where(v => !string.IsNullOrWhiteSpace(v)))</p>
+    @if (!d.ProviderAvailable) { <p class="notice" role="alert" data-identity="unavailable">Identity information is unavailable. Try again before making changes.</p> }
     else
     {
         <p>MFA: @(d.CredentialTypes.Contains("otp") ? "Enabled" : d.RequiredActions.Contains("CONFIGURE_TOTP") ? "Setup pending" : "Not configured") · Staff MFA required</p>

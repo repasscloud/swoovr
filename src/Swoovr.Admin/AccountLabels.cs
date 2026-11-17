@@ -5,6 +5,11 @@ namespace Swoovr.Admin;
 /// <summary>Readable staff labels for account wire values (#156); data attributes keep the raw values.</summary>
 public static class AccountLabels
 {
+    /// <summary>A staff account's display name: first and last name, else the email (SSO and break-glass accounts may
+    /// have no registered name), so every staff row stays openable.</summary>
+    public static string StaffName(string? first, string? last, string? email) =>
+        string.Join(' ', new[] { first, last }.Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!.Trim())) is { Length: > 0 } name
+            ? name : string.IsNullOrWhiteSpace(email) ? "Unnamed staff account" : email.Trim();
     public static string Status(string? status) => status switch
     {
         "active" => "Active", "suspended" => "Suspended", "restricted" => "Restricted", "terminated" => "Terminated",

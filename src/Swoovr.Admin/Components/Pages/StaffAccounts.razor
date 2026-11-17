@@ -17,7 +17,7 @@
     <div class="table-scroll"><table><thead><tr><th>Name</th><th>Verified email</th><th>Roles</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody>
     @foreach (var row in accounts.Items)
     {
-        <tr><td><a href="@($"/staff/{row.Id}")">@row.FirstName @row.LastName @(row.Root ? "(Root)" : "")</a></td><td>@row.Email</td><td>@string.Join(", ", row.Roles.Select(AccountLabels.Role))</td><td>@row.Status</td><td>@(row.LastSignInAt?.ToString("u") ?? "Not recorded")</td></tr>
+        <tr><td><a href="@($"/staff/{row.Id}")">@AccountLabels.StaffName(row.FirstName, row.LastName, row.Email) @(row.Root ? "(Root)" : "")</a></td><td>@row.Email</td><td>@string.Join(", ", row.Roles.Select(AccountLabels.Role))</td><td>@row.Status</td><td>@(row.LastSignInAt?.ToString("u") ?? "Not recorded")</td></tr>
     }
     </tbody></table></div>
     <p>@accounts.Total accounts</p>

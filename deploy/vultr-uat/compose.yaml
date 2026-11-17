@@ -195,6 +195,7 @@ services:
       Keycloak__StaffRealm: swoovr-staff
       Keycloak__StaffSsoAlias: entra
       MemberAdmin__ClientId: swoovr-api-accounts
+      StaffAdmin__ClientId: swoovr-api-staff
       MemberAdmin__ContactRetirementEnabled: "true"
       Phone__Required: "true"
       Retention__Worker: "true"
@@ -518,7 +519,9 @@ services:
       # Same trust as the serving API: commands such as `accounts purge` call auth-uat through Caddy.
       SSL_CERT_FILE: /etc/swoovr/tls/origin-trust.pem
       Keycloak__MembersRealm: swoovr-members
+      Keycloak__StaffRealm: swoovr-staff
       MemberAdmin__ClientId: swoovr-api-accounts
+      StaffAdmin__ClientId: swoovr-api-staff
       Media__Store: r2
     networks: [data, edge, mail]
 
