@@ -65,13 +65,16 @@ with tempfile.TemporaryDirectory(prefix='swoovr-db-bootstrap-') as private:
         for target,kind in zip(targets,['api','keycloak']):
             sql('postgres','CREATE DATABASE '+target+';','swoovrbootstrap')
             restore_sql="CREATE SCHEMA swoovr_operations; CREATE TABLE swoovr_operations.restore_guard(id int,ready bool,role text,operation_id text,authority_sha256 text); INSERT INTO swoovr_operations.restore_guard VALUES(1,false,'"+kind+"','"+operation+"','"+'a'*64+"'); CREATE TABLE public.fictional_restored(id int);"
-            if kind=='api':restore_sql+=' CREATE SCHEMA restricted; CREATE TABLE restricted.fictional_sealed(id int);'
+            if kind=='api':restore_sql+=' CREATE SCHEMA restricted; CREATE TABLE restricted.fictional_sealed(id int); CREATE FUNCTION public.swoovr_expire_access_prefix(at_time timestamptz) RETURNS integer LANGUAGE sql SECURITY DEFINER AS $$ SELECT 0 $$; REVOKE ALL ON FUNCTION public.swoovr_expire_access_prefix(timestamptz) FROM PUBLIC;'
+            else:restore_sql+=' CREATE FUNCTION public.swoovr_retirement_source() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END $$;'
             sql(target,restore_sql,'swoovrbootstrap')
         def repair():return docker('run','--rm','--platform','linux/amd64','--network','container:'+name,'--env-file',str(bootstrap),'swoovr-uat-operator:phase-zero-check','recovery-permissions',*targets,check=False)
         assert repair().returncode!=0;checks+=1
         for target in targets:sql(target,'UPDATE swoovr_operations.restore_guard SET ready=true;','swoovrbootstrap')
         assert repair().returncode==0;checks+=1
         sql(targets[0],'INSERT INTO public.fictional_restored VALUES(1); SELECT * FROM swoovr_operations.restore_guard;','swoovr_api');checks+=1
+        sql(targets[0],'SELECT public.swoovr_expire_access_prefix(now());','swoovr_api');checks+=1  # #343 reviewed routine re-owned, EXECUTE restored
+        assert sql(targets[0],'SELECT public.swoovr_expire_access_prefix(now());','swoovr_backup',False).returncode!=0;checks+=1
         assert sql(targets[0],'UPDATE swoovr_operations.restore_guard SET ready=false;','swoovr_api',False).returncode!=0;checks+=1
         sql(targets[0],'ALTER TABLE public.fictional_restored ADD COLUMN migrated int;','swoovr_migrator');checks+=1
         sql(targets[1],'ALTER TABLE public.fictional_restored ADD COLUMN migrated int;','swoovr_keycloak');checks+=1
