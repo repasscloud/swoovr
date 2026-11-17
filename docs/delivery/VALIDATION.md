@@ -1959,6 +1959,7 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
     - the routing rule: latest address, app ticket stays in-app, a header-injection address is refused.
   - 771 PostgreSQL persistence cases.
   - Also fixed: `scripts/update-release.sh` now changes to the repository from its own location instead of a hard-coded path, which failed the naming check.
+- **Review fix (Codex P2):** the recipient is the latest customer email's reply address only. If that address is missing or unsafe, the reply is refused (`ticket-email-recipient-missing`) instead of going to an older sender. Covered by a new check; `./scripts/check.sh` exit 0, including 771 persistence cases.
 - **Gaps:**
   - Not exercised against a live Zammad. On UAT, check that a reply arrives from the support address in the same email thread, and that a retry after a lost response doesn't send twice; reconciliation relies on Zammad keeping `preferences.swoovr_operation` on agent email articles.
   - The Admin page was not rendered; the change is copy and a label on the existing reply form.

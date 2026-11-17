@@ -70,6 +70,8 @@ internal static class ZammadTransportChecks
         SupportArticle A(long id,string sender,string type,string? reply=null)=>new(id,42,"b","text/plain",false,sender,DateTimeOffset.UnixEpoch,[]){Type=type,ReplyAddress=reply};
         if(TicketingEmail.Recipient([A(1,"Customer","email","first@example.test"),A(2,"Agent","note"),A(3,"Customer","email","later@example.test")])!="later@example.test")throw new Exception("latest emailed address");
         if(TicketingEmail.Recipient([A(2,"Customer","email","x@example.test"),A(1,"Customer","note")])is not null)throw new Exception("app ticket stays in-app even after an email arrives");
+        if(TicketingEmail.Recipient([A(1,"Customer","email","first@example.test"),A(3,"Customer","email","bad\u0007@example.test")])is not null
+            ||TicketingEmail.Recipient([A(1,"Customer","email","first@example.test"),A(3,"Customer","email",null)])is not null)throw new Exception("an unusable latest address never falls back to an older sender");
         if(TicketingEmail.Recipient([A(1,"Customer","email","bad\r\nBcc: x@example.test")])is not null||!TicketingEmail.StartedByEmail([A(1,"Customer","email",null)]))throw new Exception("unsafe or missing address refused");
         Console.WriteLine("PASS: Zammad transport paging, denial, uncertain writes without retry and required article visibility.");
     }
