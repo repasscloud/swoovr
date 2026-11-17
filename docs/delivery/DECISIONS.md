@@ -1027,3 +1027,19 @@ Reversible: set `Mfa:ElevationMinutes` lower, or remove the sign-in clause in `M
 - Applied by `scripts/uat/keycloak_realms.py` (refresh) and by the reconcile job on every deployment (`email-lifespans=`), so an upgrade corrects existing realms.
 
 Reversible: change `USER_ACTION_LIFESPAN` / `VERIFY_EMAIL_LIFESPAN` in both scripts; the reconcile job applies the new values on the next deployment.
+
+### D368 — Swoovr email is sent through Postmark (18 November 2026)
+
+**CONFIRMED** by the owner, 17–18 November 2026 ([issue 357](https://github.com/repasscloud/wanderconnect/issues/357)): stop using Twilio Email after iCloud deferred every message from Twilio's shared SendGrid IPs (#353, "IPs were throttled by recipient server"). The owner set up Postmark: Server API token in the GitHub `uat` secret `UAT_POSTMARK_SERVER_TOKEN`, swoovr.com verified (DKIM + Return-Path), account approved, transactional stream.
+- Keycloak (all sign-in email) and the API (all application email) send through Postmark's HTTP API (`POST https://api.postmarkapp.com/email`). There is no SDK and no SMTP, matching the existing Twilio/MailerSend senders. Keycloak is Java, and the classification below needs the raw reply.
+- Acceptance is HTTP 200 with `ErrorCode` 0 and a `MessageID`, never delivery. The API reports HTTP 422 `ErrorCode` 300 as `invalid-recipient`, 406 as `inactive-recipient` and other codes as `provider-refused`; 429/503 and transport failures are `unknown` (no blind resend). One attempt; the token is never logged.
+- Sender unchanged: `support@swoovr.com`, the only sending address (`SWOOVR_MAIL_FROM`).
+- Postmark is the default service for both (`SWOOVR_API_MAIL_SERVICE`, `SWOOVR_KEYCLOAK_MAIL_SERVICE`). Twilio and MailerSend stay selectable; Twilio email keys are now optional.
+
+DEFAULT:
+- Open tracking and link tracking are off: these are account, sign-in and safety emails, and their links must not be rewritten.
+- The message stream is configurable (`SWOOVR_MAIL_POSTMARK_STREAM`, GitHub variable `UAT_POSTMARK_MESSAGE_STREAM`) and defaults to `outbound`, the ID of the default transactional stream. The owner renamed that stream "Default Transaction Stream"; a rename does not change the ID.
+
+OPEN: the Privacy Notice in force (0.19) names MailerSend (EU) for email. Postmark (ActiveCampaign) processes in the United States, so the notice needs the owner's approved wording (Q179, [issue 359](https://github.com/repasscloud/wanderconnect/issues/359)).
+
+Reversible: set `UAT_API_MAIL_SERVICE` / `UAT_KEYCLOAK_MAIL_SERVICE` to `twilio` or `mailersend` and deploy.

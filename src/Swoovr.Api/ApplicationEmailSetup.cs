@@ -4,7 +4,7 @@ namespace Swoovr.Api;
 
 /// <summary>Explicit provider selection shared by API and one-shot commands. No configured-provider fallback.
 /// Email:Provider: disabled | twilio (Twilio Email API, #316) | smtp (STARTTLS relay with username/password, or the
-/// Development Mailpit sink) | mailpit (the Mailpit sink, Development or UAT only) | mailersend (D39).</summary>
+/// Development Mailpit sink) | mailpit (the Mailpit sink, Development or UAT only) | mailersend (D39) | postmark (Postmark API, #357/D368).</summary>
 public static class ApplicationEmailSetup
 {
     public static void AddSwoovrApplicationEmail(this IServiceCollection services,IConfiguration configuration,bool development,string? environment=null)
@@ -30,13 +30,19 @@ public static class ApplicationEmailSetup
                 services.AddHttpClient<IEmailSender,TwilioEmailSender>(http=>http.Timeout=Timeout.InfiniteTimeSpan)
                     .ConfigurePrimaryHttpMessageHandler(()=>new SocketsHttpHandler{AllowAutoRedirect=false,MaxResponseHeadersLength=16})
                     .RemoveAllLoggers();return;
+            case "postmark":
+                var postmark=PostmarkEmailOptions.ReadConfiguration(key=>configuration[key]);
+                services.AddSingleton(postmark);
+                services.AddHttpClient<IEmailSender,PostmarkEmailSender>(http=>http.Timeout=Timeout.InfiniteTimeSpan)
+                    .ConfigurePrimaryHttpMessageHandler(()=>new SocketsHttpHandler{AllowAutoRedirect=false,MaxResponseHeadersLength=16})
+                    .RemoveAllLoggers();return;
             case "mailersend":
                 var options=MailerSendOptions.ReadConfiguration(key=>configuration[key])!;
                 services.AddSingleton(options);
                 services.AddHttpClient<IEmailSender,MailerSendEmailSender>(http=>http.Timeout=Timeout.InfiniteTimeSpan)
                     .ConfigurePrimaryHttpMessageHandler(()=>new SocketsHttpHandler{AllowAutoRedirect=false,MaxResponseHeadersLength=16})
                     .RemoveAllLoggers();return;
-            default:throw new InvalidOperationException("Email:Provider must be disabled, twilio, smtp, mailpit or mailersend.");
+            default:throw new InvalidOperationException("Email:Provider must be disabled, postmark, twilio, smtp, mailpit or mailersend.");
         }
     }
 

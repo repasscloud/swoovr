@@ -27,7 +27,7 @@ x-logging: &logging
 # Outgoing mail and SMS of the API and api-command, all from env/mail.env (D358, D360). After a change:
 # ./bin/swoovr mail-apply. Unused provider values may be empty; the selected provider refuses startup when incomplete.
 x-mail-env: &mail-env
-  Email__Provider: ${SWOOVR_API_MAIL_SERVICE:-twilio}
+  Email__Provider: ${SWOOVR_API_MAIL_SERVICE:-postmark}
   Email__From: "${SWOOVR_MAIL_FROM_NAME:-Swoovr} <${SWOOVR_MAIL_FROM:?env/mail.env}>"
   Email__Twilio__KeySid: ${SWOOVR_MAIL_TWILIO_KEY_SID:-}
   Email__Twilio__KeySecret: ${SWOOVR_MAIL_TWILIO_KEY_SECRET:-}
@@ -36,6 +36,8 @@ x-mail-env: &mail-env
   Email__Smtp__Username: ${SWOOVR_MAIL_SMTP_USERNAME:-}
   Email__Smtp__Password: ${SWOOVR_MAIL_SMTP_PASSWORD:-}
   Email__MailerSend__ApiToken: ${SWOOVR_MAIL_MAILERSEND_API_TOKEN:-}
+  Email__Postmark__ServerToken: ${SWOOVR_MAIL_POSTMARK_SERVER_TOKEN:-}
+  Email__Postmark__MessageStream: ${SWOOVR_MAIL_POSTMARK_STREAM:-outbound}
   Sms__Provider: ${SWOOVR_SMS_SERVICE:-mailpit}
   Mailpit__Host: mailpit
   Mailpit__Port: "1025"
@@ -157,14 +159,16 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: swoovr-bootstrap
       KC_LOG_LEVEL: INFO
       SWOOVR_REGISTRATION_AUTHORITY_URL: https://api-uat.swoovr.app/api/registration/admission
-      # Sign-in email from env/mail.env (D360): swoovr-email sends through Twilio (default) or MailerSend.
+      # Sign-in email from env/mail.env (D360, D368): swoovr-email sends through Postmark (default), Twilio or MailerSend.
       # bin/swoovr mail-apply recreates Keycloak after a change.
-      KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__SERVICE: ${SWOOVR_KEYCLOAK_MAIL_SERVICE:-twilio}
+      KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__SERVICE: ${SWOOVR_KEYCLOAK_MAIL_SERVICE:-postmark}
       KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__FROM: ${SWOOVR_MAIL_FROM:?env/mail.env}
       KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__FROM_NAME: ${SWOOVR_MAIL_FROM_NAME:-Swoovr}
       KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__TWILIO_KEY_SID: ${SWOOVR_MAIL_TWILIO_KEY_SID:-}
       KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__TWILIO_KEY_SECRET: ${SWOOVR_MAIL_TWILIO_KEY_SECRET:-}
       KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__MAILERSEND_API_TOKEN: ${SWOOVR_MAIL_MAILERSEND_API_TOKEN:-}
+      KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__POSTMARK_SERVER_TOKEN: ${SWOOVR_MAIL_POSTMARK_SERVER_TOKEN:-}
+      KC_SPI_EMAIL_SENDER__SWOOVR_EMAIL__POSTMARK_STREAM: ${SWOOVR_MAIL_POSTMARK_STREAM:-outbound}
     volumes:
       - ./tls/trust:/etc/swoovr/tls:ro
     depends_on:
