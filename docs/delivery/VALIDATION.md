@@ -1963,3 +1963,26 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
 - **Gaps:**
   - Not exercised against a live Zammad. On UAT, check that a reply arrives from the support address in the same email thread, and that a retry after a lost response doesn't send twice; reconciliation relies on Zammad keeping `preferences.swoovr_operation` on agent email articles.
   - The Admin page was not rendered; the change is copy and a label on the existing reply form.
+
+## Helpdesk customer emails without Zammad branding — 18 November 2026
+
+- **Seen:** on UAT, emails from the helpdesk to an outside sender ended with "Your Zammad Helpdesk Team" and "Zammad, your customer support system". The owner does not want this.
+- **Cause:** Zammad 7.2.2 seeds three customer-email triggers, and `provision.rb` never touched them:
+  - auto reply (on new tickets);
+  - auto reply (on follow-up of tickets);
+  - customer notification (on owner change), off by default.
+  
+  Their bodies sign off with the product name and a Zammad link, and invite the customer to log in to Zammad.
+- **Fix:**
+  - `provision.rb` rewords all three: Swoovr Support, "reply to this email", no Zammad name, link or login prompt.
+  - It changes a trigger only while it still carries the stock text, so later edits in Zammad's admin UI survive deployments.
+  - Active and inactive states are unchanged.
+- **Evidence:**
+  - `ruby -c` syntax OK.
+  - `tests/zammad/test_customer_email_branding.py` covers: all three reworded, no Zammad branding or login link, and only stock text replaced.
+  - `./scripts/check.sh` exit 0 (run with the `update-release.sh` naming fix from #363 applied locally, since main fails without it).
+  - The stock trigger text was compared with Zammad's `db/seeds/triggers.rb` at tag 7.2.2.
+- **Review fix (Codex P2):** a trigger is reworded only when its body is still exactly Zammad 7.2.2's seeded text (kept in `provision.rb`). An edited body keeps its own wording and loses only the Zammad footer line. The test runs that footer removal in Ruby against an edited message and against the seeded text.
+- **Gaps:**
+  - Not run against a live Zammad.
+  - The next deployment (upgrade) applies it. After that, email support@swoovr.com and check the acknowledgement.

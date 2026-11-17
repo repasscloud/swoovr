@@ -266,6 +266,65 @@ mail_filter.assign_attributes(channel: 'email', active: true,
   perform: {'X-Zammad-Ticket-group_id' => {'value' => general.id.to_s}},
   note: 'Provisioned by Swoovr', created_by_id: actor, updated_by_id: actor)
 mail_filter.save!
+# Owner, 18 November 2026: emails to customers carry no Zammad branding and no link to log in to Zammad (customers
+# have no helpdesk login; they reply to the email). A stock auto-reply that is still exactly Zammad 7.2.2's seeded text
+# is reworded as Swoovr Support. One that was edited in Zammad's admin UI keeps its wording and loses only the Zammad
+# footer line, so an operator's own text is never replaced. #{...} is Zammad's own template syntax, hence the
+# single-quoted strings.
+ZAMMAD_FOOTER = %r{\s*<(div|p)><i><a href="https://zammad\.com">Zammad</a>, your customer support system</i></\1>}
+{
+  'auto reply (on new tickets)' => [
+    '<div>Your request <b>(#{config.ticket_hook}#{ticket.number})</b> has been received and will be reviewed by our support staff.</div>
+<br/>
+<div>To provide additional information, please reply to this email or click on the following link (for initial login, please request a new password):
+<a href="#{config.http_type}://#{config.fqdn}/#ticket/zoom/#{ticket.id}">#{config.http_type}://#{config.fqdn}/#ticket/zoom/#{ticket.id}</a>
+</div>
+<br/>
+<div>Your #{config.product_name} Team</div>
+<br/>
+<div><i><a href="https://zammad.com">Zammad</a>, your customer support system</i></div>',
+    '<div>Thanks for contacting Swoovr Support. We have received your request <b>(#{config.ticket_hook}#{ticket.number})</b> and will reply as soon as we can.</div>
+<br/>
+<div>To add more information, reply to this email.</div>
+<br/>
+<div>Swoovr Support</div>'],
+  'auto reply (on follow-up of tickets)' => [
+    '<div>Your follow-up for <b>(#{config.ticket_hook}#{ticket.number})</b> has been received and will be reviewed by our support staff.</div>
+<br/>
+<div>To provide additional information, please reply to this email or click on the following link:
+<a href="#{config.http_type}://#{config.fqdn}/#ticket/zoom/#{ticket.id}">#{config.http_type}://#{config.fqdn}/#ticket/zoom/#{ticket.id}</a>
+</div>
+<br/>
+<div>Your #{config.product_name} Team</div>
+<br/>
+<div><i><a href="https://zammad.com">Zammad</a>, your customer support system</i></div>',
+    '<div>We have received your follow-up to <b>(#{config.ticket_hook}#{ticket.number})</b> and will reply as soon as we can.</div>
+<br/>
+<div>To add more information, reply to this email.</div>
+<br/>
+<div>Swoovr Support</div>'],
+  'customer notification (on owner change)' => [
+    '<p>The owner of ticket (Ticket##{ticket.number}) has changed and is now "#{ticket.owner.firstname} #{ticket.owner.lastname}".<p>
+<br/>
+<p>To provide additional information, please reply to this email or click on the following link:
+<a href="#{config.http_type}://#{config.fqdn}/#ticket/zoom/#{ticket.id}">#{config.http_type}://#{config.fqdn}/#ticket/zoom/#{ticket.id}</a>
+</p>
+<br/>
+<p><i><a href="https://zammad.com">Zammad</a>, your customer support system</i></p>',
+    '<p>Your request (#{config.ticket_hook}#{ticket.number}) is now with #{ticket.owner.firstname} #{ticket.owner.lastname}.</p>
+<br/>
+<p>To add more information, reply to this email.</p>
+<br/>
+<p>Swoovr Support</p>'],
+}.each do |name, (seeded, swoovr)|
+  trigger = Trigger.find_by(name: name)
+  email = trigger&.perform&.dig('notification.email')
+  next unless email
+  current = email['body'].to_s
+  body = current.strip == seeded.strip ? swoovr : current.sub(ZAMMAD_FOOTER, '')
+  next if body == current
+  trigger.update!(perform: trigger.perform.merge('notification.email' => email.merge('body' => body)), updated_by_id: actor)
+end
 # Webhook/trigger stay inactive unless provisioning explicitly enables events (zammad_local.py provision --events).
 events = input.fetch('events_active', false) == true
 webhook = Webhook.find_or_initialize_by(name: 'Swoovr events')
