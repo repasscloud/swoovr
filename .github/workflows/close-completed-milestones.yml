@@ -1,0 +1,65 @@
+name: Close Completed Milestones
+
+# Owner request, 17 November 2026: close a milestone once every issue on it is closed.
+# Runs once a day on a schedule (and by hand from the Actions tab). It does not react to
+# individual issue or pull request events.
+on:
+  schedule:
+    # Daily at 03:00 UTC (after Lock Closed Issues at 02:00 on its days).
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List the milestones that would close, without closing them"
+        type: boolean
+        default: false
+
+permissions:
+  issues: write
+
+concurrency:
+  group: close-completed-milestones
+  cancel-in-progress: false
+
+jobs:
+  close-milestones:
+    name: Close milestones with no open issues
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Close completed milestones
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Finding open milestones with no open issues..."
+
+          # A milestone closes only when it has at least one closed issue and none open, so a
+          # newly created (empty) milestone stays open. Milestones whose title starts with
+          # "Backlog" are never closed: they hold unscheduled work.
+          gh api --paginate \
+            "repos/$GH_REPO/milestones?state=open&per_page=100" \
+            --jq '.[] | select(
+              .open_issues == 0 and
+              .closed_issues > 0 and
+              (.title | startswith("Backlog") | not)
+            ) | "\(.number)\t\(.closed_issues)\t\(.title)"' |
+          while IFS=$'\t' read -r NUMBER CLOSED TITLE; do
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "Would close milestone #$NUMBER '$TITLE' ($CLOSED closed issues)."
+              continue
+            fi
+
+            gh api -X PATCH "repos/$GH_REPO/milestones/$NUMBER" \
+              -f state=closed --silent
+
+            echo "Closed milestone #$NUMBER '$TITLE' ($CLOSED closed issues)."
+
+          done
+
+          echo "Finished checking milestones."
