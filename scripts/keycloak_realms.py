@@ -133,7 +133,7 @@ def realm(name, display, *, registration, clients, passkeys):
         'realm': name, 'enabled': True, 'displayName': display, 'sslRequired': 'external',
         'registrationAllowed': registration, 'registrationEmailAsUsername': True, 'editUsernameAllowed': False,
         'verifyEmail': True, 'resetPasswordAllowed': True, 'loginWithEmailAllowed': True, 'duplicateEmailsAllowed': False,
-        'rememberMe': False, 'loginTheme': 'swoovr', 'internationalizationEnabled': False,
+        'rememberMe': False, 'loginTheme': 'swoovr', 'emailTheme': 'swoovr', 'internationalizationEnabled': False,
         'passwordPolicy': 'length(12) and maxLength(128) and notUsername and notEmail',
         'ssoSessionIdleTimeout': 43200, 'ssoSessionMaxLifespan': 43200,
         'accessTokenLifespan': 300, 'revokeRefreshToken': True, 'refreshTokenMaxReuse': 0,

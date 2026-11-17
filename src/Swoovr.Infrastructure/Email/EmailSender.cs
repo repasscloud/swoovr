@@ -5,7 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Swoovr.Infrastructure.Email;
 
-public sealed record EmailMessage(string To, string Subject, string Text);
+/// <summary>Text is always sent. Html (issue 355) is the branded version from EmailHtml; senders fall back to the
+/// escaped text when it is null.</summary>
+public sealed record EmailMessage(string To, string Subject, string Text, string? Html = null);
 
 /// <summary>Accepted means provider/sink acknowledgement, never delivery or read. Unknown must not be blindly retried.</summary>
 public sealed record EmailOutcome(string Status, string? Code = null);
@@ -43,6 +45,8 @@ public sealed class SmtpEmailSender(string host, int port, string from, ILogger<
             using var client = new SmtpClient(host, port) { EnableSsl = relay is not null, DeliveryMethod = SmtpDeliveryMethod.Network };
             if (relay is not null) client.Credentials = new System.Net.NetworkCredential(relay.Username, relay.Password);
             using var mail = new MailMessage(from, message.To, message.Subject, message.Text);
+            if (message.Html is not null)
+                mail.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(message.Html, System.Text.Encoding.UTF8, "text/html"));
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             deadline.CancelAfter(sendTimeout ?? TimeSpan.FromSeconds(30));
             await client.SendMailAsync(mail, deadline.Token);

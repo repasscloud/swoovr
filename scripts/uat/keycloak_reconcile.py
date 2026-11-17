@@ -15,6 +15,7 @@ user other than reading them, and never prints a secret. In order:
    link lasts 30 minutes (as long as the sign-in attempt), and the link in a verification email lasts 24 hours. Other
    links a user asks for (password reset) keep Keycloak's 5 minutes. Corrected on every deployment, so an upgrade fixes
    realms imported before this rule.
+   The realms also use the Swoovr email theme (#355): the approved branded verification, reset and set-up emails.
 5. The realms named in SWOOVR_KEYCLOAK_ENABLED_REALMS are enabled (only members and staff may be listed).
 6. The temporary bootstrap admin is deleted once a personal master-realm admin with OTP exists; otherwise kept.
 7. First administrator (D364, break-glass): SWOOVR_INITIAL_ADMIN_EMAIL is a local staff-realm account with its own
@@ -53,6 +54,7 @@ STAFF_API_ROLES = ('view-users', 'manage-users')
 USER_ACTION_LIFESPAN = 1800  # seconds; equals accessCodeLifespanLogin (the whole sign-in attempt)
 VERIFY_EMAIL_LIFESPAN = 86400  # seconds; per-action override for the emailed verify link only
 VERIFY_EMAIL_OVERRIDE = 'actionTokenGeneratedByUserLifespan.verify-email'
+EMAIL_THEME = 'swoovr'  # #355: the approved Swoovr email templates (containers/keycloak/themes/swoovr/email)
 
 
 def say(key, value):
@@ -217,6 +219,19 @@ def ensure_email_lifespans(admin):
     return ','.join(states)
 
 
+def ensure_email_theme(admin):
+    states = []
+    for realm in REALMS:
+        representation = admin.call('/' + realm)
+        if representation.get('emailTheme') == EMAIL_THEME:
+            states.append(realm + ':ok')
+            continue
+        representation['emailTheme'] = EMAIL_THEME
+        admin.call('/' + realm, 'PUT', representation, (204,))
+        states.append(realm + ':corrected')
+    return ','.join(states)
+
+
 def enable_realms(admin, wanted):
     states = []
     for realm in wanted:
@@ -349,6 +364,7 @@ def reconcile(request, env, admin_only=False, resend_invite=False):
         verify_web_clients(admin)
         say('web-clients', 'verified')
         say('email-lifespans', ensure_email_lifespans(admin))
+        say('email-theme', ensure_email_theme(admin))
         say('realms', enable_realms(admin, wanted_realms(env)))
     # Also in admin-only mode (the maintenance workflow's admin-finalize), so the temporary admin goes once you have yours.
     say('bootstrap-admin', retire_bootstrap_admin(admin, request, env))

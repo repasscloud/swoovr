@@ -115,6 +115,9 @@ services:
       # Real account gates stay enabled; SMS/push remain explicitly simulated locally.
       MeetingSafety__Enabled: "true"
       MeetingSafety__PublicBaseUrl: http://localhost:5081/
+      Email__Branding__LogoUrl: http://localhost:5081/email/swoovr-logo.png
+      Email__Branding__MemberUrl: http://localhost:5081/
+      Email__Branding__AdminUrl: http://localhost:5082/
       TextHarm__Enabled: "true"
       Retention__Worker: "true"
       # D336: support attachments are scanned by the local ClamAV, exactly as hosted (D321: localhost matches UAT).

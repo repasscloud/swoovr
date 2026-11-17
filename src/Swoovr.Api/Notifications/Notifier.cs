@@ -16,6 +16,17 @@ namespace Swoovr.Api.Notifications;
 /// </summary>
 public sealed class Notifier(IServiceProvider services, IPushSender push, IEmailSender email, ILogger<Notifier> log)
 {
+    /// <summary>Issue 355 (07-something-new, approved): never names the person or quotes a message.</summary>
+    public static string NotificationHtml(EmailBranding branding, NotificationKind kind)
+    {
+        var what = kind switch { NotificationKind.Request => "a new request", NotificationKind.Connection => "a new connection", _ => "a travel reminder" };
+        return EmailHtml.Page(branding, "Sign in to Swoovr to see it.", "You have " + what,
+            EmailHtml.P($"You have {what} on Swoovr. Sign in to Swoovr to see it.")
+            + EmailHtml.Button("Open Swoovr", branding.Member("/"))
+            + EmailHtml.Small("You can change which notifications you get, or turn off emails, in Me → Notifications."),
+            "You got this email because email notifications are on for your Swoovr account.");
+    }
+
     private PushKeys Keys => services.GetRequiredService<PushKeys>();
     private SwoovrDbContext Db => services.GetRequiredService<SwoovrDbContext>();
 
@@ -240,7 +251,10 @@ public sealed class Notifier(IServiceProvider services, IPushSender push, IEmail
             else
             {
                 var (subjectLine, body) = NotificationPolicy.Email(kind);
-                Record(db, notification, "email", await email.SendAsync(new EmailMessage(address, subjectLine, body), cancellationToken) ? "sent" : "failed", null, now);
+                // Issue 355 (07-something-new, approved): never names the person or quotes a message.
+                var configuration = services.GetRequiredService<IConfiguration>();
+                var html = NotificationHtml(EmailBranding.Read(key => configuration[key]), kind);
+                Record(db, notification, "email", await email.SendAsync(new EmailMessage(address, subjectLine, body, html), cancellationToken) ? "sent" : "failed", null, now);
             }
         }
         else if (decision.Email != NotificationPolicy.NotForKind) Record(db, notification, "email", decision.Email, null, now);

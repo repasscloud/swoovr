@@ -186,11 +186,19 @@ public static class MfaEndpoints
     private static async Task NotifyAsync(AccountResolver accounts,Account target,string text,CancellationToken ct)
     {
         if(target.Email is null)return;
-        var outcome=await accounts.Services.GetRequiredService<IEmailSender>().SendOutcomeAsync(new EmailMessage(target.Email,"Your Swoovr account security changed",text+"\n\n— Swoovr (RePass Cloud Pty Ltd)"),ct);
+        var outcome=await accounts.Services.GetRequiredService<IEmailSender>().SendOutcomeAsync(new EmailMessage(target.Email,"Your Swoovr account security changed",text+"\n\n— Swoovr (RePass Cloud Pty Ltd)",
+            // Issue 355 (09-security-changed, approved): a warning box when MFA was turned off.
+            SecurityChangedHtml(EmailBranding.Read(key=>accounts.Services.GetRequiredService<IConfiguration>()[key]),text)),ct);
         var status=outcome.Status is "accepted" or "rejected"?outcome.Status:"unknown";
         Audit.Record(accounts.Db!,accounts.Services.GetRequiredService<TimeProvider>().GetUtcNow(),null,"system","mfa.notification-"+status,"account",target.Id.ToString());
         await accounts.Db!.SaveChangesAsync(ct);
     }
+    /// <summary>Issue 355 (09-security-changed, approved): a warning box when the text says "If this wasn't you".</summary>
+    public static string SecurityChangedHtml(EmailBranding branding,string text)=>
+        EmailHtml.Page(branding,"Multi-factor authentication was changed on your account.","Your account security changed",
+            EmailHtml.P(text.Replace(" If this wasn't you, contact Swoovr support straight away.","",StringComparison.Ordinal))
+            +(text.Contains("If this wasn't you",StringComparison.Ordinal)?EmailHtml.Note("**If this wasn't you**, contact Swoovr Support straight away at swoovr.com/support.",strong:true):""),
+            EmailHtml.MemberFooter);
     private static IResult Invalid()=>Problem(400,ProblemCodes.InvalidRequest,"Confirm the security change and record its reason or verified recovery case.");
     private static IResult Unavailable()=>Problem(503,ProblemCodes.IdentityUnavailable,"The MFA change could not be confirmed. Contact support or review the current account before retrying.");
 }

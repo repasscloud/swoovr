@@ -195,11 +195,23 @@ public sealed class Founders(IServiceProvider services, IConfiguration configura
             The code only works with this email address. If you change your email in Swoovr, we'll send you a new code and this one stops working.
 
             — Swoovr (RePass Cloud Pty Ltd)
-            """), cancellationToken);
+            """,
+            // Issue 355 (06-founder-code, approved): same wording in the branded layout.
+            CodeHtml(EmailBranding.Read(key => configuration[key]), code)), cancellationToken);
         var db = Db;
         Audit.Record(db, now, null, "system", sent ? "founder.email-sent" : "founder.email-failed", "account", account.Id.ToString(), reason);
         await db.SaveChangesAsync(cancellationToken);
         if (!sent) log.LogWarning("Founder code email was not sent for account {Account}.", account.Id);
         return sent;
     }
+
+    /// <summary>Issue 355 (06-founder-code, approved): same wording in the branded layout.</summary>
+    public static string CodeHtml(EmailBranding branding, string code) =>
+        EmailHtml.Page(branding, "Keep this email: it restores your founding status.", "Thank you for being a founding member",
+            EmailHtml.P("Thank you for being one of Swoovr's founding members. Your founder code is:")
+            + EmailHtml.Code(code)
+            + EmailHtml.P("**Keep this email.** If you ever delete your Swoovr account and come back with the same email address, enter this code on the coupon code screen to restore your founding status.")
+            + EmailHtml.Small("To make recovery possible after account deletion, we keep the founder recovery-token record unless you choose \"Also delete my founder recovery token\" when deleting your account. You can later ask Swoovr Support to remove it at https://swoovr.com/support. Removing the record means founding status cannot be restored with this code.")
+            + EmailHtml.Small("The code only works with this email address. If you change your email in Swoovr, we'll send you a new code and this one stops working."),
+            EmailHtml.MemberFooter);
 }
