@@ -1925,6 +1925,7 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
     - your own read-only account;
     - the new-account page in light mode;
     - `AdminNavigation` with **Staff accounts** active and showing its icon.
+- **Review fix (Codex P2):** an unfinished MFA credential reset (`MfaResetPending`) now reads as **Setup pending** in the staff detail and list, matching `MfaEndpoints`' `MfaView`, never as "enabled" from leftover provider credentials. `StaffAccountDetail.MfaResetPending` drives a notice to run **Clear MFA credentials** again. Rendered with the flag set.
 - **Not done / gaps:**
   - The real sign-in redirect and the anti-forgery posts were not exercised; confirm on UAT.
   - The header's **Your staff account** menu item was built but not rendered.

@@ -746,7 +746,7 @@ a.ad-stat:hover { border-color: color-mix(in srgb, var(--muted) 55%, var(--borde
 }
 
 /* issue 347 Staff accounts: directory, new account and account detail. */
-.admin-main > p[data-staff-elevation], .admin-main > p[data-staff-result], .admin-main > p[data-identity] { max-width: none; }
+.admin-main > p[data-staff-elevation], .admin-main > p[data-staff-result], .admin-main > p[data-identity], .admin-main > p[data-mfa-reset] { max-width: none; }
 .staff-page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 24px; }
 .staff-head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .staff-head-actions > a { height: 36px; }

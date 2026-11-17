@@ -29,6 +29,7 @@ else
     </header>
     @if (Created == "1" && message is null) { <p class="notice" role="status" data-staff-result="created">Staff account created. It stays locked until the sign-in service confirms it; then they verify their email and set up an authenticator at first sign-in.</p> }
     @if (message is not null) { <p class="notice@(reauth ? " notice-action" : "")" role="status" data-staff-result><span>@message</span>@if (reauth) { <a href="@AdminText.SignInAgain(Here)" class="ui-button-primary notice-button" data-enhance-nav="false" data-reauth>Sign in again</a> }</p> }
+    @if (d.MfaResetPending) { <p class="notice" role="alert" data-mfa-reset="pending">An MFA credential reset didn't finish, so this account can't sign in yet. Run <strong>Clear MFA credentials</strong> again to complete it.</p> }
     @if (!d.ProviderAvailable) { <p class="notice" role="alert" data-identity="unavailable">Sign-in details are unavailable right now, so MFA, sessions and editing are hidden. Reload the page in a minute before making changes.</p> }
 
     <dl class="staff-facts">
