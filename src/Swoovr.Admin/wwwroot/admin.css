@@ -305,6 +305,8 @@ a.ui-sub { color: var(--muted); }
 .ui-stat strong { display: block; font-size: 1.5rem; letter-spacing: -.02em; }
 .ui-stat span { color: var(--muted); font-size: .75rem; }
 .ui-table { margin: 0; border-radius: 12px; }
+/* Issue 361: a card straight after a table (Support requests' "Change selected" panel) gets the same gap cards use. */
+.ui-table + .ui-card { margin-top: 16px; }
 .ui-table th { font-size: .6875rem; letter-spacing: .06em; text-transform: uppercase; }
 .ui-table td { vertical-align: middle; }
 .ui-empty strong { display: block; color: var(--text); font-size: .9375rem; margin-bottom: 4px; }
