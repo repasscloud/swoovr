@@ -40,11 +40,19 @@ public sealed partial class ZammadTicketingProvider
         if(attributes.Count is <1 or >5||attributes.Any(a=>a.Key is not("swoovr_category" or "swoovr_subcategory" or "swoovr_sensitivity" or "swoovr_resolution")||a.Value.Length>80||a.Value.Any(char.IsControl)))throw new ArgumentException("Invalid classification.");
         return ReadWrite(Ticket,await Send(HttpMethod.Put,$"tickets/{Id(id)}",attributes,ct));
     }
-    public async Task<SupportArticle> ReplyWithOperationAsync(long id,string body,bool internalNote,bool customer,IReadOnlyList<SupportUpload> attachments,string operationReference,CancellationToken ct)
+    public async Task<SupportArticle> ReplyWithOperationAsync(long id,string body,bool internalNote,bool customer,IReadOnlyList<SupportUpload> attachments,string operationReference,CancellationToken ct,SupportEmail? email=null)
     {
         ValidateText(body,16000);
         if(!Guid.TryParseExact(operationReference,"D",out _)||internalNote&&customer)throw new ArgumentException("Invalid support article.");
         CheckUploads(attachments);
+        if(email is not null)
+        {
+            // D369: Zammad sends it from the group's email address and gives it a real Message-ID, so the operation
+            // marker rides in the preferences (kept on agent articles) instead of the Message-ID.
+            if(internalNote||customer||string.IsNullOrWhiteSpace(email.To)||email.To.Any(char.IsControl)||email.Subject.Any(char.IsControl))throw new ArgumentException("Invalid support email.");
+            return ReadWrite(Article,await Send(HttpMethod.Post,"ticket_articles",new{ticket_id=Id(id),body,type="email",content_type="text/plain",@internal=false,sender="Agent",to=email.To,subject=email.Subject,
+                preferences=new{swoovr_operation=operationReference},attachments=Uploads(attachments)},ct,slow:attachments.Count>0));
+        }
         return ReadWrite(Article,await Send(HttpMethod.Post,"ticket_articles",new{ticket_id=Id(id),body,type="note",content_type="text/plain",@internal=internalNote,sender=customer?"Customer":"Agent",message_id=$"swoovr-operation-{operationReference}@swoovr.invalid",preferences=new{swoovr_operation=operationReference},
             attachments=Uploads(attachments)},ct,slow:attachments.Count>0));
     }
