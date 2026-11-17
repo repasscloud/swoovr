@@ -1,63 +1,215 @@
 @page "/staff/{Id:guid}"
 @inject AdminClient Admin
-<PageTitle>Staff account — Swoovr</PageTitle>
-<h1>Staff account</h1>
-@if (message is not null) { <p class="notice" role="status">@message</p> }
-@if (detail is { } d)
+@inject NavigationManager Navigation
+<PageTitle>@(detail is { } t ? AccountLabels.StaffName(t.Account.FirstName, t.Account.LastName, t.Account.Email) : "Staff account") — Swoovr admin</PageTitle>
+@* issue 347: a profile header and readable facts first; editing beside sessions and history; the disruptive security
+   actions are folded away until opened. Wire values stay in data attributes for checks. *@
+<a class="breadcrumb" href="/staff">← Staff accounts</a>
+@if (detail is null)
 {
-    <p>@string.Join(" · ", new[] { AccountLabels.StaffName(d.Account.FirstName, d.Account.LastName, d.Account.Email), d.Account.Status, $"Revision {d.Account.Revision}" }.Where(v => !string.IsNullOrWhiteSpace(v)))</p>
-    @if (!d.ProviderAvailable) { <p class="notice" role="alert" data-identity="unavailable">Identity information is unavailable. Try again before making changes.</p> }
-    else
+    <header class="ui-page-head"><h1>Staff account</h1></header>
+    @if (message is not null) { <p class="notice" role="status" data-staff-result>@message</p> }
+}
+else
+{
+    var d = detail; var a = d.Account; var self = a.Id == workspace?.AccountId;
+    var roles = RoleList(a);
+    <header class="staff-profile" data-staff-account="@a.Id">
+        <span class="staff-avatar staff-avatar-lg" aria-hidden="true">@AccountLabels.StaffInitials(a.FirstName, a.LastName, a.Email)</span>
+        <div class="staff-profile-text">
+            <h1>@AccountLabels.StaffName(a.FirstName, a.LastName, a.Email)</h1>
+            <p class="staff-profile-meta">
+                @if (HasName(a) && !string.IsNullOrWhiteSpace(a.Email)) { <span>@a.Email</span> }
+                <span class="ui-pill" data-tone="@StaffAccounts.StatusTone(a.Status)" data-staff-status="@a.Status">@AccountLabels.Status(a.Status)</span>
+                @if (self) { <span class="staff-tag" data-staff-self>You</span> }
+                @if (a.Root) { <span class="staff-tag" data-staff-root>Root</span> }
+                @if (a.EntraRoles is { Count: > 0 }) { <span class="staff-tag" data-staff-entra>Microsoft Entra</span> }
+            </p>
+        </div>
+    </header>
+    @if (Created == "1" && message is null) { <p class="notice" role="status" data-staff-result="created">Staff account created. It stays locked until the sign-in service confirms it; then they verify their email and set up an authenticator at first sign-in.</p> }
+    @if (message is not null) { <p class="notice@(reauth ? " notice-action" : "")" role="status" data-staff-result><span>@message</span>@if (reauth) { <a href="@AdminText.SignInAgain(Here)" class="ui-button-primary notice-button" data-enhance-nav="false" data-reauth>Sign in again</a> }</p> }
+    @if (d.MfaResetPending) { <p class="notice" role="alert" data-mfa-reset="pending">An MFA credential reset didn't finish, so this account can't sign in yet. Run <strong>Clear MFA credentials</strong> again to complete it.</p> }
+    @if (!d.ProviderAvailable) { <p class="notice" role="alert" data-identity="unavailable">Sign-in details are unavailable right now, so MFA, sessions and editing are hidden. Reload the page in a minute before making changes.</p> }
+
+    <dl class="staff-facts">
+        <div><dt>Roles</dt><dd>@if (roles.Count == 0) { <span>None</span> } else { @string.Join(", ", roles.Select(AccountLabels.Role)) }</dd></div>
+        <div><dt>MFA</dt><dd data-staff-mfa="@a.Mfa">@(d.ProviderAvailable ? MfaText.Status(a.Mfa) : "Unavailable") · required</dd></div>
+        <div><dt>Email</dt><dd>@(d.ProviderAvailable ? d.EmailVerified ? "Verified" : "Not yet verified" : "Unavailable")</dd></div>
+        <div><dt>Last sign-in</dt><dd>@AccountLabels.When(a.LastSignInAt, "Never")</dd></div>
+        <div><dt>Account ID</dt><dd class="staff-id"><code>@a.Id</code><CopyButton Value="@a.Id.ToString()" /></dd></div>
+    </dl>
+
+    @if (d.ProviderAvailable && d.CanManage && elevation?.Elevated != true)
     {
-        <p>MFA: @(d.CredentialTypes.Contains("otp") ? "Enabled" : d.RequiredActions.Contains("CONFIGURE_TOTP") ? "Setup pending" : "Not configured") · Staff MFA required</p>
-        <p>Registered methods: @string.Join(", ", d.CredentialTypes) · Email @(d.EmailVerified ? "verified" : "awaiting verification")</p>
-        @if (d.CanManage)
-        {
-            <section class="ui-card ui-section"><h2>Account details and access</h2>
-            <form method="post" @formname="staff-details" @onsubmit="SaveAsync" class="ui-form">
-                <AntiforgeryToken /><input type="hidden" name="revision" value="@d.Account.Revision" />
-                <label class="ui-field">First name<input name="first" value="@d.Account.FirstName" required maxlength="100" /></label>
-                <label class="ui-field">Last name<input name="last" value="@d.Account.LastName" required maxlength="100" /></label>
-                <label class="ui-field">Email<input name="email" type="email" value="@d.Account.Email" required maxlength="254" /></label>
-                <label class="ui-field">Phone<input name="phone" type="tel" value="@d.Phone" maxlength="32" /></label>
-                <fieldset class="ui-group"><legend>Internal roles</legend>@foreach(var role in new[]{"support","trustSafety","admin","legal","business"}) { var entra = d.Account.EntraRoles?.Contains(role) == true; if (entra) { <label data-entra-role="@role"><input type="checkbox" checked disabled />@AccountLabels.Role(role) (managed in Entra)</label> } else { <label><input name="roles" value="@role" type="checkbox" checked="@d.Account.Roles.Contains(role)" />@AccountLabels.Role(role)</label> } }</fieldset>
-                @if (d.Account.EntraRoles is { Count: > 0 }) { <p class="field-hint" data-entra-hint>Roles managed in Entra are changed in Microsoft Entra and update at the person's next Microsoft sign-in.</p> }
-                <label class="ui-field">Account status<select name="status">@foreach(var state in new[]{"active","locked","suspended"}) { <option value="@state" selected="@(d.Account.Status==state)">@state</option> }</select></label>
-                <label class="ui-field">Reason or case reference<input name="reason" required maxlength="80" placeholder="role-change or case:1234" pattern="[a-z][a-z0-9-]{2,63}(:[0-9]{1,18})?" /></label>
-                <label><input name="confirm" type="checkbox" value="yes" required />Confirm details and access changes; existing sessions will end</label>
-                <button type="submit" class="ui-button-primary">Save staff account</button>
-            </form></section>
-            <MfaTools AccountId="Id" Staff="true" AllowReset="@d.CanManage" />
-            <section class="ui-card ui-section"><h2>Security</h2>
-            <form method="post" @formname="staff-security" @onsubmit="SecurityAsync" class="ui-form">
-                <AntiforgeryToken /><input type="hidden" name="revision" value="@d.Account.Revision" />
-                <label class="ui-field">Action<select name="action"><option value="sign-out">Sign out everywhere</option><option value="require-mfa">Require authenticator enrolment</option></select></label>
-                <label class="ui-field">Reason or case reference<input name="reason" required maxlength="80" placeholder="security-review or case:1234" pattern="[a-z][a-z0-9-]{2,63}(:[0-9]{1,18})?" /></label>
-                <label><input name="confirm" type="checkbox" value="yes" required />Confirm security action</label>
-                <button type="submit" class="ui-button-primary">Apply security action</button>
-            </form></section>
-        }
-        <section class="ui-card ui-section"><h2>Sessions</h2><ul>@foreach(var s in d.Sessions) { <li>@s.Device · Started @s.Started.ToString("u") · Last active @s.LastActive.ToString("u")</li> }</ul></section>
+        <p class="notice notice-action" data-staff-elevation="none"><span>Changes to staff accounts need a sign-in with MFA in the last 60 minutes.</span><a href="@AdminText.SignInAgain(Here)" class="ui-button-primary notice-button" data-enhance-nav="false">Sign in again with MFA</a></p>
     }
-    <section class="ui-card ui-section"><h2>Audit history</h2><ul>@foreach(var entry in d.History) { <li>@entry.At.ToString("u") · @entry.Action</li> }</ul></section>
+
+    <div class="staff-detail-grid">
+        <div class="staff-detail-main">
+            <section class="ui-card" aria-labelledby="staff-access-heading">
+                <div class="ui-card-head"><h2 id="staff-access-heading">Details and access</h2>@if (d.CanManage && d.ProviderAvailable) { <p class="ui-help">Saving ends their current sessions</p> }</div>
+                @if (d.CanManage && d.ProviderAvailable)
+                {
+                    <form method="post" @formname="staff-details" @onsubmit="SaveAsync" class="ui-form" data-staff-edit>
+                        <AntiforgeryToken /><input type="hidden" name="revision" value="@a.Revision" />
+                        <div class="ui-form-row">
+                            <label class="ui-field"><span>First name</span><input name="first" value="@a.FirstName" required maxlength="100" autocomplete="off" /></label>
+                            <label class="ui-field"><span>Last name</span><input name="last" value="@a.LastName" required maxlength="100" autocomplete="off" /></label>
+                        </div>
+                        <div class="ui-form-row">
+                            <label class="ui-field"><span>Email</span><input name="email" type="email" value="@a.Email" required maxlength="254" autocomplete="off" /></label>
+                            <label class="ui-field"><span>Phone <em>(optional)</em></span><input name="phone" type="tel" value="@d.Phone" maxlength="32" autocomplete="off" /></label>
+                        </div>
+                        <fieldset class="ui-group staff-role-picker"><legend>Internal roles</legend>
+                            @foreach (var role in StaffAccounts.Roles)
+                            {
+                                if (a.EntraRoles?.Contains(role) == true)
+                                {
+                                    <label class="beta-check is-locked" data-entra-role="@role"><input type="checkbox" checked disabled /><span><strong>@AccountLabels.Role(role)</strong> <span class="staff-tag">Managed in Entra</span><span class="ui-sub">@StaffRoleText.Describe(role)</span></span></label>
+                                }
+                                else
+                                {
+                                    <label class="beta-check"><input name="roles" value="@role" type="checkbox" checked="@a.Roles.Contains(role)" /><span><strong>@AccountLabels.Role(role)</strong><span class="ui-sub">@StaffRoleText.Describe(role)</span></span></label>
+                                }
+                            }
+                            @if (a.EntraRoles is { Count: > 0 }) { <p class="ui-help" data-entra-hint>Roles managed in Entra change in Microsoft Entra and update at the person's next Microsoft sign-in.</p> }
+                        </fieldset>
+                        <div class="ui-form-row">
+                            <label class="ui-field"><span>Account status</span><select name="status">@foreach (var state in new[] { "active", "locked", "suspended" }) { <option value="@state" selected="@(a.Status == state)">@AccountLabels.Status(state)</option> }</select></label>
+                            <label class="ui-field"><span>Reason or case reference</span><input name="reason" required maxlength="80" placeholder="role-change or case:1234" pattern="[a-z][a-z0-9-]{2,63}(:[0-9]{1,18})?" title="Lower-case words joined by hyphens, optionally :number" autocomplete="off" /></label>
+                        </div>
+                        <label class="beta-check"><input name="confirm" type="checkbox" value="yes" required />I confirm these changes. Their current sessions will end.</label>
+                        <div class="staff-form-actions"><button type="submit" class="ui-button-primary">Save changes</button></div>
+                    </form>
+                }
+                else
+                {
+                    <dl class="staff-readonly">
+                        <div><dt>Name</dt><dd>@(HasName(a) ? AccountLabels.StaffName(a.FirstName, a.LastName, null) : "Not recorded")</dd></div>
+                        <div><dt>Email</dt><dd>@(a.Email ?? "Not recorded")</dd></div>
+                        @if (d.ProviderAvailable) { <div><dt>Phone</dt><dd>@(string.IsNullOrWhiteSpace(d.Phone) ? "Not recorded" : d.Phone)</dd></div> }
+                        <div><dt>Roles</dt><dd>
+                            @if (roles.Count == 0) { <span>None</span> }
+                            else { <ul class="staff-role-list">@foreach (var role in roles) { <li data-role="@role"><strong>@AccountLabels.Role(role)</strong>@if (a.EntraRoles?.Contains(role) == true) {<span class="staff-tag" data-entra-role="@role">Managed in Entra</span>} else if (a.Root && role == "admin") {<span class="staff-tag">Root account</span>}<span class="ui-sub">@StaffRoleText.Describe(role)</span></li> }</ul> }
+                        </dd></div>
+                    </dl>
+                    <p class="ui-help" data-staff-readonly>@ReadOnlyReason(a, self)</p>
+                }
+            </section>
+
+            @if (d.CanManage && d.ProviderAvailable)
+            {
+                <section class="ui-card" aria-labelledby="staff-security-heading">
+                    <div class="ui-card-head"><h2 id="staff-security-heading">Security</h2><p class="ui-help">Each action is recorded with your reason</p></div>
+                    <p class="staff-security-summary">MFA <strong>@MfaText.Status(a.Mfa).ToLowerInvariant()</strong> · @(d.CredentialTypes.Count == 0 ? "no sign-in methods registered" : "methods: " + string.Join(", ", d.CredentialTypes.Select(Method)))</p>
+                    <details class="staff-action" data-staff-action="security">
+                        <summary><span><strong>Sign out everywhere or require a new authenticator</strong><span class="ui-sub">Ends every session; optionally makes them enrol an authenticator again at next sign-in.</span></span></summary>
+                        <form method="post" @formname="staff-security" @onsubmit="SecurityAsync" class="ui-form">
+                            <AntiforgeryToken /><input type="hidden" name="revision" value="@a.Revision" />
+                            <div class="ui-form-row">
+                                <label class="ui-field"><span>Action</span><select name="action"><option value="sign-out">Sign out everywhere</option><option value="require-mfa">Sign out and require authenticator enrolment</option></select></label>
+                                <label class="ui-field"><span>Reason or case reference</span><input name="reason" required maxlength="80" placeholder="security-review or case:1234" pattern="[a-z][a-z0-9-]{2,63}(:[0-9]{1,18})?" title="Lower-case words joined by hyphens, optionally :number" autocomplete="off" /></label>
+                            </div>
+                            <label class="beta-check"><input name="confirm" type="checkbox" value="yes" required />I confirm this security action.</label>
+                            <div class="staff-form-actions"><button type="submit" class="ui-button-primary">Apply security action</button></div>
+                        </form>
+                    </details>
+                    <details class="staff-action staff-action-danger" data-staff-action="mfa-reset">
+                        <summary><span><strong>Clear MFA credentials</strong><span class="ui-sub">For a verified recovery request only. MFA stays mandatory, so they enrol again.</span></span></summary>
+                        <form method="post" @formname="staff-mfa-reset" @onsubmit="ResetMfaAsync" class="ui-form">
+                            <AntiforgeryToken />
+                            <label class="ui-field"><span>Recovery case reference</span><input name="case" required maxlength="23" placeholder="case:1234" pattern="case:[0-9]{1,18}" autocomplete="off" /></label>
+                            <label class="beta-check"><input type="checkbox" name="identityVerified" value="yes" required />I independently verified this recovery request using the approved identity verification procedure.</label>
+                            <label class="beta-check"><input type="checkbox" name="confirm" value="yes" required />I confirm clearing their credentials and ending their sessions.</label>
+                            <div class="staff-form-actions"><button type="submit" class="ui-button-primary">Clear MFA credentials</button></div>
+                        </form>
+                    </details>
+                </section>
+            }
+        </div>
+
+        <aside class="staff-detail-side" aria-label="Sessions and activity">
+            @if (d.ProviderAvailable)
+            {
+                <section class="ui-card" aria-labelledby="staff-sessions-heading">
+                    <div class="ui-card-head"><h2 id="staff-sessions-heading">Active sessions</h2><p class="ui-help">@d.Sessions.Count</p></div>
+                    @if (d.Sessions.Count == 0) { <p class="ui-help staff-empty">No active sessions.</p> }
+                    else
+                    {
+                        <ul class="staff-timeline">@foreach (var s in d.Sessions.OrderByDescending(s => s.LastActive)) { <li data-session-device="@s.Device"><strong>@AccountLabels.StaffDevice(s.Device)</strong><span class="ui-sub">Last active @AccountLabels.When(s.LastActive)</span><span class="ui-sub">Started @AccountLabels.When(s.Started)</span></li> }</ul>
+                    }
+                </section>
+            }
+            <section class="ui-card" aria-labelledby="staff-history-heading">
+                <div class="ui-card-head"><h2 id="staff-history-heading">Activity</h2><p class="ui-help">Newest first</p></div>
+                @if (d.History.Count == 0) { <p class="ui-help staff-empty">No staff actions recorded yet.</p> }
+                else
+                {
+                    <ul class="staff-timeline">@foreach (var entry in d.History.Take(8)) { <li data-staff-history="@entry.Action"><strong>@AccountLabels.StaffAction(entry.Action)</strong><span class="ui-sub">@AccountLabels.When(entry.At)</span></li> }</ul>
+                    @if (d.History.Count > 8)
+                    {
+                        <details class="staff-more"><summary>Show @(d.History.Count - 8) older</summary>
+                            <ul class="staff-timeline">@foreach (var entry in d.History.Skip(8)) { <li data-staff-history="@entry.Action"><strong>@AccountLabels.StaffAction(entry.Action)</strong><span class="ui-sub">@AccountLabels.When(entry.At)</span></li> }</ul>
+                        </details>
+                    }
+                }
+            </section>
+        </aside>
+    </div>
 }
 @code {
     [Parameter] public Guid Id { get; set; }
+    [SupplyParameterFromQuery(Name = "created")] public string? Created { get; set; }
     [CascadingParameter] private HttpContext? Context { get; set; }
-    private StaffAccountDetail? detail; private string? message;
+    private StaffAccountDetail? detail; private StaffWorkspace? workspace; private MfaElevationView? elevation;
+    private string? message; private bool reauth;
+    private string Here => $"/staff/{Id}";
     private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
-    protected override async Task OnInitializedAsync() => await LoadAsync();
-    private async Task LoadAsync() { var r = await Admin.StaffAccountAsync(Id); detail = r.Value; if (!r.Ok) message = AdminText.Refusal(r.Status,r.Code); }
+    protected override async Task OnInitializedAsync()
+    {
+        workspace = (await Admin.WorkspaceAsync()).Value;
+        await LoadAsync();
+        if (detail is { CanManage: true, ProviderAvailable: true }) elevation = (await Admin.MfaElevationAsync()).Value;
+    }
+    private async Task LoadAsync() { var r = await Admin.StaffAccountAsync(Id); detail = r.Value; if (!r.Ok) Refused(r.Status, r.Code); }
+    private void Refused(int status, string? code) { message = AdminText.Refusal(status, code); reauth = AdminText.NeedsSignIn(status, code); }
+    private static bool HasName(StaffAccountSummary a) => !string.IsNullOrWhiteSpace(a.FirstName) || !string.IsNullOrWhiteSpace(a.LastName);
+    private static List<string> RoleList(StaffAccountSummary a) => (a.Root && !a.Roles.Contains("admin") ? a.Roles.Append("admin") : a.Roles).OrderBy(r => Array.IndexOf(StaffAccounts.Roles, r)).ToList();
+    private static string Method(string type) => type switch { "otp" => "authenticator app", "password" => "password", "recovery-authn-codes" => "recovery codes", "webauthn" or "webauthn-passwordless" => "passkey", _ => "other" };
+    // Mirrors StaffManagementPolicy.CanManage: nobody manages their own access, and the root account is break-glass (D364).
+    private static string ReadOnlyReason(StaffAccountSummary a, bool self) =>
+        self && a.Root ? "This is the root account. It is managed through the break-glass procedure, not in Admin."
+        : self ? "This is your account. Another admin changes your details and roles; roles from Microsoft Entra change in Entra."
+        : a.Root ? "The root account is managed through the break-glass procedure, not in Admin."
+        : a.Status is "deleted" or "pendingDeletion" ? "This account is being deleted and can't be changed."
+        : a.Roles.Contains("legal") ? "Only the root admin can change an account with the Legal role."
+        : "You can't change this account.";
     private async Task SaveAsync()
     {
-        if (!long.TryParse(Field("revision"),out var revision)) { message = "Reload this account before making changes."; return; }
-        var r = await Admin.UpdateStaffAsync(Id,new(Field("first"),Field("last"),Field("email"),Field("phone"),Field("status"),Context!.Request.Form["roles"].Select(v=>v!).ToArray(),revision,Field("reason"),Field("confirm")=="yes"));
-        message = r.Ok ? "Staff account updated. Previous sessions have ended." : AdminText.Refusal(r.Status,r.Code); await LoadAsync();
+        if (!long.TryParse(Field("revision"), out var revision)) { message = "Reload this account before making changes."; return; }
+        var r = await Admin.UpdateStaffAsync(Id, new(Field("first"), Field("last"), Field("email"), Field("phone"), Field("status"), Context!.Request.Form["roles"].Select(v => v!).ToArray(), revision, Field("reason"), Field("confirm") == "yes"));
+        if (r.Ok) message = "Saved. Their previous sessions have ended."; else Refused(r.Status, r.Code);
+        await ReloadAsync();
     }
     private async Task SecurityAsync()
     {
-        if (!long.TryParse(Field("revision"),out var revision)) { message = "Reload this account before making changes."; return; }
-        var r = await Admin.StaffSecurityAsync(Id,new(Field("action"),revision,Field("reason"),Field("confirm")=="yes"));
-        message = r.Ok ? "Security action completed." : AdminText.Refusal(r.Status,r.Code); await LoadAsync();
+        if (!long.TryParse(Field("revision"), out var revision)) { message = "Reload this account before making changes."; return; }
+        var r = await Admin.StaffSecurityAsync(Id, new(Field("action"), revision, Field("reason"), Field("confirm") == "yes"));
+        if (r.Ok) message = "Security action completed."; else Refused(r.Status, r.Code);
+        await ReloadAsync();
+    }
+    private async Task ResetMfaAsync()
+    {
+        var r = await Admin.ResetMfaAsync(Id, new(Field("case"), Field("identityVerified") == "yes", Field("confirm") == "yes"));
+        if (r.Ok) message = "MFA credentials cleared and sessions ended. They must enrol an authenticator again."; else Refused(r.Status, r.Code);
+        await ReloadAsync();
+    }
+    private async Task ReloadAsync()
+    {
+        var keep = (message, reauth);
+        await LoadAsync();
+        (message, reauth) = detail is null ? (message, reauth) : keep;
+        if (detail is { CanManage: true, ProviderAvailable: true }) elevation = (await Admin.MfaElevationAsync()).Value;
     }
 }

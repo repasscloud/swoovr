@@ -27,7 +27,7 @@ public static class AdminEndpoints
             var support = current.Allows(AccountRole.Support);
             var legal = current.Allows(AccountRole.Legal);
             return business || administration || support || legal
-                ? Results.Ok(new StaffWorkspace(business, administration || support, administration, legal, current.IsRootAdmin)) : Results.Forbid();
+                ? Results.Ok(new StaffWorkspace(business, administration || support, administration, legal, current.IsRootAdmin, current.Account.Id)) : Results.Forbid();
         });
 
         admin.MapPost("/invitations", async (InvitationRequest request, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>

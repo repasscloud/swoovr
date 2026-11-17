@@ -160,7 +160,10 @@ public sealed class AccountResolver(IServiceProvider services, KeycloakOptions k
         if(emailChanged)Audit.Record(Db,now,account.Id,"account","email.change-activated","account",account.Id.ToString(),"validated-claim-observed");
         var staffSignInChanged = facts.Realm == AccountRealm.Staff && (account.StaffLastSignInAt is null || facts.AuthenticatedAt > account.StaffLastSignInAt);
         if (staffSignInChanged) account.StaffLastSignInAt = facts.AuthenticatedAt;
-        if (staffSignInChanged || email is not null && account.Email != email || now - account.LastSeenAt > SeenInterval)
+        // #347: the staff realm is authoritative for staff names (Admin edits write Keycloak first; Entra fills them for
+        // Microsoft sign-ins). Keep the directory copy in step so Admin → Staff can list and search by name.
+        var staffNamesChanged = facts.Realm == AccountRealm.Staff && StaffNames.Adopt(account, user.FindFirstValue("given_name"), user.FindFirstValue("family_name"));
+        if (staffSignInChanged || staffNamesChanged || email is not null && account.Email != email || now - account.LastSeenAt > SeenInterval)
         {
             if (email is not null && account.Email != email) account.EmailAcceptedAt = emailAcceptedClock;
             account.Email = email ?? account.Email;

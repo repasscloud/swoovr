@@ -54,14 +54,14 @@ public static class StaffAccountEndpoints
                     if (info is null) return ProviderUnavailable();
                     snapshots[candidate.Id] = info;
                 }
-                var filtered = candidates.Where(a => Mfa(snapshots[a.Id]) == mfa).ToList(); total = filtered.Count;
+                var filtered = candidates.Where(a => Mfa(snapshots[a.Id], a.MfaResetPending) == mfa).ToList(); total = filtered.Count;
                 accounts = filtered.Skip((number - 1) * 25).Take(25).ToList();
             }
-            else accounts = await rows.OrderBy(a => a.RegisteredFirstName).ThenBy(a => a.Id).Skip((number - 1) * 25).Take(25).ToListAsync(ct);
+            else accounts = await rows.OrderBy(a => a.RegisteredFirstName ?? a.Email).ThenBy(a => a.RegisteredLastName).ThenBy(a => a.Id).Skip((number - 1) * 25).Take(25).ToListAsync(ct);
             var ids = accounts.Select(a => a.Id).ToList();
             var roles = await db.RoleGrants.AsNoTracking().Where(g => ids.Contains(g.AccountId)).ToListAsync(ct);
             return Results.Ok(new StaffAccountPage(accounts.Select(a => Summary(a, roles.Where(g => g.AccountId == a.Id).ToList())
-                with { Mfa = snapshots.TryGetValue(a.Id, out var info) ? Mfa(info) : "unknown" }).ToList(), total, number, 25));
+                with { Mfa = snapshots.TryGetValue(a.Id, out var info) ? Mfa(info, a.MfaResetPending) : "unknown" }).ToList(), total, number, 25));
         });
         staff.MapGet("/{id:guid}", async (Guid id, ClaimsPrincipal user, AccountResolver resolver, IStaffIdentityAdmin identity, CancellationToken ct) =>
         {
@@ -239,10 +239,15 @@ public static class StaffAccountEndpoints
         var history = await db.AuditEntries.AsNoTracking().Where(a => a.TargetType == "account" && a.TargetId == id.ToString() && a.Action.StartsWith("staff."))
             .OrderByDescending(a => a.Id).Take(100).Select(a => new StaffActionEntry(a.Id, a.At, a.Action)).ToListAsync(ct);
         var summary = Summary(target, grants);
-        if (info is not null) summary = summary with { Email = info.Email, FirstName = info.FirstName, LastName = info.LastName, Mfa = Mfa(info) };
+        if (info is not null) summary = summary with { Email = info.Email, FirstName = info.FirstName, LastName = info.LastName, Mfa = Mfa(info, target.MfaResetPending) };
         return Results.Ok(new StaffAccountDetail(summary, info?.Phone, info is not null, info?.Enabled == true, info?.EmailVerified == true,
-            info?.CredentialTypes ?? [], info?.RequiredActions ?? [], sessions?.Sessions.Select(s => new SignInSessionView(SignInPolicy.Handle(s.Id), SignInPolicy.Device(s.Clients), s.Started, s.LastActive, false)).ToArray() ?? [], history, StaffManagementPolicy.CanManage(actor.Account!.Id, actor.IsRootAdmin, target, roles, roles)));
+            info?.CredentialTypes ?? [], info?.RequiredActions ?? [], sessions?.Sessions.Select(s => new SignInSessionView(SignInPolicy.Handle(s.Id), SignInPolicy.Device(s.Clients, StaffWebClient), s.Started, s.LastActive, false)).ToArray() ?? [], history, StaffManagementPolicy.CanManage(actor.Account!.Id, actor.IsRootAdmin, target, roles, roles), target.MfaResetPending));
     }
+    // Staff sign in to Admin through this client; its sessions read as "web" rather than "other" (#347).
+    private const string StaffWebClient = "swoovr-admin-web";
+    // #347 review: an unfinished credential reset (MfaResetPending) keeps access blocked, so it reads as setup pending,
+    // matching MfaEndpoints' MfaView, never as "enabled" from leftover provider credentials.
+    private static string Mfa(IdentityAccountInfo? info, bool resetPending) => info is null ? "unknown" : resetPending ? "setup-pending" : Mfa(info);
     private static string Mfa(IdentityAccountInfo? info) => info is null ? "unknown" : info.CredentialTypes.Contains("otp") ? "enabled" : info.RequiredActions.Contains("CONFIGURE_TOTP") ? "setup-pending" : "disabled";
     public static bool Roles(IReadOnlyList<string>? values, out List<AccountRole> roles)
     {
