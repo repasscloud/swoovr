@@ -111,7 +111,7 @@
         var result = await Admin.StaffAccountsAsync(Search, Role, Status, Math.Max(1, Page), mfa: Mfa,
             signedInAfter: DateTimeOffset.TryParse(Since, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var since) ? since : null);
         accounts = result.Value;
-        if (!result.Ok) message = AdminText.Refusal(result.Status, result.Code);
+        if (!result.Ok) message = AdminText.StaffListRefusal(result.Status, result.Code);
     }
     private static bool HasName(StaffAccountSummary row) => !string.IsNullOrWhiteSpace(row.FirstName) || !string.IsNullOrWhiteSpace(row.LastName);
     // The root account is an admin by definition (D364) even without a stored grant.

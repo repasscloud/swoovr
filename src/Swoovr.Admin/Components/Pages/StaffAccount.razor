@@ -173,7 +173,7 @@ else
         if (detail is { CanManage: true, ProviderAvailable: true }) elevation = (await Admin.MfaElevationAsync()).Value;
     }
     private async Task LoadAsync() { var r = await Admin.StaffAccountAsync(Id); detail = r.Value; if (!r.Ok) Refused(r.Status, r.Code); }
-    private void Refused(int status, string? code) { message = AdminText.Refusal(status, code); reauth = AdminText.NeedsSignIn(status, code); }
+    private void Refused(int status, string? code) { message = AdminText.StaffRefusal(status, code); reauth = AdminText.NeedsSignIn(status, code); }
     private static bool HasName(StaffAccountSummary a) => !string.IsNullOrWhiteSpace(a.FirstName) || !string.IsNullOrWhiteSpace(a.LastName);
     private static List<string> RoleList(StaffAccountSummary a) => (a.Root && !a.Roles.Contains("admin") ? a.Roles.Append("admin") : a.Roles).OrderBy(r => Array.IndexOf(StaffAccounts.Roles, r)).ToList();
     private static string Method(string type) => type switch { "otp" => "authenticator app", "password" => "password", "recovery-authn-codes" => "recovery codes", "webauthn" or "webauthn-passwordless" => "passkey", _ => "other" };
