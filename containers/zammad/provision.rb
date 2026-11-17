@@ -266,6 +266,35 @@ mail_filter.assign_attributes(channel: 'email', active: true,
   perform: {'X-Zammad-Ticket-group_id' => {'value' => general.id.to_s}},
   note: 'Provisioned by Swoovr', created_by_id: actor, updated_by_id: actor)
 mail_filter.save!
+# Owner, 18 November 2026: emails to customers carry no Zammad branding and no link to log in to Zammad (customers
+# have no helpdesk login; they reply to the email). Zammad's stock auto-replies are reworded only while they still
+# carry the stock text, so wording the owner changes later in Zammad's admin UI is kept. #{...} is Zammad's own
+# template syntax, hence the single-quoted strings.
+{
+  'auto reply (on new tickets)' =>
+    '<div>Thanks for contacting Swoovr Support. We have received your request <b>(#{config.ticket_hook}#{ticket.number})</b> and will reply as soon as we can.</div>
+<br/>
+<div>To add more information, reply to this email.</div>
+<br/>
+<div>Swoovr Support</div>',
+  'auto reply (on follow-up of tickets)' =>
+    '<div>We have received your follow-up to <b>(#{config.ticket_hook}#{ticket.number})</b> and will reply as soon as we can.</div>
+<br/>
+<div>To add more information, reply to this email.</div>
+<br/>
+<div>Swoovr Support</div>',
+  'customer notification (on owner change)' =>
+    '<p>Your request (#{config.ticket_hook}#{ticket.number}) is now with #{ticket.owner.firstname} #{ticket.owner.lastname}.</p>
+<br/>
+<p>To add more information, reply to this email.</p>
+<br/>
+<p>Swoovr Support</p>',
+}.each do |name, body|
+  stock = Trigger.find_by(name: name)
+  email = stock&.perform&.dig('notification.email')
+  next unless email && email['body'].to_s.match?(/customer support system|config\.product_name/)
+  stock.update!(perform: stock.perform.merge('notification.email' => email.merge('body' => body)), updated_by_id: actor)
+end
 # Webhook/trigger stay inactive unless provisioning explicitly enables events (zammad_local.py provision --events).
 events = input.fetch('events_active', false) == true
 webhook = Webhook.find_or_initialize_by(name: 'Swoovr events')
