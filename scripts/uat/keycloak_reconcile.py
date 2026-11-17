@@ -11,9 +11,13 @@ user other than reading them, and never prints a secret. In order:
    configured tenant/application IDs and client secret, and the `swoovr-api-staff` confidential service client the API
    uses to read and manage staff identities (StaffAdmin:ClientSecret; staff-realm view-users/manage-users only).
 3. Redirect URIs of the hosted web clients are verified against the UAT hostnames (refuses on drift, never rewrites).
-4. The realms named in SWOOVR_KEYCLOAK_ENABLED_REALMS are enabled (only members and staff may be listed).
-5. The temporary bootstrap admin is deleted once a personal master-realm admin with OTP exists; otherwise kept.
-6. First administrator (D364, break-glass): SWOOVR_INITIAL_ADMIN_EMAIL is a local staff-realm account with its own
+4. Email action lifetimes (#353, D367) in all three realms: a sign-in step such as "Check your email" and its re-send
+   link lasts 30 minutes (as long as the sign-in attempt), and the link in a verification email lasts 24 hours. Other
+   links a user asks for (password reset) keep Keycloak's 5 minutes. Corrected on every deployment, so an upgrade fixes
+   realms imported before this rule.
+5. The realms named in SWOOVR_KEYCLOAK_ENABLED_REALMS are enabled (only members and staff may be listed).
+6. The temporary bootstrap admin is deleted once a personal master-realm admin with OTP exists; otherwise kept.
+7. First administrator (D364, break-glass): SWOOVR_INITIAL_ADMIN_EMAIL is a local staff-realm account with its own
    password and one-time code and NO Entra link, so it still works when the tenant or Microsoft is unavailable. If no
    staff user has that address, it is created (username = email, no credentials) and Keycloak emails it a link to
    verify the address, choose a password and enrol an authenticator. `--resend-invite` sends that email again while
@@ -45,6 +49,10 @@ HELPDESK = 'https://helpdesk-uat.swoovr.app'
 BOOTSTRAP_ADMIN = 'swoovr-bootstrap'
 STAFF_API_CLIENT = 'swoovr-api-staff'
 STAFF_API_ROLES = ('view-users', 'manage-users')
+# #353, D367: Keycloak's 5-minute defaults expired the "Check your email" re-send link and the emailed verify link.
+USER_ACTION_LIFESPAN = 1800  # seconds; equals accessCodeLifespanLogin (the whole sign-in attempt)
+VERIFY_EMAIL_LIFESPAN = 86400  # seconds; per-action override for the emailed verify link only
+VERIFY_EMAIL_OVERRIDE = 'actionTokenGeneratedByUserLifespan.verify-email'
 
 
 def say(key, value):
@@ -193,6 +201,22 @@ def verify_web_clients(admin):
             raise ValueError(f'{client_id} callbacks do not match {origin}; fix the realm (no automatic rewrite).')
 
 
+def ensure_email_lifespans(admin):
+    states = []
+    for realm in REALMS:
+        representation = admin.call('/' + realm)
+        attributes = representation.get('attributes') or {}
+        if (representation.get('accessCodeLifespanUserAction') == USER_ACTION_LIFESPAN
+                and attributes.get(VERIFY_EMAIL_OVERRIDE) == str(VERIFY_EMAIL_LIFESPAN)):
+            states.append(realm + ':ok')
+            continue
+        representation['accessCodeLifespanUserAction'] = USER_ACTION_LIFESPAN
+        representation['attributes'] = {**attributes, VERIFY_EMAIL_OVERRIDE: str(VERIFY_EMAIL_LIFESPAN)}
+        admin.call('/' + realm, 'PUT', representation, (204,))
+        states.append(realm + ':corrected')
+    return ','.join(states)
+
+
 def enable_realms(admin, wanted):
     states = []
     for realm in wanted:
@@ -324,6 +348,7 @@ def reconcile(request, env, admin_only=False, resend_invite=False):
         say('entra', sync_entra(admin, env))
         verify_web_clients(admin)
         say('web-clients', 'verified')
+        say('email-lifespans', ensure_email_lifespans(admin))
         say('realms', enable_realms(admin, wanted_realms(env)))
     # Also in admin-only mode (the maintenance workflow's admin-finalize), so the temporary admin goes once you have yours.
     say('bootstrap-admin', retire_bootstrap_admin(admin, request, env))

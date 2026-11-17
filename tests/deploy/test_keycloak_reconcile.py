@@ -268,6 +268,25 @@ class ReconcileChecks(unittest.TestCase):
         self.assertNotIn('staff-api-client', run(fake, env(SWOOVR_UAT_STAFF_ADMIN_SECRET=''), admin_only=True))
         self.assertNotIn(('swoovr-staff', kr.STAFF_API_CLIENT), fake.clients)
 
+    def test_email_action_lifespans_corrected_in_every_realm_then_left_alone(self):
+        fake = FakeKeycloak(deploy_client=True, bootstrap_admin=False)
+        fake.realms['swoovr-members'].update(accessCodeLifespanUserAction=300,
+                                             attributes={'actionTokenGeneratedByUserLifespan': '300', 'other': 'kept'})
+        first = run(fake)
+        self.assertEqual(first['email-lifespans'], ','.join(r + ':corrected' for r in kr.REALMS))
+        for realm in kr.REALMS:
+            self.assertEqual(fake.realms[realm]['accessCodeLifespanUserAction'], 1800)
+            self.assertEqual(fake.realms[realm]['attributes'][kr.VERIFY_EMAIL_OVERRIDE], '86400')
+        members = fake.realms['swoovr-members']['attributes']
+        # Only the verify link is lengthened: the realm-wide user link (password reset) keeps its 5 minutes.
+        self.assertEqual((members['actionTokenGeneratedByUserLifespan'], members['other']), ('300', 'kept'))
+        self.assertEqual(run(fake)['email-lifespans'], ','.join(r + ':ok' for r in kr.REALMS))
+
+    def test_admin_only_runs_never_change_realm_settings(self):
+        fake = FakeKeycloak(deploy_client=True, bootstrap_admin=False)
+        self.assertNotIn('email-lifespans', run(fake, admin_only=True))
+        self.assertNotIn('accessCodeLifespanUserAction', fake.realms['swoovr-members'])
+
     def test_missing_admin_email_is_reported_not_guessed(self):
         result = run(FakeKeycloak(deploy_client=True), env(SWOOVR_INITIAL_ADMIN_EMAIL=''), admin_only=True)
         self.assertEqual(result['initial-admin'], 'not-configured')

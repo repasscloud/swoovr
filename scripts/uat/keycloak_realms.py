@@ -19,6 +19,8 @@ MEMBERS = 'https://uat.swoovr.app'
 AUTH = 'https://auth-uat.swoovr.app'
 RP = 'uat.swoovr.app'
 ENTRA_ALIAS = 'entra'
+USER_ACTION_LIFESPAN = 1800  # seconds; keep equal to keycloak_reconcile.py
+VERIFY_EMAIL_LIFESPAN = 86400  # seconds; keep equal to keycloak_reconcile.py
 
 
 def hosted_origin(value):
@@ -196,7 +198,11 @@ def render(admin_origin, venue_origin, tenant_id, client_id):
             raise ValueError('Canonical development baseline must contain no users or identity providers.')
         value.update(realm=name, enabled=False, sslRequired='all', smtpServer={}, users=[], identityProviders=[])
         value['attributes'] = {'swoovr.environment': 'uat-preparation-disabled',
-                               'swoovr.registrationTerms': 'REQUIRED' if kind == 'members' else 'DISABLED'}
+                               'swoovr.registrationTerms': 'REQUIRED' if kind == 'members' else 'DISABLED',
+                               # #353, D367: the emailed verify link lasts 24 hours (other user links keep 5 minutes).
+                               'actionTokenGeneratedByUserLifespan.verify-email': str(VERIFY_EMAIL_LIFESPAN)}
+        # #353, D367: "Check your email" and its re-send link last as long as the sign-in attempt (30 minutes).
+        value['accessCodeLifespanUserAction'] = USER_ACTION_LIFESPAN
         # The local Zammad client is not a UAT portal; never export its localhost callback.
         hosted_clients = {'members': {'swoovr-web', 'swoovr-mobile'}, 'venues': {'swoovr-venue-web'}, 'staff': {'swoovr-admin-web'}}
         value['clients'] = [item for item in value['clients'] if item['clientId'] in hosted_clients[kind]]
