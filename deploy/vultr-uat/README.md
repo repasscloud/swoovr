@@ -72,9 +72,10 @@ The workflow checks the host (`UAT_EXPECTED_HOSTNAME`, Debian amd64, Docker, 15 
 2. It creates or updates the staff realm's `swoovr-zammad` helpdesk client, and the `swoovr-api-staff` service client the API uses to read and manage staff identities (staff-realm `view-users`/`manage-users` only; secret `staff-admin-secret`, generated on the host into `env/realms.env` and `env/api.env`). Without it, Admin → Staff shows "Identity information is unavailable" (#345).
 3. It syncs the `entra` broker (tenant, client ID, secret, `trustEmail=false`).
 4. It **verifies** the web clients' callbacks, and refuses on drift without rewriting them.
-5. It enables the realms in `UAT_KEYCLOAK_ENABLED_REALMS` (`swoovr-members,swoovr-staff`; venues is refused).
-6. It deletes the temporary admin `swoovr-bootstrap` once a personal master admin with OTP exists.
-7. It checks the first administrator.
+5. It sets the email link lifetimes in all three realms (D367, #353): "Check your email" and its re-send link last 30 minutes, the link in a verification email lasts 24 hours, and password-reset links keep 5 minutes. Output `email-lifespans=<realm>:ok|corrected,…`.
+6. It enables the realms in `UAT_KEYCLOAK_ENABLED_REALMS` (`swoovr-members,swoovr-staff`; venues is refused).
+7. It deletes the temporary admin `swoovr-bootstrap` once a personal master admin with OTP exists.
+8. It checks the first administrator.
 
 Nothing in a normal deployment changes the firewall, SSH, routing, Docker's configuration or the certificates. Docker pruning is never used.
 

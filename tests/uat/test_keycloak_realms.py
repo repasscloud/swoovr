@@ -138,6 +138,15 @@ class RealmPreparationChecks(unittest.TestCase):
         self.assertEqual((claim['config']['claim.name'], claim['config']['multivalued'], claim['config']['access.token.claim']),
                          ('swoovr_entra_roles', 'true', 'true'))
 
+    def test_email_verify_link_24_hours_and_check_email_step_30_minutes(self):
+        for name, realm in self.realms().items():
+            with self.subTest(realm=name):
+                self.assertEqual(realm['accessCodeLifespanUserAction'], 1800)
+                self.assertEqual(realm['accessCodeLifespanUserAction'], realm.get('accessCodeLifespanLogin', 1800))
+                self.assertEqual(realm['attributes']['actionTokenGeneratedByUserLifespan.verify-email'], '86400')
+                # Password reset and other user links keep the realm-wide 5 minutes.
+                self.assertEqual(realm.get('actionTokenGeneratedByUserLifespan', 300), 300)
+
     def test_reject_invalid_hosted_inputs(self):
         for origin in ['http://admin-uat.swoovr.app', 'https://localhost', 'https://admin.swoovr.app',
                        'https://admin-uat.swoovr.app/', 'https://admin-uat.swoovr.app:443',

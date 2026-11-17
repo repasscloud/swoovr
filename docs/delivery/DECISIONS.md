@@ -1017,3 +1017,13 @@ DEFAULT: email patterns are lower-cased and refuse spaces. Reversible: the email
 - Staff accounts have no member profile, so the account page no longer offers "View date of birth" for them (UAT, 13 November 2026: the only accounts were staff, so the date could never open).
 
 Reversible: set `Mfa:ElevationMinutes` lower, or remove the sign-in clause in `MfaElevationService.UntilAsync`.
+
+### D367 — Email verification links last 24 hours; "Check your email" lasts 30 minutes (17 November 2026)
+
+**DEFAULT**, proposed in [issue 353](https://github.com/repasscloud/wanderconnect/issues/353) and asked for by the owner, 17 November 2026. On UAT a new member's re-send link on "Check your email" failed after 6½ minutes with "Your login attempt timed out" (`expired_code`): every realm used Keycloak's 5-minute defaults, so the link inside a verification email also died 5 minutes after it was sent.
+- All three realms (members, venues, staff): `accessCodeLifespanUserAction` is 30 minutes, the same as the whole sign-in attempt (`accessCodeLifespanLogin`), so "Check your email" and its re-send link work for as long as the sign-in does.
+- The link in a verification email (`actionTokenGeneratedByUserLifespan.verify-email`) lasts 24 hours.
+- Unchanged: password-reset and other links a user asks for keep 5 minutes; admin-sent links (the root set-up email) keep 12 hours.
+- Applied by `scripts/uat/keycloak_realms.py` (refresh) and by the reconcile job on every deployment (`email-lifespans=`), so an upgrade corrects existing realms.
+
+Reversible: change `USER_ACTION_LIFESPAN` / `VERIFY_EMAIL_LIFESPAN` in both scripts; the reconcile job applies the new values on the next deployment.
