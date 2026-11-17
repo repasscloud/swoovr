@@ -201,6 +201,7 @@ ENABLED_WORKFLOWS = {
     # its manual maintenance companion. Confirm at PR review before merging.
     '.github/workflows/deploy-uat.yml',
     '.github/workflows/uat-maintenance.yml',
+    '.github/workflows/close-completed-milestones.yml',  # owner, 17 November 2026: closes milestones with no open issues, daily (built-in token only)
 }
 for path in [*(root/'.github/workflows').glob('*'), *(root/'.github/workflow-templates').glob('*')]:
     if path.relative_to(root).as_posix() in ENABLED_WORKFLOWS: continue
