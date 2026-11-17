@@ -26,4 +26,5 @@ public sealed record StaffRevokeRequest(string? Reason);
 public sealed record StaffRevokeResult(int RolesRemoved, int GrantsRevoked, bool KeycloakSignedOut);
 
 /// <summary>Live application permissions for the current staff workspace. No provider roles or credentials.</summary>
-public sealed record StaffWorkspace(bool Business, bool MemberOperations, bool Administration, bool Legal, bool Root);
+/// <summary><c>AccountId</c> is the signed-in staff account, so Admin can link to "your staff account" (#347).</summary>
+public sealed record StaffWorkspace(bool Business, bool MemberOperations, bool Administration, bool Legal, bool Root, Guid? AccountId = null);

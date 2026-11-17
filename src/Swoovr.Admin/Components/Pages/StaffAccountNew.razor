@@ -1,0 +1,42 @@
+@page "/staff/new"
+@inject AdminClient Admin
+@inject NavigationManager Navigation
+<PageTitle>New staff account — Swoovr admin</PageTitle>
+<a class="breadcrumb" href="/staff">← Staff accounts</a>
+<header class="ui-page-head">
+    <h1>New staff account</h1>
+    <p>For someone who doesn't sign in with Microsoft. Employees who sign in with Microsoft appear in the list after their first sign-in, with roles from Entra.</p>
+</header>
+@if (message is not null) { <p class="notice@(reauth ? " notice-action" : "")" role="status" data-staff-result><span>@message</span>@if (reauth) { <a href="@AdminText.SignInAgain("/staff/new")" class="ui-button-primary notice-button" data-enhance-nav="false" data-reauth>Sign in again</a> }</p> }
+<section class="ui-card staff-form-card" aria-labelledby="staff-new-heading">
+    <h2 id="staff-new-heading" class="sr-only">Account details</h2>
+    <form method="post" @formname="create-staff" @onsubmit="CreateAsync" class="ui-form" data-staff-create>
+        <AntiforgeryToken />
+        <div class="ui-form-row">
+            <label class="ui-field"><span>First name</span><input name="first" required maxlength="100" autocomplete="off" value="@Field("first")" /></label>
+            <label class="ui-field"><span>Last name</span><input name="last" required maxlength="100" autocomplete="off" value="@Field("last")" /></label>
+        </div>
+        <div class="ui-form-row">
+            <label class="ui-field"><span>Work email</span><input name="email" type="email" required maxlength="254" autocomplete="off" value="@Field("email")" /></label>
+            <label class="ui-field"><span>Phone <em>(optional)</em></span><input name="phone" type="tel" maxlength="32" autocomplete="off" value="@Field("phone")" /></label>
+        </div>
+        <fieldset class="ui-group staff-role-picker"><legend>Internal roles</legend>
+            @foreach (var role in StaffAccounts.Roles) { <label class="beta-check"><input name="roles" value="@role" type="checkbox" checked="@Picked(role)" /><span><strong>@AccountLabels.Role(role)</strong><span class="ui-sub">@StaffRoleText.Describe(role)</span></span></label> }
+        </fieldset>
+        <label class="ui-field"><span>Reason or case reference</span><input name="reason" required maxlength="80" placeholder="staff-onboarding or case:1234" pattern="[a-z][a-z0-9-]{2,63}(:[0-9]{1,18})?" title="Lower-case words joined by hyphens, optionally :number" value="@Field("reason")" /></label>
+        <label class="beta-check"><input type="checkbox" name="confirm" value="yes" required />Create this staff account with the selected roles. They must verify their email and set up an authenticator at first sign-in.</label>
+        <div class="staff-form-actions"><a class="ui-button-ghost" href="/staff">Cancel</a><button type="submit" class="ui-button-primary">Create account</button></div>
+    </form>
+</section>
+@code {
+    [CascadingParameter] private HttpContext? Context { get; set; }
+    private string? message; private bool reauth;
+    private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
+    private bool Picked(string role) => Context?.Request.HasFormContentType == true && Context.Request.Form["roles"].Contains(role);
+    private async Task CreateAsync()
+    {
+        var result = await Admin.CreateStaffAsync(new(Field("first"), Field("last"), Field("email"), Field("phone"), Context!.Request.Form["roles"].Select(v => v!).ToArray(), Field("reason"), Field("confirm") == "yes"));
+        if (result.Ok) { Navigation.NavigateTo($"/staff/{result.Value!.Id}?created=1"); return; }
+        message = AdminText.Refusal(result.Status, result.Code); reauth = AdminText.NeedsSignIn(result.Status, result.Code);
+    }
+}

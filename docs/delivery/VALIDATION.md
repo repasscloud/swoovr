@@ -1909,3 +1909,22 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
   - **Real `keycloak:26.8.1`:** the actual `swoovr-deploy` client (as reconcile creates it) created then updated `swoovr-api-staff`. That client's token read a staff user with its credentials and sessions and updated the user, and was refused (403) for members users, master users and staff clients.
   - `Swoovr.Checks` `staff display names (5 checks)`.
 - **Not done / gaps:** the Admin pages were not rendered (they need a signed-in staff session); confirm on UAT after the deploy.
+
+## #347 Admin → Staff accounts rebuilt: directory, account page, your own account, nav icon — 17 November 2026
+
+- **Owner review on UAT v1.0.5:** the account page was one long column of full-width forms with raw values (`active`, `otp`, `other`, `staff.roles-synced`, ISO times). The list didn't work as a directory for many staff, there was no way to reach your own account without its URL, and **Staff accounts** had no nav icon or active state. UAT's two staff rows have no stored names (database checked read-only).
+- **Fix:** see [staff account management](STAFF-ACCOUNT-MANAGEMENT.md) (#347 paragraph).
+  - **API, additive only:** `StaffWorkspace.AccountId` (optional, defaulted). Staff names sync from token claims. The list sorts by name, falling back to email. Staff sessions use the `swoovr-admin-web` client for their device label.
+  - **Permissions:** unchanged. No endpoint, permission or mutation path changed.
+- **Evidence:**
+  - Admin and API build.
+  - `Swoovr.Checks` `staff display names and labels`.
+  - **Rendered:** the real `StaffAccounts`, `StaffAccount` and `StaffAccountNew` components went through `HtmlRenderer`, using stubbed API answers with fictional people. Headless Chrome screenshots, checked by eye:
+    - the list at 1440px, filtered to page 2 of 6;
+    - another person's editable account, at 1440px and phone width;
+    - your own read-only account;
+    - the new-account page in light mode;
+    - `AdminNavigation` with **Staff accounts** active and showing its icon.
+- **Not done / gaps:**
+  - The real sign-in redirect and the anti-forgery posts were not exercised; confirm on UAT.
+  - The header's **Your staff account** menu item was built but not rendered.

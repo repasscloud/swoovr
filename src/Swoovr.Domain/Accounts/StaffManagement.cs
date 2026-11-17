@@ -27,3 +27,19 @@ public interface IIdentityDirectory : IIdentityAdmin
 }
 /// <summary>Different realm and service credential; never resolve a staff subject through the members adapter.</summary>
 public interface IStaffIdentityAdmin : IIdentityDirectory;
+
+/// <summary>#347: copies the staff realm's verified-token names onto the staff directory row. A missing, blank or
+/// over-long claim never clears or truncates a stored name.</summary>
+public static class StaffNames
+{
+    public const int MaxLength = 100;
+    public static bool Adopt(Account account, string? givenName, string? familyName)
+    {
+        if (account.Realm != AccountRealm.Staff) return false;
+        var changed = false;
+        if (Clean(givenName) is { } first && first != account.RegisteredFirstName) { account.RegisteredFirstName = first; changed = true; }
+        if (Clean(familyName) is { } last && last != account.RegisteredLastName) { account.RegisteredLastName = last; changed = true; }
+        return changed;
+    }
+    private static string? Clean(string? value) => value?.Trim() is { Length: > 0 and <= MaxLength } trimmed && !trimmed.Any(char.IsControl) ? trimmed : null;
+}
