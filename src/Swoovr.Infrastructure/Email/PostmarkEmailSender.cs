@@ -66,7 +66,7 @@ public sealed class PostmarkEmailSender(HttpClient http, PostmarkEmailOptions op
     public async Task<EmailOutcome> SendOutcomeAsync(EmailMessage message, CancellationToken cancellationToken)
     {
         if (!MailerSendOptions.ValidAddress(message.To) || message.Subject is null || message.Text is null
-            || message.Subject.Length > 998 || message.Subject.Any(char.IsControl) || message.Text.Length > 65536)
+            || message.Subject.Length > 998 || message.Subject.Any(char.IsControl) || message.Text.Length > 65536 || message.Html?.Length > 131072)
             return new("rejected", "invalid-message");
         if (cancellationToken.IsCancellationRequested) return new("retry", "cancelled-before-send");
         var recipient = new MailAddress(message.To);
@@ -81,7 +81,7 @@ public sealed class PostmarkEmailSender(HttpClient http, PostmarkEmailOptions op
             ["To"] = recipient.Address,
             ["Subject"] = message.Subject,
             ["TextBody"] = message.Text,
-            ["HtmlBody"] = TwilioEmailSender.Html(message.Text),
+            ["HtmlBody"] = message.Html ?? TwilioEmailSender.Html(message.Text),
             ["MessageStream"] = options.MessageStream,
             ["TrackOpens"] = false,
             ["TrackLinks"] = "None"

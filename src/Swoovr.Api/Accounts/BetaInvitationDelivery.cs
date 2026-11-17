@@ -17,6 +17,14 @@ public sealed class BetaInvitationDelivery(SwoovrDbContext db,IEmailSender email
             throw new InvalidOperationException("Enabled beta invitations require a public web origin, HTTPS outside Development.");
         return uri;
     }
+    /// <summary>Issue 355 (05-beta-invitation, approved).</summary>
+    public static string InvitationHtml(EmailBranding branding,Uri origin)=>
+        EmailHtml.Page(branding,"Register or sign in with this email to join.","You're invited to the Swoovr private beta",
+            EmailHtml.P("Staff have added this address to the Swoovr private beta. Register or sign in with this verified email to join.")
+            +EmailHtml.Button("Open Swoovr",new Uri(origin,"account"))
+            +EmailHtml.P("You must meet the account and onboarding requirements before connecting with members.")
+            +EmailHtml.P("If you did not expect this, you can ignore it or contact support@swoovr.com."),
+            "You got this email because Swoovr staff added this address to the private beta.");
     public async Task<int> RunAsync(CancellationToken token)
     {
         var origin=PublicOrigin(config,environment.IsDevelopment());if(origin is null)return 0;
@@ -58,7 +66,9 @@ public sealed class BetaInvitationDelivery(SwoovrDbContext db,IEmailSender email
             else
             {
                 var message=new EmailMessage(current.Email,"You're invited to the Swoovr private beta",
-                    "Staff have added this address to the Swoovr private beta. Register or sign in with this verified email at "+new Uri(origin,"account").AbsoluteUri+". You must meet the account and onboarding requirements before connecting with members. If you did not expect it, you can ignore it or contact support@swoovr.com.");
+                    "Staff have added this address to the Swoovr private beta. Register or sign in with this verified email at "+new Uri(origin,"account").AbsoluteUri+". You must meet the account and onboarding requirements before connecting with members. If you did not expect it, you can ignore it or contact support@swoovr.com.",
+                    // Issue 355 (05-beta-invitation, approved): same wording in the branded layout.
+                    InvitationHtml(EmailBranding.Read(key=>config[key]),origin));
                 var outcome=await email.SendOutcomeAsync(message,token);now=clock.GetUtcNow();
                 // Provider codes are not persisted verbatim; only the bounded outcome vocabulary is trusted.
                 var state=outcome.Status switch{"accepted"=>"accepted","rejected"=>"rejected","retry" when current.InvitationAttempts<3&&current.InvitationQueuedAt>now.AddHours(-72)=>"pending","retry"=>"rejected",_=>"unknown"};
