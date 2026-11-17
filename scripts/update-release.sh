@@ -12,7 +12,7 @@ fi
 VERSION="v$1"
 
 # Update repository.
-cd ~/Developer/wanderconnect-brief
+cd "$(dirname "$0")/.."
 git checkout main
 git pull --ff-only
 

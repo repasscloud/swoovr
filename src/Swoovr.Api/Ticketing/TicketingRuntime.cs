@@ -107,7 +107,7 @@ public sealed class TicketingRuntime(AccountResolver accounts,CurrentAccount cur
         var (held,releases)=await Quarantine.ViewAsync(id,staff,ct);
         var views=articles.Where(a=>a.TicketId==id&&(staff||a.CustomerVisible)).Select(a=>new TicketArticle(a.Id,a.OperationReference is {} op&&releases.Contains(op)?"":TicketingProjection.Plain(a.Body,a.ContentType),a.Internal,a.Sender,a.CreatedAt,
             a.Attachments.Where(x=>SupportAttachmentPolicy.Allowed(TicketingProjection.Filename(x.Filename),x.Size)).Select(x=>new TicketAttachment(x.Id,TicketingProjection.Filename(x.Filename),SupportAttachmentPolicy.TypeOf(TicketingProjection.Filename(x.Filename))!.Value.Mime,x.Size)).ToArray(),staff?a.Type:null){Held=held[a.Id].ToArray()}).ToArray();
-        return new(Summary(ticket),views,staff?await StaffFieldsAsync(ticket,ct):null,await CanReplyAsync(ticket,ct)){Closed=await ClosedAsync(ticket,ct)};
+        return new(Summary(ticket),views,staff?await StaffFieldsAsync(ticket,ct):null,await CanReplyAsync(ticket,ct)){Closed=await ClosedAsync(ticket,ct),EmailReplyTo=staff?TicketingEmail.Recipient(articles):null};
     }
     private async Task<TicketStaffFields> StaffFieldsAsync(SupportTicket ticket,CancellationToken ct)
     {
@@ -370,6 +370,15 @@ public sealed class TicketingRuntime(AccountResolver accounts,CurrentAccount cur
         if(await ClosedAsync(ticket,ct))throw Refuse(409,"ticket-closed"); // issue 228: staff reopen it first
         ValidateText(request.Body,16000);
         if(!staff&&request.Private)throw Refuse();
+        // D368: staff's public reply on a ticket that started as an email goes out as an email (checked before the intent,
+        // so a refusal leaves nothing to reconcile).
+        SupportEmail? email=null;
+        if(staff&&!request.Private)
+        {
+            var thread=await provider.GetArticlesAsync(id,ct);
+            if(TicketingEmail.StartedByEmail(thread))
+                email=new(TicketingEmail.Recipient(thread)??throw Refuse(409,"ticket-email-recipient-missing"),ticket.Title);
+        }
         var uploads=TicketingProjection.MemberAttachments((request.Attachments??[]).Select(a=>(a.Filename,a.Data)));
         // A digest of the files rather than their bytes (large uploads); a reply without files keeps its earlier digest.
         var operation=await IntentAsync(request.OperationId,"reply",uploads.Count==0?request:new{request.OperationId,request.Body,request.Private,Files=Fingerprints(uploads)},id,ct);
@@ -389,7 +398,7 @@ public sealed class TicketingRuntime(AccountResolver accounts,CurrentAccount cur
             }
             try
             {
-                var article=await provider.ReplyWithOperationAsync(id,request.Body,request.Private,!staff,[],operation.Id.ToString("D"),ct);
+                var article=await provider.ReplyWithOperationAsync(id,request.Body,request.Private,!staff,[],operation.Id.ToString("D"),ct,email);
                 await FinishAsync(operation,TicketingOperationState.Applied,article.Id);
                 await quarantine.RecordAsync(operation.Id,id,article.Id,source,Me,request.Private,stored,ct);
             }

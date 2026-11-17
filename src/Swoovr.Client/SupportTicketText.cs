@@ -90,6 +90,7 @@ public static partial class SupportTicketText
         "attachment-scan-unavailable" => "This file can't be checked right now. Try again in a few minutes.",
         "attachments-unavailable" => "Files can't be accepted right now. Send your message without them, or try again later.",
         "ticket-closed" => "This request is closed. Change its status to reopen it before replying.",
+        "ticket-email-recipient-missing" => "This request came by email, but the helpdesk has no address to reply to. Add a private note instead.",
         "ticket-retention-disposed" => "This request is already being deleted under its retention period.",
         "ticket-search-scope-too-large" => "That search covers too much. Narrow it with a queue or status.",
         _ => status switch

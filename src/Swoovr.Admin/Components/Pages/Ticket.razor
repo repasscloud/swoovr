@@ -32,7 +32,7 @@ else
                     {
                         <li data-ticket-article="@a.Id" data-private="@(a.Private ? "true" : "false")" class="ticket-message@(a.Private ? " ticket-note" : a.Sender == "Customer" ? " ticket-member" : "")">
                             <div class="ticket-message-head"><strong>@SupportTicketText.Sender(a.Sender, false)</strong>
-                                @if (a.Private) { <span class="ui-pill" data-tone="escalate">Private note — staff only</span> } else if (a.Sender == "Customer" && a.Channel == "email") { <span class="ui-pill" data-tone="reject" data-ticket-email>By email — sender not verified, not shown to the member</span> } else { <span class="ui-pill" data-tone="quiet">@(a.Sender == "Customer" ? "From the member" : "Sent to member")</span> }
+                                @if (a.Private) { <span class="ui-pill" data-tone="escalate">Private note — staff only</span> } else if (a.Sender == "Customer" && a.Channel == "email") { <span class="ui-pill" data-tone="reject" data-ticket-email>By email — sender not verified, not shown to the member</span> } else if (a.Channel == "email") { <span class="ui-pill" data-tone="quiet" data-ticket-emailed>Emailed to the sender</span> } else { <span class="ui-pill" data-tone="quiet">@(a.Sender == "Customer" ? "From the member" : "Sent to member")</span> }
                                 <span class="help">@a.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC</span></div>
                             @if (a.Body.Length > 0) { <p class="ticket-body">@a.Body</p> }
                             @if (a.Attachments.Count > 0)
@@ -58,14 +58,15 @@ else
                     <form method="post" @formname="reply" @onsubmit="ReplyAsync" enctype="multipart/form-data" class="ticket-composer" data-enhance="false" data-ticket-reply="@(replyLocked ? "uncertain" : "ready")">
                         <AntiforgeryToken />
                         <input type="hidden" name="OpKey" value="@replyKey" />
-                        @if (replyLocked) { <input type="hidden" name="Visibility" value="@(replyPrivate ? "private" : "public")" /> <p class="help">@(replyPrivate ? "Private note (staff only)" : "Reply to the member")</p> }
+                        @if (replyLocked) { <input type="hidden" name="Visibility" value="@(replyPrivate ? "private" : "public")" /> <p class="help">@(replyPrivate ? "Private note (staff only)" : d.EmailReplyTo is null ? "Reply to the member" : "Email reply")</p> }
                         else
                         {
                             <fieldset class="ticket-seg"><legend class="visually-hidden">Who sees this</legend>
-                                <label><input type="radio" name="Visibility" value="public" checked="@(!replyPrivate)" data-ticket-visibility="public" /><span>Reply to member</span></label>
+                                <label><input type="radio" name="Visibility" value="public" checked="@(!replyPrivate)" data-ticket-visibility="public" /><span>@(d.EmailReplyTo is null ? "Reply to member" : "Email reply")</span></label>
                                 <label><input type="radio" name="Visibility" value="private" checked="@replyPrivate" data-ticket-visibility="private" /><span>Private note</span></label>
                             </fieldset>
                         }
+                        @if (d.EmailReplyTo is { } emailTo) { <p class="help" data-ticket-email-reply>This request came by email. A reply is emailed to <strong>@emailTo</strong> from the support address; a private note stays in the helpdesk.</p> }
                         <label class="ticket-compose"><span class="visually-hidden">Message</span><textarea name="Body" rows="7" maxlength="16000" placeholder="Write a reply or a private note" readonly="@replyLocked" data-ticket-reply-body>@replyBody</textarea></label>
                         <div class="ticket-tools">
                                 @if (!replyLocked && modules.Count > 0)

@@ -1940,3 +1940,25 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
   - 400s on the staff pages now say what went wrong for staff filters or details (`AdminText.StaffListRefusal` / `StaffRefusal`).
 - **Evidence:** `./scripts/check.sh` exit 0, including 23 staff checks (unfiltered URL has no empty filters; set filters are escaped; staff 400 wording) and 771 PostgreSQL persistence cases.
 - **Gap:** the fix is not yet verified on UAT; the owner checks it after deploy.
+
+## #362 (D368) Staff answer emailed tickets by email from Swoovr Admin — 18 November 2026
+
+- **Seen:** on UAT, mail to the support address became tickets, but replies written in Swoovr Admin never reached the sender. Every Admin reply was posted as an in-app `note` (D328 routed email replies through Zammad's web interface).
+- **Change:**
+  - `TicketingEmail` decides the route. A ticket whose first article is a customer email gets public staff replies as a Zammad `email` article to the latest emailed message's Reply-To, or else its From. Zammad sends it from the group's address.
+  - App-raised tickets keep in-app notes, even after an email arrives on them.
+  - Private notes are unchanged.
+  - Staff files on an emailed ticket are emailed when released from quarantine.
+  - With no usable address, the reply is refused before the operation is recorded (`ticket-email-recipient-missing`).
+  - Admin labels the option "Email reply", names the address, and marks sent emails "Emailed to the sender".
+- **Evidence:**
+  - `./scripts/check.sh` exit 0. `ZammadTransportChecks` covers:
+    - the email payload: type, to, subject, Agent sender, not internal, no Message-ID, marker in preferences;
+    - refusal for notes and customer replies;
+    - the in-app note when there's no email instruction;
+    - the routing rule: latest address, app ticket stays in-app, a header-injection address is refused.
+  - 771 PostgreSQL persistence cases.
+  - Also fixed: `scripts/update-release.sh` now changes to the repository from its own location instead of a hard-coded path, which failed the naming check.
+- **Gaps:**
+  - Not exercised against a live Zammad. On UAT, check that a reply arrives from the support address in the same email thread, and that a retry after a lost response doesn't send twice; reconciliation relies on Zammad keeping `preferences.swoovr_operation` on agent email articles.
+  - The Admin page was not rendered; the change is copy and a label on the existing reply form.
