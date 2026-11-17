@@ -82,7 +82,7 @@ def email(preheader, title, body, footer):
 </td></tr>
 <tr><td style="padding:20px 32px 28px;border-top:1px solid {T["border"]};">
 {small(footer)}
-{small('Swoovr is run by RePass Cloud Pty Ltd. Help: <a href="https://swoovr.com/support" style="color:' + T["muted"] + ';">swoovr.com/support</a>')}
+{small('Swoovr is run by <a href="https://repasscloud.com" style="color:' + T["muted"] + ';">RePass Cloud Pty Ltd</a>.<br>Help: <a href="https://swoovr.com/support" style="color:' + T["muted"] + ';">swoovr.com/support</a>')}
 </td></tr>
 </table>
 </td></tr></table>'''
