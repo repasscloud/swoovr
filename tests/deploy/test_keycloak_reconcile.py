@@ -282,6 +282,14 @@ class ReconcileChecks(unittest.TestCase):
         self.assertEqual((members['actionTokenGeneratedByUserLifespan'], members['other']), ('300', 'kept'))
         self.assertEqual(run(fake)['email-lifespans'], ','.join(r + ':ok' for r in kr.REALMS))
 
+    def test_swoovr_email_theme_set_in_every_realm_then_left_alone(self):
+        fake = FakeKeycloak(deploy_client=True, bootstrap_admin=False)
+        fake.realms['swoovr-staff']['emailTheme'] = 'base'
+        self.assertEqual(run(fake)['email-theme'], ','.join(r + ':corrected' for r in kr.REALMS))
+        self.assertTrue(all(fake.realms[r]['emailTheme'] == 'swoovr' for r in kr.REALMS))
+        self.assertEqual(run(fake)['email-theme'], ','.join(r + ':ok' for r in kr.REALMS))
+        self.assertNotIn('email-theme', run(fake, admin_only=True))
+
     def test_admin_only_runs_never_change_realm_settings(self):
         fake = FakeKeycloak(deploy_client=True, bootstrap_admin=False)
         self.assertNotIn('email-lifespans', run(fake, admin_only=True))

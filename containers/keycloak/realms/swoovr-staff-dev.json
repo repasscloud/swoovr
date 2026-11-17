@@ -12,6 +12,7 @@
   "duplicateEmailsAllowed": false,
   "rememberMe": false,
   "loginTheme": "swoovr",
+  "emailTheme": "swoovr",
   "internationalizationEnabled": false,
   "passwordPolicy": "length(12) and maxLength(128) and notUsername and notEmail",
   "ssoSessionIdleTimeout": 43200,

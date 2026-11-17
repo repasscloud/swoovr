@@ -60,7 +60,7 @@ public sealed class MailerSendEmailSender(HttpClient http, MailerSendOptions opt
     {
         // Local bounded-input guard, not a claim about the provider's full message limits.
         if (!MailerSendOptions.ValidAddress(message.To) || message.Subject is null || message.Text is null
-            || message.Subject.Length > 998 || message.Subject.Any(char.IsControl) || message.Text.Length > 65536)
+            || message.Subject.Length > 998 || message.Subject.Any(char.IsControl) || message.Text.Length > 65536 || message.Html?.Length > 131072)
             return new("rejected", "invalid-message");
         if (cancellationToken.IsCancellationRequested) return new("retry", "cancelled-before-send");
         var recipient = new MailAddress(message.To);
@@ -69,13 +69,15 @@ public sealed class MailerSendEmailSender(HttpClient http, MailerSendOptions opt
         using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiToken);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Content = JsonContent.Create(new
+        var payload = new Dictionary<string, object>
         {
-            from = new { email = options.From.Address, name = options.From.DisplayName },
-            to = new[] { new { email = recipient.Address } },
-            subject = message.Subject,
-            text = message.Text
-        });
+            ["from"] = new { email = options.From.Address, name = options.From.DisplayName },
+            ["to"] = new[] { new { email = recipient.Address } },
+            ["subject"] = message.Subject,
+            ["text"] = message.Text
+        };
+        if (message.Html is not null) payload["html"] = message.Html;
+        request.Content = JsonContent.Create(payload);
         try
         {
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token);

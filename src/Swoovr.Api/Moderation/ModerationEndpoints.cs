@@ -399,13 +399,33 @@ public static class ModerationEndpoints
                 Queue: {item.Queue}
 
                 Open the Swoovr admin app and acknowledge the case. It stays open until someone does.
-                """), cancellationToken);
+                """,
+                // Issue 355 (12-staff-urgent-report, approved): ids and the category only.
+                EscalationHtml(EmailBranding.Read(key => configuration[key]), serious, item.Id, category, item.Queue.ToString())), cancellationToken);
         item.EscalatedAt = now;
         Audit.Record(db, now, null, "system", sent ? "case.escalated" : "case.escalation-failed", "moderation-case", item.Id.ToString(),
             string.IsNullOrWhiteSpace(to) ? "unconfigured" : null);
         await db.SaveChangesAsync(cancellationToken);
         if (!sent) logs.CreateLogger("Swoovr.Api.Moderation").LogWarning("Urgent case {Case} was not emailed.", item.Id);
     }
+
+    /// <summary>Issue 355 (08-account-notice, approved): the notice itself is only shown inside Swoovr.</summary>
+    public static string NoticeHtml(EmailBranding branding) =>
+        EmailHtml.Page(branding, "Sign in and open Me to read it.", "There's a notice about your account",
+            EmailHtml.P("There's a new notice about your Swoovr account. Sign in to Swoovr and open **Me** to read it.")
+            + EmailHtml.Button("Open Swoovr", branding.Member("/account")),
+            EmailHtml.MemberFooter);
+
+    /// <summary>Issue 355 (12-staff-urgent-report): shared by urgent reports and media preservation.</summary>
+    public static string EscalationHtml(EmailBranding branding, bool serious, Guid caseId, string category, string queue, string? extra = null) =>
+        EmailHtml.Page(branding, "Open the Swoovr admin app and acknowledge the case.",
+            serious ? "Serious safety incident: acknowledgement needed" : "Urgent report: acknowledgement needed",
+            (serious ? EmailHtml.Note("A Serious Safety Incident report needs review now. If anyone may be in immediate danger, act before routine work. Evidence is preserved under a provisional legal hold.", strong: true)
+                     : EmailHtml.P("An urgent report needs review."))
+            + EmailHtml.Facts(("Case", caseId.ToString()), ("Category", category), ("Queue", queue))
+            + EmailHtml.Button("Open Swoovr Admin", branding.Admin("/cases/" + caseId))
+            + EmailHtml.P("Acknowledge the case in the admin app. It stays open until someone does." + (extra is null ? "" : " " + extra)),
+            EmailHtml.StaffFooter);
 
     private static async Task<List<NoticeView>> NoticesAsync(SwoovrDbContext db, Guid account, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -421,7 +441,7 @@ public static class ModerationEndpoints
     }
 
     /// <summary>D135: an in-app notice, and a short email that says only that there is one (Mailpit locally).</summary>
-    private static async Task NotifyAsync(SwoovrDbContext db, IEmailSender email, Guid account, NoticeKind kind, Guid? sanction, DateTimeOffset now, CancellationToken cancellationToken, Retention.PreservationLease? barrier = null)
+    private static async Task NotifyAsync(SwoovrDbContext db, IEmailSender email, EmailBranding branding, Guid account, NoticeKind kind, Guid? sanction, DateTimeOffset now, CancellationToken cancellationToken, Retention.PreservationLease? barrier = null)
     {
         var notice = new MemberNotice { Id = Guid.NewGuid(), AccountId = account, Kind = kind, SanctionId = sanction, CreatedAt = now };
         db.MemberNotices.Add(notice);
@@ -436,7 +456,9 @@ public static class ModerationEndpoints
                 There's a new notice about your Swoovr account. Sign in to Swoovr and open Me to read it.
 
                 — Swoovr (RePass Cloud Pty Ltd)
-                """), cancellationToken);
+                """,
+                // Issue 355 (08-account-notice, approved): the notice itself is only shown inside Swoovr.
+                NoticeHtml(branding)), cancellationToken);
     }
 
     private static void MapAdmin(WebApplication app)
@@ -512,7 +534,7 @@ public static class ModerationEndpoints
             if (denied is not null) return denied;
             var (db, now) = (accounts.Db!, clock.GetUtcNow());
             if (item!.Status == CaseStatus.Closed) return Problem(StatusCodes.Status409Conflict, ProblemCodes.InvalidRequest, "This case is closed.");
-            var result = await ActAsync(db, email, current!, item.SubjectAccountId, item, request, now, cancellationToken, Retention.ModerationLifecycleFilter.Current(context), accounts.Services.GetRequiredService<RegistryPopulation>(),accounts.Services.GetRequiredService<ModerationTransparencyRecorder>());
+            var result = await ActAsync(db, email, EmailBranding.Read(key => accounts.Services.GetRequiredService<IConfiguration>()[key]), current!, item.SubjectAccountId, item, request, now, cancellationToken, Retention.ModerationLifecycleFilter.Current(context), accounts.Services.GetRequiredService<RegistryPopulation>(),accounts.Services.GetRequiredService<ModerationTransparencyRecorder>());
             if (result is not null) return result;
             return Results.Ok(await DetailAsync(db, item, now, cancellationToken));
         });
@@ -525,7 +547,7 @@ public static class ModerationEndpoints
             var db = accounts.Db!;
             if (await db.MemberProfiles.FindAsync([id], cancellationToken) is null) return Results.NotFound();
             if (request.Action == "dismiss") return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Nothing to dismiss.");
-            return await ActAsync(db, email, current!, id, null, request, clock.GetUtcNow(), cancellationToken, Retention.ModerationLifecycleFilter.Current(context), accounts.Services.GetRequiredService<RegistryPopulation>(),accounts.Services.GetRequiredService<ModerationTransparencyRecorder>()) ?? Results.Ok(await SummaryAsync(db, id, clock.GetUtcNow(), cancellationToken));
+            return await ActAsync(db, email, EmailBranding.Read(key => accounts.Services.GetRequiredService<IConfiguration>()[key]), current!, id, null, request, clock.GetUtcNow(), cancellationToken, Retention.ModerationLifecycleFilter.Current(context), accounts.Services.GetRequiredService<RegistryPopulation>(),accounts.Services.GetRequiredService<ModerationTransparencyRecorder>()) ?? Results.Ok(await SummaryAsync(db, id, clock.GetUtcNow(), cancellationToken));
         });
         admin.MapPost("/sanctions/{id:guid}/lift", async (Guid id, LiftRequest request, ClaimsPrincipal user, AccountResolver accounts, IEmailSender email,
             TimeProvider clock, HttpContext context, CancellationToken cancellationToken) =>
@@ -551,7 +573,7 @@ public static class ModerationEndpoints
             await outcomeTransaction.CommitAsync(cancellationToken);
             await outcomeTransaction.DisposeAsync();
             if(outcomeCase is not null)await outcomeCase.DisposeAsync();
-            await NotifyAsync(db, email, sanction.AccountId, NoticeKind.SanctionLifted, sanction.Id, now, cancellationToken, Retention.ModerationLifecycleFilter.Current(context));
+            await NotifyAsync(db, email, EmailBranding.Read(key => accounts.Services.GetRequiredService<IConfiguration>()[key]), sanction.AccountId, NoticeKind.SanctionLifted, sanction.Id, now, cancellationToken, Retention.ModerationLifecycleFilter.Current(context));
             return Results.Ok(View(sanction, now));
         });
 
@@ -599,7 +621,7 @@ public static class ModerationEndpoints
             await outcomeTransaction.CommitAsync(cancellationToken);
             await outcomeTransaction.DisposeAsync();
             if(outcomeCase is not null)await outcomeCase.DisposeAsync();
-            await NotifyAsync(db, email, appeal.AccountId, appeal.Status == AppealStatus.Overturned ? NoticeKind.AppealOverturned : NoticeKind.AppealUpheld, sanction.Id, now, cancellationToken, Retention.ModerationLifecycleFilter.Current(context));
+            await NotifyAsync(db, email, EmailBranding.Read(key => accounts.Services.GetRequiredService<IConfiguration>()[key]), appeal.AccountId, appeal.Status == AppealStatus.Overturned ? NoticeKind.AppealOverturned : NoticeKind.AppealUpheld, sanction.Id, now, cancellationToken, Retention.ModerationLifecycleFilter.Current(context));
             return Results.Ok(new AppealView(appeal.Id, sanction.Id, Wire(appeal.Status), appeal.CreatedAt));
         });
 
@@ -746,7 +768,7 @@ public static class ModerationEndpoints
     }
 
     /// <summary>Applies one action (D133) and notifies the member; returns a refusal, or null when done.</summary>
-    private static async Task<IResult?> ActAsync(SwoovrDbContext db, IEmailSender email, CurrentAccount current, Guid subjectId, ModerationCase? item,
+    private static async Task<IResult?> ActAsync(SwoovrDbContext db, IEmailSender email, EmailBranding branding, CurrentAccount current, Guid subjectId, ModerationCase? item,
         ModerationActionRequest request, DateTimeOffset now, CancellationToken cancellationToken, Retention.PreservationLease? barrier = null, RegistryPopulation? population = null, ModerationTransparencyRecorder? reporting=null)
     {
         var action = request.Action switch
@@ -817,7 +839,7 @@ public static class ModerationEndpoints
         await outcomeTransaction.DisposeAsync();
         if(outcomeCase is not null)await outcomeCase.DisposeAsync();
         if (sanction is not null)
-            await NotifyAsync(db, email, subjectId, sanction.Kind switch
+            await NotifyAsync(db, email, branding, subjectId, sanction.Kind switch
             {
                 SanctionKind.Warning => NoticeKind.Warning, SanctionKind.Restriction => NoticeKind.Restriction,
                 SanctionKind.Suspension => NoticeKind.Suspension, _ => NoticeKind.Termination,

@@ -57,6 +57,8 @@ COPY --chown=1000:0 containers/keycloak/themes/swoovr/ /opt/keycloak/themes/swoo
 RUN sed -i -e 's|^swoovrPrivacyUrl=.*|swoovrPrivacyUrl=https://uat.swoovr.app/privacy|' \
     -e 's|^swoovrTermsUrl=.*|swoovrTermsUrl=https://uat.swoovr.app/terms|' \
     -e 's|^swoovrCommunityUrl=.*|swoovrCommunityUrl=https://uat.swoovr.app/community-guidelines|' /opt/keycloak/themes/swoovr/login/theme.properties \
+    && sed -i -e 's|^swoovrLogoUrl=.*|swoovrLogoUrl=https://uat.swoovr.app/email/swoovr-logo.png|' \
+    -e 's|^swoovrAppUrl=.*|swoovrAppUrl=https://uat.swoovr.app|' /opt/keycloak/themes/swoovr/email/theme.properties \
     && if [ -n "$SWOOVR_VERSION" ]; then echo "$SWOOVR_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' && sed -i "s|^swoovrVersion=.*|swoovrVersion=$SWOOVR_VERSION|" /opt/keycloak/themes/swoovr/login/theme.properties; fi \
     && touch -m --date=@1743465600 /opt/keycloak/providers/swoovr-contact-policy.jar \
     && /opt/keycloak/bin/kc.sh build --features=update-email --spi-email-sender--provider=swoovr-email
