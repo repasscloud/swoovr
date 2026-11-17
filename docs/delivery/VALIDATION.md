@@ -1929,3 +1929,14 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
 - **Not done / gaps:**
   - The real sign-in redirect and the anti-forgery posts were not exercised; confirm on UAT.
   - The header's **Your staff account** menu item was built but not rendered.
+
+## #349 Admin → Staff accounts showed a form error instead of the list — 17 November 2026
+
+- **Seen:** v1.0.6 on UAT. `/staff` showed "Check the form: choose a listed reason…" for both the root account and an Entra admin account.
+- **Cause:** the Admin client always sent `signedInAfter=` and `signedInBefore=` with empty values. The API binds them as `DateTimeOffset?`, and ASP.NET Core rejects an empty nullable date with 400 before the endpoint runs. The page then showed the generic 400 text, which belongs to the member-restriction form. The #347 render harness used a stub API, so it never exercised real binding.
+- **Reproduced:** a minimal API with the same parameter list returns 400 for the old unfiltered URL and 200 when the empty dates are left out (.NET SDK 10.0.400).
+- **Fix:**
+  - `AdminClient.StaffAccountsPath` sends only the filters that are set.
+  - 400s on the staff pages now say what went wrong for staff filters or details (`AdminText.StaffListRefusal` / `StaffRefusal`).
+- **Evidence:** `./scripts/check.sh` exit 0, including 23 staff checks (unfiltered URL has no empty filters; set filters are escaped; staff 400 wording) and 771 PostgreSQL persistence cases.
+- **Gap:** the fix is not yet verified on UAT; the owner checks it after deploy.

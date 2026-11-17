@@ -37,6 +37,6 @@
     {
         var result = await Admin.CreateStaffAsync(new(Field("first"), Field("last"), Field("email"), Field("phone"), Context!.Request.Form["roles"].Select(v => v!).ToArray(), Field("reason"), Field("confirm") == "yes"));
         if (result.Ok) { Navigation.NavigateTo($"/staff/{result.Value!.Id}?created=1"); return; }
-        message = AdminText.Refusal(result.Status, result.Code); reauth = AdminText.NeedsSignIn(result.Status, result.Code);
+        message = AdminText.StaffRefusal(result.Status, result.Code); reauth = AdminText.NeedsSignIn(result.Status, result.Code);
     }
 }

@@ -78,6 +78,12 @@ public static class AdminText
         (400, _) => "Check the form: choose a listed reason. Support restricts for up to 30 days; Trust & Safety and Admin for up to 90.",
         _ => $"The API answered {status}.",
     };
+
+    // Issue 349: a 400 on the staff pages is about staff filters or details, not the member-restriction form.
+    public static string StaffListRefusal(int status, string? code) =>
+        status == 400 ? "Those filters didn't work. Clear them, or narrow the search before filtering by MFA." : Refusal(status, code);
+    public static string StaffRefusal(int status, string? code) =>
+        status == 400 ? "Check the staff details, roles, reason and confirmation." : Refusal(status, code);
 }
 
 /// <summary>Wording for legal-hold refusals (D189).</summary>

@@ -1,6 +1,8 @@
 extern alias AdminHost;
 using AccountLabels = AdminHost::Swoovr.Admin.AccountLabels;
 using Swoovr.Domain;
+using AdminText = AdminHost::Swoovr.Admin.AdminText;
+using StaffClient = Swoovr.Client.AdminClient;
 
 /// <summary>Staff list/detail names fall back to the email so SSO and break-glass accounts stay openable.</summary>
 static class StaffNameChecks
@@ -32,6 +34,13 @@ static class StaffNameChecks
         Check(StaffNames.Adopt(staff, "Renamed", null) && staff.RegisteredFirstName == "Renamed" && staff.RegisteredLastName == "Person", "one name changes alone");
         var member = new Account { Realm = AccountRealm.Members };
         Check(!StaffNames.Adopt(member, "Member", "Name") && member.RegisteredFirstName is null, "member names never come from this path");
-        Console.WriteLine($"PASS: staff display names and labels ({count} checks).");
+        // Issue 349: an empty "signedInAfter=" fails DateTimeOffset? binding with 400, so unset filters stay off the URL.
+        Check(StaffClient.StaffAccountsPath(null, "", " ", 1, null, null, null) == "api/admin/staff/accounts?page=1", "unfiltered list sends no empty filters");
+        var since = new DateTimeOffset(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
+        var filtered = StaffClient.StaffAccountsPath("fictional & co", "admin", "active", 0, "setup-pending", since, null);
+        Check(filtered == "api/admin/staff/accounts?search=fictional%20%26%20co&role=admin&status=active&mfa=setup-pending&signedInAfter=" + Uri.EscapeDataString(since.ToString("O")) + "&page=1", "set filters are escaped and page floors at 1");
+        Check(!AdminText.StaffListRefusal(400, "invalid-request").Contains("reason") && AdminText.StaffListRefusal(401, null) == AdminText.Refusal(401, null), "staff list 400 is about filters, others unchanged");
+        Check(!AdminText.StaffRefusal(400, null).Contains("30 days"), "staff form 400 is not the restriction copy");
+        Console.WriteLine($"PASS: staff display names, labels and list requests ({count} checks).");
     }
 }
