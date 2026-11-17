@@ -17,7 +17,7 @@ public interface ITicketingWorkspaceProvider : ITicketingProvider
     Task<SupportDirectory> DirectoryAsync(CancellationToken ct);
     Task<IReadOnlyList<SupportTicket>> SearchAsync(string query,int page,int pageSize,string sort,bool descending,CancellationToken ct);
     Task<SupportTicket> ClassifyAsync(long id,IReadOnlyDictionary<string,string> attributes,CancellationToken ct);
-    Task<SupportArticle> ReplyWithOperationAsync(long id,string body,bool internalNote,bool customer,IReadOnlyList<SupportUpload> attachments,string operationReference,CancellationToken ct);
+    Task<SupportArticle> ReplyWithOperationAsync(long id,string body,bool internalNote,bool customer,IReadOnlyList<SupportUpload> attachments,string operationReference,CancellationToken ct,SupportEmail? email=null);
     Task<SupportArticle> ReplyAsync(long id,string body,bool internalNote,bool customer,IReadOnlyList<SupportUpload> attachments,CancellationToken ct);
     Task<SupportDownload> DownloadAsync(long ticket,long article,long attachment,CancellationToken ct);
     Task<IReadOnlyList<SupportTextModule>> TextModulesAsync(CancellationToken ct);

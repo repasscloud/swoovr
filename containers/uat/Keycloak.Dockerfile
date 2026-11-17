@@ -21,6 +21,7 @@ RUN set -eu; \
     java -classpath '/build/tests:/build/main:/keycloak-libs/*' app.swoovr.identity.RetirementPolicyChecks; \
     java -classpath '/build/tests:/build/main:/keycloak-libs/*' app.swoovr.identity.MailerSendChecks; \
     java -classpath '/build/tests:/build/main:/keycloak-libs/*' app.swoovr.identity.TwilioEmailChecks; \
+    java -classpath '/build/tests:/build/main:/keycloak-libs/*' app.swoovr.identity.PostmarkEmailChecks; \
     java -classpath '/build/tests:/build/main:/keycloak-libs/*' app.swoovr.identity.RegistrationAdmissionChecks; \
     jar --create --file /output/swoovr-contact-policy.jar -C /build/main .
 

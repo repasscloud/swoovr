@@ -152,31 +152,36 @@ Staff sign in with **Sign in with Microsoft**. Two things in Entra decide what h
 
 | Sender | Service | From | Used for |
 | --- | --- | --- | --- |
-| Keycloak | Twilio Email API | `support@swoovr.com` | Set-up links, email verification, sign-in emails |
-| Swoovr API | Twilio Email API | `support@swoovr.com` | Member and staff notifications |
+| Keycloak | Postmark (D368, #357) | `support@swoovr.com` | Set-up links, email verification, sign-in emails |
+| Swoovr API | Postmark (D368, #357) | `support@swoovr.com` | Member and staff notifications |
 | Zammad | Microsoft 365 mailbox (set up by you in Zammad) | the support mailbox | Helpdesk tickets |
 | SMS | Mailpit (a catch-all on the server, nothing leaves) | — | Until Twilio SMS is verified |
 
-The service names and sender are in `env/mail.env` on the server (`SWOOVR_KEYCLOAK_MAIL_SERVICE`, `SWOOVR_API_MAIL_SERVICE`, `SWOOVR_MAIL_FROM`).
+The service names, sender and Postmark stream are in `env/mail.env` on the server (`SWOOVR_KEYCLOAK_MAIL_SERVICE`, `SWOOVR_API_MAIL_SERVICE`, `SWOOVR_MAIL_FROM`, `SWOOVR_MAIL_POSTMARK_STREAM`). They come from the GitHub `uat` variables `UAT_KEYCLOAK_MAIL_SERVICE`, `UAT_API_MAIL_SERVICE` and `UAT_POSTMARK_MESSAGE_STREAM`, and the token from the secret `UAT_POSTMARK_SERVER_TOKEN`. Twilio and MailerSend remain available by setting the service variables. Open and link tracking are off.
 
 ### "An email didn't arrive": the procedure
 
-1. **Check junk / "Other"** in the receiving mailbox.
-2. **Test the sending path** from your Mac. This sends one plain email through exactly the same provider, sender and key that Keycloak uses:
+1. **Look it up in Postmark:** Servers → your server → **Activity**, search for the address. Postmark shows each message's status (processed, delivered, bounced, spam complaint) and the receiving server's reply. That answers most cases without anything else.
+2. **Check junk / "Other"** in the receiving mailbox.
+3. **Test the sending path** from your Mac. This sends one plain email through exactly the same provider, sender, token and stream that Keycloak uses:
    ```bash
    scripts/uat/mail-test.sh <server IPv4> <your address>
    ```
-   - `ACCEPTED by Twilio …` → the server and Twilio are fine. Go to step 3.
-   - `REFUSED by Twilio: HTTP 401/403` → the Twilio email key is wrong or revoked: update `UAT_TWILIO_EMAIL_KEY_SID` / `UAT_TWILIO_EMAIL_KEY_SECRET` (section 7) and deploy.
-   - `REFUSED … 400` → the sender `support@swoovr.com` / domain isn't accepted by Twilio: check the sender domain in Twilio.
-3. **If the test arrives but the real email didn't**, resend the real one:
+   - `ACCEPTED by postmark …` → the server and Postmark are fine. Go to step 4.
+   - `REFUSED by postmark: HTTP 401` or `ErrorCode 10` → the token is wrong or revoked: update `UAT_POSTMARK_SERVER_TOKEN` (section 7) and deploy.
+   - `ErrorCode 400`/`401` (sender signature) → `support@swoovr.com` / swoovr.com is not verified in Postmark.
+   - `ErrorCode 406` → Postmark has deactivated that recipient after a bounce or spam complaint: reactivate it in Postmark (Activity → the address → Reactivate).
+   - `ErrorCode 412` → the Postmark account is still pending approval and can send only to its own domain.
+4. **If the test arrives but the real email didn't**, resend the real one:
    - root admin set-up email → `admin-invite` (section 2);
-   - a staff member's verification email → they sign in again; Keycloak offers "resend".
-4. **If the resent email still doesn't arrive but the test does**, the receiving provider is filtering that message's content (for example its sign-in link). Check Twilio's log for that message: Twilio Console → Email / Communications logs, or the SendGrid **Activity Feed** (swoovr.com signs mail through SendGrid account `u73501063`). Note the status (delivered, bounced, dropped, deferred) and reason.
+   - a member's or staff member's verification email → they sign in again; Keycloak offers "resend".
+5. **If the resent email still doesn't arrive but the test does**, the receiving provider is filtering that message's content (for example its sign-in link). Postmark's Activity shows the receiving server's reply.
 
-**Note:** "accepted by Twilio" (HTTP 202) means Twilio took the message, not that it reached the inbox. The current Twilio key can send but cannot read delivery status (error 8021, `twilio/comms/emails.operations/read`). Giving the key that permission in the Twilio Console would let delivery status be checked from the server.
+**Note:** "accepted" (HTTP 200, `ErrorCode` 0) means Postmark took the message, not that it reached the inbox.
 
-**swoovr.com DNS** (Cloudflare): mail is hosted in Microsoft 365 (MX), DKIM `s1`/`s2._domainkey` point at SendGrid so Twilio can sign as swoovr.com, SPF lists only Microsoft, DMARC is `p=none`. Use `dig @1.1.1.1 …` to check; some local resolvers return nothing.
+**History (17 November 2026, #353):** with Twilio Email, iCloud deferred every message ("IPs were throttled by recipient server") because Twilio sends from shared SendGrid IPs; a verification email arrived about 30 minutes late. That is why UAT moved to Postmark (D368).
+
+**swoovr.com DNS** (Cloudflare): mail is hosted in Microsoft 365 (MX). Postmark signs as swoovr.com with its own DKIM record and Return-Path CNAME (verified in Postmark). The older SendGrid DKIM records `s1`/`s2._domainkey` are only needed while Twilio is used. SPF lists only Microsoft (Postmark aligns through its Return-Path domain), DMARC is `p=none`. Use `dig @1.1.1.1 …` to check; some local resolvers return nothing.
 
 ## 7. Settings: where each value lives
 

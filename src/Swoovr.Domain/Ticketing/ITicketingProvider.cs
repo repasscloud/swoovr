@@ -20,6 +20,27 @@ public sealed record SupportArticle(long Id, long TicketId, string Body, string 
     /// an email sender address can be forged and must not speak as the member inside the app (DEFAULT, conservative).
     /// </summary>
     public bool CustomerVisible => !Internal && !(Sender == "Customer" && Type == "email");
+    /// <summary>For an emailed message: its Reply-To, else its From (as the helpdesk stored it).</summary>
+    public string? ReplyAddress { get; init; }
+}
+/// <summary>D369: send a staff reply as an email from the group's support address.</summary>
+public sealed record SupportEmail(string To, string Subject);
+/// <summary>
+/// D369 (owner, 18 November 2026): a ticket that started as an email is answered by email, also from Swoovr Admin. A ticket a
+/// member or guest raised in Swoovr is answered in Swoovr (recorded in the helpdesk), whatever later arrives by email.
+/// </summary>
+public static class TicketingEmail
+{
+    public static bool StartedByEmail(IReadOnlyList<SupportArticle> articles) =>
+        articles.OrderBy(a => a.Id).FirstOrDefault() is { Sender: "Customer", Type: "email" };
+    /// <summary>
+    /// Where staff replies go: the latest emailed customer message's reply address. Null if it isn't an email ticket, or if
+    /// that latest address is missing or unsafe; an older sender's address is never used instead (stale recipient).
+    /// </summary>
+    public static string? Recipient(IReadOnlyList<SupportArticle> articles) =>
+        !StartedByEmail(articles) ? null
+            : articles.Where(a => a is { Sender: "Customer", Type: "email" }).MaxBy(a => a.Id)?.ReplyAddress is { } latest && Valid(latest) ? latest.Trim() : null;
+    private static bool Valid(string? address) => address is { Length: > 2 and <= 998 } a && a.Contains('@') && !a.Any(char.IsControl);
 }
 public sealed record SupportTicketDraft(string Title, string Body, long CustomerId, long GroupId, string OperationReference,string Source="member",
     IReadOnlyList<SupportUpload>? Attachments=null);

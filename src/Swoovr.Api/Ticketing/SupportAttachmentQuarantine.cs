@@ -191,8 +191,13 @@ public sealed class SupportAttachmentQuarantine(SwoovrDbContext db, IServiceProv
                         if (Convert.ToHexStringLower(SHA256.HashData(data)) != file.Sha256) throw new TicketingProviderException("quarantine-mismatch");
                         uploads.Add(new(file.Filename, file.ContentType, data));
                     }
+                    // D369: staff files on a ticket that started as an email are emailed to the sender too.
+                    SupportEmail? email = null;
+                    if (first.Source == AttachmentSource.Staff && !first.Private
+                        && TicketingEmail.Recipient(await author.GetArticlesAsync(first.ProviderTicketId, ct)) is { } recipient)
+                        email = new(recipient, ticket.Title);
                     article = await author.ReplyWithOperationAsync(first.ProviderTicketId, ReleaseBody(clean.Select(f => f.Filename)), first.Private, first.Source == AttachmentSource.Member,
-                        uploads, operation.ToString("D"), ct);
+                        uploads, operation.ToString("D"), ct, email);
                     if (closedState is not null) await author.ChangeTicketAsync(first.ProviderTicketId, new(null, null, closedState.Id, null), ct);
                 }
                 foreach (var file in files) (file.ReleasedAt, file.ReleaseArticleId) = (now, article.Id);

@@ -184,17 +184,21 @@ def mail_problems(values, api=None):
         if any(ch in values.get(key, '') for ch in '<>"@'):
             problems.append(f'{key} must be a plain display name')
     api_service, keycloak_service, sms = get('SWOOVR_API_MAIL_SERVICE'), get('SWOOVR_KEYCLOAK_MAIL_SERVICE'), get('SWOOVR_SMS_SERVICE')
-    if api_service not in ('twilio', 'smtp', 'mailpit'):
-        problems.append('SWOOVR_API_MAIL_SERVICE must be twilio, smtp or mailpit')
-    if keycloak_service not in ('twilio', 'mailersend'):
-        problems.append('SWOOVR_KEYCLOAK_MAIL_SERVICE must be twilio or mailersend')
+    if api_service not in ('postmark', 'twilio', 'mailersend', 'smtp', 'mailpit'):
+        problems.append('SWOOVR_API_MAIL_SERVICE must be postmark, twilio, mailersend, smtp or mailpit')
+    if keycloak_service not in ('postmark', 'twilio', 'mailersend'):
+        problems.append('SWOOVR_KEYCLOAK_MAIL_SERVICE must be postmark, twilio or mailersend')
     if sms not in ('mailpit', 'twilio'):
         problems.append('SWOOVR_SMS_SERVICE must be mailpit or twilio')
     needed = set()
     if 'twilio' in (api_service, keycloak_service):
         needed |= {'SWOOVR_MAIL_TWILIO_KEY_SID', 'SWOOVR_MAIL_TWILIO_KEY_SECRET'}
-    if keycloak_service == 'mailersend':
+    if 'mailersend' in (api_service, keycloak_service):
         needed.add('SWOOVR_MAIL_MAILERSEND_API_TOKEN')
+    if 'postmark' in (api_service, keycloak_service):
+        needed.add('SWOOVR_MAIL_POSTMARK_SERVER_TOKEN')
+        if not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,99}', get('SWOOVR_MAIL_POSTMARK_STREAM')):
+            problems.append('SWOOVR_MAIL_POSTMARK_STREAM must be a Postmark stream ID (for example outbound)')
     # Zammad sends through the SMTP relay only when this bundle manages its mail (otherwise configured in Zammad).
     if get('SWOOVR_ZAMMAD_MANAGE_MAIL') not in ('', 'true', 'false'):
         problems.append('SWOOVR_ZAMMAD_MANAGE_MAIL must be true or false')
@@ -280,6 +284,7 @@ PROVIDER_VALUES = {
     'UAT_TWILIO_EMAIL_KEY_SECRET': [('mail.env', 'SWOOVR_MAIL_TWILIO_KEY_SECRET')],
     'UAT_SENDGRID_API_KEY': [('mail.env', 'SWOOVR_MAIL_SMTP_PASSWORD')],
     'UAT_MAILERSEND_API_TOKEN': [('mail.env', 'SWOOVR_MAIL_MAILERSEND_API_TOKEN')],
+    'UAT_POSTMARK_SERVER_TOKEN': [('mail.env', 'SWOOVR_MAIL_POSTMARK_SERVER_TOKEN')],
     'UAT_ZAMMAD_IMAP_PASSWORD': [('mail.env', 'SWOOVR_ZAMMAD_IMAP_PASSWORD')],
     # Environment variables (not secret)
     'UAT_INITIAL_ADMIN_EMAIL': [('automation.env', 'SWOOVR_INITIAL_ADMIN_EMAIL')],
@@ -296,6 +301,7 @@ PROVIDER_VALUES = {
     'UAT_MAIL_HELPDESK_FROM_NAME': [('mail.env', 'SWOOVR_MAIL_HELPDESK_FROM_NAME')],
     'UAT_API_MAIL_SERVICE': [('mail.env', 'SWOOVR_API_MAIL_SERVICE')],
     'UAT_KEYCLOAK_MAIL_SERVICE': [('mail.env', 'SWOOVR_KEYCLOAK_MAIL_SERVICE')],
+    'UAT_POSTMARK_MESSAGE_STREAM': [('mail.env', 'SWOOVR_MAIL_POSTMARK_STREAM')],
     'UAT_SMS_SERVICE': [('mail.env', 'SWOOVR_SMS_SERVICE')],
     'UAT_SMTP_HOST': [('mail.env', 'SWOOVR_MAIL_SMTP_HOST')],
     'UAT_SMTP_PORT': [('mail.env', 'SWOOVR_MAIL_SMTP_PORT')],

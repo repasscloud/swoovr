@@ -53,6 +53,7 @@ public static class HostingPolicy
         Require("Email:From");
         switch(Read("Email:Provider"))
         {
+            case "postmark":Require("Email:Postmark:ServerToken");break;
             case "twilio":Require("Email:Twilio:KeySid");Require("Email:Twilio:KeySecret");break;
             case "smtp":foreach(var key in new[]{"Host","Port","Username","Password"})Require("Email:Smtp:"+key);
                 if(Read("Email:Smtp:Host") is "127.0.0.1" or "localhost" or "mailpit")errors.Add("hosted-smtp-relay-required");break;
