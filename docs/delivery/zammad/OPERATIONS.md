@@ -95,6 +95,7 @@ Swoovr roles decide every staff member's queues; Zammad is never managed as a se
 - **Service:** the pinned `clamav/clamav@sha256:c21aa18c…` image, unmodified, with its `CLAMD_CONF_*` limits (see `compose.local.yaml`).
   - Give it about 4 GB of memory.
   - Persist `/var/lib/clamav` so freshclam updates survive restarts.
+  - Signatures update automatically once every 24 hours through the image's built-in updater; no external scheduler (D375).
   - Allow outbound HTTPS to the ClamAV mirror.
   - Never publish port 3310; only the API reaches it.
 - **API settings:** `Attachments:Scanning:ClamAv:Host`, plus optionally `Port` (3310), `TimeoutSeconds` (120) and `MaxStreamBytes` (160 MB; must cover the largest allowed file). Hosted hosts refuse to start without a host, or with scanning or its worker switched off.
@@ -103,6 +104,13 @@ Swoovr roles decide every staff member's queues; Zammad is never managed as a se
 - **Outage:** messages still go through and their files wait in quarantine. Once ClamAV answers again they are scanned and released automatically. Nothing is ever released unscanned.
 - **Blocked files** stay in Swoovr's quarantine (never in Zammad) for 30 days, then the copy is removed. The hold row keeps the facts: name, size, hash, detection.
 - **Supply chain:** `docs/delivery/supply-chain/clamav-c21aa18cc0a3/`. Regenerate it with syft and grype for any new digest, and have the owner approve the digest.
+
+## Support files (D372)
+
+Files that arrive **by email** go straight into Zammad and are not scanned there (Q137). Swoovr scans every file when it is downloaded through Swoovr Admin, and can't gate Zammad's own downloads.
+
+- Staff open and download support files **only in Swoovr Admin**. Zammad's own web sign-in (D327) stays available for reading and answering conversations.
+- Zammad's sign-in page says so. `provision.rb` sets Zammad's `maintenance_login` (on) and `maintenance_login_message`; re-provisioning restores them if they were changed in Zammad's admin UI.
 
 ## Helpdesk retention (D337)
 

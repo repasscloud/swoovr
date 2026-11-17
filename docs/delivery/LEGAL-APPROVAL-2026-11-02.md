@@ -46,3 +46,7 @@ Owner, 4 November 2026: the policies are not drafts; they are the policies. The 
 ## Operative reader activation — D290
 
 The owner subsequently confirmed 141.2 Yes and directed removal of pre-approval reader labels. D290 activates the public readers separately from this historical approval snapshot. Runtime metadata and obsolete statements that the terms are not in force or the approved schedule still awaits legal review are updated; obligations and retention periods are retained. Reading/sign-in still does not record consent, and no required-acceptance catalogue or notification campaign is silently enabled. The SHA table above remains the historical owner-supplied snapshot, not the hashes of later implementation files.
+
+## Privacy notice 0.20 approved — 17 November 2026 (D377)
+
+Owner, [#359](https://github.com/repasscloud/wanderconnect/issues/359) (Q179 **A**, effective 17 November 2026). Swoovr email now goes through Postmark (D368). Version 0.20 names "Postmark (email)" among service providers instead of MailerSend, and lists it with the providers that process information in the United States (MailerSend in the European Union is removed). Nothing else changes. `PrivacyNotice` reads "approved 17 November 2026", version "0.20, 17 November 2026", on web and mobile. The location wording approved in D351 (#271, publication #283) will be published as 0.21.

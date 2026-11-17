@@ -5,14 +5,15 @@ namespace Swoovr.Client;
 /// the same thing. It is the APP privacy policy (APP 1.3–1.4, including the APP 1.7–1.9 automated-decision disclosures that
 /// commence on 10 December 2026) and the general collection notice (APP 5). Approved and in force (D288/D290/D310); every
 /// rendering shows <see cref="StatusLabel"/>. Wording follows the decisions it describes (D138, D167, D170–D173, D186–D191,
-/// D195, D199, D203–D205, D216, D217, D263, D266, D268, D269, D272, D275, D277, D333, D334); change them together. Provider countries in
+/// D195, D199, D203–D205, D216, D217, D263, D266, D268, D269, D272, D275, D277, D333, D334, D377); change them together. Provider countries in
 /// "overseas" must keep matching the executed provider agreements.
 /// </summary>
 public static class PrivacyNotice
 {
     // Issue 208: 0.19 (helpdesk, support retention and customer retirement, issue 207) approved 6 November 2026 (owner; D334).
-    public const string StatusLabel = "Privacy notice — approved 6 November 2026.";
-    public const string Version = "0.19, 6 November 2026";
+    // Issue 359: 0.20 names Postmark for email (Q179 A, effective 17 November 2026; owner; D377). D351's location wording becomes 0.21.
+    public const string StatusLabel = "Privacy notice — approved 17 November 2026.";
+    public const string Version = "0.20, 17 November 2026";
     /// <summary>CONFIRMED (D202, Q80): privacy@swoovr.com; mail to privacy@swoovr.app forwards to it.</summary>
     public const string Contact = "privacy@swoovr.com";
 
@@ -98,14 +99,14 @@ public static class PrivacyNotice
         ]),
         new("sharing", "Who we share information with", [
             "Other members see only the profile information your settings allow in each mode, and the messages you send them.",
-            "We use service providers to run Swoovr, under agreements that limit their use of your information to providing their service to us: Microsoft Azure (hosting and databases), Cloudflare (photo storage and network protection), Didit (ID verification), Twilio (SMS messages, including verification codes), MailerSend (email), Apple and Google (sign-in if you choose it, and push notifications), and the Canadian Centre for Child Protection's Project Arachnid (photo fingerprint matching). If we introduce paid features, payments will be handled by Apple, Google or Stripe, and we will never receive your full card details.",
+            "We use service providers to run Swoovr, under agreements that limit their use of your information to providing their service to us: Microsoft Azure (hosting and databases), Cloudflare (photo storage and network protection), Didit (ID verification), Twilio (SMS messages, including verification codes), Postmark (email), Apple and Google (sign-in if you choose it, and push notifications), and the Canadian Centre for Child Protection's Project Arachnid (photo fingerprint matching). If we introduce paid features, payments will be handled by Apple, Google or Stripe, and we will never receive your full card details.",
             "We operate our own self-hosted customer support system using Zammad. Support tickets, correspondence, attachments and relevant customer information are processed and stored in our managed hosting environment. Zammad is not an independent recipient of your information; it is software operated by Swoovr. Authorised support, Trust & Safety, legal and administrative staff may access support records according to their responsibilities and permissions. Email correspondence is also processed by our email service provider.",
             "We may also disclose information when the law requires or permits it: to police and other authorities under our law-enforcement process, to the eSafety Commissioner or other regulators, to prevent a serious threat to someone's life, health or safety, or to professional advisers bound by confidentiality. If Swoovr is sold or restructured, information may transfer to the new operator, who must keep protecting it under this notice.",
         ]),
         new("overseas", "Information that leaves Australia", [
             "Swoovr is operated from Australia. Your account data and photos are stored and processed in Sydney, Australia, including by our support, moderation and safety teams.",
             "To keep Swoovr fast and available around the world, we may replicate copies of that data to data centres in our other hosting regions: Japan and Asia-Pacific (JAPAC), Europe, the Middle East and Africa (EMEA), North America (NAMER) and Latin America (LATAM). Replicated copies are stored there, protected in the same way, and deleted when the Sydney copy is deleted; they are not processed in those regions. All processing happens in Sydney, apart from the providers described next.",
-            "Some providers also process information outside Australia: Didit (ID verification) and MailerSend (email) in the European Union; Twilio, Apple, Google and Cloudflare's network in the United States; and Project Arachnid in Canada, which receives only photo fingerprints. Authorities in another country receive information only through the process described under requests from police and other authorities.",
+            "Some providers also process information outside Australia: Didit (ID verification) in the European Union; Twilio, Postmark (email), Apple, Google and Cloudflare's network in the United States; and Project Arachnid in Canada, which receives only photo fingerprints. Authorities in another country receive information only through the process described under requests from police and other authorities.",
             "We take reasonable steps, including contract terms, security reviews and, where required, approved transfer safeguards such as standard contractual clauses, so that information is protected consistently with the Australian Privacy Principles and any other privacy law that applies to it.",
         ]),
         new("security", "How we protect your information", [

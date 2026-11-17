@@ -138,3 +138,14 @@ Show shared connection advice at first use and Profile, and meeting advice befor
 Admins manage pre-authorised verified-email beta access. Private iOS distribution status is a separately labelled staff report with revision/audit, not Apple verification or an access grant. Existing live connections must not receive new message content or message notifications after beta access is removed. Preserve independent data/deletion rights and neutral account/safety updates; beta removal is not a relationship block or consent withdrawal. Corporate intake remains owned by swoovr.com (D91).
 
 D275 DEFAULT: when invitation email is explicitly enabled, only a newly added beta enrolment queues one message. Show queue, acceptance, refusal or unknown separately from beta activation and external iOS status; never claim delivery from acceptance. Cancel before dispatch for revoked/already activated enrolments, bound known-no-effect retries and avoid repeating uncertain sends. Enrolment source expiry is distinct from email expiry and honours preservation; proposed90-day inactive/revoked clocks remain subject to legal57.
+
+## Trust, safety and privacy roadmap (D371)
+
+Owner-approved requirements from [#53](https://github.com/repasscloud/wanderconnect/issues/53), 17 November 2026. They approve direction, not untested implementations or production deployment. The gap review and links are in [D371](../delivery/DECISIONS.md#d371--trust-safety-and-privacy-roadmap-approved-18-november-2026).
+
+- **Priority 1, required for MVP: meeting safety.** Voluntary check-ins, trusted contacts, quick reporting and emergency guidance, all optional, collecting and disclosing as little as possible.
+- **Priority 2, required before public release: privacy and data rights.** Account deletion and data export; retention and deletion controls; consent management; no disclosure across modes; disclosures that match what is built.
+- **Approved and kept:** 18+ age assurance; Didit identity verification, kept separate from photo verification (production integration testing before public release); server-side location with probing and triangulation safeguards; block and report on every new feature before release; moderation queues, evidence, escalation, appeals and audit.
+- **Photo verification is optional**, never a prerequisite for sign-up or general access. Its status reflects the real outcome, with invalidation, expiry and revocation ([#372](https://github.com/repasscloud/wanderconnect/issues/372)).
+- **Ban evasion is risk-based.** Suspected re-registrations are flagged for manual review. An unconfirmed signal never bans automatically. No unnecessary or indefinite biometric retention ([#373](https://github.com/repasscloud/wanderconnect/issues/373)).
+- **Sensitive media is recipient opt-in.** Blocked by default; explicit, revocable recipient consent; classification and moderation before delivery; existing ID and age rules apply.

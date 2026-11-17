@@ -1040,7 +1040,7 @@ DEFAULT:
 - Open tracking and link tracking are off: these are account, sign-in and safety emails, and their links must not be rewritten.
 - The message stream is configurable (`SWOOVR_MAIL_POSTMARK_STREAM`, GitHub variable `UAT_POSTMARK_MESSAGE_STREAM`) and defaults to `outbound`, the ID of the default transactional stream. The owner renamed that stream "Default Transaction Stream"; a rename does not change the ID.
 
-OPEN: the Privacy Notice in force (0.19) names MailerSend (EU) for email. Postmark (ActiveCampaign) processes in the United States, so the notice needs the owner's approved wording (Q179, [issue 359](https://github.com/repasscloud/wanderconnect/issues/359)).
+Privacy Notice: answered by Q179 ([issue 359](https://github.com/repasscloud/wanderconnect/issues/359)); 0.20 names Postmark (email) in the United States (D377).
 
 Reversible: set `UAT_API_MAIL_SERVICE` / `UAT_KEYCLOAK_MAIL_SERVICE` to `twilio` or `mailersend` and deploy.
 
@@ -1075,3 +1075,74 @@ DEFAULT:
 OPEN (from the template review, unanswered): template 04's change-of-email link still lasts 5 minutes (the realm's user-link lifetime). Lengthening it to 24 hours like sign-up (D367) needs the owner's word.
 
 Reversible: set `emailTheme` back to `base` (Keycloak), or pass no `Html` (API).
+
+### D371 — Trust, safety and privacy roadmap approved (18 November 2026)
+
+**CONFIRMED** by the owner on [#53](https://github.com/repasscloud/wanderconnect/issues/53) (comment of 17 November 2026). It approves product requirements and roadmap direction only. It is not acceptance of untested implementations, and it does not authorise production deployment. #53 stays open as the tracking issue.
+
+| # | Area | Decision | Where Swoovr stands (gap review, 18 November 2026) |
+| --- | --- | --- | --- |
+| 1 | Age assurance | **Approved**: keep 18+ assurance, discrepancy handling, review and re-verification | Built (D127, D139, D158, D166). Keep testing |
+| 2 | Photo verification | **Optional** for members, never a prerequisite for sign-up or general access. Status reflects the real outcome, with invalidation, expiry and revocation | Not built (D132). New issue [#372](https://github.com/repasscloud/wanderconnect/issues/372) |
+| 3 | Identity verification | **Approved**: Didit approach, kept separate from photo verification; production integration testing before public release | Built (D126–D129, D166, D186). Production integration testing outstanding |
+| 4 | Ban evasion | **Risk-based**: flag suspected re-registrations for manual review. An unconfirmed signal never bans automatically. No unnecessary or indefinite biometric retention; staff decisions audited | Exact email/mobile fingerprints block (D217); D191 identity HMAC is exact-match only. Review queue for weaker signals: new issue [#373](https://github.com/repasscloud/wanderconnect/issues/373). Related #83, #99 |
+| 5 | Sensitive media | **Recipient opt-in**: blocked by default; explicit, revocable recipient consent; classification and moderation before delivery; existing ID/age rules still apply | Built for albums: per-profile "Receive explicit media", off by default, only while ID Verified (D338, `ExplicitMediaPolicy`). Chat photos carry no explicit content (D178/D203). App-store policy: #54 |
+| 6 | Location protection | **Approved**: server-side distances, no precise coordinates to others, probing/triangulation safeguards, arrival privacy kept | Built: coordinates never leave the server (D110), arrival keeps none (D149), snapped bands and per-hour search/filter limits (`LocationPrivacy`, D347/D348). Near me (D351) ships with #278–#283 |
+| 7 | Block and report | **Retain**; new features need block/report before release | Built for profiles, requests, messages, conversations. Keep testing |
+| 8 | Moderation | **Retain** queues, evidence, escalation, appeals and audit | Built (D131, D133–D136, D216). Keep testing |
+| 9 | Meeting safety | **Required for MVP**: voluntary check-ins, trusted contacts, quick reporting, emergency guidance; optional; minimal collection | Built (#40, D218/D219/D263). Open defects #213, #214 (Android) |
+| 10 | Privacy and data rights | **Required before public release**: deletion and export, retention and deletion controls, consent management, no cross-mode disclosure, accurate disclosures | Deletion and export built (D144, D180; `DeletionEndpoints`). Open: #259 (billing on deletion), #91 (cross-mode consent), #37 (mode-specific profiles), #99 (disclosures) |
+
+Priorities: meeting safety (MVP) first, then privacy and data rights (public release). Recorded in [04-IDENTITY-TRUST-AND-SAFETY.md](../product/04-IDENTITY-TRUST-AND-SAFETY.md#trust-safety-and-privacy-roadmap-d371).
+
+### D372 — Staff open emailed support files only in Swoovr Admin (18 November 2026)
+
+**CONFIRMED** by the owner, Q137 **A** ([#226](https://github.com/repasscloud/wanderconnect/issues/226), 17 November 2026). Files that arrive by email reach Zammad without Swoovr's ClamAV scan (D336), and Swoovr can't gate Zammad's own downloads without modifying Zammad (D333).
+- Procedure: staff open and download support files only in Swoovr Admin, which scans every file before download. Zammad's direct web sign-in (D327) stays available for conversations.
+- Notice: Zammad's sign-in page shows "Open support files in Swoovr Admin, which checks every file for malware before you download it. Files that arrive by email are not checked here." It is set by `containers/zammad/provision.rb` (`maintenance_login`, `maintenance_login_message`, Zammad 7.2.2 settings), so every provisioning restores it.
+- Recorded in [zammad/OPERATIONS.md](zammad/OPERATIONS.md#support-files-d372).
+
+Reversible: set `maintenance_login` to false in `provision.rb`.
+
+### D373 — Staff MFA recovery runbook (18 November 2026)
+
+**CONFIRMED** by the owner, Q140 ([#243](https://github.com/repasscloud/wanderconnect/issues/243), 17 November 2026). This is for internal staff accounts, not members. It approves the runbook in [MFA-MANAGEMENT.md](MFA-MANAGEMENT.md#staff-mfa-recovery-runbook-d373), so operational assisted recovery may be used:
+1. The employee opens a support ticket or contacts another administrator.
+2. An independent administrator verifies identity on a live video call **plus** an independently trusted channel or established staff records. A video call alone is not enough.
+3. The administrator records the ticket reference, verification method, time and approving administrator.
+4. The administrator clears the lost MFA credentials (existing controls: elevated independent Admin, case reference, attestation, no self/Root reset).
+5. The employee signs in and enrols a new authenticator (mandatory staff MFA is preserved).
+6. The system audits the reset and revokes existing sessions (built).
+
+No identity documents are collected (owner: only if a specific need is established).
+
+DEFAULT: the reset records the case reference, the acting administrator and the time; the verification method is written in the ticket the case reference names until the reset form records it ([#374](https://github.com/repasscloud/wanderconnect/issues/374)).
+
+### D374 — Raw image originals are kept at most 30 days (18 November 2026)
+
+**CONFIRMED** by the owner, Q172 ("30 days", [#296](https://github.com/repasscloud/wanderconnect/issues/296), 9 November 2026). Applies to the Vultr image pipeline (#294) once raw-original ingress is used.
+- Raw originals (passed, unresolved review or failure, and rejected) are deleted no later than 30 days after upload.
+- DEFAULT (unchanged from the question): stronger evidence, legal-hold and active-appeal rules override disposal. Held or pending-appeal bytes are never disposed while the hold or appeal is open, and are deleted once it closes, if past 30 days.
+- The hold-aware cleanup is part of the #294 release gates and isn't built yet.
+
+OPEN: the Privacy Notice doesn't describe raw-original retention. Wording needs owner and legal approval before member images use this path.
+
+### D375 — ClamAV signatures update once every 24 hours (18 November 2026)
+
+**CONFIRMED** by the owner, Q173 (partly, [#297](https://github.com/repasscloud/wanderconnect/issues/297), 17 November 2026). Each ClamAV instance (the support-attachment scanner, D336, and each image-pipeline VM's sidecar) updates its signatures automatically once every 24 hours, using its built-in scheduled updater (freshclam in the pinned official image). No external scheduler is added.
+
+OPEN (Q173 remains open for these): the maximum acceptable signature age before scans fail closed, how long a recorded scan result stays fresh, and which policy or model changes trigger a re-screen. DEFAULT until decided: unknown or stale mandatory evidence fails closed; a successful appeal still needs a fresh scan (D298).
+
+### D376 — Image pipeline is deployed to UAT and in testing (18 November 2026)
+
+**CONFIRMED** by the owner, Q174 update ([#298](https://github.com/repasscloud/wanderconnect/issues/298), 17 November 2026): the image moderation pipeline is deployed to UAT and in integration and functional testing, with no operational issues so far.
+- Outstanding provider agreements, licence checks (including the NudeNet discrepancy), rate-limit acceptance, regional processing and TLS checks are tracked individually, not as implementation blockers.
+- Successful UAT testing does not confirm third-party approvals or production readiness.
+
+### D377 — Privacy Notice 0.20 names Postmark for email (18 November 2026)
+
+**CONFIRMED** by the owner, Q179 **A**, effective 17 November 2026 ([#359](https://github.com/repasscloud/wanderconnect/issues/359)). Follows D368.
+- Privacy Notice **0.20, 17 November 2026** replaces "MailerSend (email)" with "Postmark (email)" in the service-provider list and moves email from the European Union to the United States in the overseas list. Nothing else changes.
+- DEFAULT (numbering): D351 had also approved location wording "as version 0.20". It isn't published yet (#283), so it will be published as **0.21** and must keep the Postmark sentences. Its wording is unchanged.
+
+Reversible: restore the 0.19 sentences and version in `Swoovr.Client.PrivacyNotice`.
