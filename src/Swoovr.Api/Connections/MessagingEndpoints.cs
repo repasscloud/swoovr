@@ -263,6 +263,10 @@ public static class MessagingEndpoints
                 _ => Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, "That photo couldn't be read."),
             };
             now = clock.GetUtcNow();
+            // #300 (D380): an accepted photo resets the other member's run now, but they see it only once it passed. If it
+            // frees them, tell their clients to read the conversation again (state only, nothing about the photo).
+            var (theirLimit, theirRun) = await UnansweredAsync(db, id, other, me, cancellationToken);
+            var frees = MessagingPolicy.AwaitingReply(theirLimit, theirRun);
             // The message exists from now, for the sender only; LastMessageAt moves when the recipient can see it.
             var message = new Message { Id = Guid.NewGuid(), ConversationId = id, SenderAccountId = me, Kind = MessageKind.Photo, Body = "", SentAt = now, MediaId = item!.Id };
             db.Messages.Add(message);
@@ -274,6 +278,7 @@ public static class MessagingEndpoints
             pipeline.ScheduleScreening(item!.Id);
             var view = View(message, me, now, item);
             await BetaMessageAudience.SendAsync(accounts.Services,me,view,cancellationToken);
+            if (frees) await PushReleasedAsync(hub, [(id, other)], cancellationToken);
             return Results.Accepted($"/api/messages/{message.Id}", view);
         }).DisableAntiforgery();
 
@@ -552,7 +557,7 @@ public static class MessagingEndpoints
         return released;
     }
 
-    /// <summary>#300: tells each freed member's clients to read that conversation again, so an open composer unlocks at once.</summary>
+    /// <summary>#300: tells each freed member's clients to read that conversation again, so an open composer unlocks at once (a looser limit, or a reply they can't see yet: a photo in screening).</summary>
     public static async Task PushReleasedAsync(IHubContext<MessagesHub> hub, IEnumerable<(Guid Conversation, Guid Member)> released, CancellationToken cancellationToken)
     {
         foreach (var (conversation, member) in released)

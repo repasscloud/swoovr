@@ -181,7 +181,8 @@
             (draft, status, message) = (null, "sent", null);
             return;
         }
-        if (result.Code == ProblemCodes.UnansweredLimit) AwaitReply();
+        // Issue 300: a reply may have arrived live while this refusal was on its way; the API's answer decides.
+        if (result.Code == ProblemCodes.UnansweredLimit) { AwaitReply(); await RecheckAwaitingAsync(); }
         (status, message) = (result.Code ?? "failed", result.Code switch
         {
             ProblemCodes.UnansweredLimit => null, // the line above the composer says it
@@ -231,7 +232,7 @@
             var result = await Members.SendChatPhotoAsync(Id, buffer.ToArray(), e.File.Name, e.File.ContentType);
             // A live screening/deletion event may precede the older upload response. Preserve that event.
         if (result.Value is { } sent) { if (messages.All(m => m.Id != sent.Id)) messages.Add(sent); (status, message) = ("photo-sent", null); }
-            else if (result.Code == ProblemCodes.UnansweredLimit) { AwaitReply(); (status, message) = (result.Code, null); }
+            else if (result.Code == ProblemCodes.UnansweredLimit) { AwaitReply(); await RecheckAwaitingAsync(); (status, message) = (result.Code, null); }
             else (status, message) = (result.Code ?? "failed", PhotoText.Refusal(result.Code));
         }
         finally { busy = false; }
