@@ -78,6 +78,16 @@ static class NotificationChecks
         var view = new NotificationSettingsView(true, true, true, true, true, true, true, "22:00", "07:00", "Australia/Adelaide", ["dating"], true, 1);
         Expect(NotificationText.Summary(view) == "Quiet 22:00–07:00 · 1 mode muted", "the settings summary");
         Expect(NotificationText.Update(view) is { QuietFrom: "22:00", MutedModes: ["dating"] }, "an update that keeps the settings");
+        // #300 (D380): the limit round-trips, Off is 0 on the wire, and both clients say what the API says.
+        Expect(view.UnansweredLimit == 0 && NotificationText.Update(view).UnansweredLimit == 0, "Off by default on the wire");
+        Expect(NotificationText.Update(view with { UnansweredLimit = 5 }).UnansweredLimit == 5, "an update keeps the chosen limit");
+        Expect(new NotificationSettingsUpdate(null, null, null, null, null, null, null, null, null, null, null, null).UnansweredLimit is null, "an older client's update omits it (kept)");
+        Expect(MessageText.LimitChoices.Select(c => c.Value).SequenceEqual([0, .. MessagingPolicy.UnansweredLimits]) && MessageText.LimitChoices[0].Label == "Off", "the choices offered are Off, 3, 5 and 10");
+        Expect(MessageText.AwaitingReply == Swoovr.Api.Connections.MessagingEndpoints.UnansweredLimitRefusal, "web, app and API share the neutral wording");
+        Expect(!MessageText.AwaitingReply.Any(char.IsDigit) && !MessageText.LimitChoices.Any(c => c.Value > 0 && MessageText.AwaitingReply.Contains(c.Value.ToString())), "the refusal never names a number");
+        var reply = new MessageView(Guid.NewGuid(), Guid.NewGuid(), false, "text", "hi", DateTimeOffset.UnixEpoch, false);
+        Expect(MessageText.IsReply(reply) && MessageText.IsReply(reply with { Kind = "photo" }), "their text or photo is a reply");
+        Expect(!MessageText.IsReply(reply with { Mine = true }) && !MessageText.IsReply(reply with { Kind = "system" }) && !MessageText.IsReply(reply with { Kind = "farewell" }), "mine, system events and farewells aren't");
         Expect(NotificationText.Unread(0) == "No unread notifications" && NotificationText.Unread(2) == "2 unread", "unread wording");
 
         Console.WriteLine($"PASS: notification rules ({checks} checks).");

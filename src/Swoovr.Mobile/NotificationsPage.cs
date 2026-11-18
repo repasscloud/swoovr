@@ -57,6 +57,9 @@ public sealed class NotificationsPage : ContentPage
 		var modes = (await Ui.Members.ModesAsync()).Value ?? [];
 		var (messages, requests, connections, travel) = (Toggle("NotifyMessages", s.Messages), Toggle("NotifyRequests", s.Requests), Toggle("NotifyConnections", s.Connections), Toggle("NotifyTravel", s.Travel));
 		var (push, email, previews, photos) = (Toggle("NotifyPush", s.Push), Toggle("NotifyEmail", s.Email), Toggle("PrivatePreviews", s.PrivatePreviews), Toggle("ChatPhotos", s.ChatPhotos));
+		// #300 (D380): Off by default; 3, 5 or 10 consecutive unanswered messages.
+		var limit = new Picker { Title = MessageText.LimitLabel, AutomationId = "UnansweredLimit", ItemsSource = MessageText.LimitChoices.Select(c => c.Label).ToList(),
+			SelectedIndex = Math.Max(0, MessageText.LimitChoices.Select(c => c.Value).ToList().IndexOf(s.UnansweredLimit)) };
 		var quiet = Toggle("QuietHours", s.QuietFrom is not null);
 		var from = new TimePicker { AutomationId = "QuietFrom", Time = Parse(s.QuietFrom) ?? new TimeSpan(22, 0, 0) };
 		var until = new TimePicker { AutomationId = "QuietUntil", Time = Parse(s.QuietUntil) ?? new TimeSpan(7, 0, 0) };
@@ -76,11 +79,13 @@ public sealed class NotificationsPage : ContentPage
 		settings.Add(Ui.Text("Chat", "TileName"));
 		settings.Add(Row(photos, "Accept photos in chat"));
 		settings.Add(Ui.Text(NotificationText.PhotosHelp, "FooterClaims"));
+		settings.Add(Ui.Labelled(MessageText.LimitLabel, limit));
+		settings.Add(Ui.Text(MessageText.LimitHelp, "FooterClaims"));
 		settings.Add(Ui.Button("Save", "NotificationsSave", async () =>
 		{
 			var result = await Ui.Members.SaveNotificationSettingsAsync(new(messages.IsToggled, requests.IsToggled, connections.IsToggled, travel.IsToggled, push.IsToggled,
 				email.IsToggled, previews.IsToggled, quiet.IsToggled ? Text(from.Time) : null, quiet.IsToggled ? Text(until.Time) : null, zone.Text,
-				mutes.Where(m => m.Value.IsToggled).Select(m => m.Key).ToList(), photos.IsToggled));
+				mutes.Where(m => m.Value.IsToggled).Select(m => m.Key).ToList(), photos.IsToggled, MessageText.LimitChoices[Math.Max(0, limit.SelectedIndex)].Value));
 			status.Text = result.Ok ? "Saved." : result.Code == ProblemCodes.InvalidSettings ? "Check the quiet hours and the time zone." : "Those settings couldn't be saved.";
 		}));
 		settings.Add(Ui.Detach(status));

@@ -90,7 +90,7 @@ public static class MessagingEndpoints
             if (denied is not null) return denied;
             var (db, me) = (accounts.Db!, current!.Account!.Id);
             var conversation = await ReadableAsync(db, id, me, cancellationToken);
-            return conversation is null ? NotAvailable() : Results.Ok(await ViewAsync(db, conversation, me, cancellationToken));
+            return conversation is null ? NotAvailable() : Results.Ok(await ViewAsync(db, conversation, me, cancellationToken, unanswered: true));
         });
 
         api.MapGet("/conversations/{id:guid}/messages", async (Guid id, DateTimeOffset? before, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock,
@@ -143,6 +143,7 @@ public static class MessagingEndpoints
                 case SendRefusal.BotMayOnlyReply: return Problem(StatusCodes.Status403Forbidden, ProblemCodes.BotCannotInitiate, "Official bots reply only in conversations members start.");
                 case SendRefusal.ArrivalRequired: return Problem(StatusCodes.Status403Forbidden, ProblemCodes.ArrivalRequired, "You can reply, or write first once you've confirmed you've arrived.");
                 case SendRefusal.InvalidText: return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidMessage, "Write 1 to 2,000 characters.");
+                case SendRefusal.AwaitingReply: return AwaitingReply();
                 case SendRefusal.RateLimited: return Problem(StatusCodes.Status429TooManyRequests, ProblemCodes.TooManyRequests, "That's a lot of messages. Slow down a little.");
             }
             var message = new Message { Id = Guid.NewGuid(), ConversationId = id, SenderAccountId = me, Kind = MessageKind.Text, Body = MessagingPolicy.CleanText(request.Text)!, SentAt = now };
@@ -244,6 +245,7 @@ public static class MessagingEndpoints
                 case SendRefusal.NotAvailable: return NotAvailable();
                 case SendRefusal.BotMayOnlyReply: return Problem(StatusCodes.Status403Forbidden, ProblemCodes.BotCannotInitiate, "Official bots reply only in conversations members start.");
                 case SendRefusal.ArrivalRequired: return Problem(StatusCodes.Status403Forbidden, ProblemCodes.ArrivalRequired, "You can reply, or write first once you've confirmed you've arrived.");
+                case SendRefusal.AwaitingReply: return AwaitingReply();
                 case SendRefusal.RateLimited: return Problem(StatusCodes.Status429TooManyRequests, ProblemCodes.TooManyRequests, "That's a lot of messages. Slow down a little.");
             }
             if (!(await Notifications.Notifier.SettingsAsync(db, other, cancellationToken)).ChatPhotos)
@@ -292,7 +294,7 @@ public static class MessagingEndpoints
                 return conversation.ClosedReason == ClosedReasons.MemberEnded ? Results.Ok(await ViewAsync(db, conversation, me, cancellationToken)) : NotAvailable();
             var other = conversation.PairLow == me ? conversation.PairHigh : conversation.PairLow;
             var events = new List<Message>();
-            if (request.Closing is { } choice && MessagingPolicy.CanSend(await SendFactsAsync(db, current.Profile!.Bot, me, other, id, now, cancellationToken) with { SentLastMinute = 0 },
+            if (request.Closing is { } choice && MessagingPolicy.CanSend(await SendFactsAsync(db, current.Profile!.Bot, me, other, id, now, cancellationToken) with { SentLastMinute = 0, Unanswered = 0 },
                     ConversationEnding.Closings[choice]) == SendRefusal.None)
                 events.Add(new Message { Id = Guid.NewGuid(), ConversationId = id, SenderAccountId = me, Kind = MessageKind.Farewell, Body = ConversationEnding.Closings[choice], SentAt = now });
             // Sender is internal provenance only: the system projection always has Mine=false and no initiating-party metadata.
@@ -347,11 +349,41 @@ public static class MessagingEndpoints
     }
 
     private static async Task<SendFacts> SendFactsAsync(SwoovrDbContext db, bool senderIsBot, Guid me, Guid other, Guid conversation, DateTimeOffset now,
-        CancellationToken cancellationToken) =>
-        new(senderIsBot, await ConnectedAsync(db, me, other, cancellationToken), await ParticipatesAsync(db, other, now, cancellationToken),
+        CancellationToken cancellationToken)
+    {
+        var (limit, unanswered) = await UnansweredAsync(db, conversation, me, other, cancellationToken);
+        return new(senderIsBot, await ConnectedAsync(db, me, other, cancellationToken), await ParticipatesAsync(db, other, now, cancellationToken),
             await db.Messages.AnyAsync(m => m.ConversationId == conversation && m.SenderAccountId == other, cancellationToken),
             await TravellerBeforeArrivalAsync(db, me, other, now, cancellationToken),
-            await db.Messages.CountAsync(m => m.SenderAccountId == me && m.SentAt > now.AddMinutes(-1), cancellationToken));
+            await db.Messages.CountAsync(m => m.SenderAccountId == me && m.SentAt > now.AddMinutes(-1), cancellationToken), limit, unanswered);
+    }
+
+    /// <summary>
+    /// #300 (D380): the recipient's unanswered-message limit as it is now, and the sender's run of consecutive text and
+    /// photo messages since the recipient last wrote one (counted only when a limit is on, and only up to it). It reads
+    /// the stored messages, which delete for both, hiding, screening and moderation removal never take away, so there is
+    /// no counter to drift, a reply resets it by existing, and turning the limit on again counts the run already there.
+    /// The send routes call this after locking the conversation row (LockAsync), so two sends in one conversation, in
+    /// either direction, are checked one after the other: concurrent sends can't pass the limit, and a refused or failed
+    /// send leaves nothing behind. A preference change takes effect from the next send that reads it.
+    /// </summary>
+    public static async Task<(int? Limit, int Unanswered)> UnansweredAsync(SwoovrDbContext db, Guid conversation, Guid sender, Guid recipient,
+        CancellationToken cancellationToken)
+    {
+        var limit = (await Notifications.Notifier.SettingsAsync(db, recipient, cancellationToken)).UnansweredLimit;
+        return limit is { } cap ? (cap, await UnansweredCountAsync(db, conversation, sender, recipient, cap, cancellationToken)) : (null, 0);
+    }
+
+    /// <summary>#300: the sender's consecutive text and photo messages after the recipient's last one, counted up to cap (index conversation_id, sent_at).</summary>
+    public static async Task<int> UnansweredCountAsync(SwoovrDbContext db, Guid conversation, Guid sender, Guid recipient, int cap, CancellationToken cancellationToken)
+    {
+        var lastReply = await db.Messages.Where(m => m.ConversationId == conversation && m.SenderAccountId == recipient
+                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo))
+            .MaxAsync(m => (DateTimeOffset?)m.SentAt, cancellationToken);
+        return await db.Messages.Where(m => m.ConversationId == conversation && m.SenderAccountId == sender
+                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo) && (lastReply == null || m.SentAt > lastReply))
+            .Take(cap).CountAsync(cancellationToken);
+    }
 
     /// <summary>
     /// #41: a chat photo's screening moved on. The sender's chat gets the new state; once it passed the conversation moves
@@ -387,6 +419,11 @@ public static class MessagingEndpoints
     }
 
     private static IResult NotAvailable() => Problem(StatusCodes.Status404NotFound, ProblemCodes.NotAvailable, "That conversation isn't available.");
+
+    /// <summary>#300 (D380): neutral, never the recipient's number, never another channel. Clients say the same (Swoovr.Client.MessageText).</summary>
+    public const string UnansweredLimitRefusal = "You've reached the unanswered message limit for this conversation. You can send more when they reply.";
+
+    private static IResult AwaitingReply() => Problem(StatusCodes.Status409Conflict, ProblemCodes.UnansweredLimit, UnansweredLimitRefusal);
 
     /// <summary>
     /// A message for one viewer. A photo message carries a short-lived link once it passed (never after delete for both),
@@ -460,7 +497,7 @@ public static class MessagingEndpoints
         return trips.Any(x => x.t.ArrivedAt is null && TravelPolicy.State(new TripFacts(x.t, x.c.TimeZone), [], now) is not (TripState.Cancelled or TripState.Expired));
     }
 
-    private static async Task<ConversationView> ViewAsync(SwoovrDbContext db, Conversation conversation, Guid me, CancellationToken cancellationToken)
+    private static async Task<ConversationView> ViewAsync(SwoovrDbContext db, Conversation conversation, Guid me, CancellationToken cancellationToken, bool unanswered = false)
     {
         var otherId = conversation.PairLow == me ? conversation.PairHigh : conversation.PairLow;
         var other = await db.MemberProfiles.SingleOrDefaultAsync(p => p.AccountId == otherId, cancellationToken);
@@ -470,7 +507,10 @@ public static class MessagingEndpoints
         var person = new PersonSummary(other.PublicId, ModePrivacy.DisplayName(alias, other.DisplayName), ProfileEndpoints.Badges(other, await ProfileEndpoints.BadgeOrderAsync(db, cancellationToken)));
         var canSend = conversation.ClosedAt is null && await ConnectedAsync(db, me, otherId, cancellationToken)
             && await ParticipatesAsync(db, otherId, DateTimeOffset.UtcNow, cancellationToken);
-        return new(conversation.Id, person, conversation.CreatedAt, conversation.LastMessageAt, canSend, conversation.ClosedAt is not null);
+        // #300: only for the one conversation being opened, so the chat list stays a query per row as before.
+        var awaiting = canSend && unanswered && await UnansweredAsync(db, conversation.Id, me, otherId, cancellationToken) is var (limit, run)
+            && MessagingPolicy.AwaitingReply(limit, run);
+        return new(conversation.Id, person, conversation.CreatedAt, conversation.LastMessageAt, canSend, conversation.ClosedAt is not null, awaiting);
     }
 
     /// <summary>

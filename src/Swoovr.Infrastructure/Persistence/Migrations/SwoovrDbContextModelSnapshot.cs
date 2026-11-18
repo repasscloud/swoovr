@@ -6274,6 +6274,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("travel");
 
+                    b.Property<int?>("UnansweredLimit")
+                        .HasColumnType("integer")
+                        .HasColumnName("unanswered_limit");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -6281,7 +6285,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                     b.HasKey("AccountId")
                         .HasName("pk_notification_settings");
 
-                    b.ToTable("notification_settings");
+                    b.ToTable("notification_settings", t =>
+                        {
+                            t.HasCheckConstraint("ck_notification_settings_unanswered_limit", "unanswered_limit IS NULL OR unanswered_limit IN (3, 5, 10)");
+                        });
                 });
 
             modelBuilder.Entity("Swoovr.Domain.PhoneCode", b =>

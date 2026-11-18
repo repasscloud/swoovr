@@ -3,8 +3,11 @@ namespace Swoovr.Contracts;
 /// <summary>
 /// A conversation as one member sees it (D143): the other person, when it last moved, and whether the member may write
 /// now (CanSend; the API checks again on every send). No read receipts, presence or typing (Q42 rules 6–7).
+/// AwaitingReply (#300, D380; set when one conversation is opened): the member reached the other person's
+/// unanswered-message limit and can write again once they reply. It never says what the limit is.
 /// </summary>
-public sealed record ConversationView(Guid Id, PersonSummary Person, DateTimeOffset CreatedAt, DateTimeOffset? LastMessageAt, bool CanSend, bool Closed = false);
+public sealed record ConversationView(Guid Id, PersonSummary Person, DateTimeOffset CreatedAt, DateTimeOffset? LastMessageAt, bool CanSend, bool Closed = false,
+    bool AwaitingReply = false);
 
 /// <summary>
 /// A message as one member sees it. Kind removed-by-moderation carries neutral text and cannot be unsent; it is distinct from member deletion. CanDelete: theirs and within five minutes (delete for both, rule 8). Deleted: shown

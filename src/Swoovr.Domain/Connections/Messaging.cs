@@ -68,21 +68,25 @@ public sealed class ConversationHide
     public DateTimeOffset HiddenAt { get; set; }
 }
 
-public enum SendRefusal { None, NotAvailable, BotMayOnlyReply, ArrivalRequired, InvalidText, RateLimited }
+public enum SendRefusal { None, NotAvailable, BotMayOnlyReply, ArrivalRequired, InvalidText, RateLimited, AwaitingReply }
 
 /// <summary>What the API knows about one attempt to send.</summary>
 /// <param name="Connected">An accepted connection in any mode, with no block either way and the conversation open.</param>
 /// <param name="RecipientParticipates">The recipient's account is active and not restricted, suspended or terminated (rule 15, D160).</param>
 /// <param name="OtherHasWritten">The other member has sent a message in this conversation.</param>
 /// <param name="TravellerBeforeArrival">The sender's only connections with this person came from their own visit and that trip isn't arrived (D60).</param>
-public sealed record SendFacts(bool SenderIsBot, bool Connected, bool RecipientParticipates, bool OtherHasWritten, bool TravellerBeforeArrival, int SentLastMinute);
+/// <param name="RecipientUnansweredLimit">#300 (D380): the recipient's unanswered-message limit now (3, 5 or 10), or null when it's Off.</param>
+/// <param name="Unanswered">#300: the sender's consecutive text and photo messages since the recipient last wrote (counted up to the limit).</param>
+public sealed record SendFacts(bool SenderIsBot, bool Connected, bool RecipientParticipates, bool OtherHasWritten, bool TravellerBeforeArrival, int SentLastMinute,
+    int? RecipientUnansweredLimit = null, int Unanswered = 0);
 
 /// <summary>
 /// Messaging rules (Q42, D143), checked on every send (rule 16). Text only, 1–2,000 characters after trimming, no
 /// control characters except new lines and tabs. An accepted connection is required; bots only reply in a conversation
 /// the member started (rule 11); a traveller connected only through a visit may reply but not start before arrival
 /// (D60, D149). The sender's own state (restricted, suspended, terminated, age check) is the API's member gate.
-/// DEFAULT limits (D165): 30 messages a minute; delete for both within five minutes.
+/// DEFAULT limits (D165): 30 messages a minute; delete for both within five minutes. #300 (D380): the recipient's
+/// optional unanswered-message limit.
 /// </summary>
 public static class MessagingPolicy
 {
@@ -102,8 +106,42 @@ public static class MessagingPolicy
         if (facts.SenderIsBot && !facts.OtherHasWritten) return SendRefusal.BotMayOnlyReply;
         if (facts.TravellerBeforeArrival && !facts.OtherHasWritten) return SendRefusal.ArrivalRequired;
         if (CleanText(text) is null) return SendRefusal.InvalidText;
+        if (AwaitingReply(facts.RecipientUnansweredLimit, facts.Unanswered)) return SendRefusal.AwaitingReply;
         return facts.SentLastMinute >= PerMinute ? SendRefusal.RateLimited : SendRefusal.None;
     }
+
+    /// <summary>
+    /// #300 (D380): the choices for "Limit unanswered messages". Null (Off) is the default for new and existing accounts;
+    /// a member may pick 3, 5 or 10. One setting per recipient for all their one-to-one conversations, no overrides.
+    /// </summary>
+    public static readonly IReadOnlyList<int> UnansweredLimits = [3, 5, 10];
+
+    public static bool ValidUnansweredLimit(int? limit) => limit is null || UnansweredLimits.Contains(limit.Value);
+
+    /// <summary>
+    /// #300: a settings update's choice. Omitted (null) keeps the current one, so an older client saving other settings
+    /// never switches it off; 0 is Off; 3, 5 or 10 set it. Anything else is refused.
+    /// </summary>
+    public static bool TryChooseUnansweredLimit(int? current, int? requested, out int? chosen)
+    {
+        chosen = requested switch { null => current, 0 => null, var n => n };
+        return requested is null or 0 || ValidUnansweredLimit(requested);
+    }
+
+    /// <summary>
+    /// #300 (D380): what counts towards (and, from the other member, resets) the unanswered run: member-written text and
+    /// photos, from the moment the API accepts them, whatever later happens to them (deleted for both, hidden, screened
+    /// out, removed by moderation). Farewells and system events never count; nor do receipts, typing or reading, which
+    /// aren't messages at all. Time never resets it; only a reply does.
+    /// </summary>
+    public static bool CountsAsUnanswered(MessageKind kind) => kind is MessageKind.Text or MessageKind.Photo;
+
+    /// <summary>
+    /// #300: the sender has reached the recipient's limit and waits for a reply. Read against the recipient's setting at
+    /// the moment of sending, so lowering the limit restricts at once, Off lifts it, and turning it on again counts the
+    /// run that is already there.
+    /// </summary>
+    public static bool AwaitingReply(int? recipientLimit, int unanswered) => recipientLimit is { } limit && unanswered >= limit;
 
     /// <summary>Rule 8: only the sender, only within five minutes, only once.</summary>
     public static bool MayDeleteForBoth(Message message, Guid me, DateTimeOffset now) =>

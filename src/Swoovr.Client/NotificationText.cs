@@ -31,7 +31,7 @@ public static class NotificationText
 
     /// <summary>The settings as an update that keeps everything as it is.</summary>
     public static NotificationSettingsUpdate Update(NotificationSettingsView s) => new(s.Messages, s.Requests, s.Connections, s.Travel, s.Push, s.Email,
-        s.PrivatePreviews, s.QuietFrom, s.QuietUntil, s.TimeZone, [.. s.MutedModes], s.ChatPhotos);
+        s.PrivatePreviews, s.QuietFrom, s.QuietUntil, s.TimeZone, [.. s.MutedModes], s.ChatPhotos, s.UnansweredLimit);
 
     /// <summary>A short summary for the settings link, for example "Quiet 22:00–07:00 · 1 mode muted".</summary>
     public static string Summary(NotificationSettingsView s)
