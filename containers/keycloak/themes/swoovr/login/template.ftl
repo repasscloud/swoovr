@@ -83,12 +83,14 @@
       })();
       </#outputformat>
     </script>
+    <#-- Issue 358: our own files carry ?v=<release> so each deploy gets a new URL past Cloudflare's 30-day cache. -->
+    <#assign swV = "?v=" + (properties.swoovrVersion!"0")?url('UTF-8')>
     <#if themeResources?? && themeResources.favicons?has_content>
         <@themeResourceTags.renderFavicons themeResources.favicons url.resourcesPath />
     <#else>
-        <link rel="icon" href="${url.resourcesPath}/img/favicon.ico" sizes="any" />
-        <link rel="icon" href="${url.resourcesPath}/img/favicon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="${url.resourcesPath}/img/apple-touch-icon.png" />
+        <link rel="icon" href="${url.resourcesPath}/img/favicon.ico${swV}" sizes="any" />
+        <link rel="icon" href="${url.resourcesPath}/img/favicon.svg${swV}" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="${url.resourcesPath}/img/apple-touch-icon.png${swV}" />
     </#if>
     <#if themeResources?? && themeResources.stylesCommon?has_content>
         <@themeResourceTags.renderStyles themeResources.stylesCommon url.resourcesCommonPath />
@@ -104,6 +106,7 @@
             <link href="${url.resourcesPath}/${style}" rel="stylesheet" />
         </#list>
     </#if>
+    <link href="${url.resourcesPath}/css/swoovr.css${swV}" rel="stylesheet" />
     <script type="importmap">
         {
             "imports": {
