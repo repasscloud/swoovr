@@ -102,7 +102,14 @@ public sealed class ConversationPage : ContentPage
 				hub.Deleted += d => MainThread.BeginInvokeOnMainThread(() => { if (d.ConversationId == id && MarkDeleted(d.MessageId)) Draw(); });
 				// #82: a block, disconnect or deletion closes the chat at once.
 				hub.Closed += c => MainThread.BeginInvokeOnMainThread(() => { if (c.ConversationId == id) Closed(); });
-				try { await hub.StartAsync(); foreach(var item in (await Ui.Members.MessagesAsync(id)).Value?.Items.Reverse()??[])Upsert(item); Draw(); status.Text = null; }
+				// #300: they loosened their limit; read the chat again so the composer can come back.
+				hub.Released += r => MainThread.BeginInvokeOnMainThread(() => { if (r.ConversationId == id && awaiting) _ = RefreshAsync(); });
+				try
+				{
+					await hub.StartAsync(); foreach(var item in (await Ui.Members.MessagesAsync(id)).Value?.Items.Reverse()??[])Upsert(item); Draw(); status.Text = null;
+					// #300: a reply (or a looser limit) between the first read and the live connection doesn't arrive live; this refresh waits for the gate.
+					if (awaiting && (await Ui.Members.ConversationAsync(id)).Value is { AwaitingReply: false }) _ = RefreshAsync();
+				}
 				catch (Exception error) when (error is HttpRequestException or InvalidOperationException) { status.Text = "Live updates are off. Reopen the chat to see new messages."; }
 			}
 		}

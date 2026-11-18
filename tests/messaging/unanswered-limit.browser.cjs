@@ -77,6 +77,13 @@ const NEUTRAL = "You've reached the unanswered message limit for this conversati
   await page.waitForSelector('[data-composer][data-composer-state="open"]');pass();
   assert.ok(!(await page.isDisabled('[data-message-input]')));pass();
   assert.equal(await page.locator('[data-awaiting-reply]').count(),0);pass();
+  // A looser limit unlocks an open composer live ("released"), with no reply.
+  for(let n=0;n<5;n++)assert.equal((await send('a',ab)).status,201);
+  await page.reload();await page.waitForSelector('[data-composer][data-composer-state="awaiting-reply"]');pass();
+  await page.waitForSelector('[data-conversation="ready"][data-live="on"]');
+  assert.equal((await settings('b',{unansweredLimit:0})).status,200);
+  await page.waitForSelector('[data-composer][data-composer-state="open"]');pass();
+  assert.equal((await settings('b',{unansweredLimit:5})).status,200);
 
   // Web: B's setting is in Notifications next to photos in chat, and saves.
   const bContext=await browser.newContext();const bPage=await bContext.newPage();

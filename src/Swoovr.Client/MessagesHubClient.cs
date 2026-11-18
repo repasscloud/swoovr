@@ -22,12 +22,15 @@ public sealed class MessagesHubClient : IAsyncDisposable
         connection.On<MessageView>("message", m => Message?.Invoke(m));
         connection.On<MessageDeleted>("deleted", d => Deleted?.Invoke(d));
         connection.On<ConversationClosed>("closed", c => Closed?.Invoke(c));
+        connection.On<ConversationReleased>("released", r => Released?.Invoke(r));
     }
 
     public event Action? Reconnected;
     public event Action<MessageView>? Message;
     public event Action<MessageDeleted>? Deleted;
     public event Action<ConversationClosed>? Closed;
+    /// <summary>#300 (D380): the other member loosened their unanswered-message limit; read the conversation again.</summary>
+    public event Action<ConversationReleased>? Released;
 
     public bool Connected => connection.State == HubConnectionState.Connected;
 

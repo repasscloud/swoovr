@@ -1,7 +1,9 @@
 using System.Globalization;
 using Swoovr.Infrastructure.Messaging;
 using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Swoovr.Api.Connections;
 using Swoovr.Api.Accounts;
 using Swoovr.Contracts;
 using Swoovr.Domain;
@@ -84,7 +86,7 @@ public static class NotificationEndpoints
             return denied ?? Results.Ok(await SettingsViewAsync(accounts.Db!, current!.Account!.Id, cancellationToken));
         });
         me.MapPut("/notification-settings", async (NotificationSettingsUpdate update, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock,
-            CancellationToken cancellationToken) =>
+            IHubContext<MessagesHub> hub, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
@@ -110,6 +112,7 @@ public static class NotificationEndpoints
             settings.Email = update.Email ?? true;
             settings.PrivatePreviews = update.PrivatePreviews ?? true;
             settings.ChatPhotos = update.ChatPhotos ?? true;
+            var limitBefore = settings.UnansweredLimit;
             MessagingPolicy.TryChooseUnansweredLimit(settings.UnansweredLimit, update.UnansweredLimit, out var limit);
             settings.UnansweredLimit = limit;
             (settings.QuietFrom, settings.QuietUntil, settings.TimeZone, settings.UpdatedAt) = (from.Value, until.Value, zone, now);
@@ -117,6 +120,8 @@ public static class NotificationEndpoints
             db.NotificationModeMutes.AddRange(muted.Select(m => new NotificationModeMute { AccountId = account, ModeId = m }));
             Audit.Record(db, now, account, "account", "notifications.settings", "account", account.ToString());
             await db.SaveChangesAsync(cancellationToken);
+            // #300 (D380): a looser limit takes effect at once in chats already open on the other members' screens.
+            await MessagingEndpoints.PushReleasedAsync(hub, await MessagingEndpoints.ReleasedByAsync(db, account, limitBefore, limit, cancellationToken), cancellationToken);
             return Results.Ok(await SettingsViewAsync(db, account, cancellationToken));
         });
 

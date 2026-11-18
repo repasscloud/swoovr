@@ -134,5 +134,21 @@ static class UnansweredLimitPersistenceChecks
             var stored = await db.Messages.CountAsync(m => m.ConversationId == ab && m.SenderAccountId == a && m.Body.StartsWith("Fictional race"));
             check("unanswered limit: concurrent sends can't pass it, and refused sends store nothing", attempts.Count(x => x) == 5 && stored == 5);
         }
+
+        // A looser setting frees exactly the members whose run had reached the old limit (pushed as "released"); a
+        // tighter or unchanged one, or turning it on, frees nobody.
+        async Task<IReadOnlyList<(Guid Conversation, Guid Member)>> Released(Guid recipient, int? before, int? after)
+        {
+            await using var db = new SwoovrDbContext(options);
+            return await MessagingEndpoints.ReleasedByAsync(db, recipient, before, after, default);
+        }
+        check("unanswered limit: Off frees the waiting sender", (await Released(b, 5, null)).SequenceEqual([(ab, a)]));
+        check("unanswered limit: raising it frees the waiting sender", (await Released(b, 5, 10)).SequenceEqual([(ab, a)]));
+        check("unanswered limit: lowering, keeping or turning it on frees nobody",
+            (await Released(b, 5, 3)).Count == 0 && (await Released(b, 5, 5)).Count == 0 && (await Released(b, null, 5)).Count == 0);
+        check("unanswered limit: a sender below the old limit isn't told", (await Released(c, 3, null)).Count == 0);
+        await using (var db = new SwoovrDbContext(options))
+        { (await db.Conversations.SingleAsync(x => x.Id == ab)).ClosedAt = now; await db.SaveChangesAsync(); }
+        check("unanswered limit: closed conversations free nobody", (await Released(b, 5, null)).Count == 0);
     }
 }

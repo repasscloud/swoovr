@@ -535,6 +535,30 @@ public static class MessagingEndpoints
     }
 
     /// <summary>#82: tells both members' open chat windows that these conversations closed (after the change is saved).</summary>
+    /// <summary>
+    /// #300 (D380): the members a recipient's settings change frees. Only a looser limit (Off, or higher) frees anyone,
+    /// and only those whose run had reached the old limit in an open conversation; lowering it needs no push, because
+    /// the next send is refused and the client locks. Nobody else is told anything.
+    /// </summary>
+    public static async Task<IReadOnlyList<(Guid Conversation, Guid Member)>> ReleasedByAsync(SwoovrDbContext db, Guid recipient, int? before, int? after,
+        CancellationToken cancellationToken)
+    {
+        if (before is not { } old || after is { } next && next <= old) return [];
+        var open = await db.Conversations.Where(c => c.ClosedAt == null && (c.PairLow == recipient || c.PairHigh == recipient))
+            .Select(c => new { c.Id, Other = c.PairLow == recipient ? c.PairHigh : c.PairLow }).ToListAsync(cancellationToken);
+        var released = new List<(Guid, Guid)>();
+        foreach (var c in open)
+            if (await UnansweredCountAsync(db, c.Id, c.Other, recipient, old, cancellationToken) >= old) released.Add((c.Id, c.Other));
+        return released;
+    }
+
+    /// <summary>#300: tells each freed member's clients to read that conversation again, so an open composer unlocks at once.</summary>
+    public static async Task PushReleasedAsync(IHubContext<MessagesHub> hub, IEnumerable<(Guid Conversation, Guid Member)> released, CancellationToken cancellationToken)
+    {
+        foreach (var (conversation, member) in released)
+            await hub.Clients.Group(MessagesHub.Group(member)).SendAsync("released", new ConversationReleased(conversation), cancellationToken);
+    }
+
     public static async Task PushClosedAsync(IHubContext<MessagesHub> hub, IEnumerable<Conversation> closed, CancellationToken cancellationToken)
     {
         foreach (var conversation in closed)

@@ -34,7 +34,10 @@ public sealed record ConversationStarter(string Chip, string Text);
 
 /// <summary>
 /// What the messaging hub pushes (SignalR, D143): "message" with a MessageView, "deleted" with the conversation and
-/// message ids, "closed" with the conversation id when a block closes it. Clients send through the REST routes.
+/// message ids, "closed" with the conversation id when a block closes it, "released" (#300, D380) with the conversation
+/// id when the other member loosened their unanswered-message limit enough for this member to write again (only to a
+/// member it frees; clients read the conversation again). Clients send through the REST routes.
 /// </summary>
 public sealed record MessageDeleted(Guid ConversationId, Guid MessageId);
 public sealed record ConversationClosed(Guid ConversationId);
+public sealed record ConversationReleased(Guid ConversationId);
