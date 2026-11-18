@@ -147,6 +147,11 @@ class RealmPreparationChecks(unittest.TestCase):
                 # Password reset and other user links keep the realm-wide 5 minutes.
                 self.assertEqual(realm.get('actionTokenGeneratedByUserLifespan', 300), 300)
 
+    def test_swoovr_email_theme_in_every_realm(self):
+        for name, realm in self.realms().items():
+            with self.subTest(realm=name):
+                self.assertEqual(realm['emailTheme'], 'swoovr')
+
     def test_reject_invalid_hosted_inputs(self):
         for origin in ['http://admin-uat.swoovr.app', 'https://localhost', 'https://admin.swoovr.app',
                        'https://admin-uat.swoovr.app/', 'https://admin-uat.swoovr.app:443',

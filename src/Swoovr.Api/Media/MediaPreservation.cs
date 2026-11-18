@@ -214,7 +214,9 @@ public sealed partial class MediaPipeline
                 {
                     outcome = await services.GetRequiredService<IEmailSender>().SendOutcomeAsync(new EmailMessage(address,
                         "Swoovr serious safety incident: acknowledgement needed",
-                        $"A Serious Safety Incident needs review. If anyone may be in immediate danger, act before routine work.\n\nCase: {@case.Id}\nCategory: media-known-content\nQueue: Admin\n\nReview preservation status in the Swoovr admin app and acknowledge the case. No image or member details are included."), cancellationToken);
+                        $"A Serious Safety Incident needs review. If anyone may be in immediate danger, act before routine work.\n\nCase: {@case.Id}\nCategory: media-known-content\nQueue: Admin\n\nReview preservation status in the Swoovr admin app and acknowledge the case. No image or member details are included.",
+                        // Issue 355 (12-staff-urgent-report, media preservation variant).
+                        Swoovr.Api.Moderation.ModerationEndpoints.EscalationHtml(EmailBranding.Read(key => config[key]), true, @case.Id, "media-known-content", "Admin", "No image or member details are included.")), cancellationToken);
                 }
                 catch (Exception error) when (error is HttpRequestException or IOException or InvalidOperationException or OperationCanceledException) { outcome = new("unknown"); }
                 delivery.Status = outcome.Status is "accepted" or "retry" or "rejected" ? outcome.Status : "unknown";

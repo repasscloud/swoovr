@@ -1059,3 +1059,19 @@ Reversible: set `UAT_API_MAIL_SERVICE` / `UAT_KEYCLOAK_MAIL_SERVICE` to `twilio`
   - If there's no usable address, the reply is refused (`ticket-email-recipient-missing`) before anything is sent.
 
 Reversible: `TicketingEmail` (Domain) holds the rule; `ZammadWorkspaceProvider.ReplyWithOperationAsync` sends the email article.
+
+### D370 — Branded email for every Swoovr email (18 November 2026)
+
+**CONFIRMED** by the owner in [issue 355](https://github.com/repasscloud/wanderconnect/issues/355), 17 November 2026 ("Approved for use"): the 13 previews in `docs/ui-gallery/email-templates/` (PR #356) are the design and wording.
+- **Keycloak (01–04):** a `swoovr` email theme (`containers/keycloak/themes/swoovr/email`) for the verification, password-reset, set-up (execute actions) and change-of-email emails, with HTML and plain-text versions. All three realms use it (`emailTheme`, realm generator and the reconcile job's `email-theme=`, so an upgrade switches existing realms). Link lifetimes are printed from Keycloak, so they always match the realm.
+- **API (05–13):** each email keeps its plain-text body and now also sends the branded HTML (`EmailHtml`; `EmailMessage.Html`). Every sender (Postmark, Twilio, MailerSend, SMTP) sends it, falling back to the escaped text when there is none. All text is HTML-encoded.
+- The meeting-safety update now says "If needed, use local emergency services (000 in Australia)" in both the text and HTML (template 11, approved).
+
+DEFAULT:
+- The logo is a PNG of the official lockup (`src/Swoovr.Web/wwwroot/email/swoovr-logo.png`, 258×80 from `docs/brand/swoovr-logo.svg`) served by the member web app, because Gmail and Outlook do not display SVG.
+- API links come from `Email:Branding:LogoUrl`, `Email:Branding:MemberUrl` and `Email:Branding:AdminUrl` (UAT: `uat.swoovr.app`, `admin-uat.swoovr.app`). A missing or unsafe value drops the logo (text wordmark) or the button, never guesses. Keycloak's are theme properties the UAT image rewrites, like the login theme's links.
+- Staff escalation and security alerts deep-link `/cases/{id}` and `/security` in Admin.
+
+OPEN (from the template review, unanswered): template 04's change-of-email link still lasts 5 minutes (the realm's user-link lifetime). Lengthening it to 24 hours like sign-up (D367) needs the owner's word.
+
+Reversible: set `emailTheme` back to `base` (Keycloak), or pass no `Html` (API).

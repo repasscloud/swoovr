@@ -16,6 +16,27 @@ public sealed class MeetingSafetyDelivery(SwoovrDbContext db,MeetingSafetyStore 
             ||(environment.IsDevelopment()?!value.IsLoopback||value.Scheme is not("http" or "https"):value.Scheme!="https"||!value.IsDefaultPort||!(value.Host=="swoovr.app"||value.Host.EndsWith(".swoovr.app",StringComparison.Ordinal))))throw new InvalidOperationException("Meeting safety requires its explicit trusted public origin.");
         return value;
     }
+    /// <summary>Issue 355 (10-trusted-contact-invite, approved).</summary>
+    public static string InviteHtml(EmailBranding branding,string name,Uri confirm,Uri manage)=>
+        EmailHtml.Page(branding,$"{name} invited you to be a Swoovr trusted contact.",$"{name} invited you to be a trusted contact",
+            EmailHtml.P($"{name} has invited you to be a Swoovr trusted contact. Only accept if you know this person and agree to receive voluntary meeting-safety updates.")
+            +EmailHtml.Button("Confirm or decline",confirm)
+            +EmailHtml.Note("This is not marketing. Swoovr does not monitor emergencies or dispatch responders. Alerts are not guaranteed to arrive.")
+            +EmailHtml.LinkLine("Withdraw or unsubscribe at any time:",manage),
+            "You got this email because a Swoovr member entered this address as a trusted contact.");
+    /// <summary>The heading after the member's name, per update kind. Its own method (PR 368 review) so the name and the
+    /// kind can never be mixed up by operator precedence.</summary>
+    public static string UpdateTitle(string kind)=>kind switch{"missed"=>"a check-in is missed","help"=>"asked for help","closed"=>"monitoring has ended",_=>"shared a meeting safety plan"};
+    /// <summary>Issue 355 (11-meeting-safety-update, approved, including "(000 in Australia)").</summary>
+    public static string UpdateHtml(EmailBranding branding,string name,string kind,string status,Uri meeting,Uri withdraw)=>
+        EmailHtml.Page(branding,$"{name}: {status}",$"{name}: "+UpdateTitle(kind),
+            EmailHtml.P($"**{name}:** {status}")
+            +EmailHtml.Small("Member-provided, not independently verified. Verify with a short-lived code before viewing meeting times or a shared place.")
+            +EmailHtml.Button("View meeting status",meeting)
+            +EmailHtml.Note("Swoovr does not monitor emergencies or dispatch responders. Alerts are not guaranteed to arrive. If needed, use local emergency services (000 in Australia). Never treat a missing alert as proof of safety.",strong:true)
+            +EmailHtml.LinkLine("Withdraw or unsubscribe:",withdraw),
+            "You got this email because you agreed to be a Swoovr trusted contact.");
+
     public async Task RunAsync(CancellationToken token)
     {
         var now=clock.GetUtcNow();
@@ -39,7 +60,7 @@ public sealed class MeetingSafetyDelivery(SwoovrDbContext db,MeetingSafetyStore 
             var contact=await db.TrustedContacts.SingleOrDefaultAsync(c=>c.Id==row.ContactId&&c.MemberId==row.MemberId,token);
             if(contact is null||row.Kind=="invite"&&contact.Consent!=TrustedContactConsent.Pending||row.Kind!="invite"&&(contact.Consent!=TrustedContactConsent.Confirmed||contact.ConfirmedAt==null))
             {row.Status="suppressed";row.CompletedAt=now;await StatusAsync(row,token);continue;}
-            string body;
+            string body;string? html;
             await using(var transaction=await db.Database.BeginTransactionAsync(token))
             {
                 await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({0x4D534346}, {BinaryPrimitives.ReadInt32BigEndian(contact.DestinationLookupHash)})",token);
@@ -55,6 +76,7 @@ public sealed class MeetingSafetyDelivery(SwoovrDbContext db,MeetingSafetyStore 
                 {
                     var confirmation=MeetingSafetyPolicy.Token();var management=MeetingSafetyPolicy.Token();contact.ConsentTokenHash=MeetingSafetyPolicy.TokenHash(confirmation);contact.ConsentTokenExpiresAt=now.AddDays(7);contact.ManagementTokenHash=MeetingSafetyPolicy.TokenHash(management);
                     body=$"{contact.PreferredFirstName} has invited you to be a Swoovr trusted contact. Only accept if you know this person and agree to receive voluntary meeting-safety updates. This is not marketing. Swoovr does not monitor emergencies or dispatch responders. Alerts are not guaranteed to arrive.\n\nConfirm or decline: {new Uri(origin,"safety/contact/"+confirmation)}\nWithdraw/unsubscribe: {new Uri(origin,"safety/contact/"+management)}";
+                    html=InviteHtml(EmailBranding.Read(key=>config[key]),contact.PreferredFirstName,new Uri(origin,"safety/contact/"+confirmation),new Uri(origin,"safety/contact/"+management));
                 }
                 else
                 {
@@ -67,7 +89,8 @@ public sealed class MeetingSafetyDelivery(SwoovrDbContext db,MeetingSafetyStore 
                     var expires=MeetingSafetyPolicy.TokenExpiry(session,now);if(expires<=now){row.Status="suppressed";row.CompletedAt=now;await StatusAsync(row,token);await transaction.CommitAsync(token);continue;}
                     var raw=MeetingSafetyPolicy.Token();db.MeetingSafetyLinks.Add(new(){Id=Guid.NewGuid(),RecipientId=recipient.Id,TokenHash=MeetingSafetyPolicy.TokenHash(raw),CreatedAt=now,ExpiresAt=expires});
                     var status=row.Kind switch{"missed"=>"A check-in is missed/unconfirmed. This is not proof of an emergency.","help"=>"The member requested help. Contact them directly using your usual contact details.","closed"=>session.Status==MeetingSafetyStatus.HomeSafe?"The member marked home safe; monitoring has ended.":"Monitoring has ended without an assertion of safety.",_=>"The member has shared a voluntary meeting safety plan."};
-                    body=$"{session.PreferredFirstName}: {status}\nMember-provided, not independently verified. Verify with a short-lived code before viewing meeting times or a shared place.\n\nRead-only meeting status: {new Uri(origin,"safety/meeting/"+raw)}\nSwoovr does not monitor emergencies or dispatch responders. Alerts are not guaranteed to arrive. If needed, use local emergency services. Never treat a missing alert as proof of safety.\nWithdraw/unsubscribe: {new Uri(origin,"safety/contact/"+raw)}";
+                    body=$"{session.PreferredFirstName}: {status}\nMember-provided, not independently verified. Verify with a short-lived code before viewing meeting times or a shared place.\n\nRead-only meeting status: {new Uri(origin,"safety/meeting/"+raw)}\nSwoovr does not monitor emergencies or dispatch responders. Alerts are not guaranteed to arrive. If needed, use local emergency services (000 in Australia). Never treat a missing alert as proof of safety.\nWithdraw/unsubscribe: {new Uri(origin,"safety/contact/"+raw)}";
+                    html=UpdateHtml(EmailBranding.Read(key=>config[key]),session.PreferredFirstName,row.Kind,status,new Uri(origin,"safety/meeting/"+raw),new Uri(origin,"safety/contact/"+raw));
                     recipient.NotificationStatus="attempting";
                 }
                 row.Status="attempting";row.Attempts++;row.AttemptedAt=now;row.NextAttemptAt=now;await db.SaveChangesAsync(token);await transaction.CommitAsync(token);
@@ -76,7 +99,7 @@ public sealed class MeetingSafetyDelivery(SwoovrDbContext db,MeetingSafetyStore 
             try
             {
                 var destination=store.Destination(contact);
-                outcome=contact.Channel=="email"?await email.SendOutcomeAsync(new EmailMessage(destination,"Swoovr meeting safety",body),token):new(await sms.SendNoticeAsync(destination,body,token)?sms.Kind=="simulated"?"simulated":"accepted":"unknown");
+                outcome=contact.Channel=="email"?await email.SendOutcomeAsync(new EmailMessage(destination,"Swoovr meeting safety",body,html),token):new(await sms.SendNoticeAsync(destination,body,token)?sms.Kind=="simulated"?"simulated":"accepted":"unknown");
             }
             catch(Exception error)when(error is HttpRequestException or IOException or OperationCanceledException){outcome=new("unknown");}
             row.Status=outcome.Status switch{"accepted"=>environment.IsDevelopment()||contact.Channel=="email"&&email.IsSink?"local-sink-accepted":"accepted","simulated"=>"simulated","retry" when row.Attempts<3=>"retry","retry"=>"rejected","rejected"=>"rejected",_=>"unknown"};

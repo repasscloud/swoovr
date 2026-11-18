@@ -63,7 +63,7 @@ public sealed class TwilioEmailSender(HttpClient http, TwilioEmailOptions option
     public async Task<EmailOutcome> SendOutcomeAsync(EmailMessage message, CancellationToken cancellationToken)
     {
         if (!MailerSendOptions.ValidAddress(message.To) || message.Subject is null || message.Text is null
-            || message.Subject.Length > 998 || message.Subject.Any(char.IsControl) || message.Text.Length > 65536)
+            || message.Subject.Length > 998 || message.Subject.Any(char.IsControl) || message.Text.Length > 65536 || message.Html?.Length > 131072)
             return new("rejected", "invalid-message");
         if (cancellationToken.IsCancellationRequested) return new("retry", "cancelled-before-send");
         var recipient = new MailAddress(message.To);
@@ -77,7 +77,7 @@ public sealed class TwilioEmailSender(HttpClient http, TwilioEmailOptions option
         {
             from = new { address = options.From.Address, name = options.FromName },
             to = new[] { new { address = recipient.Address } },
-            content = new { subject = message.Subject, text = message.Text, html = Html(message.Text) }
+            content = new { subject = message.Subject, text = message.Text, html = message.Html ?? Html(message.Text) }
         });
         try
         {

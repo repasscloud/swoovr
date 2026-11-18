@@ -29,6 +29,10 @@ x-logging: &logging
 x-mail-env: &mail-env
   Email__Provider: ${SWOOVR_API_MAIL_SERVICE:-postmark}
   Email__From: "${SWOOVR_MAIL_FROM_NAME:-Swoovr} <${SWOOVR_MAIL_FROM:?env/mail.env}>"
+  # Issue 355: branded email links. The logo is the PNG the member web app serves (Gmail/Outlook do not show SVG).
+  Email__Branding__LogoUrl: https://uat.swoovr.app/email/swoovr-logo.png
+  Email__Branding__MemberUrl: https://uat.swoovr.app/
+  Email__Branding__AdminUrl: https://admin-uat.swoovr.app/
   Email__Twilio__KeySid: ${SWOOVR_MAIL_TWILIO_KEY_SID:-}
   Email__Twilio__KeySecret: ${SWOOVR_MAIL_TWILIO_KEY_SECRET:-}
   Email__Smtp__Host: ${SWOOVR_MAIL_SMTP_HOST:-}

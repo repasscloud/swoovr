@@ -1,4 +1,6 @@
-# Swoovr email templates (owner review)
+# Swoovr email templates
+
+**Approved by the owner on issue #355 (17 November 2026) and built as D370:** Keycloak theme `containers/keycloak/themes/swoovr/email`, API `EmailHtml`. These previews stay the reference design.
 
 One self-contained HTML file per email Swoovr sends. Open [`index.html`](index.html) in a browser. Each page shows a review panel (trigger, sender, subject, preview text, link lifetime, variants), then the email as the recipient sees it.
 

@@ -36,6 +36,15 @@ public sealed class SecurityAlerts(IServiceProvider services, IConfiguration con
     public Task ChainBrokenAsync(string kind, string what, DateTimeOffset now, CancellationToken cancellationToken) =>
         RaiseAsync(kind, what, null, now, cancellationToken, dedupe: false, oncePerSummary: true);
 
+    public static string SecurityAlertHtml(EmailBranding branding, Guid incident, string severity, string kind, string? summary) =>
+        EmailHtml.Page(branding, "A security alert needs review.", "A security alert needs review",
+            EmailHtml.Facts(("Incident", incident.ToString()), ("Severity", severity), ("Kind", kind))
+            + (string.IsNullOrWhiteSpace(summary) ? "" : EmailHtml.P(summary))
+            + EmailHtml.P("Open the Swoovr admin app (Security incidents).")
+            + EmailHtml.Note("If this may be an eligible data breach, start the assessment now; it must finish within 30 days.", strong: true)
+            + EmailHtml.Button("Open Security incidents", branding.Admin("/security")),
+            EmailHtml.StaffFooter);
+
     /// <summary>Opens the incident (once an hour per kind and person) and emails the escalation contacts with ids only.</summary>
     private async Task RaiseAsync(string kind, string summary, Guid? staff, DateTimeOffset now, CancellationToken cancellationToken, bool dedupe = true, bool oncePerSummary = false)
     {
@@ -61,7 +70,9 @@ public sealed class SecurityAlerts(IServiceProvider services, IConfiguration con
                     {summary}
 
                     Open the Swoovr admin app (Security incidents). If this may be an eligible data breach, start the assessment now; it must finish within 30 days.
-                    """), cancellationToken);
+                    """,
+                    // Issue 355 (13-staff-security-alert, approved): ids only.
+                    SecurityAlertHtml(EmailBranding.Read(key => configuration[key]), incident.Id, incident.Severity.ToString(), kind, summary)), cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
