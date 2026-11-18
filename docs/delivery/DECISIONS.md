@@ -1125,7 +1125,9 @@ DEFAULT: the reset records the case reference, the acting administrator and the 
 - DEFAULT (unchanged from the question): stronger evidence, legal-hold and active-appeal rules override disposal. Held or pending-appeal bytes are never disposed while the hold or appeal is open, and are deleted once it closes, if past 30 days.
 - The hold-aware cleanup is part of the #294 release gates and isn't built yet.
 
-OPEN: the Privacy Notice doesn't describe raw-original retention. Wording needs owner and legal approval before member images use this path.
+Privacy Notice wording: supplied by the owner on [#296](https://github.com/repasscloud/wanderconnect/issues/296) (18 November 2026) and applied word for word to the photos, retention and evidence-hold sections of `Swoovr.Client.PrivacyNotice`. It replaces the inaccurate "keep a re-made copy, never the original file".
+
+OPEN: the version and approval date aren't advanced until the owner and legal approve the final text and its publication date (owner instruction: don't label it approved in advance). The #294/#296 release gates stay open: cleanup measured from the initial upload, hold-scoped retention, copies/caches/backups review, APP 1/5/11 review.
 
 ### D375 — ClamAV signatures update once every 24 hours (18 November 2026)
 
