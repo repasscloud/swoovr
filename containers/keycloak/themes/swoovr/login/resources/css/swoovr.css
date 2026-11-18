@@ -208,6 +208,15 @@ html, body, .pf-v5-c-login, .pf-v5-c-background-image {
 .pf-v5-c-login__main a.pf-v5-c-button, .pf-v5-c-login__main a.sw-btn { text-decoration: none; font: 600 16px var(--sw-font); letter-spacing: -.1px; padding: 0 16px; }
 .pf-v5-c-login__main a.sw-btn-google, .pf-v5-c-login__main a.sw-btn-other { border: 1px solid var(--sw-border); }
 .sw-btn svg { width: 19px; height: 19px; flex-shrink: 0; }
+/* Issue 358: Sign in with Microsoft (staff realms) is a quiet outline like the Auth0 reference in issue 335: one even
+   hairline on all four sides. Without this it took the base ink border on three sides and the link rule's grey
+   border-bottom, so it read as a bright edge with a missing bottom, then a heavy ink ring on hover.
+   Hover tints the fill instead of thickening the edge. */
+.pf-v5-c-login__main a.sw-btn-microsoft {
+  background: var(--sw-surface); color: var(--sw-text); border: 1px solid var(--sw-border); padding: 0 16px;
+  transition: transform .12s ease, background .2s;
+}
+.pf-v5-c-login__main a.sw-btn-microsoft:hover { background: var(--sw-soft); border-color: var(--sw-border); color: var(--sw-text); }
 
 /* "OR" divider, then passkey and providers 10px apart */
 .sw-divider {
