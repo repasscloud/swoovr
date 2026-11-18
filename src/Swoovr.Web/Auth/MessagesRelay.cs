@@ -53,7 +53,7 @@ public sealed class MessagesRelays(IHubContext<MessagesRelayHub> browsers, IConf
         // its disconnect disposes this relay and cancels the delayed retry with the old token.
         var api = new HubConnectionBuilder().WithUrl(hub, options => options.AccessTokenProvider = () => Task.FromResult<string?>(token))
             .WithAutomaticReconnect([TimeSpan.FromSeconds(30)]).Build();
-        foreach (var name in new[] { "message", "deleted", "closed" })
+        foreach (var name in new[] { "message", "deleted", "closed", "released" })
             api.On<JsonElement>(name, payload => browsers.Clients.Client(browser).SendAsync(name, payload));
         api.Reconnecting += _ =>
         {

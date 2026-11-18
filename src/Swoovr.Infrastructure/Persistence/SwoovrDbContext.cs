@@ -490,6 +490,8 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
         {
             settings.HasKey(s => s.AccountId);
             settings.Property(s => s.TimeZone).HasMaxLength(64);
+            // #300 (D380): Off (null, the default for new and existing rows) or 3, 5 or 10 consecutive unanswered messages.
+            settings.ToTable(t => t.HasCheckConstraint("ck_notification_settings_unanswered_limit", "unanswered_limit IS NULL OR unanswered_limit IN (3, 5, 10)"));
             settings.HasOne<Account>().WithMany().HasForeignKey(s => s.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
         model.Entity<NotificationModeMute>(mute =>

@@ -2,7 +2,9 @@
    passes the API's checks) and received live through the web host's relay hub. Delete for both within five minutes (it
    then shows as deleted, Q59), hide a message or the whole conversation for yourself, report a message or the conversation.
    #41: photos go through the quarantine (the other person sees one only once approved; the sender sees its state);
-   starters from shared intention chips while the chat is empty; ending politely without blocking (Q85). *@
+   starters from shared intention chips while the chat is empty; ending politely without blocking (Q85).
+   Issue 300 (D380): once the member reaches the other person's unanswered-message limit the composer is disabled with a
+   neutral line, and opens again as soon as their reply arrives live (or the chat is reopened). *@
 @inject MemberClient Members
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
@@ -64,15 +66,17 @@
     }
     @if (conversation.CanSend)
     {
+        var awaiting = conversation.AwaitingReply;
+        if (awaiting) { <p class="field-help" role="status" data-awaiting-reply>@MessageText.AwaitingReply</p> }
         <div class="composer-photo">
-            <label class="link-button" for="chat-photo">Send a photo</label>
-            <InputFile id="chat-photo" class="visually-hidden" OnChange="SendPhotoAsync" accept="image/jpeg,image/png,image/webp" disabled="@busy" data-chat-photo-input />
+            <label class="link-button" for="chat-photo" aria-disabled="@(awaiting ? "true" : "false")">Send a photo</label>
+            <InputFile id="chat-photo" class="visually-hidden" OnChange="SendPhotoAsync" accept="image/jpeg,image/png,image/webp" disabled="@(busy || awaiting)" data-chat-photo-input />
             <span class="field-help">@PhotoText.ChatRules</span>
         </div>
-        <form class="composer" @onsubmit="SendAsync" data-composer>
+        <form class="composer" @onsubmit="SendAsync" data-composer data-composer-state="@(awaiting ? "awaiting-reply" : "open")">
             <label class="visually-hidden" for="message">Message</label>
-            <input id="message" class="composer-input" maxlength="2000" autocomplete="off" @bind="draft" @bind:event="oninput" placeholder="Message" data-message-input />
-            <button class="button" type="submit" disabled="@(busy || string.IsNullOrWhiteSpace(draft))" data-send>Send</button>
+            <input id="message" class="composer-input" maxlength="2000" autocomplete="off" @bind="draft" @bind:event="oninput" placeholder="Message" disabled="@awaiting" data-message-input />
+            <button class="button" type="submit" disabled="@(busy || awaiting || string.IsNullOrWhiteSpace(draft))" data-send>Send</button>
         </form>
     }
     else if (!conversation.Closed) { <p class="field-help" data-cannot-send>You can't send messages here right now.</p> }
@@ -140,15 +144,19 @@
             (messages, more, before) = (page?.Items.Reverse().Select(Project).ToList() ?? [], page?.More ?? false, page?.Before);
             hub = new MessagesHubClient(new Uri(Navigation.BaseUri + "bff/hubs/messages"));
             // A photo's state changes arrive as the same message again (#41): replace it in place.
-            hub.Message += m => { if (m.ConversationId == Id) { Upsert(m); _ = InvokeAsync(StateHasChanged); } };
+            hub.Message += m => { if (m.ConversationId == Id) { Upsert(m); Replied(m); _ = InvokeAsync(StateHasChanged); } };
             hub.Deleted += d => { if (d.ConversationId == Id) { MarkDeleted(d.MessageId); _ = InvokeAsync(StateHasChanged); } };
             hub.Reconnected += () => _ = InvokeAsync(Closed);
             hub.Closed += c => { if (c.ConversationId == Id) _ = InvokeAsync(Closed); };
+            // Issue 300: they loosened their limit; read whether this member may write again.
+            hub.Released += r => { if (r.ConversationId == Id) _ = InvokeAsync(async () => { await RecheckAwaitingAsync(); StateHasChanged(); }); };
             try { await hub.StartAsync(); live = true; }
             catch (Exception error) when (error is HttpRequestException or InvalidOperationException) { live = false; }
             // Anything sent while the live connection was opening: read the latest page again and merge.
             foreach (var m in (await Members.MessagesAsync(Id)).Value?.Items.Reverse() ?? [])
                 Upsert(m);
+            // Issue 300: a reply (or a looser limit) between the first read and the live connection doesn't arrive live.
+            await RecheckAwaitingAsync();
             if (messages.Count == 0 && conversation.CanSend) starters = (await Members.StartersAsync(Id)).Value ?? [];
         }
         loaded = true;
@@ -173,14 +181,35 @@
             (draft, status, message) = (null, "sent", null);
             return;
         }
+        // Issue 300: a reply may have arrived live while this refusal was on its way; the API's answer decides.
+        if (result.Code == ProblemCodes.UnansweredLimit) { AwaitReply(); await RecheckAwaitingAsync(); }
         (status, message) = (result.Code ?? "failed", result.Code switch
         {
+            ProblemCodes.UnansweredLimit => null, // the line above the composer says it
             ProblemCodes.ArrivalRequired => "You can reply, or write first once you've confirmed you've arrived.",
             ProblemCodes.BotCannotInitiate => "This account can't start conversations.",
             ProblemCodes.InvalidMessage => "Write 1 to 2,000 characters.",
             ProblemCodes.TooManyRequests => "That's a lot of messages. Slow down a little.",
             _ => "That message couldn't be sent.",
         });
+    }
+
+    // Issue 300: their reply, arriving live, ends the wait without reopening the chat.
+    private void Replied(MessageView m)
+    {
+        if (conversation is { AwaitingReply: true } && MessageText.IsReply(m)) conversation = conversation with { AwaitingReply = false };
+    }
+
+    // Issue 300: the API's answer is authoritative; only asked while the composer is locked.
+    private async Task RecheckAwaitingAsync()
+    {
+        if (conversation is not { AwaitingReply: true }) return;
+        if ((await Members.ConversationAsync(Id)).Value is { } fresh && conversation is not null) conversation = conversation with { AwaitingReply = fresh.AwaitingReply };
+    }
+
+    private void AwaitReply()
+    {
+        if (conversation is not null) conversation = conversation with { AwaitingReply = true };
     }
 
     private void Upsert(MessageView m)
@@ -203,6 +232,7 @@
             var result = await Members.SendChatPhotoAsync(Id, buffer.ToArray(), e.File.Name, e.File.ContentType);
             // A live screening/deletion event may precede the older upload response. Preserve that event.
         if (result.Value is { } sent) { if (messages.All(m => m.Id != sent.Id)) messages.Add(sent); (status, message) = ("photo-sent", null); }
+            else if (result.Code == ProblemCodes.UnansweredLimit) { AwaitReply(); await RecheckAwaitingAsync(); (status, message) = (result.Code, null); }
             else (status, message) = (result.Code ?? "failed", PhotoText.Refusal(result.Code));
         }
         finally { busy = false; }

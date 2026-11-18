@@ -286,6 +286,8 @@ public static class ProblemCodes
     public const string AttachmentLimit = "attachment-limit";
     public const string PhotosOff = "photos-off";
     public const string InvalidClosing = "invalid-closing";
+    /// <summary>#300 (D380): the sender reached the recipient's unanswered-message limit; they can write again once the recipient replies.</summary>
+    public const string UnansweredLimit = "unanswered-limit";
 }
 
 public sealed record CouponRequest(string Code);

@@ -33,6 +33,30 @@ static class MessagingChecks
         Expect(MessagingPolicy.CanSend(F(), " ") == SendRefusal.InvalidText && MessagingPolicy.CanSend(F(connected: false), " ") == SendRefusal.NotAvailable, "availability is checked before text");
         Expect(MessagingPolicy.CanSend(F(sent: 29), "hi") == SendRefusal.None && MessagingPolicy.CanSend(F(sent: 30), "hi") == SendRefusal.RateLimited, "30 a minute");
 
+        // #300 (D380): the recipient's optional unanswered-message limit. Off by default; 3, 5 or 10.
+        Expect(new NotificationSettings().UnansweredLimit is null, "Off is the default for every account");
+        Expect(MessagingPolicy.UnansweredLimits.SequenceEqual([3, 5, 10]), "the choices are 3, 5 and 10");
+        Expect(MessagingPolicy.ValidUnansweredLimit(null) && MessagingPolicy.ValidUnansweredLimit(3) && MessagingPolicy.ValidUnansweredLimit(5) && MessagingPolicy.ValidUnansweredLimit(10)
+            && !MessagingPolicy.ValidUnansweredLimit(0) && !MessagingPolicy.ValidUnansweredLimit(4) && !MessagingPolicy.ValidUnansweredLimit(-1) && !MessagingPolicy.ValidUnansweredLimit(11),
+            "other values are invalid");
+        Expect(MessagingPolicy.TryChooseUnansweredLimit(5, null, out var kept) && kept == 5, "an update that omits it keeps the current choice");
+        Expect(MessagingPolicy.TryChooseUnansweredLimit(5, 0, out var off) && off is null, "0 turns it Off");
+        Expect(MessagingPolicy.TryChooseUnansweredLimit(null, 10, out var ten) && ten == 10 && MessagingPolicy.TryChooseUnansweredLimit(10, 3, out var three) && three == 3, "3, 5 or 10 set it");
+        Expect(!MessagingPolicy.TryChooseUnansweredLimit(5, 7, out _) && !MessagingPolicy.TryChooseUnansweredLimit(5, -3, out _), "an invalid choice is refused");
+        SendFacts L(int? limit, int run) => F() with { RecipientUnansweredLimit = limit, Unanswered = run };
+        Expect(MessagingPolicy.CanSend(L(5, 4), "hi") == SendRefusal.None, "below the limit sends");
+        Expect(!MessagingPolicy.AwaitingReply(5, 4) && MessagingPolicy.AwaitingReply(5, 5), "the message that reaches the limit sends; the next waits");
+        Expect(MessagingPolicy.CanSend(L(5, 5), "hi") == SendRefusal.AwaitingReply && MessagingPolicy.CanSend(L(5, 5), "photo") == SendRefusal.AwaitingReply, "text and photos wait alike");
+        Expect(MessagingPolicy.CanSend(L(null, 50), "hi") == SendRefusal.None, "Off never restricts, however long the run");
+        Expect(MessagingPolicy.CanSend(L(3, 5), "hi") == SendRefusal.AwaitingReply && MessagingPolicy.CanSend(L(10, 5), "hi") == SendRefusal.None, "lowering 10 to 3 restricts a run of 5 at once");
+        Expect(MessagingPolicy.CanSend(L(5, 0), "hi") == SendRefusal.None, "a reply (run 0) lets them write again");
+        Expect(MessagingPolicy.CanSend(L(5, 5) with { Connected = false }, "hi") == SendRefusal.NotAvailable
+            && MessagingPolicy.CanSend(L(5, 5) with { SenderIsBot = true }, "hi") == SendRefusal.BotMayOnlyReply
+            && MessagingPolicy.CanSend(L(5, 5), " ") == SendRefusal.InvalidText, "existing checks keep their order and words");
+        Expect(MessagingPolicy.CanSend(L(5, 5) with { SentLastMinute = 30 }, "hi") == SendRefusal.AwaitingReply, "the limit is reported before the rate limit");
+        Expect(MessagingPolicy.CountsAsUnanswered(MessageKind.Text) && MessagingPolicy.CountsAsUnanswered(MessageKind.Photo)
+            && !MessagingPolicy.CountsAsUnanswered(MessageKind.Farewell) && !MessagingPolicy.CountsAsUnanswered(MessageKind.System), "text and photos count; farewells and system events don't");
+
         // Delete for both (rule 8): the sender, within five minutes, once.
         var me = Guid.NewGuid(); var other = Guid.NewGuid(); var conversation = Guid.NewGuid();
         Message M(int minutesAgo, Guid? sender = null, int secondOffset = 0) => new() { Id = Guid.NewGuid(), ConversationId = conversation, SenderAccountId = sender ?? me,

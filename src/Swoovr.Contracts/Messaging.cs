@@ -3,8 +3,11 @@ namespace Swoovr.Contracts;
 /// <summary>
 /// A conversation as one member sees it (D143): the other person, when it last moved, and whether the member may write
 /// now (CanSend; the API checks again on every send). No read receipts, presence or typing (Q42 rules 6–7).
+/// AwaitingReply (#300, D380; set when one conversation is opened): the member reached the other person's
+/// unanswered-message limit and can write again once they reply. It never says what the limit is.
 /// </summary>
-public sealed record ConversationView(Guid Id, PersonSummary Person, DateTimeOffset CreatedAt, DateTimeOffset? LastMessageAt, bool CanSend, bool Closed = false);
+public sealed record ConversationView(Guid Id, PersonSummary Person, DateTimeOffset CreatedAt, DateTimeOffset? LastMessageAt, bool CanSend, bool Closed = false,
+    bool AwaitingReply = false);
 
 /// <summary>
 /// A message as one member sees it. Kind removed-by-moderation carries neutral text and cannot be unsent; it is distinct from member deletion. CanDelete: theirs and within five minutes (delete for both, rule 8). Deleted: shown
@@ -31,7 +34,10 @@ public sealed record ConversationStarter(string Chip, string Text);
 
 /// <summary>
 /// What the messaging hub pushes (SignalR, D143): "message" with a MessageView, "deleted" with the conversation and
-/// message ids, "closed" with the conversation id when a block closes it. Clients send through the REST routes.
+/// message ids, "closed" with the conversation id when a block closes it, "released" (#300, D380) with the conversation
+/// id when the other member loosened their unanswered-message limit enough for this member to write again (only to a
+/// member it frees; clients read the conversation again). Clients send through the REST routes.
 /// </summary>
 public sealed record MessageDeleted(Guid ConversationId, Guid MessageId);
 public sealed record ConversationClosed(Guid ConversationId);
+public sealed record ConversationReleased(Guid ConversationId);

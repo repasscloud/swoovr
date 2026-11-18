@@ -148,6 +148,7 @@ static class PersistenceChecks
             await PolicyNoticePersistenceChecks.Run(options, Check);
             await PolicyAcceptancePersistenceChecks.Run(options, Check);
             await BetaAnalyticsPersistenceChecks.Run(options, Check);
+            await UnansweredLimitPersistenceChecks.Run(options, Check);
             await BetaEnrolmentOperationsChecks.Run(options, Check);
             await RegistrationAvailabilityPersistenceChecks.Run(options, Check);
             await RegisteredNamesPersistenceChecks.Run(options, Check);

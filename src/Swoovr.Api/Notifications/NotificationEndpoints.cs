@@ -1,7 +1,9 @@
 using System.Globalization;
 using Swoovr.Infrastructure.Messaging;
 using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Swoovr.Api.Connections;
 using Swoovr.Api.Accounts;
 using Swoovr.Contracts;
 using Swoovr.Domain;
@@ -84,7 +86,7 @@ public static class NotificationEndpoints
             return denied ?? Results.Ok(await SettingsViewAsync(accounts.Db!, current!.Account!.Id, cancellationToken));
         });
         me.MapPut("/notification-settings", async (NotificationSettingsUpdate update, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock,
-            CancellationToken cancellationToken) =>
+            IHubContext<MessagesHub> hub, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
@@ -97,6 +99,9 @@ public static class NotificationEndpoints
             if (from.Invalid || until.Invalid || from.Value is null != until.Value is null || NotificationPolicy.Zone(zone) is null
                 || muted.Distinct().Count() != muted.Count || muted.Any(m => !modes.Contains(m)))
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidSettings, "Check the quiet hours (both times, as HH:mm), the time zone and the modes.");
+            // #300 (D380): 0 is Off, otherwise 3, 5 or 10; omitted keeps the current choice.
+            if (!MessagingPolicy.TryChooseUnansweredLimit(null, update.UnansweredLimit, out _))
+                return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidSettings, "Choose Off, 3, 5 or 10 unanswered messages.");
             var settings = await db.NotificationSettings.SingleOrDefaultAsync(s => s.AccountId == account, cancellationToken);
             if (settings is null) db.NotificationSettings.Add(settings = new NotificationSettings { AccountId = account });
             settings.Messages = update.Messages ?? true;
@@ -107,11 +112,16 @@ public static class NotificationEndpoints
             settings.Email = update.Email ?? true;
             settings.PrivatePreviews = update.PrivatePreviews ?? true;
             settings.ChatPhotos = update.ChatPhotos ?? true;
+            var limitBefore = settings.UnansweredLimit;
+            MessagingPolicy.TryChooseUnansweredLimit(settings.UnansweredLimit, update.UnansweredLimit, out var limit);
+            settings.UnansweredLimit = limit;
             (settings.QuietFrom, settings.QuietUntil, settings.TimeZone, settings.UpdatedAt) = (from.Value, until.Value, zone, now);
             await db.NotificationModeMutes.Where(m => m.AccountId == account).ExecuteDeleteAsync(cancellationToken);
             db.NotificationModeMutes.AddRange(muted.Select(m => new NotificationModeMute { AccountId = account, ModeId = m }));
             Audit.Record(db, now, account, "account", "notifications.settings", "account", account.ToString());
             await db.SaveChangesAsync(cancellationToken);
+            // #300 (D380): a looser limit takes effect at once in chats already open on the other members' screens.
+            await MessagingEndpoints.PushReleasedAsync(hub, await MessagingEndpoints.ReleasedByAsync(db, account, limitBefore, limit, cancellationToken), cancellationToken);
             return Results.Ok(await SettingsViewAsync(db, account, cancellationToken));
         });
 
@@ -193,7 +203,7 @@ public static class NotificationEndpoints
         var muted = await db.NotificationModeMutes.Where(m => m.AccountId == account).OrderBy(m => m.ModeId).Select(m => m.ModeId).ToListAsync(cancellationToken);
         var devices = await db.PushDevices.CountAsync(d => d.AccountId == account && d.InvalidatedAt == null, cancellationToken);
         return new(s.Messages, s.Requests, s.Connections, s.Travel, s.Push, s.Email, s.PrivatePreviews, s.QuietFrom?.ToString("HH:mm", CultureInfo.InvariantCulture),
-            s.QuietUntil?.ToString("HH:mm", CultureInfo.InvariantCulture), s.TimeZone, muted, s.ChatPhotos, devices);
+            s.QuietUntil?.ToString("HH:mm", CultureInfo.InvariantCulture), s.TimeZone, muted, s.ChatPhotos, devices, s.UnansweredLimit ?? 0);
     }
 
     /// <summary>The centre as the member may see it now: worded here, from ids, with the rules applied again.</summary>

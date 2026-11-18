@@ -18,7 +18,7 @@ public sealed class ConversationPage : ContentPage
 	private readonly Label status = Ui.Text(null, id: "ChatStatus");
 	private readonly List<MessageView> messages = [];
     private readonly HashSet<Guid> removedMessages=[];
-    private bool reconciling;
+    private bool reconciling, awaiting;
     private readonly List<MessageView> refreshArrivals=[];
     private MessageView Project(MessageView value)=>MessageText.ApplyKnownRemoval(value,removedMessages);
 	private MessagesHubClient? hub;
@@ -65,7 +65,10 @@ public sealed class ConversationPage : ContentPage
 					draft.Text = s.Text;
 					return Task.CompletedTask;
 				}, primary: false))]));
-			if (conversation.CanSend)
+			awaiting = conversation.CanSend && conversation.AwaitingReply;
+			// #300 (D380): at the other person's unanswered-message limit the composer gives way to a neutral line until they reply.
+			if (awaiting) body.Children.Add(Ui.Text(MessageText.AwaitingReply, id: "ChatAwaitingReply"));
+			else if (conversation.CanSend)
 				body.Children.Add(Ui.Card(Ui.Labelled("Message", draft), Ui.Button("Send", "SendMessage", SendAsync), Ui.Button("Send a photo", "SendPhoto", SendPhotoAsync, primary: false),
 					Ui.Text(PhotoText.ChatRules, "FooterClaims")));
 			else if (!conversation.Closed) body.Children.Add(Ui.Text("You can't send messages here right now.", id: "ChatCannotSend"));
@@ -89,11 +92,24 @@ public sealed class ConversationPage : ContentPage
 				hub = live;
                 hub.Reconnected += () => MainThread.BeginInvokeOnMainThread(() => _ = RefreshAsync());
 				// A photo's state changes arrive as the same message again (#41): replace it in place.
-				hub.Message += m => MainThread.BeginInvokeOnMainThread(() => { if (m.ConversationId == id) { Upsert(m); Draw(); } });
+				hub.Message += m => MainThread.BeginInvokeOnMainThread(() =>
+				{
+					if (m.ConversationId != id) return;
+					Upsert(m); Draw();
+					// #300: their reply opens the composer again without leaving the chat.
+					if (awaiting && MessageText.IsReply(m)) _ = RefreshAsync();
+				});
 				hub.Deleted += d => MainThread.BeginInvokeOnMainThread(() => { if (d.ConversationId == id && MarkDeleted(d.MessageId)) Draw(); });
 				// #82: a block, disconnect or deletion closes the chat at once.
 				hub.Closed += c => MainThread.BeginInvokeOnMainThread(() => { if (c.ConversationId == id) Closed(); });
-				try { await hub.StartAsync(); foreach(var item in (await Ui.Members.MessagesAsync(id)).Value?.Items.Reverse()??[])Upsert(item); Draw(); status.Text = null; }
+				// #300: they loosened their limit; read the chat again so the composer can come back.
+				hub.Released += r => MainThread.BeginInvokeOnMainThread(() => { if (r.ConversationId == id && awaiting) _ = RefreshAsync(); });
+				try
+				{
+					await hub.StartAsync(); foreach(var item in (await Ui.Members.MessagesAsync(id)).Value?.Items.Reverse()??[])Upsert(item); Draw(); status.Text = null;
+					// #300: a reply (or a looser limit) between the first read and the live connection doesn't arrive live; this refresh waits for the gate.
+					if (awaiting && (await Ui.Members.ConversationAsync(id)).Value is { AwaitingReply: false }) _ = RefreshAsync();
+				}
 				catch (Exception error) when (error is HttpRequestException or InvalidOperationException) { status.Text = "Live updates are off. Reopen the chat to see new messages."; }
 			}
 		}
@@ -169,7 +185,15 @@ public sealed class ConversationPage : ContentPage
 		var result = await Ui.Members!.SendChatPhotoAsync(id, buffer.ToArray(), picked.FileName, picked.ContentType);
 		// A live screening/deletion event may precede the older upload response. Preserve that event.
         if (result.Value is { } sent) { if (messages.All(m => m.Id != sent.Id)) messages.Add(sent); Draw(); status.Text = null; }
+		else if (result.Code == ProblemCodes.UnansweredLimit) await AwaitReplyAsync();
 		else status.Text = PhotoText.Refusal(result.Code);
+	}
+
+	/// <summary>#300: the send was refused at the other person's limit; show the neutral line in place of the composer.</summary>
+	private async Task AwaitReplyAsync()
+	{
+		await RefreshAsync();
+		status.Text = null; // the line in place of the composer says it
 	}
 
 	/// <summary>Q85: an optional fixed closing message, then every mode disconnected and the chat closed for both.</summary>
@@ -202,6 +226,7 @@ public sealed class ConversationPage : ContentPage
 			(draft.Text, status.Text) = (null, null);
 			return;
 		}
+		if (result.Code == ProblemCodes.UnansweredLimit) { await AwaitReplyAsync(); return; }
 		status.Text = result.Code switch
 		{
 			ProblemCodes.ArrivalRequired => "You can reply, or write first once you've confirmed you've arrived.",

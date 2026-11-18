@@ -67,6 +67,14 @@
                     <legend>Chat</legend>
                     <label class="check"><input type="checkbox" @bind="form.ChatPhotos" data-setting="chat-photos" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Accept photos in chat</label>
                     <p class="field-help">@NotificationText.PhotosHelp</p>
+                    @* Issue 300 (D380): the recipient's own boundary; Off by default; never shown to the people it applies to. *@
+                    <div class="field">
+                        <label for="unanswered-limit">@MessageText.LimitLabel</label>
+                        <select id="unanswered-limit" @bind="form.UnansweredLimit" data-setting="unanswered-limit">
+                            @foreach (var (value, label) in MessageText.LimitChoices) { <option value="@value">@label</option> }
+                        </select>
+                    </div>
+                    <p class="field-help">@MessageText.LimitHelp</p>
                 </fieldset>
                 <button type="submit" class="button" disabled="@busy" data-save-settings>Save</button>
                 <p role="status" aria-live="polite" class="field-help" data-settings-status="@status">@message</p>
@@ -92,6 +100,7 @@
         public bool Email { get; set; } = true;
         public bool PrivatePreviews { get; set; } = true;
         public bool ChatPhotos { get; set; } = true;
+        public int UnansweredLimit { get; set; }
         public TimeOnly? QuietFrom { get; set; }
         public TimeOnly? QuietUntil { get; set; }
         public string TimeZone { get; set; } = "";
@@ -115,6 +124,7 @@
         (form.Messages, form.Requests, form.Connections, form.Travel, form.Push, form.Email, form.PrivatePreviews, form.ChatPhotos) =
             (s.Messages, s.Requests, s.Connections, s.Travel, s.Push, s.Email, s.PrivatePreviews, s.ChatPhotos);
         (form.QuietFrom, form.QuietUntil, form.TimeZone, form.Muted) = (Parse(s.QuietFrom), Parse(s.QuietUntil), s.TimeZone, [.. s.MutedModes]);
+        form.UnansweredLimit = s.UnansweredLimit;
     }
 
     private static TimeOnly? Parse(string? time) => TimeOnly.TryParse(time, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : null;
@@ -130,7 +140,7 @@
     {
         busy = true;
         var result = await Members.SaveNotificationSettingsAsync(new(form.Messages, form.Requests, form.Connections, form.Travel, form.Push, form.Email,
-            form.PrivatePreviews, Text(form.QuietFrom), Text(form.QuietUntil), form.TimeZone, [.. form.Muted], form.ChatPhotos));
+            form.PrivatePreviews, Text(form.QuietFrom), Text(form.QuietUntil), form.TimeZone, [.. form.Muted], form.ChatPhotos, form.UnansweredLimit));
         busy = false;
         if (result.Value is { } s) { Show(s); (status, message) = ("saved", "Saved."); }
         else (status, message) = (result.Code ?? "failed", result.Code == ProblemCodes.InvalidSettings

@@ -82,6 +82,11 @@ public sealed class NotificationSettings
     public string TimeZone { get; set; } = NotificationPolicy.DefaultTimeZone;
     /// <summary>Policy §14: the member accepts photo attachments in chat (Q84 default on).</summary>
     public bool ChatPhotos { get; set; } = true;
+    /// <summary>
+    /// #300 (D380): the most consecutive unanswered messages another member may send this member in a conversation: 3, 5
+    /// or 10, or null for Off (the default for every account). See MessagingPolicy.UnansweredLimits.
+    /// </summary>
+    public int? UnansweredLimit { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
