@@ -50,6 +50,18 @@
 	}
 }
 
+# Swoovr favicons (#367, #379) for hosts whose pages Swoovr does not render: copies of the Standard black and white
+# icons kept in deploy/vultr-uat/zammad/branding, mounted read-only at /srv/swoovr-icons.
+(swoovr_icons) {
+	@swoovr_icon path /favicon.ico /favicon.svg /apple-touch-icon.png /apple-touch-icon-precomposed.png
+	rewrite /apple-touch-icon-precomposed.png /apple-touch-icon.png
+	route @swoovr_icon {
+		file_server {
+			root /srv/swoovr-icons
+		}
+	}
+}
+
 (common) {
 	import origin_tls
 	encode zstd gzip
@@ -86,6 +98,11 @@ admin-uat.swoovr.app {
 
 auth-uat.swoovr.app {
 	import common
+	# #379: the stock Keycloak account console (keycloak.v3) links its own favicon; serve the Swoovr one instead.
+	# The Swoovr login theme ships its own icons (containers/keycloak/themes/swoovr/login/resources/img).
+	@keycloak_icon path_regexp ^/resources/[^/]+/account/keycloak\.v3/favicon\.svg$
+	rewrite @keycloak_icon /favicon.svg
+	import swoovr_icons
 	# Keycloak management (9000) is never routed. The admin console/API and the master realm answer only to
 	# callers on the Docker edge network or the host itself (remote_ip is the direct peer, not a forwarded header).
 	# SWOOVR_ADMIN_PRIVATE_NETWORKS (env/caddy-admin.env, optional, empty by default) may add Tailscale device
@@ -101,6 +118,8 @@ auth-uat.swoovr.app {
 
 helpdesk-uat.swoovr.app {
 	import common
+	# #379: Zammad's stock favicon and touch icon are replaced at the edge, so the pinned upstream image needs no patch.
+	import swoovr_icons
 	request_body {
 		max_size 220MB
 	}

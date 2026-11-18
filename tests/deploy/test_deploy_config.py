@@ -234,6 +234,29 @@ class CaddyChecks(unittest.TestCase):
         compose = (ROOT / 'deploy/vultr-uat/compose.yaml').read_text()
         self.assertIn('path: env/caddy-admin.env\n        required: false', compose)
 
+    def test_swoovr_favicons_on_every_host(self):
+        # #367/#379: each UAT host shows the Standard black and white Swoovr icon, never Keycloak's or Zammad's.
+        names = ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png']
+        copies = ['src/Swoovr.Web/wwwroot', 'src/Swoovr.Admin/wwwroot',
+                  'containers/keycloak/themes/swoovr/login/resources/img', 'deploy/vultr-uat/zammad/branding']
+        for name in names:
+            blobs = {copy: (ROOT / copy / name).read_bytes() for copy in copies}
+            self.assertEqual(len(set(blobs.values())), 1, f'{name} copies differ: {sorted(blobs)}')
+        for app in ['src/Swoovr.Web/Components/App.razor', 'src/Swoovr.Admin/Components/App.razor']:
+            head = (ROOT / app).read_text()
+            for name in names:
+                self.assertIn(f'href="@Assets["{name}"]"', head, app)
+        template = (ROOT / 'containers/keycloak/themes/swoovr/login/template.ftl').read_text()
+        for name in names:
+            self.assertIn('${url.resourcesPath}/img/' + name, template)
+        text = (ROOT / 'deploy/vultr-uat/Caddyfile').read_text()
+        for host in ['auth-uat', 'helpdesk-uat']:
+            block = re.search(rf'(?ms)^{host}\.swoovr\.app \{{(.*?)^\}}', text).group(1)
+            self.assertIn('import swoovr_icons', block, host)
+        self.assertIn('account/keycloak\\.v3/favicon\\.svg', text)
+        compose = (ROOT / 'deploy/vultr-uat/compose.yaml').read_text()
+        self.assertIn('- ./zammad/branding:/srv/swoovr-icons:ro', compose)
+
 
 if __name__ == '__main__':
     unittest.main()

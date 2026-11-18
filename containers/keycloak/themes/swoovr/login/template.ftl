@@ -86,7 +86,9 @@
     <#if themeResources?? && themeResources.favicons?has_content>
         <@themeResourceTags.renderFavicons themeResources.favicons url.resourcesPath />
     <#else>
-        <link rel="icon" href="${url.resourcesPath}/img/favicon.ico" />
+        <link rel="icon" href="${url.resourcesPath}/img/favicon.ico" sizes="any" />
+        <link rel="icon" href="${url.resourcesPath}/img/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="${url.resourcesPath}/img/apple-touch-icon.png" />
     </#if>
     <#if themeResources?? && themeResources.stylesCommon?has_content>
         <@themeResourceTags.renderStyles themeResources.stylesCommon url.resourcesCommonPath />

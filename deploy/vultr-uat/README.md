@@ -27,6 +27,8 @@ Step-by-step owner procedures (maintenance actions, the break-glass admin, staff
 
 Public names: `uat`, `api-uat`, `admin-uat`, `auth-uat`, `helpdesk-uat` `.swoovr.app` (D355). `venues-uat` is in the certificate and the realm templates, but nothing serves it and its realm stays disabled.
 
+Favicons (#367, #379): every host shows the Standard black and white Swoovr icon (`favicon.ico`, adaptive `favicon.svg`, `apple-touch-icon.png`, from the brand pack's `black` scheme). Web, Admin and the Keycloak login theme ship their own copies; for pages Swoovr does not render (Zammad on `helpdesk-uat`, Keycloak's stock account console on `auth-uat`), Caddy serves the copies in `zammad/branding/`, mounted read-only at `/srv/swoovr-icons`. `tests/deploy/test_deploy_config.py` keeps the four copies identical.
+
 Host layout:
 
 ```text
