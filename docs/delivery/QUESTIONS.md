@@ -2850,7 +2850,7 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q172 — Raw-original retention and privacy approval
 
-- Issue: [#296](https://github.com/repasscloud/wanderconnect/issues/296); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: ANSWERED "30 days", owner 9 November 2026 → **D374**; Privacy Notice disclosure still OPEN. Earliest blocking phase: Before raw-image ingress is enabled.
+- Issue: [#296](https://github.com/repasscloud/wanderconnect/issues/296); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: ANSWERED "30 days", owner 9 November 2026 → **D374**. Privacy Notice wording supplied by the owner on #296 (18 November 2026) and applied; version/approval date and release gates still OPEN. Earliest blocking phase: Before raw-image ingress is enabled.
 - Approve raw-original lifetimes for pass, unresolved review/failure, rejection and appeals, plus privacy/provider disclosure. Existing photos discard originals. DEFAULT: minimise retention; existing stronger review/evidence/hold rules and active appeals override disposal.
 - Design: [Vultr image pipeline](../superpowers/specs/2026-11-08-vultr-image-pipeline-design.md). Independent contracts/build/local verification can continue. Never post private credentials to the issue.
 

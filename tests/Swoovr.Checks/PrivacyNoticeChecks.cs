@@ -49,8 +49,9 @@ static class PrivacyNoticeChecks
         Expect(PrivacyNotice.Contact == "privacy@swoovr.com" && !all.Contains("privacy@swoovr.app"), "the confirmed contact (D202)");
         Expect(!all.Contains("24/7"), "no round-the-clock promise");
         // D203: photos — private until checked, EXIF removed, fingerprint-only known-content matching, deletion unless held.
-        Expect(Text("photos").Contains("private until they have been checked") && Text("photos").Contains("EXIF") && Text("photos").Contains("fingerprint")
-            && Text("photos").Contains("safety-review retention period or legal hold") && Text("photos").Contains("stay with Didit"), "the photos section (D203)");
+        // Issue 296 rewording keeps every D203 disclosure: private while checked, EXIF removed, fingerprint-only, deletion unless held.
+        Expect(Text("photos").Contains("kept private while they are checked") && Text("photos").Contains("EXIF") && Text("photos").Contains("fingerprint")
+            && Text("photos").Contains("unless a safety or legal retention requirement applies") && Text("photos").Contains("stay with Didit"), "the photos section (D203)");
 
         // APP 1.4 contents, APP 3.3 sensitive-information consent and APP 1.7–1.9 automated decisions (from 10 December 2026).
         Expect(Text("why").Contains("don't sell") && Text("why").Contains("required"), "purposes and the consequences of not providing information (APP 1.4(c), APP 5.2(f))");
@@ -63,6 +64,18 @@ static class PrivacyNoticeChecks
             && Text("international").Contains("Biometric Information Privacy Act"), "CCPA disclosures, US state appeals and biometric retention policy");
         Expect(Text("choices").Contains("access") && Text("choices").Contains("correct") && Text("choices").Contains("30 days"), "access, correction and complaint handling (APP 1.4(d)–(e))");
         Expect(Text("sharing").Contains("Didit") && Text("sharing").Contains("Twilio") && Text("sharing").Contains("Postmark (email)") && !Text("sharing").Contains("MailerSend"), "service providers named (Postmark for email, D377)");
+        // Issue 296 (Q172, D374): raw originals are held privately and deleted within 30 days of the initial upload; the clock never
+        // restarts; holds and appeals suspend deletion only for what they cover; no claim that originals are never kept.
+        Expect(Text("photos").Contains("temporarily hold the original uploaded file in restricted private storage")
+            && Text("photos").Contains("no later than 30 days after its initial upload")
+            && Text("photos").Contains("does not restart after scanning, processing, retries or review")
+            && Text("photos").Contains("Original files are not published to other members")
+            && Text("photos").Contains("receives only a digital fingerprint of the photo, not the photo itself")
+            && Text("photos").Contains("never go through this process; they stay with Didit"), "raw-original photo handling (issue 296)");
+        Expect(Text("retention").Contains("Raw original uploaded photos are ordinarily deleted within 30 days of the initial upload")
+            && Text("holds").Contains("suspends ordinary deletion only for the information it covers"), "30-day raw-original retention and hold scope (D374)");
+        Expect(!all.Contains("never the original", StringComparison.OrdinalIgnoreCase) && !all.Contains("re-made copy", StringComparison.OrdinalIgnoreCase),
+            "no contradictory claim that originals are never kept (issue 296)");
         Console.WriteLine($"PASS: approved privacy notice 0.20 ({checks}).");
     }
 }
