@@ -54,6 +54,9 @@ STAFF_API_ROLES = ('view-users', 'manage-users')
 USER_ACTION_LIFESPAN = 1800  # seconds; equals accessCodeLifespanLogin (the whole sign-in attempt)
 VERIFY_EMAIL_LIFESPAN = 86400  # seconds; per-action override for the emailed verify link only
 VERIFY_EMAIL_OVERRIDE = 'actionTokenGeneratedByUserLifespan.verify-email'
+# #355 template 04, D378: the emailed change-of-email confirmation link also lasts 24 hours.
+UPDATE_EMAIL_OVERRIDE = 'actionTokenGeneratedByUserLifespan.update-email'
+LINK_OVERRIDES = {VERIFY_EMAIL_OVERRIDE: str(VERIFY_EMAIL_LIFESPAN), UPDATE_EMAIL_OVERRIDE: str(VERIFY_EMAIL_LIFESPAN)}
 EMAIL_THEME = 'swoovr'  # #355: the approved Swoovr email templates (containers/keycloak/themes/swoovr/email)
 
 
@@ -209,11 +212,11 @@ def ensure_email_lifespans(admin):
         representation = admin.call('/' + realm)
         attributes = representation.get('attributes') or {}
         if (representation.get('accessCodeLifespanUserAction') == USER_ACTION_LIFESPAN
-                and attributes.get(VERIFY_EMAIL_OVERRIDE) == str(VERIFY_EMAIL_LIFESPAN)):
+                and all(attributes.get(key) == value for key, value in LINK_OVERRIDES.items())):
             states.append(realm + ':ok')
             continue
         representation['accessCodeLifespanUserAction'] = USER_ACTION_LIFESPAN
-        representation['attributes'] = {**attributes, VERIFY_EMAIL_OVERRIDE: str(VERIFY_EMAIL_LIFESPAN)}
+        representation['attributes'] = {**attributes, **LINK_OVERRIDES}
         admin.call('/' + realm, 'PUT', representation, (204,))
         states.append(realm + ':corrected')
     return ','.join(states)

@@ -2707,7 +2707,7 @@ Owner answer recorded 3 November 2026 — **CONFIRMED D308** ([source](https://g
 
 ### Q137 — Emailed attachments downloaded directly in Zammad
 
-- Issue: [#226](https://github.com/repasscloud/wanderconnect/issues/226). Status: OPEN, raised 6 November 2026 from #221 (D336).
+- Issue: [#226](https://github.com/repasscloud/wanderconnect/issues/226). Status: ANSWERED **A**, owner 17 November 2026 → **D372** (procedure + Zammad sign-in notice). Raised 6 November 2026 from #221 (D336).
 - Swoovr scans everything it sends to Zammad, and every download through Swoovr. Emailed files reach Zammad without passing Swoovr, and staff signed in to Zammad's own web UI (D327) can download them there unscanned. A (recommended): files only through Admin, by procedure plus a notice on the Zammad hand-off. B: turn off direct Zammad web sign-in for staff. C: accept the gap and rely on endpoint antivirus.
 
 ### Q138 — ClamAV image vulnerabilities, UnRAR and signatures
@@ -2722,7 +2722,7 @@ Owner answer recorded 3 November 2026 — **CONFIRMED D308** ([source](https://g
 
 ### Q140 — Operational identity review for MFA recovery
 
-- Issue: [#243](https://github.com/repasscloud/wanderconnect/issues/243). Status: OPEN, raised 7 November 2026 while implementing [#193](https://github.com/repasscloud/wanderconnect/issues/193).
+- Issue: [#243](https://github.com/repasscloud/wanderconnect/issues/243). Status: ANSWERED, owner 17 November 2026 → **D373** (staff MFA recovery runbook in [MFA-MANAGEMENT.md](MFA-MANAGEMENT.md#staff-mfa-recovery-runbook-d373); verification-method field [#374](https://github.com/repasscloud/wanderconnect/issues/374)). Raised 7 November 2026 while implementing [#193](https://github.com/repasscloud/wanderconnect/issues/193).
 - Which approved identity-review procedure, evidence and training/record requirements should independent Admins use before resetting lost MFA? The implementation requires elevated independent Admin, case reference, identity-review attestation and confirmation, prevents self/Root reset and preserves mandatory staff enrolment. An attestation does not prove identity or case outcome. Operational assisted recovery awaits the approved runbook; independent enrolment, enforcement and native recovery work continues. No new document collection or bypass is proposed.
 
 ## Location redesign — [#257](https://github.com/repasscloud/wanderconnect/issues/257), 8 November 2026
@@ -2850,21 +2850,21 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q172 — Raw-original retention and privacy approval
 
-- Issue: [#296](https://github.com/repasscloud/wanderconnect/issues/296); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: OPEN. Earliest blocking phase: Before raw-image ingress is enabled.
+- Issue: [#296](https://github.com/repasscloud/wanderconnect/issues/296); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: ANSWERED "30 days", owner 9 November 2026 → **D374**; Privacy Notice disclosure still OPEN. Earliest blocking phase: Before raw-image ingress is enabled.
 - Approve raw-original lifetimes for pass, unresolved review/failure, rejection and appeals, plus privacy/provider disclosure. Existing photos discard originals. DEFAULT: minimise retention; existing stronger review/evidence/hold rules and active appeals override disposal.
 - Design: [Vultr image pipeline](../superpowers/specs/2026-11-08-vultr-image-pipeline-design.md). Independent contracts/build/local verification can continue. Never post private credentials to the issue.
 
 
 ### Q173 — Scanner freshness and re-screen policy
 
-- Issue: [#297](https://github.com/repasscloud/wanderconnect/issues/297); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: OPEN. Earliest blocking phase: Before hosted release.
+- Issue: [#297](https://github.com/repasscloud/wanderconnect/issues/297); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: PARTLY ANSWERED, owner 17–18 November 2026 → **D379** (supersedes D375): freshclam every 2 hours, alert after 24 hours without a successful check, fail closed at 96 hours ([#376](https://github.com/repasscloud/wanderconnect/issues/376) builds the alert and gate). Still OPEN: recorded-result freshness and detailed re-screen triggers (proposed DEFAULTS in D379). Earliest blocking phase: Before hosted release.
 - Maximum signature age, result freshness and policy/model-change re-screen triggers. DEFAULT: unknown/stale mandatory evidence fails closed; preserve mandatory fresh scan on successful appeal/reconsideration; callback retries reuse valid durable results.
 - Design: [Vultr image pipeline](../superpowers/specs/2026-11-08-vultr-image-pipeline-design.md). Independent contracts/build/local verification can continue. Never post private credentials to the issue.
 
 
 ### Q174 — Provider/model hosted-use readiness
 
-- Issue: [#298](https://github.com/repasscloud/wanderconnect/issues/298); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: OPEN. Earliest blocking phase: Before hosted release.
+- Issue: [#298](https://github.com/repasscloud/wanderconnect/issues/298); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: UPDATED, owner 17 November 2026 → **D376**: deployed to UAT, integration and functional testing in progress, no operational issues so far. Each outstanding approval (agreement, licences, rate limits, region, TLS) is tracked on its own, not as an implementation blocker; UAT success is not provider acceptance or production readiness. Earliest blocking phase: Before hosted release.
 - Confirm Shield account credentials/agreement, two-VM rate-limit/IP acceptance and permitted harmless provider acceptance; model licences including NudeNet discrepancy; region/disclosure and TLS readiness. DEFAULT: configured adapters and mocks are not live provider proof.
 - Design: [Vultr image pipeline](../superpowers/specs/2026-11-08-vultr-image-pipeline-design.md). Independent contracts/build/local verification can continue. Never post private credentials to the issue.
 
@@ -2897,5 +2897,5 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q179 — Privacy Notice: email provider is now Postmark
 
-- Issue: [#359](https://github.com/repasscloud/wanderconnect/issues/359). Status: OPEN (asked 18 November 2026). Follows D368 (#357).
+- Issue: [#359](https://github.com/repasscloud/wanderconnect/issues/359). Status: ANSWERED **A**, effective 17 November 2026 → **D377** (Privacy Notice 0.20; D351's location wording becomes 0.21). Follows D368 (#357).
 - The Privacy Notice in force (0.19) names MailerSend (email) in the European Union. Swoovr email now goes through Postmark (ActiveCampaign), which processes in the United States. The notice is unchanged until the owner approves wording. **A (proposed):** name Postmark (email) among service providers and in the United States list, as 0.20 from a date the owner gives. **B:** the owner's own wording.

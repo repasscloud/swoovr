@@ -17,6 +17,9 @@ UAT application hosting remains **OPEN** (owner, 10 November 2026); it may run o
 - Cloudflare account/zone/resource identities, separate private quarantine/processed storage, processing and dead-letter queues, Worker hostnames and secrets. Evidence storage has separate privileged custody controls; routine Workers must not gain evidence read/decryption access.
 - A reachable Swoovr API HTTPS origin and API/Worker service identities, current pipeline eligibility configuration and monitored incident contact.
 - Owner decisions Q171–Q174: sizing/region/latency/budget, original retention/disclosure, scan freshness/re-screen triggers, and model/provider hosted-use acceptance. Local files with credentials do not resolve these decisions by themselves.
+  - Q172 → D374: raw originals are kept at most 30 days after upload; holds and open appeals override disposal. Privacy Notice disclosure still OPEN.
+  - Q173 → D379 (partly; supersedes D375's 24-hour interval): each ClamAV sidecar runs freshclam every 2 hours (`FRESHCLAM_CHECKS=12`). Alert after 24 hours without a successful update check; at 96 hours since the last successful check, scan results stop counting as mandatory evidence and uploads wait. Result freshness and detailed re-screen triggers still OPEN.
+  - Q174 → D376: deployed to UAT and in integration/functional testing (owner, 17 November 2026). Each outstanding approval (Arachnid agreement, model licences incl. NudeNet, rate limits, region, TLS) is tracked on its own; UAT success is not provider acceptance or production readiness.
 
 ## Prepare private input files locally
 

@@ -100,6 +100,11 @@ if sso
 end
 Setting.set('user_show_password_login', sso.nil?)
 Setting.set('user_lost_password', false)
+# Q137 A (D372): files that arrive by email reach Zammad without Swoovr's malware scan, and Zammad's own downloads can't be
+# gated. Staff open support files only in Swoovr Admin, which scans each file before download; the sign-in page says so.
+Setting.set('maintenance_login', true)
+Setting.set('maintenance_login_message',
+  'Open support files in Swoovr Admin, which checks every file for malware before you download it. Files that arrive by email are not checked here.')
 # Mail channels: managed here unless the caller says otherwise (hosted UAT, owner 12 November 2026: Zammad's Microsoft 365
 # mailbox and notifications are configured in Zammad's admin UI and must survive every re-provisioning).
 if input.fetch('manage_mail', true) != false

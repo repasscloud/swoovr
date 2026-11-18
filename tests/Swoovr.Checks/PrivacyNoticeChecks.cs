@@ -14,7 +14,7 @@ static class PrivacyNoticeChecks
         string Text(string id) => string.Join(" ", PrivacyNotice.Sections.Single(s => s.Id == id).Paragraphs);
         var all = string.Join(" ", PrivacyNotice.Sections.SelectMany(s => s.Paragraphs));
 
-        Expect(!PrivacyNotice.StatusLabel.Contains("draft", StringComparison.OrdinalIgnoreCase) && PrivacyNotice.StatusLabel.Contains("approved 6 November 2026") && PrivacyNotice.Version == "0.19, 6 November 2026", "0.19 approved 6 November 2026 (issue 208), never draft");
+        Expect(!PrivacyNotice.StatusLabel.Contains("draft", StringComparison.OrdinalIgnoreCase) && PrivacyNotice.StatusLabel.Contains("approved 17 November 2026") && PrivacyNotice.Version == "0.20, 17 November 2026", "0.20 approved 17 November 2026 (issue 359, D377), never draft");
         // Issue 208 / D333–D334: helpdesk collection, self-hosted Zammad, support retention, customer retirement, logs and backups.
         Expect(Text("collect").Contains("Customer support: when you contact us") && Text("collect").Contains("internal case notes"), "support information collected (issue 208 §2)");
         Expect(Text("sharing").Contains("self-hosted customer support system using Zammad") && Text("sharing").Contains("not an independent recipient") && Text("sharing").Contains("email service provider"), "self-hosted Zammad, not a recipient (issue 208 §3)");
@@ -62,7 +62,7 @@ static class PrivacyNoticeChecks
         Expect(Text("international").Contains("45 days") && Text("international").Contains("have not sold or shared") && Text("international").Contains("appeal")
             && Text("international").Contains("Biometric Information Privacy Act"), "CCPA disclosures, US state appeals and biometric retention policy");
         Expect(Text("choices").Contains("access") && Text("choices").Contains("correct") && Text("choices").Contains("30 days"), "access, correction and complaint handling (APP 1.4(d)–(e))");
-        Expect(Text("sharing").Contains("Didit") && Text("sharing").Contains("Twilio") && Text("sharing").Contains("MailerSend"), "service providers named");
-        Console.WriteLine($"PASS: approved privacy notice 0.19 ({checks}).");
+        Expect(Text("sharing").Contains("Didit") && Text("sharing").Contains("Twilio") && Text("sharing").Contains("Postmark (email)") && !Text("sharing").Contains("MailerSend"), "service providers named (Postmark for email, D377)");
+        Console.WriteLine($"PASS: approved privacy notice 0.20 ({checks}).");
     }
 }
