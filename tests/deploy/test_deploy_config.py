@@ -257,6 +257,21 @@ class CaddyChecks(unittest.TestCase):
         compose = (ROOT / 'deploy/vultr-uat/compose.yaml').read_text()
         self.assertIn('- ./zammad/branding:/srv/swoovr-icons:ro', compose)
 
+    def test_keycloak_theme_files_change_url_each_release(self):
+        # #358: Keycloak's /resources/<tag>/ only changes with the Keycloak build and is served with max-age 30 days,
+        # so Cloudflare kept the pre-fix swoovr.css after deploy. Our own files carry ?v=<swoovrVersion>, which the
+        # UAT image sets to the release number.
+        login = ROOT / 'containers/keycloak/themes/swoovr/login'
+        template = (login / 'template.ftl').read_text()
+        self.assertIn('<#assign swV = "?v=" + (properties.swoovrVersion!"0")?url(\'UTF-8\')>', template)
+        self.assertIn('<link href="${url.resourcesPath}/css/swoovr.css${swV}" rel="stylesheet" />', template)
+        for name in ['favicon.ico', 'favicon.svg', 'apple-touch-icon.png']:
+            self.assertIn('${url.resourcesPath}/img/' + name + '${swV}"', template)
+        styles = re.search(r'(?m)^styles=(.*)$', (login / 'theme.properties').read_text()).group(1).split()
+        self.assertNotIn('css/swoovr.css', styles, 'listed here it would load a second time without ?v=')
+        dockerfile = (ROOT / 'containers/uat/Keycloak.Dockerfile').read_text()
+        self.assertIn('s|^swoovrVersion=.*|swoovrVersion=$SWOOVR_VERSION|', dockerfile)
+
 
 if __name__ == '__main__':
     unittest.main()
