@@ -144,6 +144,7 @@ class RealmPreparationChecks(unittest.TestCase):
                 self.assertEqual(realm['accessCodeLifespanUserAction'], 1800)
                 self.assertEqual(realm['accessCodeLifespanUserAction'], realm.get('accessCodeLifespanLogin', 1800))
                 self.assertEqual(realm['attributes']['actionTokenGeneratedByUserLifespan.verify-email'], '86400')
+                self.assertEqual(realm['attributes']['actionTokenGeneratedByUserLifespan.update-email'], '86400')  # D378
                 # Password reset and other user links keep the realm-wide 5 minutes.
                 self.assertEqual(realm.get('actionTokenGeneratedByUserLifespan', 300), 300)
 

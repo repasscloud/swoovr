@@ -95,7 +95,7 @@ Swoovr roles decide every staff member's queues; Zammad is never managed as a se
 - **Service:** the pinned `clamav/clamav@sha256:c21aa18c…` image, unmodified, with its `CLAMD_CONF_*` limits (see `compose.local.yaml`).
   - Give it about 4 GB of memory.
   - Persist `/var/lib/clamav` so freshclam updates survive restarts.
-  - Signatures update automatically once every 24 hours through the image's built-in updater; no external scheduler (D375).
+  - freshclam checks for new signatures every 2 hours (`FRESHCLAM_CHECKS: "12"`), with no external scheduler. Alert after 24 hours without a successful check; fail closed after 96 hours (D379).
   - Allow outbound HTTPS to the ClamAV mirror.
   - Never publish port 3310; only the API reaches it.
 - **API settings:** `Attachments:Scanning:ClamAv:Host`, plus optionally `Port` (3310), `TimeoutSeconds` (120) and `MaxStreamBytes` (160 MB; must cover the largest allowed file). Hosted hosts refuse to start without a host, or with scanning or its worker switched off.

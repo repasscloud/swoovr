@@ -277,6 +277,7 @@ class ReconcileChecks(unittest.TestCase):
         for realm in kr.REALMS:
             self.assertEqual(fake.realms[realm]['accessCodeLifespanUserAction'], 1800)
             self.assertEqual(fake.realms[realm]['attributes'][kr.VERIFY_EMAIL_OVERRIDE], '86400')
+            self.assertEqual(fake.realms[realm]['attributes'][kr.UPDATE_EMAIL_OVERRIDE], '86400')  # D378
         members = fake.realms['swoovr-members']['attributes']
         # Only the verify link is lengthened: the realm-wide user link (password reset) keeps its 5 minutes.
         self.assertEqual((members['actionTokenGeneratedByUserLifespan'], members['other']), ('300', 'kept'))

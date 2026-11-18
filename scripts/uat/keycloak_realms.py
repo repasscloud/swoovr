@@ -200,7 +200,9 @@ def render(admin_origin, venue_origin, tenant_id, client_id):
         value['attributes'] = {'swoovr.environment': 'uat-preparation-disabled',
                                'swoovr.registrationTerms': 'REQUIRED' if kind == 'members' else 'DISABLED',
                                # #353, D367: the emailed verify link lasts 24 hours (other user links keep 5 minutes).
-                               'actionTokenGeneratedByUserLifespan.verify-email': str(VERIFY_EMAIL_LIFESPAN)}
+                               'actionTokenGeneratedByUserLifespan.verify-email': str(VERIFY_EMAIL_LIFESPAN),
+                               # #355 template 04, D378: the change-of-email confirmation link lasts 24 hours too.
+                               'actionTokenGeneratedByUserLifespan.update-email': str(VERIFY_EMAIL_LIFESPAN)}
         # #353, D367: "Check your email" and its re-send link last as long as the sign-in attempt (30 minutes).
         value['accessCodeLifespanUserAction'] = USER_ACTION_LIFESPAN
         # The local Zammad client is not a UAT portal; never export its localhost callback.

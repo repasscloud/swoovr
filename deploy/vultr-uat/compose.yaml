@@ -325,6 +325,9 @@ services:
   clamav:
     <<: [*restart, *logging]
     image: ${SWOOVR_CLAMAV_IMAGE:?release.env}
+    environment:
+      # Q173, D379: freshclam checks for new signatures every 2 hours (12 a day; the image's default is 1).
+      FRESHCLAM_CHECKS: "12"
     volumes:
       - clamav-db:/var/lib/clamav
     networks: [ticketing, egress]

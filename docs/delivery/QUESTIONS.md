@@ -2857,7 +2857,7 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q173 — Scanner freshness and re-screen policy
 
-- Issue: [#297](https://github.com/repasscloud/wanderconnect/issues/297); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: PARTLY ANSWERED, owner 17 November 2026 → **D375** (signatures update once every 24 hours by ClamAV's built-in updater). Still OPEN: maximum signature age, result freshness, re-screen triggers. Earliest blocking phase: Before hosted release.
+- Issue: [#297](https://github.com/repasscloud/wanderconnect/issues/297); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: PARTLY ANSWERED, owner 17–18 November 2026 → **D379** (supersedes D375): freshclam every 2 hours, alert after 24 hours without a successful check, fail closed at 96 hours ([#376](https://github.com/repasscloud/wanderconnect/issues/376) builds the alert and gate). Still OPEN: recorded-result freshness and detailed re-screen triggers (proposed DEFAULTS in D379). Earliest blocking phase: Before hosted release.
 - Maximum signature age, result freshness and policy/model-change re-screen triggers. DEFAULT: unknown/stale mandatory evidence fails closed; preserve mandatory fresh scan on successful appeal/reconsideration; callback retries reuse valid durable results.
 - Design: [Vultr image pipeline](../superpowers/specs/2026-11-08-vultr-image-pipeline-design.md). Independent contracts/build/local verification can continue. Never post private credentials to the issue.
 

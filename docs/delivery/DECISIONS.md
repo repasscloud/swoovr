@@ -1129,7 +1129,7 @@ OPEN: the Privacy Notice doesn't describe raw-original retention. Wording needs 
 
 ### D375 — ClamAV signatures update once every 24 hours (18 November 2026)
 
-**CONFIRMED** by the owner, Q173 (partly, [#297](https://github.com/repasscloud/wanderconnect/issues/297), 17 November 2026). Each ClamAV instance (the support-attachment scanner, D336, and each image-pipeline VM's sidecar) updates its signatures automatically once every 24 hours, using its built-in scheduled updater (freshclam in the pinned official image). No external scheduler is added.
+**SUPERSEDED by D379** (2-hour checks). **CONFIRMED** by the owner, Q173 (partly, [#297](https://github.com/repasscloud/wanderconnect/issues/297), 17 November 2026). Each ClamAV instance (the support-attachment scanner, D336, and each image-pipeline VM's sidecar) updates its signatures automatically once every 24 hours, using its built-in scheduled updater (freshclam in the pinned official image). No external scheduler is added.
 
 OPEN (Q173 remains open for these): the maximum acceptable signature age before scans fail closed, how long a recorded scan result stays fresh, and which policy or model changes trigger a re-screen. DEFAULT until decided: unknown or stale mandatory evidence fails closed; a successful appeal still needs a fresh scan (D298).
 
@@ -1143,6 +1143,31 @@ OPEN (Q173 remains open for these): the maximum acceptable signature age before 
 
 **CONFIRMED** by the owner, Q179 **A**, effective 17 November 2026 ([#359](https://github.com/repasscloud/wanderconnect/issues/359)). Follows D368.
 - Privacy Notice **0.20, 17 November 2026** replaces "MailerSend (email)" with "Postmark (email)" in the service-provider list and moves email from the European Union to the United States in the overseas list. Nothing else changes.
-- DEFAULT (numbering): D351 had also approved location wording "as version 0.20". It isn't published yet (#283), so it will be published as **0.21** and must keep the Postmark sentences. Its wording is unchanged.
+- Numbering, **CONFIRMED** by the owner 18 November 2026: D351 had also approved location wording "as version 0.20". It isn't published yet (#283), so it will be published as **0.21** and must keep the Postmark sentences. Its wording is unchanged.
 
 Reversible: restore the 0.19 sentences and version in `Swoovr.Client.PrivacyNotice`.
+
+### D378 — The change-of-email link lasts 24 hours (18 November 2026)
+
+**CONFIRMED** by the owner in chat, 18 November 2026: the open point from [#355](https://github.com/repasscloud/wanderconnect/issues/355), template 04. The link that confirms a new email address lasts 24 hours, like sign-up (D367).
+- All three realms set `actionTokenGeneratedByUserLifespan.update-email` = 86400. This is Keycloak 26.8.1's `UpdateEmailActionToken` type; `UpdateEmail` reads that per-type lifespan.
+- Applied by `scripts/uat/keycloak_realms.py` (realm templates) and by the reconcile job (`email-lifespans=`) on every deployment, so existing realms are corrected on upgrade.
+- The email states the lifetime through `linkExpirationFormatter`, so its text follows automatically.
+- Unchanged: password-reset and other user links keep 5 minutes.
+
+Reversible: drop the `update-email` override from both scripts and the realms.
+
+### D379 — ClamAV update checks every 2 hours; alert at 24 hours, fail closed at 96 hours (18 November 2026)
+
+**CONFIRMED** by the owner, Q173 ([#297](https://github.com/repasscloud/wanderconnect/issues/297#issuecomment-6965140316), 18 November 2026). Supersedes D375's 24-hour interval. Applies to every ClamAV instance: support attachments (D336) and image-pipeline sidecars.
+- **Checks:** the built-in freshclam updater checks every **2 hours**. The pinned official image runs `freshclam --checks="${FRESHCLAM_CHECKS:-1}"`, so `FRESHCLAM_CHECKS: "12"` is set in `compose.local.yaml` and `deploy/vultr-uat/compose.yaml`. No external scheduler.
+- **Warning:** raise an operational alert when there has been no successful update check for **24 hours**.
+- **Fail closed:** at **96 hours** since the last successful update check, new scan results stop counting as valid mandatory evidence. Affected uploads are queued or held, never treated as clean. Resume only after a successful update and a scanner health check. Mandatory scanning is never bypassed.
+- **Measured from the last successful update check**, not the signatures' publication time: an unchanged database is legitimate when nothing newer has been released. Genuinely outdated database versions and updater errors are detected separately.
+- **Monitoring** shows last successful check, database version, update failures and scanner health.
+- The alert, the 96-hour gate and the monitoring fields aren't built yet: [#376](https://github.com/repasscloud/wanderconnect/issues/376).
+
+Proposed DEFAULTS, pending explicit approval (Q173 stays open):
+- A recorded clean scan is reusable for an unchanged file under the same policy and version, including callback retries.
+- Re-screen when the file bytes change, when a policy or model change invalidates the verdict, or when a successful appeal requires reconsideration (D298).
+- 96 hours is not an automatic expiry of earlier clean scans.
