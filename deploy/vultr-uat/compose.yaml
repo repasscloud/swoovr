@@ -97,6 +97,8 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Swoovr favicons for the Keycloak account console and Zammad (#379); shipped in the release bundle.
+      - ./zammad/branding:/srv/swoovr-icons:ro
       # Owner-provisioned Cloudflare Origin CA certificate + key (#307). Not part of the bundle; never in Git.
       - type: bind
         source: /etc/caddy/certs
