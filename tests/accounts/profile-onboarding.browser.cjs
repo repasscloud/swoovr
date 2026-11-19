@@ -89,9 +89,16 @@ const signIn=async(context,member)=>{const page=await context.newPage();await pa
   const profile=(await call(token,'/api/me/profile')).body;
   assert.equal(profile.displayName,'Fictional Robin');assert.equal(profile.homeCity.id,ADELAIDE);assert.equal(profile.pictureText,'Coffee first, then mountains.');
   const dating=profile.modes.find(m=>m.id==='dating');assert.equal(dating.enabled,true);assert.equal(dating.shareCoreAbout,true,'Q181.4 A consent applied');pass();
+  // PR #392 review: a member who left after the last save but before /complete succeeded (or whose profile already
+  // had every step) is recorded as complete on their next visit, so clearing data later can't reopen onboarding.
+  const account=(await sql(`SELECT account_id FROM member_profiles WHERE display_name='Fictional Robin'`)).trim();
+  await sql(`UPDATE member_profiles SET onboarding_completed_at=NULL WHERE account_id='${account}'`);
+  assert.equal((await call(token,'/api/me')).body.setupStep,null);
+  assert.equal(await sql(`SELECT count(*) FROM member_profiles WHERE account_id='${account}' AND onboarding_completed_at IS NOT NULL`),'1','flag persisted without /complete');
+  assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action='onboarding.completed' AND target_id='${account}'`),'2','one audit entry per completion');pass();
   // Once complete, clearing a home city never sends the member back to onboarding.
   await call(token,'/api/me/profile',{method:'PUT',body:{displayName:'Fictional Robin',about:profile.about}});
   assert.equal((await call(token,'/api/me')).body.setupStep,null);pass();
-  console.log(`PASS: ${passed} first sign-in profile onboarding checks (gate, pre-filled name, accurate home-city wording, about with consent, resume, text picture with contact refusal and preview, modes, Dating gender rule, pronoun Self-describe, show-me choices, redirect to the first enabled mode, completion flag).`);
+  console.log(`PASS: ${passed} first sign-in profile onboarding checks (gate, pre-filled name, accurate home-city wording, about with consent, resume, text picture with contact refusal and preview, modes, Dating gender rule, pronoun Self-describe, show-me choices, redirect to the first enabled mode, completion flag, completion persisted without /complete).`);
  }finally{await edge.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});
