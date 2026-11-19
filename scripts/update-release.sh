@@ -67,16 +67,31 @@ git pull -q --ff-only
 # New Major.Minor: bump, check, and merge it to main through a PR, then tag that merge.
 if [[ "$BUMP" == true ]]; then
     BRANCH="release/$VERSION"
-    git checkout -q -b "$BRANCH"
+    # Cut from origin/main, never local main: unpushed local commits must not ride along with the bump (#393 review).
+    git checkout -q -b "$BRANCH" origin/main
     python3 scripts/release_version.py set "$WANT_MAJOR.$WANT_MINOR"
     python3 scripts/check_version.py
-    python3 -m unittest -q tests/release/test_release_version.py 2>/dev/null \
-        || python3 -m unittest tests/release/test_release_version.py
+    # The repository gate (AGENTS.md) must pass on the bumped checkout before anything is committed (#393 review).
+    CHECK_LOG="$(mktemp -t swoovr-release-check.XXXXXX)"
+    echo "Running ./scripts/check.sh (log: $CHECK_LOG)"
+    if ! ./scripts/check.sh > "$CHECK_LOG" 2>&1; then
+        echo "error: ./scripts/check.sh failed on the $1 bump; nothing was committed or pushed. Last lines:" >&2
+        tail -n 20 "$CHECK_LOG" >&2
+        git checkout -q -- Directory.Build.props containers/keycloak/themes/swoovr/login/theme.properties
+        git checkout -q main
+        git branch -q -D "$BRANCH"
+        exit 1
+    fi
+    echo "check.sh passed: $(grep -c '^PASS' "$CHECK_LOG") PASS, $(grep -c '^SKIP' "$CHECK_LOG") SKIP"
+    grep '^SKIP' "$CHECK_LOG" | sed 's/^/  /' || true
     git add Directory.Build.props containers/keycloak/themes/swoovr/login/theme.properties
     git commit -q -m "Bump Swoovr version to $1"
     git push -q -u origin "$BRANCH"
-    gh pr create --base main --head "$BRANCH" --title "Bump Swoovr version to $1" \
-        --body "Version bump for release $VERSION, made by scripts/update-release.sh (D320, docs/delivery/VERSIONING.md)."
+    gh pr create --base main --head "$BRANCH" --title "Bump Swoovr version to $1" --body "Version bump for release \
+$VERSION, made by scripts/update-release.sh (D320, docs/delivery/VERSIONING.md).
+
+Evidence: \`./scripts/check.sh\` passed on this commit ($(grep -c '^PASS' "$CHECK_LOG") PASS). Gaps (SKIP):
+$(grep '^SKIP' "$CHECK_LOG" | sed 's/^/- /' || echo '- none')" > /dev/null
     gh pr merge "$BRANCH" --merge --delete-branch > /dev/null
     git checkout -q main
     git pull -q --ff-only
