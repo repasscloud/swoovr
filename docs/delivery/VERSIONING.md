@@ -33,6 +33,13 @@ Separate things that are **not** the product version:
 
 ## Releasing
 
+One command, run from a clean checkout: `./scripts/update-release.sh X.Y.Z`. It refuses anything not newer than the latest
+release tag. When X.Y is a newer Major.Minor than `Directory.Build.props` (for example `1.1.0` after `1.0.13`), it first
+runs `release_version.py set X.Y`, checks it, and merges that bump to `main` through a PR. Then it tags `main`, pushes
+the tag and watches the UAT deploy. The first release on a new Major.Minor must be `X.Y.0`.
+
+The underlying steps:
+
 ```sh
 python3 scripts/release_version.py next            # what the next production release would be
 python3 scripts/release_version.py allocate        # tag HEAD vX.Y.Z (refuses an existing tag)

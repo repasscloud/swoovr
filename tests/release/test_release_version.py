@@ -1,4 +1,5 @@
 """Q129 / D320: release version allocation, exercised in a throwaway git repository (never this repository's tags)."""
+import re
 import shutil
 import subprocess
 import tempfile
@@ -17,6 +18,12 @@ class ReleaseVersion(unittest.TestCase):
         theme = self.dir / "containers/keycloak/themes/swoovr/login"
         theme.mkdir(parents=True)
         shutil.copy(REPO / "containers/keycloak/themes/swoovr/login/theme.properties", theme / "theme.properties")
+        # Pin the throwaway copy to a 1.0 baseline so a real Major/Minor bump in this repository never breaks these tests.
+        props = self.dir / "Directory.Build.props"
+        text = re.sub(r"<SwoovrVersionMajor>\d+<", "<SwoovrVersionMajor>1<", props.read_text())
+        props.write_text(re.sub(r"<SwoovrVersionMinor>\d+<", "<SwoovrVersionMinor>0<", text))
+        (theme / "theme.properties").write_text(
+            re.sub(r"(?m)^swoovrVersion=.*$", "swoovrVersion=1.0.0", (theme / "theme.properties").read_text()))
         for args in (["init", "-q"], ["config", "user.email", "fictional@example.test"], ["config", "user.name", "Fictional"],
                      ["config", "commit.gpgsign", "false"], ["config", "tag.gpgsign", "false"], ["add", "."], ["commit", "-qm", "init"]):
             subprocess.run(["git", "-C", str(self.dir), *args], check=True, capture_output=True)
@@ -59,6 +66,16 @@ class ReleaseVersion(unittest.TestCase):
         self.assertEqual(self.run_script("bump", "major")[0], "2.0.0"); self.commit()
         self.assertEqual(self.run_script("next")[0], "2.0.0")
         self.assertIn("<SwoovrVersionMinor>0</SwoovrVersionMinor>", (self.dir / "Directory.Build.props").read_text())
+
+    def test_set_moves_to_a_newer_major_minor_only(self):
+        self.run_script("allocate"); self.commit(); self.run_script("allocate")
+        self.assertEqual(self.run_script("set", "1.1")[0], "1.1.0"); self.commit()
+        self.assertEqual(self.run_script("next")[0], "1.1.0")
+        self.assertIn("swoovrVersion=1.1.0", (self.dir / "containers/keycloak/themes/swoovr/login/theme.properties").read_text())
+        self.assertEqual(self.run_script("set", "3.0")[0], "3.0.0")
+        for bad in ("3.0", "2.9", "1.1", "3", "3.01", "x.y"):
+            self.assertNotEqual(self.run_script("set", bad, ok=False)[1].returncode, 0, bad)
+        self.assertEqual(self.run_script("show")[0], "3.0.0", "a refused set changes nothing")
 
     def test_a_version_is_never_allocated_twice_or_mismatched(self):
         self.run_script("allocate")
