@@ -94,6 +94,24 @@ static class PhoneChecks
             && AccountSetup.Next(false, false, false, new DateOnly(1990, 5, 1)) is null, "names, mobile, policies, then date of birth");
         Expect(AccountSetup.Names == SetupSteps.Names && AccountSetup.Phone == SetupSteps.Phone && AccountSetup.Policies == SetupSteps.Policies
             && AccountSetup.DateOfBirth == SetupSteps.DateOfBirth, "domain and wire step names agree");
+        // Issue 389 (D382): the profile steps that follow, done by data or by continuing past an optional step.
+        OnboardingFacts O(bool name = true, bool city = true, bool about = false, bool photo = true, bool modes = true, bool dating = false,
+            bool gender = false, bool showMe = false, string[]? ack = null) => new(name, city, about, photo, modes, dating, gender, showMe, ack ?? []);
+        Expect(ProfileOnboarding.Next(O(name: false, photo: false, modes: false)) == "profile" && ProfileOnboarding.Next(O(city: false)) == "profile", "display name and home city first");
+        Expect(ProfileOnboarding.Next(O()) == "about" && ProfileOnboarding.Next(O(about: true, photo: false)) == "photos", "then about (data or continued past), then photos");
+        Expect(ProfileOnboarding.Next(O(photo: false, ack: ["about"])) == "photos" && ProfileOnboarding.Next(O(modes: false, ack: ["about"])) == "modes", "photos or a text picture, then at least one mode");
+        Expect(ProfileOnboarding.Next(O(ack: ["about"])) == "identity" && ProfileOnboarding.Next(O(ack: ["about", "identity"])) is null, "identity is optional without Dating");
+        Expect(ProfileOnboarding.Next(O(dating: true, ack: ["about", "identity"])) == "identity" && !ProfileOnboarding.MayAcknowledge("identity", O(dating: true)), "Dating needs a gender (181.8 A)");
+        Expect(ProfileOnboarding.Next(O(dating: true, gender: true, ack: ["about"])) == "datingShowMe" && ProfileOnboarding.Next(O(dating: true, gender: true, showMe: true, ack: ["about"])) is null,
+            "Dating's show me last, only while Dating is on");
+        Expect(ProfileOnboarding.Pending(O(dating: false, ack: ["about"])).SequenceEqual(["identity"]) && !ProfileOnboarding.MayAcknowledge("photos", O()), "only the optional steps can be continued past");
+        Expect(ProfileOnboarding.Order.All(s => SetupSteps.ProfileStep(s)) && !SetupSteps.ProfileStep(SetupSteps.DateOfBirth), "domain and wire profile step names agree");
+        // D382 (Q181.5 A): the text picture: 100 characters, one line, no contact details.
+        Expect(PictureTextPolicy.Check("Coffee first, then mountains.") == PictureTextError.None && PictureTextPolicy.Check(new string('a', 100)) == PictureTextError.None, "plain words");
+        Expect(PictureTextPolicy.Check(new string('a', 101)) == PictureTextError.TooLong && PictureTextPolicy.Check("two\nlines") == PictureTextError.ControlCharacters, "length and one line");
+        foreach (var contact in new[] { "call 0412 345 678", "+61 412 345 678", "me@example.test", "www.example.test", "find me at example.com", "insta @someone_here", "https://x.test" })
+            Expect(PictureTextPolicy.Check(contact) == PictureTextError.ContactDetails, "contact details refused: " + contact);
+        Expect(PictureTextPolicy.Check("Born in 1990, 3 kids, 2 dogs") == PictureTextError.None && PictureTextPolicy.Check("Ask me @ the cafe") == PictureTextError.None, "short numbers and a lone @ are fine");
         Expect(ContactMask.Email("alex.original@example.test") == "a...l@e...e.test", "owner's email example");
         Expect(ContactMask.Email("al@mail.example.com.au") == "a...l@m...m.au" && ContactMask.Email("a@x.io") == "a...@x....io", "always three dots, top-level domain kept");
         Expect(ContactMask.Email(null) is null && !ContactMask.Email("someone.long@example.test")!.Contains("someone"), "never the address itself");

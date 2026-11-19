@@ -2,7 +2,8 @@ using System.Text;
 
 namespace Swoovr.Domain;
 
-public enum TextHarmSource { ProfileAbout, ModeAbout, Message }
+/// <summary>ProfilePicture (issue 389, D382): the "What would you like your picture to say?" text.</summary>
+public enum TextHarmSource { ProfileAbout, ModeAbout, Message, ProfilePicture }
 /// <summary>Actual server history only, excluding the current write. Missing history must not imply zero.</summary>
 public sealed record TextHarmHistory(bool Complete, int SameTextMessagesLastHour, int DistinctRecipientsLastHour);
 public sealed record TextHarmInput(Guid AccountId, TextHarmSource Source, string Text, TextHarmHistory History);

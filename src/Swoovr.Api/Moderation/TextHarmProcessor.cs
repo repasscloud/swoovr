@@ -100,6 +100,9 @@ public sealed class TextHarmProcessor(SwoovrDbContext db,EvidenceKeys keys,Evide
         if(intent.Revision==Guid.Empty)return null;
         if(intent.Source==TextHarmSource.ProfileAbout)
             return intent.SourceId==intent.AccountId&&intent.ModeId is null&&await db.MemberProfiles.AnyAsync(p=>p.AccountId==intent.AccountId&&p.TextRevision==intent.Revision&&p.About==text,token)?new(null):null;
+        // Issue 389 (D382): the text picture, the same way as the about.
+        if(intent.Source==TextHarmSource.ProfilePicture)
+            return intent.SourceId==intent.AccountId&&intent.ModeId is null&&await db.MemberProfiles.AnyAsync(p=>p.AccountId==intent.AccountId&&p.PictureTextRevision==intent.Revision&&p.PictureText==text,token)?new(null):null;
         if(intent.Source==TextHarmSource.ModeAbout)
             return intent.SourceId==intent.AccountId&&intent.ModeId is not null&&await db.MemberModes.AnyAsync(m=>m.AccountId==intent.AccountId&&m.ModeId==intent.ModeId&&m.TextRevision==intent.Revision&&m.About==text,token)?new(null):null;
         if(intent.Source!=TextHarmSource.Message||intent.ModeId is not null||intent.Revision!=intent.SourceId)return null;

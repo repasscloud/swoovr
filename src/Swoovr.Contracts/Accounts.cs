@@ -10,7 +10,8 @@ public sealed record BadgeView(string Badge, DateTimeOffset? CheckedAt);
 /// <param name="DobCheck">"none", "correctionNeeded" (show the one-time prompt) or "manualReview" (D166).</param>
 /// <param name="PhoneRequired">D148: a verified mobile number is required and missing; clients show the phone step first.</param>
 /// <param name="SetupStep">Issue 254 (D342): the next onboarding step ("names", "phone", "policies", "dateOfBirth"), or null when
-/// setup is complete. Clients keep the member in onboarding until it is null.</param>
+/// setup is complete. Clients keep the member in onboarding until it is null. Issue 389 (D382): then the profile steps
+/// ("profile", "about", "photos", "modes", "identity", "datingShowMe") until the onboarding flag is set.</param>
 public sealed record MemberAccount(
     string AgeStatus,
     int? Age,
@@ -36,7 +37,22 @@ public sealed record ContactView(string? Email, string? Mobile, bool Revealed);
 public static class SetupSteps
 {
     public const string Names = "names", Phone = "phone", Policies = "policies", DateOfBirth = "dateOfBirth";
+    /// <summary>Issue 389 (D382): the profile steps that follow, until the profile's onboarding flag is set.</summary>
+    public const string Profile = "profile", About = "about", Photos = "photos", Modes = "modes", Identity = "identity", DatingShowMe = "datingShowMe";
+
+    /// <summary>D382: the first-sign-in profile steps (the web keeps the member on /welcome through these too).</summary>
+    public static bool ProfileStep(string? step) => step is Profile or About or Photos or Modes or Identity or DatingShowMe;
 }
+
+/// <summary>
+/// Issue 389 (D382): the member's first-sign-in profile steps. Step is the next one (null when done); Pending lists the
+/// steps still to do in order. ShareAbout is the about step's "Show this in every mode until I write one for that mode",
+/// which the modes step applies to each mode it turns on. Completed is set once every step is done.
+/// </summary>
+public sealed record OnboardingView(string? Step, IReadOnlyList<string> Pending, bool? ShareAbout, DateTimeOffset? Completed, int PhotoUploads);
+
+/// <summary>D382: continues past an optional step (about, identity). ShareAbout is the about step's answer.</summary>
+public sealed record OnboardingStepUpdate(bool? ShareAbout = null);
 
 /// <summary>
 /// The member's account deletion (D144, D170): "none" or "pending" with when it was asked for and when final deletion
@@ -153,6 +169,10 @@ public static class ProblemCodes
     public const string NoVerifiedEmail = "no-verified-email";
     public const string NotConfigured = "not-configured";
     public const string HomeCityRequired = "home-city-required";
+    /// <summary>Issue 389 (D382): the text picture contains an email address, link, handle or phone number.</summary>
+    public const string PictureTextContact = "picture-text-contact";
+    /// <summary>D382: that onboarding step can't be continued past yet (or isn't one that can be).</summary>
+    public const string OnboardingStepIncomplete = "onboarding-step-incomplete";
     public const string MarketNotOpen = "market-not-open";
     public const string HomeMarketLocked = "home-market-locked";
     public const string UnknownMarket = "unknown-market";

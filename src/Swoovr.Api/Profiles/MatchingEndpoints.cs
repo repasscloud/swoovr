@@ -25,13 +25,16 @@ public static class MatchingEndpoints
             var options = await accounts.Db!.ProfileOptions.Where(o => o.Available).OrderBy(o => o.SortOrder).ToListAsync(cancellationToken);
             return Results.Ok(new ProfileOptionsView(
                 options.Where(o => o.Kind == "gender").Select(o => new OptionView(o.Id, o.Label)).ToList(),
-                options.Where(o => o.Kind == "orientation").Select(o => new OptionView(o.Id, o.Label)).ToList()));
+                options.Where(o => o.Kind == "orientation").Select(o => new OptionView(o.Id, o.Label)).ToList(),
+                // Issue 389 (D382): the pronoun list, and the Dating "show me" choices (Q181.1 A).
+                options.Where(o => o.Kind == "pronoun").Select(o => new OptionView(o.Id, o.Label)).ToList(),
+                options.Where(o => o.Kind == "gender" && MatchPolicy.ShowMeOption(o.Id)).Select(o => new OptionView(o.Id, o.Label)).ToList()));
         });
         api.MapGet("/me/identity", async (ClaimsPrincipal user, AccountResolver accounts, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
-            return Results.Ok(View(await IdentityAsync(accounts.Db!, current!.Profile!.AccountId, cancellationToken)));
+            return Results.Ok(View(await IdentityAsync(accounts.Db!, current!.Profile!.AccountId, cancellationToken), await ProfileEndpoints.GenderLabelsAsync(accounts.Db!, cancellationToken)));
         });
         api.MapPut("/me/identity", async (IdentityUpdate update, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
         {
@@ -41,22 +44,32 @@ public static class MatchingEndpoints
             var options = await db.ProfileOptions.Where(o => o.Available).ToListAsync(cancellationToken);
             var identity = await db.MemberIdentities.FindAsync([id], cancellationToken);
             if (identity is null) db.MemberIdentities.Add(identity = new MemberIdentity { AccountId = id });
+            // Issue 389 (D382): a pronoun option, with own words only for Self-describe. An older client sends free text only,
+            // which maps to the matching option or Self-describe (Q181.6 A).
+            var (pronounId, pronouns) = Blank(update.PronounId) is { } chosen
+                ? (chosen, chosen == MatchPolicy.SelfDescribe ? Blank(update.Pronouns) : null)
+                : MatchPolicy.Pronoun(update.Pronouns, options);
             var candidate = new MemberIdentity
             {
                 AccountId = id, GenderId = Blank(update.Gender), GenderDescription = update.Gender == "another" ? Blank(update.GenderDescription) : null,
-                Pronouns = Blank(update.Pronouns), OrientationId = Blank(update.Orientation), ShowGender = update.ShowGender, ShowOrientation = update.ShowOrientation,
+                PronounId = pronounId, Pronouns = pronouns, OrientationId = Blank(update.Orientation), ShowGender = update.ShowGender, ShowOrientation = update.ShowOrientation,
                 ShowAge = update.ShowAge, DatingShowMe = (update.DatingShowMe ?? []).Distinct().ToList(),
+                // D382: null keeps the switch, so a client that predates it can't change it by saving.
+                ShowPronouns = update.ShowPronouns ?? identity.ShowPronouns,
             };
-            if (MatchPolicy.Check(candidate, options.Where(o => o.Kind == "gender").Select(o => o.Id).ToHashSet(),
-                    options.Where(o => o.Kind == "orientation").Select(o => o.Id).ToHashSet()) != FilterError.None)
+            var check = MatchPolicy.Check(candidate, options.Where(o => o.Kind == "gender").Select(o => o.Id).ToHashSet(),
+                options.Where(o => o.Kind == "orientation").Select(o => o.Id).ToHashSet(), options.Where(o => o.Kind == "pronoun").Select(o => o.Id).ToHashSet());
+            if (check == FilterError.TextTooLong)
+                return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidProfile, $"Keep your pronouns to {MatchPolicy.PronounsMax} characters.");
+            if (check != FilterError.None)
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidProfile, "Check the options you picked.");
-            (identity.GenderId, identity.GenderDescription, identity.Pronouns, identity.OrientationId, identity.ShowGender, identity.ShowOrientation, identity.ShowAge,
-                identity.DatingShowMe, identity.UpdatedAt) = (candidate.GenderId, candidate.GenderDescription, candidate.Pronouns, candidate.OrientationId,
-                candidate.ShowGender, candidate.ShowOrientation, candidate.ShowAge, candidate.DatingShowMe, now);
+            (identity.GenderId, identity.GenderDescription, identity.PronounId, identity.Pronouns, identity.OrientationId, identity.ShowGender, identity.ShowOrientation, identity.ShowAge,
+                identity.ShowPronouns, identity.DatingShowMe, identity.UpdatedAt) = (candidate.GenderId, candidate.GenderDescription, candidate.PronounId, candidate.Pronouns,
+                candidate.OrientationId, candidate.ShowGender, candidate.ShowOrientation, candidate.ShowAge, candidate.ShowPronouns, candidate.DatingShowMe, now);
             // The audit says the identity changed, never what it says (gender and orientation are sensitive).
             Audit.Record(db, now, id, "account", "identity.updated", "account", id.ToString());
             await db.SaveChangesAsync(cancellationToken);
-            return Results.Ok(View(identity));
+            return Results.Ok(View(identity, options.Where(o => o.Kind == "pronoun").ToDictionary(o => ProfileEndpoints.PronounKey + o.Id, o => o.Label)));
         });
         api.MapGet("/me/modes/{modeId}/filters", async (string modeId, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
         {
@@ -116,7 +129,8 @@ public static class MatchingEndpoints
     public static async Task<MemberIdentity> IdentityAsync(SwoovrDbContext db, Guid account, CancellationToken cancellationToken) =>
         await db.MemberIdentities.FindAsync([account], cancellationToken) ?? new MemberIdentity { AccountId = account };
 
-    private static IdentityView View(MemberIdentity i) => new(i.GenderId, i.GenderDescription, i.Pronouns, i.OrientationId, i.ShowGender, i.ShowOrientation, i.ShowAge, i.DatingShowMe);
+    private static IdentityView View(MemberIdentity i, IReadOnlyDictionary<string, string> labels) =>
+        new(i.GenderId, i.GenderDescription, ProfileEndpoints.PronounText(i, labels), i.OrientationId, i.ShowGender, i.ShowOrientation, i.ShowAge, i.DatingShowMe, i.PronounId, i.ShowPronouns);
 
     private static FilterView View(ModeFilter? f, string modeId, PlanTier tier) => f is null
         ? new(modeId, null, null, [], "any", [], false, "both", null, "recent", tier >= PlanTier.Plus, LocationPrivacy.FilterOptions(tier))

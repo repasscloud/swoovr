@@ -146,7 +146,7 @@ else
         + (s.ModeId is null ? "" : "&mode=" + Uri.EscapeDataString(s.ModeId)) + (s.MessageId is null ? "" : "&message=" + s.MessageId);
     private static string Label(string field, string? mode, Guid? messageId) => field switch
     {
-        "about" => "Core profile about", "mode-about" => $"Profile about for {mode}", "message" => $"Reported message {messageId}", _ => "Content"
+        "about" => "Core profile about", "picture-text" => "Profile text picture", "mode-about" => $"Profile about for {mode}", "message" => $"Reported message {messageId}", _ => "Content"
     };
     private void Show(int status, string? code, string success)
     {

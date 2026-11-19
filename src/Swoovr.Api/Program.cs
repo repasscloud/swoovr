@@ -115,6 +115,7 @@ Swoovr.Api.Ticketing.AttachmentScanningSetup.Map(app);
 app.MapGet("/version", () => Results.Ok(Swoovr.Contracts.VersionView.From(Swoovr.Contracts.AppVersion.Current))).AllowAnonymous();
 app.MapGet("/api/status", () => new FoundationStatus("Swoovr.Api", "foundation"));
 AccountEndpoints.Map(app);
+OnboardingEndpoints.Map(app);
 AdviceAcknowledgements.Map(app);
 RegistrationEndpoints.Map(app);
 RegisteredNamesEndpoints.Map(app);

@@ -15,8 +15,12 @@ public sealed record MyModeView(string Id, bool Enabled, bool Visible, IReadOnly
 /// <summary>The member's own profile: shared core fields plus every available mode's setting. HomeCity is private to the
 /// member (D110, D120); it decides which market they are local to. MarketInterest says whether they asked to hear when
 /// Swoovr opens where they live (D125 rule 37).</summary>
+/// <param name="PictureText">Issue 389 (D382): "What would you like your picture to say?", drawn as a text tile while no main photo is approved.</param>
 public sealed record MyProfileView(Guid PublicId, string? DisplayName, string? About, IReadOnlyList<MyModeView> Modes, PlaceView? HomeCity = null,
-    bool MarketInterest = false);
+    bool MarketInterest = false, string? PictureText = null);
+
+/// <summary>Issue 389 (D382): sets the text picture (up to 100 characters, one line, no contact details); blank removes it.</summary>
+public sealed record PictureTextUpdate(string? Text);
 
 /// <summary>A full replacement of the core profile: leaving HomeCityId out clears the home city.</summary>
 public sealed record ProfileUpdate(string? DisplayName, string? About, int? HomeCityId = null);
@@ -28,8 +32,10 @@ public sealed record ModeUpdate(bool Enabled, bool Visible, IReadOnlyList<Guid>?
 /// <summary>One person in Explore for one mode, with the public badges the API decided (Q11). No age, email or account id.</summary>
 /// <remarks>Age, Gender and Pronouns only as the person allows (D138, D139); never the date of birth.</remarks>
 /// <param name="Distance">D348: a band, never a distance or coordinates.</param>
+/// <param name="PictureText">Issue 389 (D382): the person's text picture, only while the tile has no approved photo.</param>
 public sealed record ProfileCard(Guid Id, string DisplayName, string? About, IReadOnlyList<string> Intentions, IReadOnlyList<BadgeView> Badges,
-    int? Age = null, string? Gender = null, string? Pronouns = null, DistanceView? Distance = null, PhotoView? Photo = null, string? Visiting = null);
+    int? Age = null, string? Gender = null, string? Pronouns = null, DistanceView? Distance = null, PhotoView? Photo = null, string? Visiting = null,
+    string? PictureText = null);
 
 /// <summary>
 /// D348: what another member may learn about distance. Band is hidden, nearby (0–2 km), within10Km, km10To20, km20To30,
@@ -71,4 +77,4 @@ public sealed record ProfileAtReport(DateTimeOffset ReportedAt, List<ProfileVers
 /// <summary>Whether the member wants to hear when Swoovr opens where they live (D125 rule 37).</summary>
 public sealed record MarketInterestUpdate(bool Interested);
 public sealed record PersonProfile(Guid Id, string DisplayName, string? About, IReadOnlyList<SharedModeView> Modes, IReadOnlyList<BadgeView> Badges,
-    int? Age = null, string? Gender = null, string? Pronouns = null, PhotoView? Photo = null, DistanceView? Distance = null);
+    int? Age = null, string? Gender = null, string? Pronouns = null, PhotoView? Photo = null, DistanceView? Distance = null, string? PictureText = null);

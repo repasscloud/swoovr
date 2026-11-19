@@ -2904,7 +2904,7 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q181 — First sign-in onboarding decisions
 
-- Issue: [#390](https://github.com/repasscloud/wanderconnect/issues/390) (sub-issue of #389). Status: OPEN. Earliest blocking phase: the #389 identity and Dating steps (181.1). Other slices proceed on the DEFAULTs.
+- Issue: [#390](https://github.com/repasscloud/wanderconnect/issues/390) (sub-issue of #389). Status: OPEN. Earliest blocking phase: the #389 identity and Dating steps (181.1). Other slices proceed on the DEFAULTs. Built on every DEFAULT (A) as **D382** (19 November 2026); an answer changes D382.
 - **181.1** Trans man / Trans woman (new genders) and Dating "show me", which today matches gender ids exactly (D138/D161). **DEFAULT A:** "Man" includes Trans man and "Woman" includes Trans woman. B: separate "show me" options. C: both.
 - **181.2** Blank display name → registered first name (Q117/Q118, D301 keep the registered name separate). **DEFAULT A:** pre-fill it visibly and let the member edit it. B: copy it on Continue and say so.
 - **181.3** "Home city once every 30 days". Today only moves into a different market are locked (rules 28/34). **DEFAULT A:** keep the rule and word the screen accurately. B: any change locks it for 30 days.

@@ -94,6 +94,22 @@ public sealed class MemberProfile
     public bool AppearInNearby { get; set; }
     /// <summary>D348: "Show my approximate distance". Off by default; a member sees others' bands only while this is on (Q152).</summary>
     public bool ShowDistance { get; set; }
+    /// <summary>
+    /// Issue 389 (D382, Q181.5 A): "What would you like your picture to say?" (up to 100 characters,
+    /// <see cref="PictureTextPolicy"/>). Drawn by the app as a text tile on Explore while no main photo is approved; never an
+    /// image file. Moderated like the about (its own <see cref="TextHarmSource"/> and revision).
+    /// </summary>
+    public string? PictureText { get; set; }
+    public Guid? PictureTextRevision { get; set; }
+    /// <summary>Issue 389 (D382): when the first-sign-in profile steps were finished. Null keeps the member in onboarding (181.7 A).</summary>
+    public DateTimeOffset? OnboardingCompletedAt { get; set; }
+    /// <summary>D382: the optional onboarding steps the member continued past (<see cref="ProfileOnboarding.About"/>, <see cref="ProfileOnboarding.Identity"/>).</summary>
+    public List<string> OnboardingSteps { get; set; } = [];
+    /// <summary>
+    /// D382 (Q181.4 A): the answer to "Show this in every mode until I write one for that mode" on the about step, kept
+    /// until the member turns modes on in step 4, where it becomes each enabled mode's <c>share_core_about</c> (D199).
+    /// </summary>
+    public bool? OnboardingShareAbout { get; set; }
 }
 
 public enum Badge { Founder, PhotoVerified, IdVerified, Staff, Bot }

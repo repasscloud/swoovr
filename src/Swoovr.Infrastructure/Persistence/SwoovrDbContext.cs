@@ -662,6 +662,8 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             profile.HasOne<Market>().WithMany().HasForeignKey(p => p.HomeMarketId).OnDelete(DeleteBehavior.SetNull);
             profile.HasIndex(p => p.HomeMarketId);
             profile.HasIndex(p => p.FounderEligibleAt).HasFilter("founder_eligible_at IS NOT NULL AND founder_place IS NULL");
+            // Issue 389 (D382): the text picture and the first-sign-in onboarding progress.
+            profile.Property(p => p.PictureText).HasMaxLength(PictureTextPolicy.Max);
         });
         // D92: four modes with stable ids; labels, order and availability are data. Q16: forty intention chips with
         // fixed ids (IntentionChips, D113).
@@ -1018,12 +1020,25 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             option.Property(o => o.Id).HasMaxLength(32);
             option.Property(o => o.Label).HasMaxLength(60);
             option.HasData(
+                // Issue 389 (D382): Trans man and Trans woman join the list (sentence case, matching the others).
                 new ProfileOption { Kind = "gender", Id = "man", Label = "Man", SortOrder = 1 },
                 new ProfileOption { Kind = "gender", Id = "woman", Label = "Woman", SortOrder = 2 },
-                new ProfileOption { Kind = "gender", Id = "non-binary", Label = "Non-binary", SortOrder = 3 },
-                new ProfileOption { Kind = "gender", Id = "another", Label = "Another gender", SortOrder = 4 },
-                new ProfileOption { Kind = "gender", Id = "unsaid", Label = "Prefer not to say", SortOrder = 5 },
-                new ProfileOption { Kind = "orientation", Id = "straight", Label = "Straight", SortOrder = 1 },
+                new ProfileOption { Kind = "gender", Id = MatchPolicy.TransMan, Label = "Trans man", SortOrder = 3 },
+                new ProfileOption { Kind = "gender", Id = MatchPolicy.TransWoman, Label = "Trans woman", SortOrder = 4 },
+                new ProfileOption { Kind = "gender", Id = "non-binary", Label = "Non-binary", SortOrder = 5 },
+                new ProfileOption { Kind = "gender", Id = "another", Label = "Another gender", SortOrder = 6 },
+                new ProfileOption { Kind = "gender", Id = "unsaid", Label = "Prefer not to say", SortOrder = 7 },
+                // D382: the pronoun list; "self" keeps the member's own words (up to 50 characters).
+                new ProfileOption { Kind = "pronoun", Id = "he-him", Label = "He/Him", SortOrder = 1 },
+                new ProfileOption { Kind = "pronoun", Id = "she-her", Label = "She/Her", SortOrder = 2 },
+                new ProfileOption { Kind = "pronoun", Id = "they-them", Label = "They/Them", SortOrder = 3 },
+                new ProfileOption { Kind = "pronoun", Id = "he-they", Label = "He/They", SortOrder = 4 },
+                new ProfileOption { Kind = "pronoun", Id = "she-they", Label = "She/They", SortOrder = 5 },
+                new ProfileOption { Kind = "pronoun", Id = "any", Label = "Any pronouns", SortOrder = 6 },
+                new ProfileOption { Kind = "pronoun", Id = "name", Label = "Use my name", SortOrder = 7 },
+                new ProfileOption { Kind = "pronoun", Id = MatchPolicy.SelfDescribe, Label = "Self-describe", SortOrder = 8 },
+                new ProfileOption { Kind = "pronoun", Id = MatchPolicy.PreferNotToSay, Label = "Prefer not to say", SortOrder = 9 },
+                new ProfileOption { Kind = "orientation", Id = "straight", Label = "Straight (heterosexual)", SortOrder = 1 },
                 new ProfileOption { Kind = "orientation", Id = "gay", Label = "Gay", SortOrder = 2 },
                 new ProfileOption { Kind = "orientation", Id = "lesbian", Label = "Lesbian", SortOrder = 3 },
                 new ProfileOption { Kind = "orientation", Id = "bisexual", Label = "Bisexual", SortOrder = 4 },
@@ -1040,7 +1055,8 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             identity.Property(i => i.GenderId).HasMaxLength(32);
             identity.Property(i => i.OrientationId).HasMaxLength(32);
             identity.Property(i => i.GenderDescription).HasMaxLength(MatchPolicy.TextMax);
-            identity.Property(i => i.Pronouns).HasMaxLength(MatchPolicy.TextMax);
+            identity.Property(i => i.PronounId).HasMaxLength(32);
+            identity.Property(i => i.Pronouns).HasMaxLength(MatchPolicy.PronounsMax);
         });
         model.Entity<ModeFilter>(filter =>
         {

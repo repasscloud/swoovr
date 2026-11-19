@@ -109,6 +109,17 @@ public sealed partial class MemberClient(HttpClient transport)
         SendAsync<PlanView>(new HttpRequestMessage(HttpMethod.Get, "api/me/plan"), cancellationToken);
 
     /// <summary>Gender and orientation option lists (D138).</summary>
+    /// <summary>Issue 389 (D382): the first-sign-in profile steps.</summary>
+    public Task<ApiResult<OnboardingView>> OnboardingAsync(CancellationToken token = default) =>
+        SendAsync<OnboardingView>(new HttpRequestMessage(HttpMethod.Get, "api/me/onboarding"), token);
+    public Task<ApiResult<OnboardingView>> ContinueOnboardingAsync(string step, bool? shareAbout = null, CancellationToken token = default) =>
+        SendAsync<OnboardingView>(new HttpRequestMessage(HttpMethod.Post, "api/me/onboarding/steps/" + Uri.EscapeDataString(step)) { Content = JsonContent.Create(new OnboardingStepUpdate(shareAbout)) }, token);
+    public Task<ApiResult<OnboardingView>> CompleteOnboardingAsync(CancellationToken token = default) =>
+        SendAsync<OnboardingView>(new HttpRequestMessage(HttpMethod.Post, "api/me/onboarding/complete"), token);
+    /// <summary>D382: "What would you like your picture to say?" (blank removes it).</summary>
+    public Task<ApiResult<MyProfileView>> SavePictureTextAsync(string? text, CancellationToken token = default) =>
+        SendAsync<MyProfileView>(new HttpRequestMessage(HttpMethod.Put, "api/me/picture-text") { Content = JsonContent.Create(new PictureTextUpdate(text)) }, token);
+
     public Task<ApiResult<ProfileOptionsView>> ProfileOptionsAsync(CancellationToken cancellationToken = default) =>
         SendAsync<ProfileOptionsView>(new HttpRequestMessage(HttpMethod.Get, "api/profile-options"), cancellationToken);
 

@@ -23,9 +23,17 @@ public sealed class MemberIdentity
     public Guid AccountId { get; set; }
     public string? GenderId { get; set; }
     public string? GenderDescription { get; set; }
+    /// <summary>
+    /// Issue 389 (D382, Q181.6 A): a pronoun option id (D138 option data, kind "pronoun"); <see cref="MatchPolicy.SelfDescribe"/>
+    /// keeps the member's own words in <see cref="Pronouns"/> (up to 50 characters).
+    /// </summary>
+    public string? PronounId { get; set; }
+    /// <summary>The member's own pronouns, only with <see cref="PronounId"/> "self" (up to <see cref="MatchPolicy.PronounsMax"/>).</summary>
     public string? Pronouns { get; set; }
     public string? OrientationId { get; set; }
     public bool ShowGender { get; set; } = true;
+    /// <summary>D382 (Q181.6 A): pronouns have their own switch, on by default (D175 showed them under "Show my gender").</summary>
+    public bool ShowPronouns { get; set; } = true;
     public bool ShowOrientation { get; set; }
     /// <summary>D139: the calculated age shows by default and can be hidden; filters still use the private date of birth.</summary>
     public bool ShowAge { get; set; } = true;
@@ -82,6 +90,9 @@ public static class MatchPolicy
 {
     public const int MaxRequiredChips = 5, MaxExcludedChips = 10, MinAge = AgePolicy.Adult, MaxAge = AgePolicy.MaxAge, MaxDistanceKm = 500;
     public const int TextMax = 40;
+    /// <summary>Issue 389 (owner): self-described pronouns are stored as varchar(50).</summary>
+    public const int PronounsMax = 50;
+    public const string SelfDescribe = "self", TransMan = "trans-man", TransWoman = "trans-woman", Man = "man", Woman = "woman";
 
     /// <summary>
     /// Whether two people may see and contact each other in a mode at all (both directions): no chip either one excluded
@@ -102,7 +113,16 @@ public static class MatchPolicy
     /// still apply); "Another gender" is an inclusive "show me" category matching people who chose it. Neither option
     /// limits the person who chose it to others with the same option: their own "show me" decides what they see.
     /// </summary>
-    public static bool Includes(IReadOnlyCollection<string> showMe, string gender) => gender == PreferNotToSay || showMe.Contains(gender);
+    public static bool Includes(IReadOnlyCollection<string> showMe, string gender) => gender == PreferNotToSay || showMe.Contains(ShowMeGroup(gender));
+
+    /// <summary>
+    /// Issue 389 (D382 DEFAULT, Q181.1 A): Trans man and Trans woman are genders a member can choose, and "show me" keeps
+    /// Man, Woman, Non-binary and Another gender: "Man" includes Man and Trans man, "Woman" includes Woman and Trans woman.
+    /// </summary>
+    public static string ShowMeGroup(string gender) => gender switch { TransMan => Man, TransWoman => Woman, _ => gender };
+
+    /// <summary>D382: whether a gender id can be a "show me" value (never "Prefer not to say", D161, and not the trans genders, 181.1 A).</summary>
+    public static bool ShowMeOption(string gender) => gender is not (PreferNotToSay or TransMan or TransWoman);
 
     /// <summary>Whether a member has what Dating needs to take part (D138, D139): a gender and at least one "show me".</summary>
     public static bool DatingReady(MatchFacts facts) => facts.GenderId is not null && facts.ShowMe.Count > 0;
@@ -158,14 +178,32 @@ public static class MatchPolicy
     }
 
     /// <summary>Checks identity details against the option lists (D138).</summary>
-    public static FilterError Check(MemberIdentity identity, IReadOnlySet<string> genders, IReadOnlySet<string> orientations)
+    public static FilterError Check(MemberIdentity identity, IReadOnlySet<string> genders, IReadOnlySet<string> orientations, IReadOnlySet<string>? pronouns = null)
     {
         if (identity.GenderId is { } g && !genders.Contains(g)) return FilterError.UnknownGender;
         if (identity.OrientationId is { } o && !orientations.Contains(o)) return FilterError.UnknownGender;
-        if (identity.DatingShowMe.Any(s => !genders.Contains(s) || s == PreferNotToSay)) return FilterError.UnknownGender;
-        if (identity.GenderDescription is { Length: > TextMax } || identity.Pronouns is { Length: > TextMax }) return FilterError.TextTooLong;
+        if (identity.DatingShowMe.Any(s => !genders.Contains(s) || !ShowMeOption(s))) return FilterError.UnknownGender;
+        if (identity.PronounId is { } p && pronouns is not null && !pronouns.Contains(p)) return FilterError.UnknownGender;
+        // D382: own words only with "Self-describe", and Self-describe needs them.
+        if ((identity.PronounId == SelfDescribe) != (identity.Pronouns is not null)) return FilterError.UnknownGender;
+        if (identity.GenderDescription is { Length: > TextMax } || identity.Pronouns is { Length: > PronounsMax }) return FilterError.TextTooLong;
+        if (identity.Pronouns is { } words && words.Any(char.IsControl)) return FilterError.TextTooLong;
         return FilterError.None;
     }
+
+    /// <summary>
+    /// D382 (Q181.6 A): maps free-text pronouns from an older client (or a saved D175 value) to an option: the option whose
+    /// label matches ignoring case and spaces, else Self-describe with the words kept.
+    /// </summary>
+    public static (string? Id, string? Words) Pronoun(string? text, IEnumerable<ProfileOption> options)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return (null, null);
+        var key = Key(text);
+        var match = options.FirstOrDefault(o => o.Kind == "pronoun" && o.Id != SelfDescribe && Key(o.Label) == key);
+        return match is null ? (SelfDescribe, text.Trim()) : (match.Id, null);
+    }
+
+    private static string Key(string value) => new(value.Where(c => !char.IsWhiteSpace(c)).Select(char.ToLowerInvariant).ToArray());
 
     /// <summary>
     /// Visitor visibility (D137) for the destination feed: whether a traveller whose stay has (current) or hasn't

@@ -49,7 +49,8 @@ public static class ProfilePrivacy
                              orderby p.Position select new { p.Scope, i.Id, i.Sha256, p.IsMain }).ToListAsync(cancellationToken))
             .GroupBy(p => p.Scope).ToDictionary(g => g.Key, g => g.Take(limit).Select(p => new { p.Id, Sha256 = Convert.ToHexStringLower(p.Sha256), p.IsMain }).ToList());
         var snapshots = new List<(string Mode, object Content)>
-            { (ProfileVersions.Core, new { profile.DisplayName, profile.About }) };
+            // Issue 389 (D382): the text picture is public too; without one the snapshot keeps its earlier shape (and hash).
+            { (ProfileVersions.Core, profile.PictureText is null ? (object)new { profile.DisplayName, profile.About } : new { profile.DisplayName, profile.About, profile.PictureText }) };
         snapshots.AddRange(modes.Select(m => (m.ModeId, (object)new
         {
             m.Enabled, m.Visible, m.DisplayName, ShownName = ModePrivacy.DisplayName(m.DisplayName, profile.DisplayName), ModeAbout = m.About, ShareCoreAbout = m.ShareCoreAbout == true,

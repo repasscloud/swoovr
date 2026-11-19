@@ -35,6 +35,8 @@ public static class ContentRemovalPolicy
     public static bool ValidTarget(string field,string? mode,Guid? message)=>field switch
     {
         "about"=>mode is null&&message is null,
+        // Issue 389 (D382): the text picture.
+        "picture-text"=>mode is null&&message is null,
         "mode-about"=>mode is not null&&ConnectionModeIds.All.Contains(mode)&&message is null,
         "message"=>mode is null&&message is{}id&&id!=Guid.Empty,
         _=>false,
