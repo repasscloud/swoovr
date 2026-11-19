@@ -270,6 +270,10 @@ const plus = days => { const d = new Date(todayIn('Australia/Adelaide') + 'T00:0
     await page.goto(web + '/explore');
     await page.waitForSelector('[data-explore-local=home-city-required]', { timeout: 20000 }); pass();
     assert.equal(await page.locator('[data-explore-local] a').getAttribute('href'), '/me/profile'); pass();
+    // Issue 389: one sentence and one button; the button's words don't repeat the sentence.
+    assert.equal(await page.locator('[data-explore-local] a.button.notice-action').innerText(), 'Set your home city');
+    assert.equal(await page.locator('[data-explore-local] p').count(), 1);
+    assert.doesNotMatch(await page.locator('[data-explore-local] p').innerText(), /Set your home city|Add your home city/); pass();
     await context.close();
 
     ({ context, page } = await signIn(members.trv));

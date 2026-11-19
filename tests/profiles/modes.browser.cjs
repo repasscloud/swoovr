@@ -215,7 +215,7 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     if (output) await page.screenshot({ path: output + '/explore-390.png', fullPage: true });
     await page.click('.explore-modes [data-mode=business]');
     await page.waitForSelector('[data-explore-mode=business][data-explore-state=off]'); pass();
-    assert.equal(await page.locator('[data-explore-state=off] a').getAttribute('href'), '/me/profile'); pass();
+    assert.equal(await page.locator('[data-explore-state=off] a.button.notice-action').getAttribute('href'), '/me/profile'); pass();
     await page.click('.explore-modes [data-mode=dating]');
     await page.waitForSelector('[data-explore-mode=dating][data-explore-state=ready]');
     await page.click(`.profile-tile a[href^="/people/${pid.eli}"]`);

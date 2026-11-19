@@ -24,30 +24,30 @@
     <section class="explore-results" aria-live="polite" data-explore-mode="@selected" data-explore-state="@state">
         @if (state == "off")
         {
-            <div class="card notice">
+            <div class="card notice" data-explore-local="mode-not-enabled">
                 <p>@Label(selected) is off for you, so you can't see who's here.</p>
-                <p><a class="link" href="/me/profile">Turn it on in your profile</a></p>
+                <a class="button notice-action" href="/me/profile">Turn on @Label(selected)</a>
             </div>
         }
         else if (state == ProblemCodes.DateOfBirthRequired)
         {
             <div class="card notice" data-explore-local="date-of-birth-required">
-                <p>Add your date of birth to discover people. It's never shown.</p>
-                <p><a class="link" href="/account">Add your date of birth</a></p>
+                <p>Explore needs your date of birth. It's never shown to anyone.</p>
+                <a class="button notice-action" href="/account">Add date of birth</a>
             </div>
         }
         else if (state == ProblemCodes.DatingDetailsRequired)
         {
             <div class="card notice" data-explore-local="dating-details-required">
                 <p>Dating needs your gender and who you'd like to see.</p>
-                <p><a class="link" href="/me/matching">Set who you'd like to meet</a></p>
+                <a class="button notice-action" href="/me/matching">Set up Dating</a>
             </div>
         }
         else if (state == ProblemCodes.HomeCityRequired)
         {
             <div class="card notice" data-explore-local="home-city-required">
-                <p>Add your home city to discover people in your community.</p>
-                <p><a class="link" href="/me/profile">Add your home city</a></p>
+                <p>Explore shows people in your community, so it needs your home city. Only you can see it.</p>
+                <a class="button notice-action" href="/me/profile">Set your home city</a>
             </div>
         }
         else if (state == ProblemCodes.MarketNotOpen)
