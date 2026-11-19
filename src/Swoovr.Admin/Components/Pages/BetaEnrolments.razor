@@ -61,6 +61,16 @@
                             <label class="beta-check"><input type="checkbox" name="confirmIos" value="yes" required /><span>Confirmed in the distribution service</span></label>
                             <button type="submit" class="beta-action-button">Record staff-reported state</button>
                         </form>
+                        @if(row.State=="pending"&&row.InvitationState is not("pending" or "dispatching"))
+                        {
+                            <form method="post" @formname="@($"beta-invite-{row.Id}")" @onsubmit="()=>SendInvitationAsync(row.Id)" data-enhance="true" class="beta-action" data-beta-invite="@row.Id">
+                                <AntiforgeryToken />
+                                <h3>Invitation email</h3>
+                                @if(row.InvitationState is "accepted" or "unknown"){<p class="ui-help">An earlier invitation may already have reached this address.</p>}
+                                <label class="beta-check"><input type="checkbox" name="confirmInvite" value="yes" required /><span>@(row.InvitationState=="not-queued"?"Send the invitation email":"Send the invitation email again")</span></label>
+                                <button type="submit" class="beta-action-button">Queue invitation email</button>
+                            </form>
+                        }
                         @if(row.State!="revoked")
                         {
                             <form method="post" @formname="@($"beta-revoke-{row.Id}")" @onsubmit="()=>RevokeAsync(row.Id)" data-enhance="true" class="beta-action beta-action-danger">
@@ -144,6 +154,16 @@
         var result=await Admin.RecordIosDistributionAsync(id,new(Field("iosState"),revision,true));
         resultCode=result.Ok?"ios-recorded":result.Code??result.Status.ToString();
         message=result.Ok?"iOS status recorded.":AdminText.Refusal(result.Status,result.Code);await LoadAsync();
+    }
+    private async Task SendInvitationAsync(Guid id)
+    {
+        if(Field("confirmInvite")!="yes"){resultCode="confirmation-required";message="Tick the confirmation first.";return;}
+        var result=await Admin.SendBetaInvitationAsync(id);
+        resultCode=result.Ok?"invitation-queued":result.Code??result.Status.ToString();
+        reauth=!result.Ok&&AdminText.NeedsSignIn(result.Status,result.Code);
+        message=result.Ok?"Invitation email queued, not yet sent. The status updates once the email provider answers."
+            :result.Code switch{"invitations-off"=>"Invitation email is switched off on this server.","enrolment-not-pending"=>"Only a pending enrolment can be sent an invitation.","invitation-in-progress"=>"An invitation email is already queued or sending.",_=>AdminText.Refusal(result.Status,result.Code)};
+        await LoadAsync();
     }
     private async Task RevokeAsync(Guid id)
     {

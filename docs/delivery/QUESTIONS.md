@@ -2899,3 +2899,8 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 - Issue: [#359](https://github.com/repasscloud/wanderconnect/issues/359). Status: ANSWERED **A**, effective 17 November 2026 → **D377** (Privacy Notice 0.20; D351's location wording becomes 0.21). Follows D368 (#357).
 - The Privacy Notice in force (0.19) names MailerSend (email) in the European Union. Swoovr email now goes through Postmark (ActiveCampaign), which processes in the United States. The notice is unchanged until the owner approves wording. **A (proposed):** name Postmark (email) among service providers and in the United States list, as 0.20 from a date the owner gives. **B:** the owner's own wording.
+
+### Q180 — Should sign-up say an email is already registered?
+
+- Issue: [#388](https://github.com/repasscloud/wanderconnect/issues/388). Status: OPEN. From [#386](https://github.com/repasscloud/wanderconnect/issues/386) / D381.
+- Registering with an address that already has an account gets Keycloak's stock duplicate-address error (reworded in D381, with Sign in and Forgot password? links), which tells a visitor the address is registered. **A (DEFAULT):** keep it; clear for members who forgot they registered. **B:** non-enumerating registration: always "Check your email", and the existing owner gets a sign-in/reset email (custom Keycloak registration step and new email wording).
