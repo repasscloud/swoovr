@@ -344,3 +344,14 @@ html:active-view-transition-type(sw-back)::view-transition-new(root) { animation
   background: var(--sw-primary); color: var(--sw-on-primary);
 }
 .pf-v5-c-login__main a.pf-v5-c-button.sw-button-inline:hover { border-color: var(--sw-primary); }
+
+/* #385: invite-only / registration-closed card that replaces the registration form. Links styled as buttons default to
+   the secondary look, so the primary action restates its colours (as .sw-reset-actions does). */
+.sw-gate { display: grid; gap: 12px; margin-top: 22px; }
+.sw-gate > p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--sw-text); }
+.pf-v5-c-login__main .sw-gate a.pf-v5-c-button.sw-gate-action { margin-top: 14px; background: var(--sw-primary); border-color: var(--sw-primary); color: var(--sw-on-primary); }
+.pf-v5-c-login__main .sw-gate a.pf-v5-c-button.sw-gate-action:hover { border-color: var(--sw-primary); color: var(--sw-on-primary); }
+.sw-gate .sw-gate-legal { margin-top: 10px; }
+.sw-gate .sw-switch { margin-top: 6px; }
+/* #386: "Sign in · Forgot password?" under Keycloak's duplicate-address error. */
+.sw-exists { margin: 6px 0 0; }

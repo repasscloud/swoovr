@@ -321,6 +321,8 @@ public sealed record BetaEnrolmentView(Guid Id, string Email, DateTimeOffset Cre
     string IosDistributionState="not-recorded",long IosDistributionRevision=0,DateTimeOffset? IosDistributionChangedAt=null,string IosDistributionSource="not-recorded",string InvitationState="not-queued",int InvitationAttempts=0,DateTimeOffset? InvitationQueuedAt=null,DateTimeOffset? InvitationCompletedAt=null,string? MemberName=null,string? FirstName=null,string? LastName=null);
 public sealed record BetaEnrolmentPage(IReadOnlyList<BetaEnrolmentView> Items,int Total,int Page,int Size);
 public sealed record IosDistributionUpdate(string State,long ExpectedRevision,bool Confirm);
+/// <summary>#384 (D381): staff ask for the beta invitation email for a pending enrolment, with an explicit confirmation.</summary>
+public sealed record BetaInvitationRequest(bool Confirm);
 
 public sealed record InvitationRequest(string Email, string Role, Guid? VenueId);
 public sealed record InvitationView(Guid Id, string Email, string Realm, string Role, Guid? VenueId, DateTimeOffset CreatedAt,

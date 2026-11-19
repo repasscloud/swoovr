@@ -4,27 +4,48 @@
 <#import "user-profile-commons.ftl" as userProfileCommons>
 <#import "register-commons.ftl" as registerCommons>
 <#import "password-validation.ftl" as validator>
-<@layout.registrationLayout displayMessage=messagesPerField.exists('global') displayRequiredFields=true; section>
+<#-- #385: a refused creation (invite-only or closed) replaces the form with one focused card. The refusal comes only from
+     the server's admission check after a submit, so nothing here decides who may register. -->
+<#assign swInviteOnly = (message?? && message.summary?contains(msg("swoovrRegistrationInviteOnly")))>
+<#assign swClosed = (!swInviteOnly && message?? && message.summary?contains(msg("swoovrRegistrationClosed")))>
+<@layout.registrationLayout displayMessage=(messagesPerField.exists('global') && !swInviteOnly && !swClosed) displayRequiredFields=!(swInviteOnly || swClosed); section>
 <!-- template: register.ftl -->
 
     <#if section = "header">
-        <#if messageHeader??>
+        <#if swInviteOnly>
+            ${msg("swoovrInviteOnlyTitle")}
+        <#elseif swClosed>
+            ${msg("swoovrRegistrationClosed")}
+        <#elseif messageHeader??>
             ${msg(messageHeader)}
         <#else>
             ${msg("registerTitle")}
         </#if>
     <#elseif section = "form">
-        <#if message?? && message.summary?contains(msg("swoovrRegistrationInviteOnly"))>
-            <h2>${msg("swoovrRegistrationInviteOnly")}</h2>
-            <p>${msg("swoovrRegistrationInviteOnlyText")}</p>
-            <p><a href="https://swoovr.com/beta">${msg("swoovrBetaWaitlist")}</a></p>
-        <#elseif message?? && message.summary?contains(msg("swoovrRegistrationClosed"))>
-            <h2>${msg("swoovrRegistrationClosed")}</h2>
-            <p>${msg("swoovrRegistrationClosedText")}</p>
-        </#if>
+        <#if swInviteOnly>
+            <section class="sw-gate" aria-label="${msg("swoovrInviteOnlyTitle")}" data-invite-only>
+                <p>${msg("swoovrInviteOnlyLede")}</p>
+                <p>${msg("swoovrInviteOnlyEarlyAccess")}</p>
+                <a class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!} sw-gate-action" href="https://swoovr.com/beta" rel="noopener" data-beta-waitlist>${msg("swoovrJoinWaitlist")}</a>
+                <div class="sw-hint sw-gate-legal">
+                    <p>${msg("swoovrAdultsOnly")}</p>
+                    <p>${msg("swoovrAgreementBefore")} <a href="${properties.swoovrTermsUrl!'/terms'}" target="_blank" rel="noopener" id="sw-terms-link">${msg("termsLink")}</a> ${msg("swoovrAgreementMiddle")} <a href="${properties.swoovrPrivacyUrl!'/privacy'}" target="_blank" rel="noopener" id="sw-privacy-link">${msg("privacyNoticeLink")}</a> ${msg("swoovrAgreementAnd")} <a href="${properties.swoovrCommunityUrl!'/community-guidelines'}" target="_blank" rel="noopener" id="sw-community-link">${msg("communityLink")}</a>.</p>
+                </div>
+                <p class="sw-switch">${msg("swoovrHaveAccount")} <a href="${url.loginUrl}">${msg("doLogIn")}</a></p>
+            </section>
+        <#elseif swClosed>
+            <section class="sw-gate" aria-label="${msg("swoovrRegistrationClosed")}" data-registration-closed>
+                <p>${msg("swoovrRegistrationClosedText")}</p>
+                <a class="${properties.kcButtonClass!} ${properties.kcButtonPrimaryClass!} ${properties.kcButtonBlockClass!} ${properties.kcButtonLargeClass!} sw-gate-action" href="${url.loginUrl}">${msg("doLogIn")}</a>
+            </section>
+        <#else>
         <form id="kc-register-form" class="${properties.kcFormClass!}" action="${url.registrationAction}" method="post" novalidate="novalidate">
             <@userProfileCommons.userProfileFormFields; callback, attribute>
                 <#if callback = "afterField">
+                    <#-- #386: Keycloak's own duplicate-address refusal (emailExistsMessage) offers the two ways back in. -->
+                    <#if attribute.name == 'email' && messagesPerField.existsError('email') && messagesPerField.get('email')?contains(msg("emailExistsMessage"))>
+                        <p class="sw-hint sw-exists" data-email-exists><a href="${url.loginUrl}">${msg("doLogIn")}</a> · <a href="${url.loginResetCredentialsUrl}">${msg("doForgotPassword")}</a></p>
+                    </#if>
                 <#-- render password fields just under the username or email (if used as username) -->
                     <#if passwordRequired?? && (attribute.name == 'username' || (attribute.name == 'email' && realm.registrationEmailAsUsername))>
                         <@field.password name="password" required=true label=msg("password") autocomplete="new-password" />
@@ -88,5 +109,6 @@
             form.addEventListener("input", sync); form.addEventListener("change", sync); sync();
           })();
         </script>
+        </#if>
     </#if>
 </@layout.registrationLayout>

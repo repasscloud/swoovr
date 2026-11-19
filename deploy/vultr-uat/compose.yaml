@@ -219,6 +219,8 @@ services:
       Push__Provider: disabled
       Didit__TestMode: "false"
       Beta__Enabled: "true"
+      # #384 (D381): send the beta invitation email for new enrolments (Postmark). Without this every enrolment stayed "Not queued".
+      Beta__Invitations__Enabled: "true"
       Beta__Invitations__PublicBaseUrl: https://uat.swoovr.app/
       MeetingSafety__Enabled: "true"
       MeetingSafety__Worker: "true"

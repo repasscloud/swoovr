@@ -407,6 +407,7 @@ public sealed partial class AdminClient(HttpClient transport)
 
     public Task<int> RevokeBetaEnrolmentAsync(Guid id, CancellationToken cancellationToken = default) =>
         StatusAsync(HttpMethod.Delete, $"api/admin/beta/{id}", null, cancellationToken);
+    public Task<ApiResult<BetaEnrolmentView>> SendBetaInvitationAsync(Guid id,CancellationToken token=default)=>SendAsync<BetaEnrolmentView>(HttpMethod.Post,$"api/admin/beta/{id}/invitation",new BetaInvitationRequest(true),token);
     public Task<ApiResult<BetaEnrolmentView>> RecordIosDistributionAsync(Guid id,IosDistributionUpdate update,CancellationToken token=default)=>SendAsync<BetaEnrolmentView>(HttpMethod.Put,$"api/admin/beta/{id}/ios-distribution",update,token);
     public Task<ApiResult<BetaScorecardResult>> BetaScorecardAsync(int weeksAgo=1,CancellationToken token=default)=>SendAsync<BetaScorecardResult>(HttpMethod.Get,$"api/admin/beta-scorecard?weeksAgo={weeksAgo}",null,token);
     public Task<ApiResult<ModerationTransparencyExport>> ModerationReportAsync(int year,CancellationToken token=default)=>SendAsync<ModerationTransparencyExport>(HttpMethod.Get,$"api/admin/moderation-transparency/{year}",null,token);
