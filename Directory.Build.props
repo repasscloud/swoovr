@@ -17,7 +17,7 @@
       The commit (SourceRevisionId) is embedded for diagnostics only and is never shown in public footers.
     -->
     <SwoovrVersionMajor>1</SwoovrVersionMajor>
-    <SwoovrVersionMinor>0</SwoovrVersionMinor>
+    <SwoovrVersionMinor>1</SwoovrVersionMinor>
     <SwoovrVersionBuild Condition="'$(SwoovrVersionBuild)' == ''">0</SwoovrVersionBuild>
     <SwoovrNativeBuild Condition="'$(SwoovrNativeBuild)' == ''">1</SwoovrNativeBuild>
     <SwoovrVersion>$(SwoovrVersionMajor).$(SwoovrVersionMinor).$(SwoovrVersionBuild)</SwoovrVersion>
