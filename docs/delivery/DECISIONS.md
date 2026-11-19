@@ -1213,4 +1213,4 @@ Reversible: set every `unanswered_limit` to null (Off) and drop the `AwaitingRep
 - **Finish:** `/explore?mode=<first enabled mode>`.
 - **Test fixtures** (`memberToken`, `appToken`) mark fictional members onboarded with direct SQL unless a suite passes `onboarded: false`; never an API bypass.
 
-Reversible: drop the profile steps from `setupStep` (or set `onboarding_completed_at` for everyone); the migration `FirstSignInOnboarding` removes the columns and options and maps pronouns back to free text and the trans genders to Man/Woman.
+Reversible: drop the profile steps from `setupStep` (or set `onboarding_completed_at` for everyone); the migration `FirstSignInOnboarding` removes the columns and options and maps pronouns back to free text and the trans genders to Man/Woman. Evidence and gaps: [ISSUE-389-ONBOARDING.md](ISSUE-389-ONBOARDING.md).
