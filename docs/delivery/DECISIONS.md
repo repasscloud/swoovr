@@ -1229,3 +1229,17 @@ Reversible: remove the compose line (enrolments go back to `not-queued`), the `/
 - **Test fixtures** (`memberToken`, `appToken`) mark fictional members onboarded with direct SQL unless a suite passes `onboarded: false`; never an API bypass.
 
 Reversible: drop the profile steps from `setupStep` (or set `onboarding_completed_at` for everyone); the migration `FirstSignInOnboarding` removes the columns and options and maps pronouns back to free text and the trans genders to Man/Woman. Evidence and gaps: [ISSUE-389-ONBOARDING.md](ISSUE-389-ONBOARDING.md).
+
+### D383 — One-command releases: the version commit on main, tagged (20 November 2026)
+
+**CONFIRMED** owner instruction, 20 November 2026 (after `v1.1.0` was tagged on a 1.0 commit and failed validation, 19 November 2026). This replaces D320's "Build allocated from git tags" and the `bump`/`allocate` steps:
+
+- `./scripts/update-release.sh X.Y.Z` is the whole release. It synchronises `main` with no reset or force. It validates X.Y.Z (newer than the committed version and every local or remote tag, compared numerically) and writes X.Y.Z into `Directory.Build.props` and the Keycloak theme. It runs the version checks, release tests and `./scripts/check.sh`, then commits **`updating to vX.Y.Z`** and pushes it **directly to `origin/main`**, with no PR. It then tags that exact commit `vX.Y.Z` (annotated), pushes the tag and watches Deploy UAT, exiting non-zero unless the run succeeds.
+- `Directory.Build.props` holds the full released version (Major, Minor and Build). The version supplied is used exactly; nothing is reset or renumbered (`1.1.5` after `1.0.13` is allowed).
+- The deploy workflow refuses a tag unless the tagged commit's version files hold exactly X.Y.Z (`release_version.py msbuild-args` + `verify`).
+- Re-running resumes without duplicates: an unpushed version commit is pushed, and a published untagged one is tagged. Published commits and tags are never rewritten, moved or reused. The failed `v1.1.0` stays, so the next release is `1.1.1` or later.
+- `SwoovrNativeBuild` (store build) stays separate and untouched; mobile is out of scope while Flutter replaces MAUI.
+
+Cause of the 19 November failure: the script was run from the working tree, and the pull inside it replaced the file mid-run, so the pre-#393 copy ran and only tagged. The script is now one function, which bash parses whole before running, and it restarts itself if the sync brought new release tooling.
+
+Reversible: return to tag-allocated builds by restoring `allocate` in `release_version.py` and the previous `update-release.sh`.

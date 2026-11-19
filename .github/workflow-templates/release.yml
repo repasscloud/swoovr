@@ -20,12 +20,10 @@
 #         with:
 #           global-json-file: global.json
 #       - run: ./scripts/check.sh
-#       - name: Allocate the product version
+#       - name: Product version (D383: the vX.Y.Z tag and its "updating to vX.Y.Z" commit come from scripts/update-release.sh)
 #         run: |
-#           git config user.name "swoovr-release"
-#           git config user.email "release@swoovr.invalid"
-#           VERSION=$(python3 scripts/release_version.py allocate)
-#           git push --atomic origin "v$VERSION"
+#           VERSION=$(python3 scripts/release_version.py for-head)
+#           python3 scripts/release_version.py verify "$VERSION"
 #           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 #       - name: Build with the embedded version and commit
 #         run: dotnet publish src/Swoovr.Api -c Release $(python3 scripts/release_version.py msbuild-args "$VERSION")

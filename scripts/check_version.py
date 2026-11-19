@@ -23,7 +23,7 @@ for required in ("<SwoovrVersion>$(SwoovrVersionMajor).$(SwoovrVersionMinor).$(S
         problems.append(f"Directory.Build.props must contain {required}")
 theme = (root / "containers/keycloak/themes/swoovr/login/theme.properties").read_text()
 if f"\nswoovrVersion={version}\n" not in "\n" + theme + "\n":
-    problems.append(f"Keycloak theme swoovrVersion must be {version} (scripts/release_version.py bump keeps it in step)")
+    problems.append(f"Keycloak theme swoovrVersion must be {version} (scripts/update-release.sh / release_version.py set keeps it in step)")
 dockerfile = (root / "containers/uat/Keycloak.Dockerfile").read_text()
 if "ARG SWOOVR_VERSION" not in dockerfile or re.search(r"swoovrVersion=\d", dockerfile):
     problems.append("UAT Keycloak image may set swoovrVersion only from ARG SWOOVR_VERSION")

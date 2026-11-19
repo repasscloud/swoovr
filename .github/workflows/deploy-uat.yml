@@ -70,11 +70,20 @@ jobs:
           echo "$TAG -> $GITHUB_SHA, reachable from origin/main."
       - name: Version matches Directory.Build.props
         env:
+          TAG: ${{ steps.tag.outputs.tag }}
           VERSION: ${{ steps.tag.outputs.version }}
         run: |
           set -euo pipefail
+          # D383: the tagged commit must hold exactly X.Y.Z in every version file (scripts/update-release.sh makes
+          # the "updating to vX.Y.Z" commit and tags it); a tag on any other commit stops here.
+          committed="$(python3 scripts/release_version.py show)"
+          echo "Git tag:               $TAG"
+          echo "Directory.Build.props: $committed"
+          echo "Tagged commit:         $GITHUB_SHA ($(git log -1 --format=%s "$GITHUB_SHA"))"
           python3 scripts/release_version.py msbuild-args "$VERSION" > /dev/null
+          python3 scripts/release_version.py verify "$VERSION" > /dev/null
           python3 scripts/check_version.py
+          echo "Validation: PASS"
       - name: Deployment mode (read once)
         id: mode
         env:

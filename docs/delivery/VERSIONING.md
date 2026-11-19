@@ -1,16 +1,21 @@
 # Swoovr versioning
 
-CONFIRMED Q129 / D320 (owner, 4 November 2026, [#189](https://github.com/repasscloud/wanderconnect/issues/189)).
+CONFIRMED Q129 / D320 (owner, 4 November 2026, [#189](https://github.com/repasscloud/wanderconnect/issues/189)); release
+process CONFIRMED D383 (owner, 20 November 2026).
 
 ## One product version: `Major.Minor.Build`
 
 | Part | Meaning | How it changes |
 | --- | --- | --- |
-| Major (X) | Significant platform changes, major redesigns | `scripts/release_version.py bump major`: Minor and Build reset to 0 |
-| Minor (Y) | New functionality, substantial enhancements | `scripts/release_version.py bump minor`: Build resets to 0 |
-| Build (Z) | Fixes, security, performance, UI, routine releases | Allocated automatically for each production release |
+| Major (X) | Significant platform changes, major redesigns | You choose it: `./scripts/update-release.sh X.Y.Z` |
+| Minor (Y) | New functionality, substantial enhancements | You choose it: `./scripts/update-release.sh X.Y.Z` |
+| Build (Z) | Fixes, security, performance, UI, routine releases | You choose it: `./scripts/update-release.sh X.Y.Z` |
 
-The only definition is `Directory.Build.props` (`SwoovrVersionMajor`, `SwoovrVersionMinor`, and the default `SwoovrVersionBuild` for untagged builds). Every .NET project compiles with it. `Swoovr.Contracts.AppVersion` reads it back from the compiled assembly:
+The version you give is used exactly (D383): nothing is reset or renumbered, so `1.1.5` after `1.0.13` and `2.3.7` are
+allowed. It only has to be newer than the committed version and every release tag (numeric: `1.10.0` > `1.9.99`).
+
+The only definition is `Directory.Build.props` (`SwoovrVersionMajor`, `SwoovrVersionMinor`, `SwoovrVersionBuild`), which
+holds the full version of the latest release commit. Every .NET project compiles with it. `Swoovr.Contracts.AppVersion` reads it back from the compiled assembly:
 
 - `ProductVersion`: `1.4.28`
 - `DisplayVersion`: `Version 1.4.28`. Public footers and app screens; never the commit.
@@ -33,24 +38,43 @@ Separate things that are **not** the product version:
 
 ## Releasing
 
-One command, run from a clean checkout: `./scripts/update-release.sh X.Y.Z`. It refuses anything not newer than the latest
-release tag. When X.Y is a newer Major.Minor than `Directory.Build.props` (for example `1.1.0` after `1.0.13`), it first
-runs `release_version.py set X.Y`, checks it, and merges that bump to `main` through a PR. Then it tags `main`, pushes
-the tag and watches the UAT deploy. The first release on a new Major.Minor must be `X.Y.0`.
+One command, from a clean `main`: `./scripts/update-release.sh X.Y.Z`. In order, it:
 
-The underlying steps:
+1. **Synchronises.** It refuses another branch, a dirty tree, unpushed commits or a concurrent run, fetches `origin/main`
+   and tags, and fast-forwards (never resets or force-pushes). If that brought a new release script, it restarts with it.
+2. **Validates** X.Y.Z: well formed, newer than the committed version and newer than every local or remote `vX.Y.Z` tag.
+3. **Updates** `Directory.Build.props` and the Keycloak theme's `swoovrVersion` (`release_version.py set`). Nothing
+   else holds a version: the projects, API `/version`, footers and mobile display read the props.
+   `SwoovrNativeBuild` (store build) and dependency versions are not touched.
+4. **Checks.** Every version file holds X.Y.Z (`verify`), `msbuild-args` and `check_version.py` accept it, the release
+   tests pass and `./scripts/check.sh` passes. Any failure restores the files and stops with nothing committed.
+5. **Commits** `updating to vX.Y.Z` and pushes it to `origin/main` (fast-forward only), then confirms the remote has it.
+6. **Tags** that exact commit with an annotated `vX.Y.Z` (signed when `user.signingkey` is set). It verifies the tagged
+   commit holds X.Y.Z, sets `DEPLOYMENT_MODE=upgrade`, and pushes the tag.
+7. **Watches** the Deploy UAT run for that tag and commit, and exits non-zero unless it succeeds.
+
+The workflow checks again: the tag must point at a commit on `main` whose version files hold exactly X.Y.Z.
+
+**Recovery.** Every failure names its stage and says whether the commit or tag was published. Run the same command
+again to resume:
+
+- A version commit whose push failed is pushed again; no second commit is made.
+- A pushed version commit without its tag gets tagged, even if more commits landed after it.
+
+A published tag is never moved, deleted or reused. If a tagged release failed to deploy, re-run its workflow run
+(`gh run rerun <id> --failed`) or release a higher version. For example, `v1.1.0` was tagged on a 1.0 commit on
+19 November 2026 and can never deploy, so the next release is `1.1.1` or later.
+
+Building blocks (`python3 scripts/release_version.py ...`): `show [REV]`, `next` (a suggestion), `check-new X.Y.Z`,
+`set X.Y.Z`, `verify X.Y.Z [REV]`, `for-head`, and `msbuild-args [X.Y.Z]` (refuses anything but the committed version).
 
 ```sh
-python3 scripts/release_version.py next            # what the next production release would be
-python3 scripts/release_version.py allocate        # tag HEAD vX.Y.Z (refuses an existing tag)
-git push --atomic origin vX.Y.Z                    # the remote refuses a duplicate: no two releases share a version
 dotnet publish ... $(python3 scripts/release_version.py msbuild-args) -p:SwoovrNativeBuild=<store build>
 docker build --build-arg SWOOVR_VERSION=$(python3 scripts/release_version.py for-head) -f containers/uat/Keycloak.Dockerfile .
 ```
 
-- **Build numbering:** the first release on a new Major.Minor is `X.Y.0`; each later production release takes the highest tagged Build + 1.
-- **Untagged builds:** development and UAT builds from untagged commits report the committed version and never advance the sequence.
-- **Rebuilding a release:** rebuilding or redeploying a tagged commit (`for-head`) keeps its version, and an artifact keeps the version it was compiled with.
-- **Bumping Major or Minor:** `bump` also updates the Keycloak theme's `swoovrVersion` and resets Build. `scripts/check_version.py` fails if anything drifts or hard-codes a version.
+- **Untagged builds:** development builds report the committed version (the last release's).
+- **Rebuilding a release:** rebuilding or redeploying a tagged commit (`for-head`) keeps its version.
+- **Drift:** `scripts/check_version.py` fails if the version files disagree or anything hard-codes a version.
 
 GitHub Actions stays disabled (AGENTS.md). [.github/workflow-templates/release.yml](../../.github/workflow-templates/release.yml) holds the fully commented release steps for when the owner enables minutes.

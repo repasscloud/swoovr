@@ -57,6 +57,7 @@ class WorkflowChecks(unittest.TestCase):
         self.assertIn('git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main', self.text)
         self.assertIn('[[ "$tagged" == "$GITHUB_SHA" ]]', self.text)
         self.assertIn('scripts/release_version.py msbuild-args "$VERSION"', self.text)
+        self.assertIn('scripts/release_version.py verify "$VERSION"', self.text)  # D383: every version file, exact X.Y.Z
 
     def test_mode_read_once_and_validated(self):
         jobs = self.wf['jobs']

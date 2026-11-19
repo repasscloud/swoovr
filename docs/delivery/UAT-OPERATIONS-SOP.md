@@ -79,7 +79,7 @@ The summary shows lines such as `root-account=invite-sent` or `initial-admin=gra
 
 ## 3. Deploying a new version
 
-Pushing a tag `vX.Y.Z` that points at a commit on `main` deploys it. Only the last number comes from the tag: `Directory.Build.props` holds the first two (`1.0`), so `v1.0.3` needs no file change. Moving to `v1.1.0` or `v2.0.0` needs `python3 scripts/release_version.py bump minor` (or `major`) merged first.
+Run `./scripts/update-release.sh X.Y.Z` from a clean `main` (D383). It commits `updating to vX.Y.Z` (the version in `Directory.Build.props` and the Keycloak theme) to `main`, tags that commit, pushes the tag, which starts the deploy, and watches the run. It fails non-zero if the run fails. Re-running after an interruption resumes; a published tag is never moved. See [VERSIONING.md](VERSIONING.md#releasing).
 
 **Upgrade or refresh.** The repository variable `DEPLOYMENT_MODE` decides, when the run starts:
 

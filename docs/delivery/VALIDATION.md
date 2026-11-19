@@ -1986,3 +1986,16 @@ Owner-supplied revisions to seven policy documents, shared privacy/terms text an
 - **Gaps:**
   - Not run against a live Zammad.
   - The next deployment (upgrade) applies it. After that, email support@swoovr.com and check the acknowledgement.
+
+## D383 One-command releases (`./scripts/update-release.sh X.Y.Z`) — 20 November 2026
+
+- **Seen:** `v1.1.0` and `v1.1.1` were pushed on commits whose `Directory.Build.props` said 1.0. Deploy UAT failed at "Version matches Directory.Build.props" (runs 44533919509, 44534018587, 44535335478).
+- **Cause:** the script tagged without changing any version file. The run after #393 merged still used the pre-#393 copy: the pull inside the script replaced the file mid-run.
+- **Fix (D383):** the script is one function (parsed whole before it runs, and restarted if the sync changed it). It writes X.Y.Z, validates, commits `updating to vX.Y.Z` straight to `origin/main`, tags that commit, pushes the tag and watches the run. Resumes are safe and nothing published is rewritten. The workflow now also runs `release_version.py verify` on the tagged commit.
+- **Evidence:**
+  - `tests/release/test_update_release.py` has 17 end-to-end cases in throwaway bare-origin repositories with a fake `gh` (no real tag, no deployment). They cover major/minor/patch progression, equal versions, downgrades, `1.10.0` > `1.9.99`, malformed versions, existing local and remote tags (the v1.1.0 case), the commit message, the tag on the version commit, an outdated main, dirty trees, wrong branches, unpushed local commits, a rejected push followed by a retry, an interrupted run (commit pushed, no tag) followed by a retry, a failed or missing workflow run, a concurrent run, and new tooling on main.
+  - `tests/release/test_release_version.py` has 8 unit cases.
+  - `./scripts/check.sh` exit 0 (131 PASS).
+- **Gaps:**
+  - The persistence checks were skipped (no local PostgreSQL).
+  - The script has not run against the real GitHub; no live release was made for testing. The first real run is the next release, which must be `1.1.1` or later because `v1.1.0` stays where it is.

@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""Q129 / D320: Swoovr product version releases (Major.Minor.Build).
+"""Q129 / D320, D383: Swoovr product version releases (Major.Minor.Build).
 
-Directory.Build.props holds Major and Minor (changed only by an intentional `bump`) and the default Build used by untagged
-development/UAT builds. Production releases get the next Build from git tags `vX.Y.Z` on the current Major.Minor:
+Directory.Build.props holds the full committed version X.Y.Z (D383, owner 20 November 2026): every release is a commit
+"updating to vX.Y.Z" that sets it, tagged vX.Y.Z. The Keycloak theme's swoovrVersion mirrors it. Run a release with
+./scripts/update-release.sh X.Y.Z; these commands are its building blocks:
 
-  show                 committed version (untagged builds report this)
-  next                 the next production version (X.Y.<highest tagged + 1>, or X.Y.0 after a Major/Minor change)
-  allocate             create the annotated tag for `next` on HEAD; refuses if the tag exists (push it with --atomic so
-                       two concurrent releases can never share a version)
-  for-head             the version HEAD was released as (its vX.Y.Z tag), else the committed version: rebuilding or
-                       redeploying a release keeps its version
-  msbuild-args [X.Y.Z] MSBuild properties for that version (default: for-head) plus the commit for diagnostics
-  bump major|minor     intentional release decision: Major+1 (Minor, Build -> 0) or Minor+1 (Build -> 0)
-  set X.Y              intentional release decision: move to a newer Major.Minor (Build -> 0); used by
-                       scripts/update-release.sh when the requested release starts a new Major.Minor
+  show [REV]           the committed version (at REV, default the working tree)
+  next                 a suggestion: the highest of the committed version and every local vX.Y.Z tag, Build + 1
+  check-new X.Y.Z [vA.B.C ...]
+                       refuse unless X.Y.Z is well formed, newer than the committed version and newer than every
+                       given/local release tag (numeric comparison: 1.10.0 > 1.9.99)
+  set X.Y.Z            write X.Y.Z into Directory.Build.props and the Keycloak theme (nothing else changes)
+  verify X.Y.Z [REV]   every version file (at REV, default the working tree) holds exactly X.Y.Z
+  for-head             the version HEAD was released as (its vX.Y.Z tag), else the committed version
+  msbuild-args [X.Y.Z] MSBuild properties for that version (default: for-head) plus the commit for diagnostics; refuses
+                       a version that is not exactly the committed one (the deploy workflow's tag check)
 """
 import re
 import subprocess
@@ -21,96 +22,120 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PROPS = ROOT / "Directory.Build.props"
-TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+PROPS = "Directory.Build.props"
+THEME = "containers/keycloak/themes/swoovr/login/theme.properties"
+VERSION = re.compile(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
+TAG = re.compile(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
 
 
 def git(*args, check=True):
     return subprocess.run(["git", "-C", str(ROOT), *args], check=check, capture_output=True, text=True).stdout.strip()
 
 
-def props():
-    text = PROPS.read_text()
-    value = lambda name: int(re.search(rf"<{name}(?: [^>]*)?>(\d+)</{name}>", text).group(1))
-    return value("SwoovrVersionMajor"), value("SwoovrVersionMinor"), value("SwoovrVersionBuild")
+def read(path, rev=None):
+    if rev is None:
+        return (ROOT / path).read_text()
+    result = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{path}"], capture_output=True, text=True)
+    if result.returncode != 0:
+        sys.exit(f"cannot read {path} at {rev}")
+    return result.stdout
 
 
-def committed():
-    major, minor, build = props()
-    return f"{major}.{minor}.{build}"
+def parse(value):
+    match = VERSION.fullmatch(value or "")
+    if not match:
+        sys.exit(f"'{value}' is not X.Y.Z (digits only, no leading zeros, no prefix or suffix)")
+    return tuple(int(part) for part in match.groups())
 
 
-def released_builds(major, minor):
-    builds = []
-    for tag in git("tag", "--list", f"v{major}.{minor}.*").splitlines():
-        match = TAG.match(tag.strip())
-        if match and int(match.group(1)) == major and int(match.group(2)) == minor:
-            builds.append(int(match.group(3)))
-    return builds
+def text(version):
+    return ".".join(str(part) for part in version)
 
 
-def next_version():
-    major, minor, _ = props()
-    builds = released_builds(major, minor)
-    return f"{major}.{minor}.{max(builds) + 1 if builds else 0}"
+def props(rev=None):
+    source = read(PROPS, rev)
+    value = lambda name: re.search(rf"<{name}(?: [^>]*)?>(\d+)</{name}>", source)
+    parts = [value(name) for name in ("SwoovrVersionMajor", "SwoovrVersionMinor", "SwoovrVersionBuild")]
+    if not all(parts):
+        sys.exit(f"{PROPS} must define SwoovrVersionMajor, SwoovrVersionMinor and SwoovrVersionBuild")
+    return tuple(int(part.group(1)) for part in parts)
+
+
+def tags(extra=()):
+    found = []
+    for tag in [*git("tag", "--list", "v*").splitlines(), *extra]:
+        match = TAG.fullmatch(tag.strip())
+        if match:
+            found.append(tuple(int(part) for part in match.groups()))
+    return found
+
+
+def check_new(value, extra):
+    wanted, committed = parse(value), props()
+    if wanted <= committed:
+        sys.exit(f"{value} is not newer than the committed version {text(committed)}")
+    released = tags(extra)
+    if wanted in released:
+        sys.exit(f"v{value} already exists")
+    if released and wanted <= max(released):
+        sys.exit(f"{value} is not newer than the latest release v{text(max(released))}")
+    return value
+
+
+def set_version(value):
+    major, minor, build = parse(value)
+    source = (ROOT / PROPS).read_text()
+    for name, number in (("SwoovrVersionMajor", major), ("SwoovrVersionMinor", minor)):
+        source, count = re.subn(rf"<{name}>\d+</{name}>", f"<{name}>{number}</{name}>", source)
+        if count != 1:
+            sys.exit(f"{PROPS} must contain exactly one <{name}>")
+    source, count = re.subn(r"(<SwoovrVersionBuild Condition=\"[^\"]*\">)\d+(</SwoovrVersionBuild>)", rf"\g<1>{build}\g<2>", source)
+    if count != 1:
+        sys.exit(f"{PROPS} must contain exactly one conditional <SwoovrVersionBuild>")
+    (ROOT / PROPS).write_text(source)
+    theme, count = re.subn(r"(?m)^swoovrVersion=.*$", f"swoovrVersion={value}", (ROOT / THEME).read_text())
+    if count != 1:
+        sys.exit(f"{THEME} must contain exactly one swoovrVersion line")
+    (ROOT / THEME).write_text(theme)
+    return value
+
+
+def verify(value, rev=None):
+    wanted, problems = parse(value), []
+    if props(rev) != wanted:
+        problems.append(f"{PROPS} holds {text(props(rev))}")
+    if not re.search(rf"(?m)^swoovrVersion={re.escape(value)}$", read(THEME, rev)):
+        problems.append(f"{THEME} swoovrVersion is not {value}")
+    if problems:
+        sys.exit(f"version files {'at ' + rev if rev else ''} do not all hold {value}: " + "; ".join(problems))
+    return value
 
 
 def for_head():
     for tag in git("tag", "--points-at", "HEAD").splitlines():
-        if TAG.match(tag.strip()):
+        if TAG.fullmatch(tag.strip()):
             return tag.strip()[1:]
-    return committed()
+    return text(props())
 
 
-def msbuild_args(version):
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
-    major, minor, _ = props()
-    if not match or (int(match.group(1)), int(match.group(2))) != (major, minor):
-        sys.exit(f"{version} does not match Directory.Build.props {major}.{minor}.x")
+def msbuild_args(value):
+    if parse(value) != props():
+        sys.exit(f"{value} does not match Directory.Build.props {text(props())}")
     sha = git("rev-parse", "HEAD", check=False) or "unknown"
-    return f"-p:SwoovrVersionBuild={match.group(3)} -p:SourceRevisionId={sha}"
-
-
-def bump(part):
-    major, minor, _ = props()
-    return write_version(*((major + 1, 0) if part == "major" else (major, minor + 1)))
-
-
-def set_version(value):
-    match = re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)", value or "")
-    if not match:
-        sys.exit("set expects X.Y (digits, no leading zeros)")
-    target, current = (int(match.group(1)), int(match.group(2))), props()[:2]
-    if target <= current:
-        sys.exit(f"{value} is not newer than Directory.Build.props {current[0]}.{current[1]}")
-    return write_version(*target)
-
-
-def write_version(major, minor):
-    text = PROPS.read_text()
-    text = re.sub(r"<SwoovrVersionMajor>\d+</SwoovrVersionMajor>", f"<SwoovrVersionMajor>{major}</SwoovrVersionMajor>", text)
-    text = re.sub(r"<SwoovrVersionMinor>\d+</SwoovrVersionMinor>", f"<SwoovrVersionMinor>{minor}</SwoovrVersionMinor>", text)
-    text = re.sub(r"(<SwoovrVersionBuild Condition=\"[^\"]*\">)\d+(</SwoovrVersionBuild>)", r"\g<1>0\g<2>", text)
-    PROPS.write_text(text)
-    theme = ROOT / "containers/keycloak/themes/swoovr/login/theme.properties"
-    theme.write_text(re.sub(r"(?m)^swoovrVersion=.*$", f"swoovrVersion={major}.{minor}.0", theme.read_text()))
-    return f"{major}.{minor}.0"
+    return f"-p:SwoovrVersionBuild={parse(value)[2]} -p:SourceRevisionId={sha}"
 
 
 def main(argv):
-    command = argv[1] if len(argv) > 1 else "show"
-    if command == "show": print(committed())
-    elif command == "next": print(next_version())
-    elif command == "for-head": print(for_head())
-    elif command == "msbuild-args": print(msbuild_args(argv[2] if len(argv) > 2 else for_head()))
-    elif command == "allocate":
-        version = next_version()
-        if git("tag", "--list", f"v{version}"):
-            sys.exit(f"v{version} already exists")
-        git("tag", "-a", f"v{version}", "-m", f"Swoovr {version}")
-        print(version)
-    elif command == "bump" and len(argv) > 2 and argv[2] in ("major", "minor"): print(bump(argv[2]))
-    elif command == "set" and len(argv) > 2: print(set_version(argv[2]))
+    command, args = (argv[1] if len(argv) > 1 else "show"), argv[2:]
+    if command == "show" and len(args) <= 1: print(text(props(*args)))
+    elif command == "next" and not args:
+        highest = max([props(), *tags()])
+        print(text((highest[0], highest[1], highest[2] + 1)))
+    elif command == "check-new" and args: print(check_new(args[0], args[1:]))
+    elif command == "set" and len(args) == 1: print(set_version(args[0]))
+    elif command == "verify" and 1 <= len(args) <= 2: print(verify(*args))
+    elif command == "for-head" and not args: print(for_head())
+    elif command == "msbuild-args" and len(args) <= 1: print(msbuild_args(args[0] if args else for_head()))
     else: sys.exit(__doc__)
 
 

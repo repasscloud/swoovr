@@ -19,7 +19,7 @@ The superseded `images.yml` (Docker Hub, multi-arch, manual bundle download; D35
 
 1. The tag is exactly `vX.Y.Z` (digits, no leading zeros, no suffix). `v1.0.0-rc1`, `v01.0.0`, `v1.0` and `1.0.0` are refused.
 2. The tag points at the commit being built, and that commit is reachable from `origin/main` (`git merge-base --is-ancestor`). A tag on another branch fails.
-3. `X.Y` equals `Directory.Build.props` Major.Minor (`scripts/release_version.py msbuild-args`), and `scripts/check_version.py` passes. The images are compiled as version `X.Y.Z` (D320).
+3. The tagged commit's version files hold exactly `X.Y.Z` (`scripts/release_version.py msbuild-args` and `verify`, D383), and `scripts/check_version.py` passes. The images are compiled as version `X.Y.Z` (D320).
 4. `DEPLOYMENT_MODE` is read **once** in `validate` and checked with an if/elif/else: empty or `upgrade` means upgrade, `refresh` means refresh, and anything else stops the run before any build or SSH. The checked value is passed to the deploy job as a job output; nothing reads the variable again.
 
 ## Upgrade or refresh
@@ -141,13 +141,7 @@ gh variable set DEPLOYMENT_MODE --body upgrade
 ## Releasing
 
 ```sh
-git checkout main
-git pull --ff-only
-python3 scripts/release_version.py next          # e.g. 1.0.1 (next Build on the committed Major.Minor)
-git tag -a v1.0.1 -m "Swoovr 1.0.1"              # or: python3 scripts/release_version.py allocate
-git merge-base --is-ancestor v1.0.1 origin/main && echo "on main"
-git push origin v1.0.1                            # starts Deploy UAT
-gh run watch "$(gh run list --workflow deploy-uat.yml -L 1 --json databaseId -q '.[0].databaseId')"
+./scripts/update-release.sh X.Y.Z     # syncs main, commits "updating to vX.Y.Z", tags that commit, watches Deploy UAT
 ```
 
-`X.Y` must match `Directory.Build.props` (use `release_version.py bump minor|major` in a reviewed PR first). A tag is immutable: never move, delete-and-recreate or reuse it. The workflow reuses an image that already exists for the commit and never overwrites it, and the VM refuses a tag it has already deployed from a different commit. To redeploy the same release, re-run the workflow run (Actions → the run → Re-run all jobs). A re-run reads `DEPLOYMENT_MODE` again: check it first.
+The script does every step, including the version-file commit; see [VERSIONING.md](VERSIONING.md#releasing) (D383). A tag is immutable: never move, delete-and-recreate or reuse it. The workflow reuses an image that already exists for the commit and never overwrites it, and the VM refuses a tag it has already deployed from a different commit. To redeploy the same release, re-run the workflow run (Actions → the run → Re-run all jobs). A re-run reads `DEPLOYMENT_MODE` again: check it first.

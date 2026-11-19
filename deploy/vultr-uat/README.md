@@ -46,10 +46,7 @@ Host layout:
 ## Releasing (normal operation)
 
 ```sh
-git checkout main && git pull --ff-only
-python3 scripts/release_version.py next             # the next free version on the committed Major.Minor
-git tag -a vX.Y.Z -m "Swoovr X.Y.Z"
-git push origin vX.Y.Z
+./scripts/update-release.sh X.Y.Z    # version commit on main, tag on that commit, push, watch (D383)
 ```
 
 The run's summary shows the mode, the commit, every image digest, each check, the backup taken and the first-administrator state. Details, tag rules and refresh authorisation: [UAT-GITHUB-DEPLOYMENT.md](../../docs/delivery/UAT-GITHUB-DEPLOYMENT.md#releasing).
