@@ -2913,3 +2913,8 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 - **181.6** Pronouns: a list plus Self-describe (`varchar(50)`) and a separate Show my pronouns switch. **DEFAULT A:** switch defaults gender on, pronouns on, orientation off, age on; existing free text maps to a list option or Self-describe. B: other defaults.
 - **181.7** Who goes through the flow. **DEFAULT A:** every account without the completion flag, shown only the steps still missing. B: everyone, every step. C: new accounts only.
 - **181.8** Minimum to finish. **DEFAULT A:** at least one mode; gender, and at least one "show me", required only when Dating is on. B: gender required for everyone.
+
+### Q180 — Should sign-up say an email is already registered?
+
+- Issue: [#388](https://github.com/repasscloud/wanderconnect/issues/388). Status: OPEN. From [#386](https://github.com/repasscloud/wanderconnect/issues/386) / D381.
+- Registering with an address that already has an account gets Keycloak's stock duplicate-address error (reworded in D381, with Sign in and Forgot password? links), which tells a visitor the address is registered. **A (DEFAULT):** keep it; clear for members who forgot they registered. **B:** non-enumerating registration: always "Check your email", and the existing owner gets a sign-in/reset email (custom Keycloak registration step and new email wording).

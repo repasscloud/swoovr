@@ -90,6 +90,28 @@ static class BetaInvitationChecks
             check("concurrent revoke cannot interleave a second send",pause.Calls==1&&raced.InvitationState=="accepted"&&raced.RevokedAt!=null);
             var expired=(await BetaEnrolments.AddAsync(db,"fictional.expired@example.test",null,now.AddDays(-4),default,queueInvitation:true)).Enrolment!;
             await delivery.RunAsync(default);check("beta mail expires independently from enrolment access",sink.Calls==6&&(await db.BetaEnrolments.AsNoTracking().SingleAsync(e=>e.Id==expired.Id)).InvitationState=="expired"&&expired.RevokedAt==null);
+
+            // #384 (D381): revoke then enrol the same address again; the new row is the live one and is invited.
+            sink.Outcome=new("accepted","local-sink");var actor=Guid.NewGuid();
+            var reenrolled=await BetaEnrolments.AddAsync(db,"Fictional.Revoked@example.test",null,clock.Now,default,queueInvitation:true);
+            check("re-enrolling a revoked address adds a new pending, queued row",reenrolled.Result==BetaEnrolments.AddResult.Added&&reenrolled.Enrolment!.InvitationState=="pending");
+            check("re-enrolled address may register (revoked history ignored)",await RegistrationAuthority.InvitedAsync(db,"fictional.revoked@example.test",default));
+            await delivery.RunAsync(default);
+            check("re-enrolled address is sent one invitation",sink.Calls==7&&(await db.BetaEnrolments.AsNoTracking().SingleAsync(e=>e.Id==reenrolled.Enrolment!.Id)).InvitationState=="accepted");
+            check("queueing an invitation needs confirmation",await BetaEnrolments.QueueInvitationAsync(db,disabled.Id,false,actor,clock.Now,default)==BetaEnrolments.InvitationResult.Invalid);
+            check("a not-queued pending enrolment can be queued",await BetaEnrolments.QueueInvitationAsync(db,disabled.Id,true,actor,clock.Now,default)==BetaEnrolments.InvitationResult.Queued);
+            check("a second request while queued is refused, not duplicated",await BetaEnrolments.QueueInvitationAsync(db,disabled.Id,true,actor,clock.Now,default)==BetaEnrolments.InvitationResult.InProgress);
+            await delivery.RunAsync(default);
+            var resent=await db.BetaEnrolments.AsNoTracking().SingleAsync(e=>e.Id==disabled.Id);
+            check("queued invitation for a not-queued row is sent once",sink.Calls==8&&resent.InvitationState=="accepted"&&resent.InvitationAttempts==1);
+            check("queueing is audited by id only",await db.AuditEntries.AnyAsync(a=>a.Action=="beta.invitation-queued"&&a.TargetId==disabled.Id.ToString()));
+            var exhaustedAgain=await BetaEnrolments.QueueInvitationAsync(db,retry.Id,true,actor,clock.Now,default);
+            await delivery.RunAsync(default);
+            check("a not-accepted invitation can be queued again with fresh attempts",exhaustedAgain==BetaEnrolments.InvitationResult.Queued&&sink.Calls==9);
+            var activatedRow=await db.BetaEnrolments.AsNoTracking().SingleAsync(e=>e.Email=="fictional.activated@example.test");
+            check("activated enrolment is never re-invited",await BetaEnrolments.QueueInvitationAsync(db,activatedRow.Id,true,actor,clock.Now,default)==BetaEnrolments.InvitationResult.NotPending);
+            check("revoked enrolment is never re-invited",await BetaEnrolments.QueueInvitationAsync(db,racing.Id,true,actor,clock.Now,default)==BetaEnrolments.InvitationResult.NotPending);
+            check("unknown enrolment id is not found",await BetaEnrolments.QueueInvitationAsync(db,Guid.NewGuid(),true,actor,clock.Now,default)==BetaEnrolments.InvitationResult.NotFound);
         }
         finally{await using var drop=new NpgsqlCommand("DROP DATABASE "+name+" WITH (FORCE)",admin);await drop.ExecuteNonQueryAsync();}
     }
