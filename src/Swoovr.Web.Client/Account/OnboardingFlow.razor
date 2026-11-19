@@ -5,6 +5,13 @@
    and the web gate sends every other page here, so there is no way around it. *@
 @inject MemberClient Members
 @inject NavigationManager Navigation
+@if (Current == "profile")
+{
+    @* Issue 389 (D382): the first-sign-in profile steps follow account setup on the same page. *@
+    <ProfileSetupSteps />
+}
+else
+{
 <section class="onboarding" aria-labelledby="onboarding-title" data-onboarding="@Current">
     @if (Current == "loading")
     {
@@ -111,6 +118,7 @@
         }
     }
 </section>
+}
 @code {
     private readonly List<string> steps = [];
     private MemberAccount? me;
@@ -162,7 +170,7 @@
         if (loaded.PhoneRequired) { steps.Add("mobile"); steps.Add("code"); }
         if (loaded.PolicyRequired) steps.Add("policies");
         if (loaded.DateOfBirth is null) steps.Add("dob");
-        if (steps.Count == 0) { Navigation.NavigateTo("/explore", forceLoad: true); return; }
+        if (steps.Count == 0 && !SetupSteps.ProfileStep(loaded.SetupStep)) { Navigation.NavigateTo("/explore", forceLoad: true); return; }
         await ShowAsync(loaded);
     }
 
@@ -204,6 +212,9 @@
                 break;
             case SetupSteps.DateOfBirth:
                 Current = "dob";
+                break;
+            case var step when SetupSteps.ProfileStep(step):
+                Current = "profile";
                 break;
             default:
                 Current = "done";

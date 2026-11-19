@@ -5,6 +5,7 @@
    tile shows (Q11). Without a home city, or outside every open market, the API refuses and the page says why. Travel is
    not a mode and has its own screen. *@
 @inject MemberClient Members
+@inject NavigationManager Navigation
 <div class="page-heading" data-explore="@(loaded ? "ready" : "loading")">
     <h1>Explore</h1>
     @if (market is not null) { <p class="field-help" data-explore-market data-explore-visiting="@(visitingCity is null ? "false" : "true")">@(visitingCity is { } city ? $"Visiting {city}: people in {market}" : $"People in {market}")</p> }
@@ -126,8 +127,10 @@
             else
             {
                 (modes, mine, interested) = (catalogue.Value, profile.Value, profile.Value.MarketInterest);
-                // Start on the first mode the member has on, else the first one shown.
-                selected = mine.Modes.FirstOrDefault(m => m.Enabled)?.Id ?? modes.FirstOrDefault()?.Id ?? "";
+                // Start on ?mode= when it names a shown mode (issue 389: onboarding ends on the first enabled mode), else
+                // the first mode the member has on, else the first one shown.
+                var asked = RequestedMode();
+                selected = modes.Any(m => m.Id == asked) ? asked! : mine.Modes.FirstOrDefault(m => m.Enabled)?.Id ?? modes.FirstOrDefault()?.Id ?? "";
             }
         }
         catch (HttpRequestException) { refused = "unavailable"; }
@@ -164,6 +167,13 @@
         busy = true;
         if (await Members.MarketInterestAsync(on) == 204) interested = on;
         busy = false;
+    }
+
+    private string? RequestedMode()
+    {
+        var query = new Uri(Navigation.Uri).Query.TrimStart('?');
+        return query.Split('&', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=', 2))
+            .Where(p => p.Length == 2 && p[0] == "mode").Select(p => Uri.UnescapeDataString(p[1])).FirstOrDefault();
     }
 
     private string Label(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;
