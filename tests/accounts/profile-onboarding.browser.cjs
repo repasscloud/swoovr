@@ -114,6 +114,23 @@ const signIn=async(context,member)=>{const page=await context.newPage();await pa
   // Once complete, clearing a home city never sends the member back to onboarding.
   await call(token,'/api/me/profile',{method:'PUT',body:{displayName:'Fictional Robin',about:profile.about}});
   assert.equal((await call(token,'/api/me')).body.setupStep,null);pass();
-  console.log(`PASS: ${passed} first sign-in profile onboarding checks (gate, pre-filled name, accurate home-city wording, about with consent, resume, text picture with contact refusal and preview, modes, Dating gender rule, pronoun Self-describe, show-me choices, redirect to the first enabled mode, completion flag, completion persisted without /complete, every-mode bio answer on existing modes with profile versions, older-client pronoun switch).`);
+  // PR #392 review: after onboarding the text picture is still editable and removable on /me/profile.
+  const third=await edge.browser.newContext();
+  try{
+   const page=await third.newPage();await page.goto(web+'/account/sign-in?intro=done');
+   await page.fill('#username',member.email);await page.fill('#password',member.password);
+   await Promise.all([page.waitForURL(u=>u.href.startsWith(web)&&!u.pathname.startsWith('/account/sign-in')),page.click('#kc-login')]);
+   await page.goto(web+'/me/profile');await page.waitForSelector('[data-picture-text-settings]');
+   assert.equal(await page.inputValue('#picture-text'),'Coffee first, then mountains.');
+   await page.fill('#picture-text','call me 0412 345 678');await page.click('[data-picture-text-save]');
+   await page.waitForSelector('[data-picture-text-status=picture-text-contact]');pass();
+   await page.fill('#picture-text','Mountains first, then coffee.');await page.click('[data-picture-text-save]');
+   await page.waitForSelector('[data-picture-text-status=saved]');
+   assert.equal((await call(token,'/api/me/profile')).body.pictureText,'Mountains first, then coffee.');
+   await page.click('[data-picture-text-remove]');await page.waitForSelector('[data-picture-text-remove]',{state:'detached'});
+   assert.equal(await page.locator('[data-picture-text-status]').innerText(),'Removed.');
+   assert.equal((await call(token,'/api/me/profile')).body.pictureText??null,null);pass();
+  }finally{await third.close();}
+  console.log(`PASS: ${passed} first sign-in profile onboarding checks (gate, pre-filled name, accurate home-city wording, about with consent, resume, text picture with contact refusal and preview, modes, Dating gender rule, pronoun Self-describe, show-me choices, redirect to the first enabled mode, completion flag, completion persisted without /complete, every-mode bio answer on existing modes with profile versions, older-client pronoun switch, text picture edit and removal on /me/profile).`);
  }finally{await edge.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});
