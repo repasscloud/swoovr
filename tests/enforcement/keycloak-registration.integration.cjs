@@ -54,9 +54,31 @@ http.createServer(async(req,res)=>{const u=new URL(req.url,'http://authority:900
   for(const [betaEnabled,publicEnabled]of[[false,false],[true,false],[false,true],[true,true]]){
    await control({betaEnabled,publicEnabled,unavailable:false,revision:2});jar.clear();const page=await follow(authUrl());check(page.response.status===200,'signin rendered');check(page.html.includes('id="kc-registration"')===(betaEnabled||publicEnabled),'Create account link follows persisted four-state policy');check(page.html.includes('login-actions/reset-credentials'),'password recovery remains visible');
   }
-  async function registration(email,expected,refusal='Registration is closed'){jar.clear();const page=await follow(authUrl(true));const action=decode(page.html.match(/<form[^>]+id="kc-register-form"[^>]+action="([^"]+)"/)?.[1]||page.html.match(/<form[^>]+action="([^"]+)"[^>]+id="kc-register-form"/)?.[1]||'');check(!!action,'registration endpoint form found');const response=await browserRequest(action,{method:'POST',body:new URLSearchParams({username:email,email,firstName:'Fictional',lastName:'Example',password,'password-confirm':password})});const html=await response.text();if(!expected){check(html.includes(refusal),'refused direct submission names the state (D335): '+refusal);if(refusal==='Registration is closed')check(!/beta|invite/i.test(html.match(/<h2>[^<]*<\/h2>\s*<p>[^<]*<\/p>/)?.[0]||''),'closed refusal never mentions beta or invitations');}const users=await admin(rpath+'/users?exact=true&username='+encodeURIComponent(email));check(users.length===(expected?1:0),'direct creation transaction matches admission');}
-  await control({betaEnabled:false,publicEnabled:false,unavailable:false});await registration('closed@example.test',false);
-  await control({betaEnabled:true,publicEnabled:false});await registration('uninvited@example.test',false,'Swoovr is currently invite-only');await registration('invited@example.test',true);
+  async function registration(email,expected,refusal='Registration is closed'){jar.clear();const page=await follow(authUrl(true));const action=decode(page.html.match(/<form[^>]+id="kc-register-form"[^>]+action="([^"]+)"/)?.[1]||page.html.match(/<form[^>]+action="([^"]+)"[^>]+id="kc-register-form"/)?.[1]||'');check(!!action,'registration endpoint form found');const response=await browserRequest(action,{method:'POST',body:new URLSearchParams({username:email,email,firstName:'Fictional',lastName:'Example',password,'password-confirm':password})});const html=await response.text();if(!expected){check(html.includes(refusal),'refused direct submission names the state (D335): '+refusal);if(refusal==='Registration is closed')check(!/beta|invite/i.test(html.match(/<h2>[^<]*<\/h2>\s*<p>[^<]*<\/p>/)?.[0]||''),'closed refusal never mentions beta or invitations');}const users=await admin(rpath+'/users?exact=true&username='+encodeURIComponent(email));check(users.length===(expected?1:0),'direct creation transaction matches admission');return html;}
+  await control({betaEnabled:false,publicEnabled:false,unavailable:false});const closedPage=await registration('closed@example.test',false);
+  const closedCard=closedPage.match(/<section[^>]*data-registration-closed[\s\S]*?<\/section>/)?.[0];
+  check(!!closedCard&&!closedPage.includes('id="kc-register-form"')&&!/beta|invite|waitlist/i.test(closedCard),'closed refusal is a neutral card without the form or beta wording (D335, D381)');
+  await control({betaEnabled:true,publicEnabled:false});const gate=await registration('uninvited@example.test',false,'Swoovr is currently invite-only');
+  // #385 (D381): the refusal replaces the form with one card: Join Waitlist, legal links, sign in; no fields or second banner.
+  check(gate.includes('data-invite-only')&&!gate.includes('id="kc-register-form"')&&!/name="(email|firstName|lastName|termsAccepted|swoovr_mononym)"/.test(gate),'invite-only refusal shows the card without any registration fields');
+  check((gate.match(/data-beta-waitlist/g)||[]).length===1&&gate.includes('href="https://swoovr.com/beta"')&&gate.includes('Join Waitlist'),'invite-only card has exactly one Join Waitlist action to the existing waitlist');
+  check(['sw-terms-link','sw-privacy-link','sw-community-link'].every(id=>gate.includes('id="'+id+'"'))&&gate.includes('exclusively for adults aged 18 and over'),'invite-only card keeps the adults-only line and the three legal links');
+  check(!gate.includes('pf-m-danger'),'invite-only card has no duplicate error banner');
+  // Optional evidence (D381): SWOOVR_REGISTRATION_SHOTS=<dir> plus SWOOVR_PLAYWRIGHT_PATH renders the card in owned Edge.
+  if(process.env.SWOOVR_REGISTRATION_SHOTS){
+   const {managedEdge}=require('../auth/managed-edge.cjs');const edge=await managedEdge(require(process.env.SWOOVR_PLAYWRIGHT_PATH).chromium);
+   try{for(const [name,viewport,colorScheme] of [['mobile-light',{width:390,height:844},'light'],['desktop-dark',{width:1280,height:900},'dark']]){
+    const context=await edge.browser.newContext({viewport,colorScheme});const page=await context.newPage();await page.goto(authUrl(true));
+    await page.fill('#firstName','Fictional');if(await page.locator('#lastName').count())await page.fill('#lastName','Adult');await page.fill('#email','uninvited@example.test');
+    if(await page.locator('#termsAccepted').count())await page.check('#termsAccepted');await Promise.all([page.waitForNavigation(),page.evaluate(()=>document.getElementById('kc-register-form').requestSubmit())]);
+    check(await page.locator('[data-beta-waitlist]').count()===1&&await page.locator('input[name=email]').count()===0,'rendered invite-only card '+name);
+    await page.waitForTimeout(900);await page.screenshot({path:path.join(process.env.SWOOVR_REGISTRATION_SHOTS,'invite-only-'+name+'.png'),fullPage:true});await context.close();
+   }}finally{await edge.close();}
+  }
+  await registration('invited@example.test',true);
+  // #386 (D381): a second registration for an existing address gets the reworded duplicate error and the two ways back in.
+  const again=await registration('invited@example.test',true);
+  check(again.includes('An account already uses this email')&&again.includes('data-email-exists')&&again.includes('login-actions/reset-credentials'),'duplicate address offers Sign in and Forgot password');
   await control({betaEnabled:false,publicEnabled:true});await registration('public@example.test',true);
   await control({unavailable:true});jar.clear();let page=await follow(authUrl());check(!page.html.includes('id="kc-registration"'),'authority unavailable hides Create account');await registration('unavailable@example.test',false);
   // A successful existing-password login never becomes a registration attempt when creation is closed/unavailable.

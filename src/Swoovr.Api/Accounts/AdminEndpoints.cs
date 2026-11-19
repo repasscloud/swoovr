@@ -122,6 +122,24 @@ public static class AdminEndpoints
             return Results.NoContent();
         });
 
+        // #384 (D381): send (or send again) the invitation email for a pending enrolment. Explicit confirmation; never for
+        // revoked or activated rows, and refused while invitation email is switched off so Admin never implies a send.
+        admin.MapPost("/beta/{id:guid}/invitation",async(Guid id,BetaInvitationRequest request,ClaimsPrincipal user,AccountResolver accounts,TimeProvider clock,CancellationToken token)=>
+        {
+            var(current,denied)=await StaffAsync(user,accounts,AccountRole.Admin,token);if(denied is not null)return denied;
+            if(!accounts.Services.GetRequiredService<IConfiguration>().GetValue("Beta:Invitations:Enabled",false))
+                return Problem(StatusCodes.Status409Conflict,"invitations-off","Invitation email is switched off on this server.");
+            var result=await BetaEnrolments.QueueInvitationAsync(accounts.Db!,id,request.Confirm,current!.Account!.Id,clock.GetUtcNow(),token);
+            return result switch
+            {
+                BetaEnrolments.InvitationResult.Queued=>Results.Ok(BetaEnrolments.View(await accounts.Db!.BetaEnrolments.AsNoTracking().SingleAsync(e=>e.Id==id,token))),
+                BetaEnrolments.InvitationResult.Invalid=>Problem(StatusCodes.Status400BadRequest,ProblemCodes.InvalidRequest,"Confirm the invitation email first."),
+                BetaEnrolments.InvitationResult.NotFound=>Results.NotFound(),
+                BetaEnrolments.InvitationResult.NotPending=>Problem(StatusCodes.Status409Conflict,"enrolment-not-pending","Only a pending enrolment can be sent an invitation."),
+                _=>Problem(StatusCodes.Status409Conflict,"invitation-in-progress","An invitation email is already queued or sending."),
+            };
+        });
+
         admin.MapPut("/beta/{id:guid}/ios-distribution",async(Guid id,IosDistributionUpdate update,ClaimsPrincipal user,AccountResolver accounts,TimeProvider clock,CancellationToken token)=>
         {
             var(current,denied)=await StaffAsync(user,accounts,AccountRole.Admin,token);if(denied is not null)return denied;

@@ -42,6 +42,29 @@ public static class BetaEnrolments
         return true;
     }
 
+    public enum InvitationResult { Queued, Invalid, NotFound, NotPending, InProgress }
+    /// <summary>
+    /// #384 (D381): queue the invitation email for a pending enrolment that was added while invitations were off, or whose
+    /// earlier attempt ended (not accepted, expired, cancelled or unconfirmed). One conditional update, so it can't race the
+    /// worker's claim or double-queue; the worker still rechecks revocation, activation and the 72-hour window before sending.
+    /// </summary>
+    public static async Task<InvitationResult> QueueInvitationAsync(SwoovrDbContext db,Guid id,bool confirm,Guid actor,DateTimeOffset now,CancellationToken token)
+    {
+        if(!confirm)return InvitationResult.Invalid;
+        await using var barrier=await Swoovr.Api.Retention.PreservationLease.SharedAsync(db,token);
+        var changed=await db.BetaEnrolments.Where(e=>e.Id==id&&e.RevokedAt==null&&e.ActivatedAt==null&&e.InvitationState!="pending"&&e.InvitationState!="dispatching")
+            .ExecuteUpdateAsync(s=>s.SetProperty(e=>e.InvitationState,"pending").SetProperty(e=>e.InvitationQueuedAt,now).SetProperty(e=>e.InvitationNextAttemptAt,now)
+                .SetProperty(e=>e.InvitationAttempts,0).SetProperty(e=>e.InvitationCompletedAt,(DateTimeOffset?)null).SetProperty(e=>e.InvitationOutcomeCode,(string?)null),token);
+        if(changed==1)
+        {
+            Audit.Record(db,now,actor,"account","beta.invitation-queued","beta-enrolment",id.ToString());
+            await db.SaveChangesAsync(token);
+            return InvitationResult.Queued;
+        }
+        var row=await db.BetaEnrolments.AsNoTracking().SingleOrDefaultAsync(e=>e.Id==id,token);
+        return row is null?InvitationResult.NotFound:row.RevokedAt!=null||row.ActivatedAt!=null?InvitationResult.NotPending:InvitationResult.InProgress;
+    }
+
     public enum IosUpdateResult { Updated, Unchanged, Invalid, NotFound, Conflict }
     public static async Task<(IosUpdateResult Result,BetaEnrolment? Row)> RecordIosAsync(SwoovrDbContext db,Guid id,IosDistributionUpdate update,Guid actor,DateTimeOffset now,CancellationToken token)
     {

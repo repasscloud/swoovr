@@ -100,6 +100,20 @@ if sso
 end
 Setting.set('user_show_password_login', sso.nil?)
 Setting.set('user_lost_password', false)
+# Owner, 19 November 2026: the helpdesk carries Swoovr's name (page title, email signatures) and the official logo on its
+# sign-in page instead of Zammad's. The caller copies the generated logo to /tmp first (deploy/vultr-uat/zammad/branding,
+# scripts/check_design.py); it is re-uploaded only when it changed, so a run never churns Zammad's logo timestamp.
+Setting.set('product_name', 'Swoovr Support')
+logo_path = '/tmp/swoovr-logo.svg'
+if File.exist?(logo_path)
+  logo = File.read(logo_path)
+  current = Store.list(object: 'System::Logo', o_id: Service::SystemAssets::ProductLogo::PRODUCT_LOGO_RAW).first
+  if current.nil? || current.content != logo
+    stamp = Service::SystemAssets::ProductLogo.store(logo)
+    raise 'Swoovr helpdesk logo was not accepted' unless stamp
+    Setting.set('product_logo', stamp)
+  end
+end
 # Q137 A (D372): files that arrive by email reach Zammad without Swoovr's malware scan, and Zammad's own downloads can't be
 # gated. Staff open support files only in Swoovr Admin, which scans each file before download; the sign-in page says so.
 Setting.set('maintenance_login', true)
