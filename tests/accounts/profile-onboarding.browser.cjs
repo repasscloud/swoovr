@@ -100,8 +100,12 @@ const signIn=async(context,member)=>{const page=await context.newPage();await pa
   const shared=v=>sql(`SELECT count(*) FROM member_modes WHERE account_id='${account}' AND enabled AND share_core_about=${v}`);
   assert.equal((await call(token,'/api/me/onboarding/steps/about',{method:'POST',body:{shareAbout:false}})).status,200);
   assert.equal(await shared('false'),'2','unticking hides the bio in existing modes');
+  // PR #392 review: the consent change is captured as a profile version (profile-at-report shows what others saw).
+  const hidden=m=>sql(`SELECT content_json::jsonb->>'shownAbout' IS NULL FROM profile_versions WHERE account_id='${account}' AND mode_id='${m}' ORDER BY captured_at DESC LIMIT 1`);
+  assert.equal(await hidden('dating'),'t');assert.equal(await hidden('friends'),'t','latest version shows the bio hidden');
   assert.equal((await call(token,'/api/me/onboarding/steps/about',{method:'POST',body:{shareAbout:true}})).status,200);
-  assert.equal(await shared('true'),'2','ticking shows the bio in existing modes');pass();
+  assert.equal(await shared('true'),'2','ticking shows the bio in existing modes');
+  assert.equal(await hidden('dating'),'f','latest version shows the bio again');pass();
   // PR #392 review: a client without the pronoun switch (the current app) hides pronouns with "Show my gender and pronouns" off.
   const older={gender:'trans-woman',pronouns:'xe/xem',orientation:null,showGender:false,showOrientation:false,showAge:true,datingShowMe:['man']};
   assert.equal((await call(token,'/api/me/identity',{method:'PUT',body:older})).body.showPronouns,false);
@@ -110,6 +114,6 @@ const signIn=async(context,member)=>{const page=await context.newPage();await pa
   // Once complete, clearing a home city never sends the member back to onboarding.
   await call(token,'/api/me/profile',{method:'PUT',body:{displayName:'Fictional Robin',about:profile.about}});
   assert.equal((await call(token,'/api/me')).body.setupStep,null);pass();
-  console.log(`PASS: ${passed} first sign-in profile onboarding checks (gate, pre-filled name, accurate home-city wording, about with consent, resume, text picture with contact refusal and preview, modes, Dating gender rule, pronoun Self-describe, show-me choices, redirect to the first enabled mode, completion flag, completion persisted without /complete, every-mode bio answer on existing modes, older-client pronoun switch).`);
+  console.log(`PASS: ${passed} first sign-in profile onboarding checks (gate, pre-filled name, accurate home-city wording, about with consent, resume, text picture with contact refusal and preview, modes, Dating gender rule, pronoun Self-describe, show-me choices, redirect to the first enabled mode, completion flag, completion persisted without /complete, every-mode bio answer on existing modes with profile versions, older-client pronoun switch).`);
  }finally{await edge.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

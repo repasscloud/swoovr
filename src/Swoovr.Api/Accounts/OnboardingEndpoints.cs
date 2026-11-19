@@ -38,17 +38,20 @@ public static class OnboardingEndpoints
             if (!ProfileOnboarding.Order.Contains(step) || !ProfileOnboarding.MayAcknowledge(step, facts))
                 return Problem(StatusCodes.Status409Conflict, ProblemCodes.OnboardingStepIncomplete, "Finish this step before continuing.");
             if (!profile.OnboardingSteps.Contains(step)) profile.OnboardingSteps = [.. profile.OnboardingSteps, step];
+            var consentChanged = false;
             if (step == ProfileOnboarding.About && update?.ShareAbout is { } share)
             {
                 profile.OnboardingShareAbout = share;
                 // PR #392 review: "Show this in every mode" also applies to modes the member already has, not only ones turned on
                 // in the modes step (which is skipped when a mode is already on), so the answer never leaves a bio hidden or shown
                 // against it. Modes turned on later in onboarding get the same answer from the client (Q181.4 A).
-                await db.MemberModes.Where(m => m.AccountId == profile.AccountId && m.ShareCoreAbout != share)
-                    .ExecuteUpdateAsync(u => u.SetProperty(m => m.ShareCoreAbout, share).SetProperty(m => m.UpdatedAt, now), cancellationToken);
+                consentChanged = await db.MemberModes.Where(m => m.AccountId == profile.AccountId && m.ShareCoreAbout != share)
+                    .ExecuteUpdateAsync(u => u.SetProperty(m => m.ShareCoreAbout, share).SetProperty(m => m.UpdatedAt, now), cancellationToken) > 0;
             }
             Audit.Record(db, now, profile.AccountId, "account", "onboarding.step", "account", profile.AccountId.ToString(), step);
             await db.SaveChangesAsync(cancellationToken);
+            // #91: the public presentation changed, so record it as the mode-update route does (profile-at-report reads these).
+            if (consentChanged) await Swoovr.Api.Profiles.ProfilePrivacy.CaptureAsync(db, profile.AccountId, now, cancellationToken);
             return Results.Ok(await ViewAsync(db, profile, cancellationToken));
         });
         // Sets the completion flag once every step is done; afterwards the steps never come back (a member can still clear a
