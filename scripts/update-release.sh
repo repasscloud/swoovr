@@ -140,12 +140,14 @@ main() {
             [[ "$CHANGED" == "$(printf '%s\n' "${VERSION_FILES[@]}" | sort | tr '\n' ' ')" ]] \
                 || fail "unexpected files changed: $CHANGED"
             pass
-            LOG="$(mktemp -t swoovr-release.XXXXXX)"
+            LOG="$(mktemp "${TMPDIR:-/tmp}/swoovr-release.XXXXXX")"
             stage "Running tests"
             python3 -m unittest discover -s tests/release -p 'test_*.py' > "$LOG" 2>&1 || fail "release-version tests failed (log: $LOG)"
             pass
             stage "Build validation"
-            ./scripts/check.sh > "$LOG" 2>&1 || fail "./scripts/check.sh failed (log: $LOG):
+            # Local-database persistence checks are skipped (reported as a gap): a release must not depend on this
+            # machine's Docker state (20 November 2026: a stale local Postgres password failed the 1.1.0 release).
+            env -u SWOOVR_TEST_DATABASE SWOOVR_CHECK_PERSISTENCE=0 ./scripts/check.sh > "$LOG" 2>&1 || fail "./scripts/check.sh failed (log: $LOG):
 $(tail -n 15 "$LOG")"
             pass
             grep '^SKIP' "$LOG" | sed 's/^/  gap: /' || true
@@ -259,9 +261,10 @@ tag_hint() {
 
 repository_name() {
     local url
-    url="$(git remote get-url origin 2> /dev/null || echo unknown)"
+    url="$(git config --get remote.origin.url || echo unknown)"
     url="${url%.git}"
-    echo "${url##*[:/]github.com[:/]}"
+    url="${url#*github.com}"
+    echo "${url#[:/]}"
 }
 
 published_state() {

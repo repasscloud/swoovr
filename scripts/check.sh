@@ -17,7 +17,11 @@ dotnet build Swoovr.Local.sln --no-restore --configuration Release
 node --test tests/policies/startup.test.cjs tests/hosting/*.test.cjs
 # Persistence checks use the local PostgreSQL container when it is running (./scripts/docker-local.sh up);
 # otherwise Swoovr.Checks prints a SKIP line. Each run uses its own throwaway database.
-if [[ -z "${SWOOVR_TEST_DATABASE:-}" && -f .local/docker.env ]] && grep -q '^SWOOVR_DB_PASSWORD=' .local/docker.env \
+# SWOOVR_CHECK_PERSISTENCE=0 skips them regardless (the release gate, D383: a release must not depend on the state of
+# this machine's local Docker stack, which GitHub and a clean checkout do not have).
+if [[ "${SWOOVR_CHECK_PERSISTENCE:-}" == 0 ]]; then
+  unset SWOOVR_TEST_DATABASE
+elif [[ -z "${SWOOVR_TEST_DATABASE:-}" && -f .local/docker.env ]] && grep -q '^SWOOVR_DB_PASSWORD=' .local/docker.env \
   && (exec 3<>/dev/tcp/127.0.0.1/5433) 2>/dev/null; then
   SWOOVR_TEST_DATABASE="Host=127.0.0.1;Port=5433;Database=swoovr;Username=swoovr;Password=$(grep '^SWOOVR_DB_PASSWORD=' .local/docker.env | cut -d= -f2)"
   export SWOOVR_TEST_DATABASE

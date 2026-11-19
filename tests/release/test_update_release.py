@@ -53,6 +53,8 @@ sys.exit("mock gh: unexpected " + " ".join(args))
 
 CHECK = """#!/usr/bin/env bash
 [[ "${MOCK_CHECK_FAIL:-}" == 1 ]] && { echo "FAIL: stub build"; exit 1; }
+# The release gate never uses this machine's local database (D383).
+[[ "${SWOOVR_CHECK_PERSISTENCE:-}" == 0 && -z "${SWOOVR_TEST_DATABASE:-}" ]] || { echo "FAIL: local database used"; exit 1; }
 echo "PASS: stub build"
 echo "SKIP: stub persistence"
 """
@@ -79,6 +81,9 @@ class UpdateRelease(unittest.TestCase):
         self.git(self.tmp, "init", "-q", "--bare", "-b", "main", str(self.origin))
         self.git(self.tmp, "clone", "-q", str(self.origin), str(self.work))
         self.configure(self.work)
+        # Display only: origin is named by an SSH-style GitHub URL that git rewrites to the local bare repository.
+        self.git(self.work, "config", "url." + str(self.origin) + ".insteadOf", "git@github.com:example/swoovr.git")
+        self.git(self.work, "remote", "set-url", "origin", "git@github.com:example/swoovr.git")
         w = self.work
         (w / "scripts").mkdir(); (w / "tests/release").mkdir(parents=True)
         shutil.copy(REPO / "scripts/update-release.sh", w / "scripts/update-release.sh")
@@ -157,9 +162,10 @@ class UpdateRelease(unittest.TestCase):
 
     # behaviour -------------------------------------------------------------------------------------------------------
     def test_minor_release_updates_commits_pushes_tags_and_watches(self):
-        status, out = self.release("1.1.0")
+        status, out = self.release("1.1.0", SWOOVR_TEST_DATABASE="Host=127.0.0.1;Password=stale")
         self.assertEqual(status, 0, out)
         commit = self.assert_released("1.1.0")
+        self.assertIn("Repository: example/swoovr\n", out)
         self.assertEqual(self.origin_main(), commit, "the version commit is origin/main and is the tagged commit")
         self.assertEqual(self.git(self.work, "rev-parse", "main"), commit, "local main matches")
         for line in ("Current version:   1.0.13", "Requested version: 1.1.0", "updating to v1.1.0",
