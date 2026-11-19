@@ -79,7 +79,7 @@ public sealed class ContentRemovalService(SwoovrDbContext db,EvidenceKeys keys,E
                 if(mode is null)throw Refuse(404,"content-not-available");
                 await db.Entry(mode).ReloadAsync(token);text=mode.About;
             }
-            else text=profile.About;
+            else text=request.Field=="picture-text"?profile.PictureText:profile.About;
         }
         if(string.IsNullOrEmpty(text)||!ContentRemovalPolicy.SameSource(text,request.ExpectedSourceSha256))throw Refuse(409,"content-source-changed");
         // Recapture every applicable live obligation before source loss. Failure leaves the source intact.
@@ -96,6 +96,7 @@ public sealed class ContentRemovalService(SwoovrDbContext db,EvidenceKeys keys,E
         await reporting.StageContentRemovalAsync(removal,now,metadata,token);
         if(message is not null){message.Body="";message.ModerationRemovedAt=now;message.ModerationRemovalId=request.CommandId;}
         else if(mode is not null){mode.About=null;mode.ShareCoreAbout=false;mode.UpdatedAt=now;}
+        else if(request.Field=="picture-text")profile!.PictureText=null;
         else profile!.About=null;
         db.CaseEvidence.Add(new(){Id=Guid.NewGuid(),CaseId=caseId,ReportId=request.ReportId,Kind="content-removal",MediaIds=[],CapturedAt=now,
             Snapshot=JsonSerializer.Serialize(new{removalId=request.CommandId,field=request.Field,modeId=request.ModeId,messageId=request.MessageId})});
@@ -140,6 +141,7 @@ public sealed class ContentRemovalService(SwoovrDbContext db,EvidenceKeys keys,E
             if(report.SubjectType is ReportSubject.Profile or ReportSubject.Bot)
             {
                 Add("about",null,null,await db.MemberProfiles.Where(p=>p.AccountId==subject).Select(p=>p.About).SingleOrDefaultAsync(token));
+                Add("picture-text",null,null,await db.MemberProfiles.Where(p=>p.AccountId==subject).Select(p=>p.PictureText).SingleOrDefaultAsync(token));
                 foreach(var mode in await db.MemberModes.AsNoTracking().Where(m=>m.AccountId==subject).OrderBy(m=>m.ModeId).ToListAsync(token))Add("mode-about",mode.ModeId,null,mode.About);
             }
             else if(report.SubjectType is ReportSubject.Message or ReportSubject.Conversation)

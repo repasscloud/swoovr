@@ -36,6 +36,24 @@
         }
     </section>
 
+    @* D382 (Q181.5 A), PR 392 review: the text picture from onboarding stays editable and removable here. *@
+    <section class="card account-section" aria-labelledby="picture-text-heading" data-picture-text-settings>
+        <h2 id="picture-text-heading">Text picture</h2>
+        <p class="field-help">Your own words, shown on your tile when there's no photo to show. Swoovr draws them as a simple text picture: it doesn't use AI or make up an image. Your words are checked like the rest of your profile.</p>
+        <form class="stack" @onsubmit="SavePictureTextAsync" data-picture-text-form>
+            <div class="field"><label for="picture-text">What would you like your picture to say? <span class="field-help">(optional)</span></label>
+                <input id="picture-text" maxlength="100" @bind="pictureText" @bind:event="oninput" />
+                <span class="field-help" aria-live="polite" data-picture-text-count>@(pictureText?.Length ?? 0)/100</span></div>
+            <p class="field-help">Don't include phone numbers, email addresses, social handles or other contact or sensitive personal details.</p>
+            <button type="submit" class="button" disabled="@(busy || string.IsNullOrWhiteSpace(pictureText) || pictureText.Trim() == profile.PictureText)" data-picture-text-save>Save text picture</button>
+            @if (profile.PictureText is not null)
+            {
+                <button type="button" class="link-button" disabled="@busy" @onclick="RemovePictureTextAsync" data-picture-text-remove>Remove text picture</button>
+            }
+            <p role="status" aria-live="polite" class="field-help" data-picture-text-status="@pictureTextStatus">@pictureTextMessage</p>
+        </form>
+    </section>
+
     <section aria-labelledby="modes-heading" class="mode-settings">
         <h2 id="modes-heading">Connection modes</h2>
         <p class="field-help">Turn on any combination. Each mode keeps its own settings.</p>
@@ -83,7 +101,7 @@
 }
 @code {
     private bool loaded, busy;
-    private string? refused, displayName, about, coreMessage, coreStatus, modeMessage;
+    private string? refused, displayName, about, coreMessage, coreStatus, modeMessage, pictureText, pictureTextMessage, pictureTextStatus;
     private PlaceView? homeCity;
     private string? homeCheck;
 
@@ -114,7 +132,25 @@
         loaded = true;
     }
 
-    private void Show(MyProfileView value) => (profile, displayName, about, homeCity) = (value, value.DisplayName, value.About, value.HomeCity);
+    private void Show(MyProfileView value) => (profile, displayName, about, homeCity, pictureText) = (value, value.DisplayName, value.About, value.HomeCity, value.PictureText);
+
+    private Task SavePictureTextAsync() => PictureTextAsync(pictureText, "Saved.");
+    private Task RemovePictureTextAsync() => PictureTextAsync(null, "Removed.");
+
+    // Blank removes it (PUT /api/me/picture-text); the API refuses contact details and keeps the profile otherwise unchanged.
+    private async Task PictureTextAsync(string? text, string done)
+    {
+        busy = true;
+        var result = await Members.SavePictureTextAsync(text);
+        busy = false;
+        if (result.Value is { } saved) { profile = saved; pictureText = saved.PictureText; (pictureTextStatus, pictureTextMessage) = ("saved", done); return; }
+        (pictureTextStatus, pictureTextMessage) = (result.Code ?? "failed", result.Code switch
+        {
+            ProblemCodes.PictureTextContact => "Remove phone numbers, email addresses, links and handles, then try again.",
+            ProblemCodes.InvalidProfile => "Keep it to 100 characters on one line.",
+            _ => "That didn't work. Try again.",
+        });
+    }
 
     private async Task SaveProfileAsync()
     {

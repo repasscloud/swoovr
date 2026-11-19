@@ -33,6 +33,13 @@
             }
         </section>
     }
+    else if (person.PictureText is { } words)
+    {
+        @* Issue 389 (D382): the member's own words as a text picture while no approved photo shows. *@
+        <section class="person-photos" aria-label="Text picture" data-person-picture-text>
+            <figure class="profile-quote person-text-picture"><span class="tile-quote-mark" aria-hidden="true" data-font="quote">&ldquo;</span><p class="tile-quote" data-font="quote">@words</p></figure>
+        </section>
+    }
     @* D175: each mode shows its own about (the core about where none is set); one block when they're all the same. *@
     @if (person.Modes.Select(m => m.About).Distinct().Count() > 1)
     {

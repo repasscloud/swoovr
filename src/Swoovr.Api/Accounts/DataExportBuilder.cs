@@ -88,11 +88,13 @@ public static class DataExportBuilder
                 profile.DisplayName, profile.About, profile.AppearInNearby, profile.ShowDistance, homeCity = home is null ? null : $"{home.Name}, {home.CountryName}",
                 profile.DateOfBirth, profile.DateOfBirthVerified, profile.AgeStatus, profile.IdStatus, profile.IdCheckedAt, profile.PhotoStatus,
                 profile.FoundingMember, profile.FounderPlace, profile.FoundingSince,
+                // Issue 389 (D382).
+                profile.PictureText, profile.OnboardingCompletedAt,
             },
             identity = identity is null ? null : new
             {
-                gender = identity.GenderId, identity.GenderDescription, identity.Pronouns, orientation = identity.OrientationId,
-                identity.ShowGender, identity.ShowOrientation, identity.ShowAge, identity.DatingShowMe,
+                gender = identity.GenderId, identity.GenderDescription, pronouns = identity.PronounId, selfDescribedPronouns = identity.Pronouns, orientation = identity.OrientationId,
+                identity.ShowGender, identity.ShowPronouns, identity.ShowOrientation, identity.ShowAge, identity.DatingShowMe,
             },
             modes, filters, trips, requests, blocks, conversations = chats, reportsYouMade = reports, notices, sanctions, appeals, meetingSafety,
             policyNoticeReceipts=await (from recipient in db.Set<PolicyNoticeRecipient>() join publication in db.Set<PolicyNoticePublication>() on recipient.PublicationId equals publication.Id where recipient.AccountId==id select new{publication.Version,recipient.Status,recipient.CreatedAt,recipient.CompletedAt,publication.PurgeAfter}).ToListAsync(cancellationToken),

@@ -52,10 +52,13 @@ public sealed class MatchingPage : ContentPage
 		var orientation = new Picker { AutomationId = "Orientation", ItemsSource = orientations.Select(o => o.Label).Prepend("Not set").ToList() };
 		orientation.SelectedIndex = mine?.Orientation is { } o ? orientations.ToList().FindIndex(x => x.Id == o) + 1 : 0;
 		var (showGender, showOrientation, showAge) = (Toggle("ShowGender", mine?.ShowGender ?? true), Toggle("ShowOrientation", mine?.ShowOrientation ?? false), Toggle("ShowAge", mine?.ShowAge ?? true));
+		// D382 (Q181.6 A): pronouns have their own switch, as on the web.
+		var showPronouns = Toggle("ShowPronouns", mine?.ShowPronouns ?? true);
 		var showMe = new Dictionary<string, Switch>();
 		var showMeRows = new VerticalStackLayout { Spacing = 4 };
 		// D161: "Prefer not to say" is a privacy choice, not a gender, so it's never a "show me" option.
-		foreach (var option in genders.Where(x => x.Id != "unsaid"))
+		// D382 (Q181.1 A): "Man" and "Woman" include Trans man and Trans woman, which aren't separate "show me" choices.
+		foreach (var option in genders.Where(x => x.Id is not ("unsaid" or "trans-man" or "trans-woman")))
 		{
 			showMe[option.Id] = Toggle($"ShowMe_{option.Id}", mine?.DatingShowMe.Contains(option.Id) == true);
 			showMeRows.Children.Add(Row(showMe[option.Id], option.Label));
@@ -63,7 +66,7 @@ public sealed class MatchingPage : ContentPage
 		var message = Ui.Text(null, id: "IdentityStatus");
 		return Ui.Card(Ui.Text("About you", "SectionHeading"), Ui.Labelled("Gender", gender), Ui.Labelled("Describe it (only for another gender, optional)", description),
 			Ui.Labelled("Pronouns (optional)", pronouns), Ui.Labelled("Orientation (optional, never used to decide who sees you)", orientation),
-			Row(showGender, "Show my gender and pronouns"), Row(showOrientation, "Show my orientation"), Row(showAge, "Show my age"),
+			Row(showGender, "Show my gender"), Row(showPronouns, "Show my pronouns"), Row(showOrientation, "Show my orientation"), Row(showAge, "Show my age"),
 			Ui.Text("In Dating, show me", "FieldLabel"), showMeRows,
 			Ui.Text("\"Show me\" works both ways: you see someone in Dating only if each of you is in the other's choice. People who prefer not to say their gender can appear for anyone.", "FooterClaims"),
 			Ui.Button("Save", "SaveIdentity", async () =>
@@ -71,7 +74,7 @@ public sealed class MatchingPage : ContentPage
 				var genderId = gender.SelectedIndex > 0 ? genders[gender.SelectedIndex - 1].Id : null;
 				var result = await Ui.Members!.SaveIdentityAsync(new IdentityUpdate(genderId, genderId == "another" ? description.Text : null, pronouns.Text,
 					orientation.SelectedIndex > 0 ? orientations[orientation.SelectedIndex - 1].Id : null, showGender.IsToggled, showOrientation.IsToggled, showAge.IsToggled,
-					showMe.Where(x => x.Value.IsToggled).Select(x => x.Key).ToList()));
+					showMe.Where(x => x.Value.IsToggled).Select(x => x.Key).ToList(), ShowPronouns: showPronouns.IsToggled));
 				message.Text = result.Ok ? "Saved." : "Check the options you picked.";
 			}),
 			message);

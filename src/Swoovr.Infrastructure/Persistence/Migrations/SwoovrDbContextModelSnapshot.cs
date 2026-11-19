@@ -4752,9 +4752,14 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("orientation_id");
 
+                    b.Property<string>("PronounId")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("pronoun_id");
+
                     b.Property<string>("Pronouns")
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("pronouns");
 
                     b.Property<bool>("ShowAge")
@@ -4768,6 +4773,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                     b.Property<bool>("ShowOrientation")
                         .HasColumnType("boolean")
                         .HasColumnName("show_orientation");
+
+                    b.Property<bool>("ShowPronouns")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_pronouns");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -5103,6 +5112,19 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("id_status");
 
+                    b.Property<DateTimeOffset?>("OnboardingCompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("onboarding_completed_at");
+
+                    b.Property<bool?>("OnboardingShareAbout")
+                        .HasColumnType("boolean")
+                        .HasColumnName("onboarding_share_about");
+
+                    b.PrimitiveCollection<List<string>>("OnboardingSteps")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("onboarding_steps");
+
                     b.Property<DateTimeOffset?>("PhotoCheckedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("photo_checked_at");
@@ -5116,6 +5138,15 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("photo_status");
+
+                    b.Property<string>("PictureText")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("picture_text");
+
+                    b.Property<Guid?>("PictureTextRevision")
+                        .HasColumnType("uuid")
+                        .HasColumnName("picture_text_revision");
 
                     b.Property<Guid>("PublicId")
                         .ValueGeneratedOnAdd()
@@ -6616,10 +6647,26 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         new
                         {
                             Kind = "gender",
+                            Id = "trans-man",
+                            Available = true,
+                            Label = "Trans man",
+                            SortOrder = 3
+                        },
+                        new
+                        {
+                            Kind = "gender",
+                            Id = "trans-woman",
+                            Available = true,
+                            Label = "Trans woman",
+                            SortOrder = 4
+                        },
+                        new
+                        {
+                            Kind = "gender",
                             Id = "non-binary",
                             Available = true,
                             Label = "Non-binary",
-                            SortOrder = 3
+                            SortOrder = 5
                         },
                         new
                         {
@@ -6627,7 +6674,7 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                             Id = "another",
                             Available = true,
                             Label = "Another gender",
-                            SortOrder = 4
+                            SortOrder = 6
                         },
                         new
                         {
@@ -6635,14 +6682,86 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                             Id = "unsaid",
                             Available = true,
                             Label = "Prefer not to say",
+                            SortOrder = 7
+                        },
+                        new
+                        {
+                            Kind = "pronoun",
+                            Id = "he-him",
+                            Available = true,
+                            Label = "He/Him",
+                            SortOrder = 1
+                        },
+                        new
+                        {
+                            Kind = "pronoun",
+                            Id = "she-her",
+                            Available = true,
+                            Label = "She/Her",
+                            SortOrder = 2
+                        },
+                        new
+                        {
+                            Kind = "pronoun",
+                            Id = "they-them",
+                            Available = true,
+                            Label = "They/Them",
+                            SortOrder = 3
+                        },
+                        new
+                        {
+                            Kind = "pronoun",
+                            Id = "he-they",
+                            Available = true,
+                            Label = "He/They",
+                            SortOrder = 4
+                        },
+                        new
+                        {
+                            Kind = "pronoun",
+                            Id = "she-they",
+                            Available = true,
+                            Label = "She/They",
                             SortOrder = 5
+                        },
+                        new
+                        {
+                            Kind = "pronoun",
+                            Id = "any",
+                            Available = true,
+                            Label = "Any pronouns",
+                            SortOrder = 6
+                        },
+                        new
+                        {
+                            Kind = "pronoun",
+                            Id = "name",
+                            Available = true,
+                            Label = "Use my name",
+                            SortOrder = 7
+                        },
+                        new
+                        {
+                            Kind = "pronoun",
+                            Id = "self",
+                            Available = true,
+                            Label = "Self-describe",
+                            SortOrder = 8
+                        },
+                        new
+                        {
+                            Kind = "pronoun",
+                            Id = "unsaid",
+                            Available = true,
+                            Label = "Prefer not to say",
+                            SortOrder = 9
                         },
                         new
                         {
                             Kind = "orientation",
                             Id = "straight",
                             Available = true,
-                            Label = "Straight",
+                            Label = "Straight (heterosexual)",
                             SortOrder = 1
                         },
                         new

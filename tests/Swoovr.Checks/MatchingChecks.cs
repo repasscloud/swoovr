@@ -93,7 +93,24 @@ static class MatchingChecks
         Expect(MatchPolicy.Check(new MemberIdentity { DatingShowMe = ["unsaid"] }, genders, orientations) == FilterError.UnknownGender, "prefer not to say is never a show me value");
         Expect(MatchPolicy.Check(new MemberIdentity { GenderId = "unsaid", DatingShowMe = ["another"] }, genders, orientations) == FilterError.None, "but it's a valid gender choice");
         Expect(MatchPolicy.Check(new MemberIdentity { OrientationId = "robot" }, genders, orientations) == FilterError.UnknownGender, "unknown orientation");
-        Expect(MatchPolicy.Check(new MemberIdentity { Pronouns = new string('x', 41) }, genders, orientations) == FilterError.TextTooLong, "pronouns too long");
+        // Issue 389 (D382, Q181.6 A): a pronoun list plus Self-describe up to 50 characters.
+        var pronouns = new HashSet<string> { "he-him", "she-her", "self", "unsaid" };
+        Expect(MatchPolicy.Check(new MemberIdentity { PronounId = "self", Pronouns = new string('x', 50) }, genders, orientations, pronouns) == FilterError.None, "50 self-described characters");
+        Expect(MatchPolicy.Check(new MemberIdentity { PronounId = "self", Pronouns = new string('x', 51) }, genders, orientations, pronouns) == FilterError.TextTooLong, "pronouns too long");
+        Expect(MatchPolicy.Check(new MemberIdentity { PronounId = "self" }, genders, orientations, pronouns) == FilterError.UnknownGender, "Self-describe needs words");
+        Expect(MatchPolicy.Check(new MemberIdentity { PronounId = "she-her", Pronouns = "xe" }, genders, orientations, pronouns) == FilterError.UnknownGender, "own words only with Self-describe");
+        Expect(MatchPolicy.Check(new MemberIdentity { PronounId = "ze-zir" }, genders, orientations, pronouns) == FilterError.UnknownGender, "unknown pronoun option");
+        var pronounOptions = new[] { new ProfileOption { Kind = "pronoun", Id = "he-him", Label = "He/Him" }, new ProfileOption { Kind = "pronoun", Id = "self", Label = "Self-describe" } };
+        Expect(MatchPolicy.Pronoun(" he / him ", pronounOptions) == ("he-him", null), "free text that matches an option maps to it");
+        Expect(MatchPolicy.Pronoun("xe/xem", pronounOptions) == ("self", "xe/xem") && MatchPolicy.Pronoun("  ", pronounOptions) == (null, null), "else Self-describe, words kept");
+        Expect(new MemberIdentity().ShowPronouns, "Show my pronouns defaults on");
+        // D382 (Q181.1 A): Trans man and Trans woman are genders; "Man" and "Woman" in show me include them.
+        var withTrans = new HashSet<string>(genders) { "trans-man", "trans-woman" };
+        Expect(MatchPolicy.Check(new MemberIdentity { GenderId = "trans-woman", DatingShowMe = ["man"] }, withTrans, orientations) == FilterError.None, "Trans woman is a gender");
+        Expect(MatchPolicy.Check(new MemberIdentity { DatingShowMe = ["trans-man"] }, withTrans, orientations) == FilterError.UnknownGender, "but not a separate show me value");
+        Expect(MatchPolicy.Reciprocal("dating", F(gender: "trans-man", showMe: ["woman"]), F(gender: "woman", showMe: ["man"])), "Man includes Trans man");
+        Expect(MatchPolicy.Reciprocal("dating", F(gender: "trans-woman", showMe: ["man"]), F(gender: "man", showMe: ["woman"])), "Woman includes Trans woman");
+        Expect(!MatchPolicy.Reciprocal("dating", F(gender: "trans-woman", showMe: ["man"]), F(gender: "man", showMe: ["non-binary"])), "and nothing else does");
         Expect(new MemberIdentity().ShowAge && new MemberIdentity().ShowGender && !new MemberIdentity().ShowOrientation, "defaults: age and gender shown, orientation not");
 
         // Visitor visibility.

@@ -149,6 +149,34 @@ public static class ProfileEndpoints
             await ProfilePrivacy.CaptureAsync(db, profile.AccountId, now, cancellationToken);
             return Results.Ok(await OwnAsync(db, profile, cancellationToken));
         });
+        // Issue 389 (D382, Q181.5 A): "What would you like your picture to say?" Moderated like the about (text-harm queue,
+        // content removal); contact details are refused here. Blank removes it.
+        api.MapPut("/me/picture-text", async (PictureTextUpdate update, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
+            if (denied is not null) return denied;
+            var text = PictureTextPolicy.Clean(update.Text);
+            switch (PictureTextPolicy.Check(text))
+            {
+                case PictureTextError.None: break;
+                case PictureTextError.ContactDetails:
+                    return Problem(StatusCodes.Status400BadRequest, ProblemCodes.PictureTextContact, "Remove phone numbers, email addresses, links and handles from your picture.");
+                default:
+                    return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidProfile, $"Keep your picture to {PictureTextPolicy.Max} characters on one line.");
+            }
+            var (profile, db, now) = (current!.Profile!, accounts.Db!, clock.GetUtcNow());
+            if (profile.PictureText != text)
+            {
+                profile.PictureTextRevision = accounts.Services.GetRequiredService<Swoovr.Api.Moderation.TextHarmQueue>()
+                    .Enqueue(profile.AccountId, TextHarmSource.ProfilePicture, profile.AccountId, null, text, now);
+                profile.PictureText = text;
+                // The audit says the picture changed, never what it says.
+                Audit.Record(db, now, profile.AccountId, "account", "picture-text.updated", "account", profile.AccountId.ToString(), text is null ? "removed" : "set");
+                await db.SaveChangesAsync(cancellationToken);
+                await ProfilePrivacy.CaptureAsync(db, profile.AccountId, now, cancellationToken);
+            }
+            return Results.Ok(await OwnAsync(db, profile, cancellationToken));
+        });
         api.MapGet("/explore", async (string? mode, string? scope, ClaimsPrincipal user, AccountResolver accounts, IConfiguration configuration, TimeProvider clock,
             CancellationToken cancellationToken) =>
         {
@@ -223,7 +251,9 @@ public static class ProfileEndpoints
                 }).ToList(),
                 Badges(person.Profile, await BadgeOrderAsync(db, cancellationToken)), shownAs.Age, shownAs.Gender, shownAs.Pronouns,
                 photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])),
-                await HomeDistanceAsync(db, current.Profile!, person.Profile, reach.SameMarket && !reach.ByPresence, clock.GetUtcNow(), cancellationToken)));
+                await HomeDistanceAsync(db, current.Profile!, person.Profile, reach.SameMarket && !reach.ByPresence, clock.GetUtcNow(), cancellationToken))
+                // Issue 389 (D382): the text picture stands in only while no approved main photo shows.
+                { PictureText = photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null ? person.Profile.PictureText : null });
         });
     }
 
@@ -404,7 +434,9 @@ public static class ProfileEndpoints
             return new ProfileCard(c.Profile.PublicId, ModePrivacy.DisplayName(abouts.GetValueOrDefault(c.Profile.AccountId)?.DisplayName, c.Profile.DisplayName)!, about,
                 chips.GetValueOrDefault((c.Profile.AccountId, selected.Id), []), Badges(c.Profile, order), shownAs.Age, shownAs.Gender, shownAs.Pronouns,
                 Distance(BandOf(c)),
-                photos.Main?.GetValueOrDefault((c.Profile.AccountId, selected.Id)), visiting?.GetValueOrDefault(c.Profile.AccountId));
+                photos.Main?.GetValueOrDefault((c.Profile.AccountId, selected.Id)), visiting?.GetValueOrDefault(c.Profile.AccountId),
+                // Issue 389 (D382, Q181.5 A): the text picture only while the tile has no approved photo.
+                photos.Main?.GetValueOrDefault((c.Profile.AccountId, selected.Id)) is null ? c.Profile.PictureText : null);
         }).ToList();
     }
 
@@ -414,11 +446,24 @@ public static class ProfileEndpoints
         if (identity is null) return (age, null, null);
         var gender = identity.ShowGender && identity.GenderId is { } g
             ? g == "another" && identity.GenderDescription is { } d ? d : genders.GetValueOrDefault(g) : null;
-        return (identity.ShowAge ? age : null, gender, identity.ShowGender ? identity.Pronouns : null);
+        // Issue 389 (D382, Q181.6 A): pronouns have their own switch; "Prefer not to say" shows nothing.
+        return (identity.ShowAge ? age : null, gender, identity.ShowPronouns ? PronounText(identity, genders) : null);
     }
 
+    /// <summary>D382: the pronouns as written for others: the member's own words with Self-describe, else the option's label.</summary>
+    internal static string? PronounText(MemberIdentity identity, IReadOnlyDictionary<string, string> labels) => identity.PronounId switch
+    {
+        null or MatchPolicy.PreferNotToSay => null,
+        MatchPolicy.SelfDescribe => identity.Pronouns,
+        var id => labels.GetValueOrDefault(PronounKey + id),
+    };
+
+    /// <summary>Gender labels by id, plus pronoun labels under "pronoun:" + id (D382).</summary>
+    internal const string PronounKey = "pronoun:";
+
     internal static async Task<Dictionary<string, string>> GenderLabelsAsync(SwoovrDbContext db, CancellationToken cancellationToken) =>
-        await db.ProfileOptions.Where(o => o.Kind == "gender").ToDictionaryAsync(o => o.Id, o => o.Label, cancellationToken);
+        await db.ProfileOptions.Where(o => o.Kind == "gender" || o.Kind == "pronoun")
+            .ToDictionaryAsync(o => o.Kind == "pronoun" ? PronounKey + o.Id : o.Id, o => o.Label, cancellationToken);
 
     private static async Task<Dictionary<Guid, MemberIdentity>> IdentitiesAsync(SwoovrDbContext db, List<Guid> accounts, CancellationToken cancellationToken) =>
         await db.MemberIdentities.Where(i => accounts.Contains(i.AccountId)).ToDictionaryAsync(i => i.AccountId, cancellationToken);
@@ -591,7 +636,7 @@ public static class ProfileEndpoints
         return new(profile.PublicId, profile.DisplayName, profile.About, modes.Select(m => settings.GetValueOrDefault(m.Id) is { } s
             ? new MyModeView(m.Id, s.Enabled, s.Visible, chosen.Where(i => i.ModeId == m.Id).Select(i => i.IntentionId).ToList(), s.About, s.ShareCoreAbout == true, s.DisplayName)
             : new MyModeView(m.Id, false, false, [])).ToList(), home is null ? null : Swoovr.Api.Travel.TravelEndpoints.Place(home),
-            await db.MarketInterests.AnyAsync(i => i.AccountId == profile.AccountId, cancellationToken));
+            await db.MarketInterests.AnyAsync(i => i.AccountId == profile.AccountId, cancellationToken), profile.PictureText);
     }
 
     /// <summary>Labels of the available intentions each person chose, by (account, mode).</summary>

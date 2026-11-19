@@ -46,7 +46,9 @@ public static class AccountEndpoints
             return Results.Ok(View(current.Profile!, Today(clock), await BadgeOrderAsync(accounts.Db!, cancellationToken), state) with
                 { PhoneVerified = phone, PhoneRequired = accounts.PhoneRequired && !phone, PhoneGateEnabled=accounts.PhoneRequired, EmailChangeProblem = current.EmailChangeProblem, PolicyRequired=policyRequired,
                     // Issue 254 (D342): one onboarding order for every client, the same order MemberAsync refuses routes in.
-                    SetupStep = AccountSetup.Next(namesRequired, accounts.PhoneRequired && !phone, policyRequired, current.Profile!.DateOfBirth),
+                    // Issue 389 (D382): then the first-sign-in profile steps until the profile's onboarding flag is set.
+                    SetupStep = AccountSetup.Next(namesRequired, accounts.PhoneRequired && !phone, policyRequired, current.Profile!.DateOfBirth)
+                        ?? await OnboardingEndpoints.NextAsync(accounts.Db!, current.Profile!, lockNow, cancellationToken),
                     RegisteredNamesRequired=namesRequired, MfaAccessRequired=current.Account.MfaResetPending || current.Account.MfaRequired&&!current.Evidence.MultiFactor,
                     DateOfBirthCorrectionUntil=await DobChangeEndpoints.UntilAsync(accounts.Db!,current.Account.Id,clock.GetUtcNow(),cancellationToken),
                     StatusReference = state == "locked" ? lockReference : null,

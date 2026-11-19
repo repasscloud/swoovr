@@ -1,0 +1,442 @@
+@* Issue 389 (D382 DEFAULT, Q181): the first-sign-in profile steps after D342's account setup, one screen per step in
+   the API's order (GET /api/me/onboarding): 1 display name and home city, 2 about me, 3 photos or a text picture,
+   4 connection modes, 5 about you (gender, pronouns, orientation, what shows), 6 Dating "show me" while Dating is on.
+   Each step saves through the same routes the Me pages use, and the API records it, so leaving and coming back
+   resumes at the first step not done. The web gate keeps the member on /welcome until the API's completion flag is
+   set; then this opens the first enabled mode's Explore (Dating, Friends, Activities, Business). *@
+@inject MemberClient Members
+@inject NavigationManager Navigation
+<section class="onboarding" aria-labelledby="profile-step-title" data-profile-onboarding="@Current">
+    @if (Current == "loading")
+    {
+        <p role="status" class="settings-status">Getting your profile ready…</p>
+    }
+    else if (Current == "error")
+    {
+        <h1 id="profile-step-title" class="onboarding-title">We couldn't load your profile</h1>
+        <p class="onboarding-lede">Check your connection and try again.</p>
+        <div class="onboarding-actions"><a class="button" href="/welcome" data-enhance-nav="false">Try again</a></div>
+    }
+    else
+    {
+        <header class="onboarding-head">
+            <p class="onboarding-eyebrow">@(Current == "finishing" ? "Welcome to Swoovr" : $"Your profile · Step {StepNumber} of {steps.Count}")</p>
+            @if (steps.Count > 1)
+            {
+                <ol class="onboarding-progress" aria-label="Profile setup progress">
+                    @foreach (var (step, index) in steps.Select((s, i) => (s, i)))
+                    {
+                        var state = Current == "finishing" || index < StepNumber - 1 ? "done" : index == StepNumber - 1 ? "current" : "next";
+                        <li data-step-state="@state" aria-current="@(state == "current" ? "step" : null)"><span class="visually-hidden">@Label(step)@(state == "done" ? " (done)" : "")</span></li>
+                    }
+                </ol>
+            }
+            <h1 id="profile-step-title" class="onboarding-title" tabindex="-1">@Title</h1>
+            <p class="onboarding-lede">@Lede</p>
+        </header>
+
+        @if (Current == SetupSteps.Profile)
+        {
+            <form class="onboarding-form" @onsubmit="SaveNameAndCityAsync" data-onboarding-step="profile">
+                <div class="field"><label for="onboarding-display-name">Display name</label>
+                    <input id="onboarding-display-name" maxlength="40" autocomplete="nickname" required @bind="displayName" @bind:event="oninput" /></div>
+                <p class="onboarding-note">This is how you appear to other people on Swoovr. You can set a different name for each mode later. We've started with your first name; change it to anything you like.</p>
+                <CitySearch InputId="onboarding-home-city" Label="Home city" @bind-Selected="homeCity" />
+                <p class="onboarding-note" data-home-city-help>Your home city sets your default area in Swoovr. Choose your home or work suburb, the city centre, or a large regional town nearby. Only you can see it. If you move it to a different region, you can't move it again for 30 days.</p>
+                <div class="onboarding-actions"><button type="submit" class="button" disabled="@(busy || string.IsNullOrWhiteSpace(displayName) || homeCity is null)">Continue</button></div>
+                <p role="status" aria-live="polite" class="settings-status" data-onboarding-result="@result">@message</p>
+            </form>
+        }
+        else if (Current == SetupSteps.About)
+        {
+            <form class="onboarding-form" @onsubmit="SaveAboutAsync" data-onboarding-step="about">
+                <div class="field onboarding-bio"><label for="onboarding-about">About me</label>
+                    <textarea id="onboarding-about" maxlength="500" rows="6" placeholder="A few words about you, what you enjoy and what you're looking for." @bind="about" @bind:event="oninput"></textarea>
+                    <span class="onboarding-count" aria-live="polite" data-about-count>@(about?.Length ?? 0)/500</span></div>
+                <label class="settings-check onboarding-confirm"><input type="checkbox" @bind="shareAbout" data-onboarding-share-about /> Show this in every mode until I write one for that mode</label>
+                <p class="onboarding-note">You can leave this blank and add it later. Profile text is checked against the Community Guidelines.</p>
+                <div class="onboarding-actions"><button type="submit" class="button" disabled="@busy">@(string.IsNullOrWhiteSpace(about) ? "Skip for now" : "Continue")</button></div>
+                <p role="status" aria-live="polite" class="settings-status" data-onboarding-result="@result">@message</p>
+            </form>
+        }
+        else if (Current == SetupSteps.Photos && !wordsInstead)
+        {
+            <div class="onboarding-form" data-onboarding-step="photos">
+                <ul class="onboarding-rules" data-photo-rules>
+                    <li>Every photo is checked before anyone can see it.</li>
+                    <li>No nudity or sexual content, no one under 18, and only photos you have the right to share.</li>
+                    <li>Location details in your photos are removed when you upload them.</li>
+                    <li>Your library holds up to 60 photos. You choose which ones show in each mode, or share them with people later.</li>
+                    <li>Adult photos can only go in private albums, after you complete ID verification.</li>
+                </ul>
+                <label class="button button-secondary onboarding-upload @(busy || UploadsLeft == 0 ? "is-disabled" : null)">
+                    <span>@(library.Count == 0 ? "Choose photos" : "Add more photos")</span>
+                    <InputFile class="visually-hidden" OnChange="UploadAsync" multiple accept="image/jpeg,image/png,image/webp" disabled="@(busy || UploadsLeft == 0)" data-onboarding-photo-input />
+                </label>
+                <p class="onboarding-note" data-photo-allowance>Add up to @ProfileUploadLimit now (@UploadsLeft left). You can add more from Me → Photos later.</p>
+                @if (library.Count > 0)
+                {
+                    <ul class="onboarding-photos" data-onboarding-photos="@library.Count">
+                        @foreach (var photo in library) { <li><PhotoShot Photo="photo" Alt="Your photo" /></li> }
+                    </ul>
+                }
+                <div class="onboarding-actions"><button type="button" class="button" disabled="@(busy || library.Count == 0)" @onclick="NextAsync" data-onboarding-photos-continue>Continue</button></div>
+                <button type="button" class="link-button onboarding-back" disabled="@busy" @onclick="() => wordsInstead = true" data-onboarding-words-instead>
+                    @(library.Count == 0 ? "Not ready for photos? Use words instead" : "Also add words for your tile until a photo is approved (optional)")</button>
+                <p role="status" aria-live="polite" class="settings-status" data-onboarding-result="@result">@message</p>
+            </div>
+        }
+        else if (Current == SetupSteps.Photos)
+        {
+            @* Q181.5 A: the member's own words, drawn by the app as a text tile (the photo-free Explore tile). *@
+            <form class="onboarding-form" @onsubmit="SaveWordsAsync" data-onboarding-step="picture-text">
+                <div class="field onboarding-bio"><label for="onboarding-picture-text">What would you like your picture to say?</label>
+                    <input id="onboarding-picture-text" maxlength="100" required @bind="pictureText" @bind:event="oninput" />
+                    <span class="onboarding-count" aria-live="polite" data-picture-text-count>@(pictureText?.Length ?? 0)/100</span></div>
+                <p class="onboarding-note">Swoovr turns your exact words into a simple text picture for your tile. It doesn't use AI and doesn't make up an image. Your words are checked like the rest of your profile.</p>
+                <p class="onboarding-note onboarding-warning">Don't include phone numbers, email addresses, social handles or other contact or sensitive personal details.</p>
+                <div class="onboarding-preview" aria-label="Preview of your tile" data-picture-text-preview>
+                    <ProfileTile Name="@(profile?.DisplayName ?? "You")" Href="#" Quote="@(string.IsNullOrWhiteSpace(pictureText) ? "Your words appear here." : pictureText.Trim())" />
+                </div>
+                <div class="onboarding-actions"><button type="submit" class="button" disabled="@(busy || string.IsNullOrWhiteSpace(pictureText))">Save and continue</button></div>
+                <button type="button" class="link-button onboarding-back" disabled="@busy" @onclick="() => wordsInstead = false" data-onboarding-photos-instead>@(library.Count == 0 ? "Upload photos instead" : "Back to photos")</button>
+                <p role="status" aria-live="polite" class="settings-status" data-onboarding-result="@result">@message</p>
+            </form>
+        }
+        else if (Current == SetupSteps.Modes)
+        {
+            <form class="onboarding-form" @onsubmit="SaveModesAsync" data-onboarding-step="modes">
+                <fieldset class="onboarding-choices">
+                    <legend class="visually-hidden">Connection modes</legend>
+                    @foreach (var mode in modes)
+                    {
+                        <label class="onboarding-choice" data-onboarding-mode="@mode.Id">
+                            <input type="checkbox" checked="@chosenModes.Contains(mode.Id)" @onchange="e => Toggle(chosenModes, mode.Id, e.Value is true)" />
+                            <span><strong>@mode.Label</strong><span class="onboarding-choice-help">@ModeHelp(mode.Id)</span></span>
+                        </label>
+                    }
+                </fieldset>
+                <div class="onboarding-actions"><button type="submit" class="button" disabled="@(busy || chosenModes.Count == 0)">Continue</button></div>
+                <p role="status" aria-live="polite" class="settings-status" data-onboarding-result="@result">@message</p>
+            </form>
+        }
+        else if (Current == SetupSteps.Identity && options is not null)
+        {
+            <form class="onboarding-form" @onsubmit="SaveIdentityAsync" data-onboarding-step="identity">
+                <div class="field"><label for="onboarding-gender">Gender@(DatingOn ? "" : " (optional)")</label>
+                    <select id="onboarding-gender" @bind="gender">
+                        <option value="">Choose…</option>
+                        @foreach (var o in options.Genders) { <option value="@o.Id">@o.Label</option> }
+                    </select></div>
+                @if (gender == "another")
+                {
+                    <div class="field"><label for="onboarding-gender-description">Your gender (optional)</label><input id="onboarding-gender-description" maxlength="40" @bind="genderDescription" /></div>
+                }
+                @if (DatingOn) { <p class="onboarding-note" data-gender-required>Dating needs your gender. "Prefer not to say" is fine.</p> }
+                <div class="field"><label for="onboarding-pronouns">Pronouns (optional)</label>
+                    <select id="onboarding-pronouns" @bind="pronounId">
+                        <option value="">Choose…</option>
+                        @foreach (var o in options.Pronouns ?? []) { <option value="@o.Id">@o.Label</option> }
+                    </select></div>
+                @if (pronounId == SelfDescribe)
+                {
+                    <div class="field"><label for="onboarding-pronouns-own">Your pronouns</label><input id="onboarding-pronouns-own" maxlength="50" required @bind="pronounWords" @bind:event="oninput" data-onboarding-pronouns-own /></div>
+                }
+                <div class="field"><label for="onboarding-orientation">Orientation (optional)</label>
+                    <select id="onboarding-orientation" @bind="orientation">
+                        <option value="">Not set</option>
+                        @foreach (var o in options.Orientations) { <option value="@o.Id">@o.Label</option> }
+                    </select></div>
+                <p class="onboarding-note">Orientation never decides who sees you.</p>
+                <fieldset class="onboarding-switches">
+                    <legend>On your profile</legend>
+                    <label class="settings-check"><input type="checkbox" @bind="showGender" data-show="gender" /> Show my gender</label>
+                    <label class="settings-check"><input type="checkbox" @bind="showPronouns" data-show="pronouns" /> Show my pronouns</label>
+                    <label class="settings-check"><input type="checkbox" @bind="showOrientation" data-show="orientation" /> Show my orientation</label>
+                    <label class="settings-check"><input type="checkbox" @bind="showAge" data-show="age" /> Show my age</label>
+                </fieldset>
+                <div class="onboarding-actions"><button type="submit" class="button" disabled="@(busy || DatingOn && string.IsNullOrEmpty(gender) || pronounId == SelfDescribe && string.IsNullOrWhiteSpace(pronounWords))">Continue</button></div>
+                <p role="status" aria-live="polite" class="settings-status" data-onboarding-result="@result">@message</p>
+            </form>
+        }
+        else if (Current == SetupSteps.DatingShowMe && options is not null)
+        {
+            <form class="onboarding-form" @onsubmit="SaveShowMeAsync" data-onboarding-step="datingShowMe">
+                <fieldset class="onboarding-choices">
+                    <legend class="visually-hidden">In Dating, show me</legend>
+                    @foreach (var o in ShowMeOptions)
+                    {
+                        <label class="onboarding-choice onboarding-choice-compact" data-onboarding-show-me="@o.Id">
+                            <input type="checkbox" checked="@showMe.Contains(o.Id)" @onchange="e => Toggle(showMe, o.Id, e.Value is true)" />
+                            <span><strong>@o.Label</strong></span>
+                        </label>
+                    }
+                </fieldset>
+                <div class="onboarding-actions"><button type="submit" class="button" disabled="@(busy || showMe.Count == 0)">Finish</button></div>
+                <p role="status" aria-live="polite" class="settings-status" data-onboarding-result="@result">@message</p>
+            </form>
+        }
+        else if (Current == "finishing")
+        {
+            <p role="status" class="settings-status" data-onboarding-finishing>Opening Explore…</p>
+        }
+    }
+</section>
+@code {
+    private const string SelfDescribe = "self";
+    private static readonly string[] ExploreOrder = ["dating", "friends", "activities", "business"];
+    private readonly List<string> steps = [];
+    private string Current = "loading";
+    private OnboardingView? view;
+    private MyProfileView? profile;
+    private IdentityView? identity;
+    private ProfileOptionsView? options;
+    private List<ConnectionModeView> modes = [];
+    private readonly HashSet<string> chosenModes = [], showMe = [];
+    private string? displayName, about, message, result, gender, genderDescription, pronounId, pronounWords, orientation;
+    private PlaceView? homeCity;
+    private List<MyPhotoView> library = [];
+    private string? pictureText;
+    private bool wordsInstead;
+    /// <summary>Issue 389 (owner): the step takes at most 10 photos; the library holds 60 (Me → Photos).</summary>
+    private const int ProfileUploadLimit = 10;
+    private int UploadsLeft => Math.Max(0, ProfileUploadLimit - uploadedHere);
+    private int uploadedHere;
+    private bool busy, shareAbout = true, showGender = true, showPronouns = true, showOrientation, showAge = true;
+
+    private int StepNumber => Math.Max(1, steps.IndexOf(Current) + 1);
+    private bool DatingOn => profile?.Modes.Any(m => m.Id == "dating" && m.Enabled) == true;
+    private IEnumerable<OptionView> ShowMeOptions => options?.ShowMe ?? options?.Genders.Where(g => g.Id is not ("unsaid" or "trans-man" or "trans-woman")) ?? [];
+
+    private static string Label(string step) => step switch
+    {
+        SetupSteps.Profile => "Name and home city", SetupSteps.About => "About me", SetupSteps.Photos => "Photos",
+        SetupSteps.Modes => "Connection modes", SetupSteps.Identity => "About you", SetupSteps.DatingShowMe => "In Dating, show me", _ => step,
+    };
+
+    private string Title => Current switch
+    {
+        SetupSteps.Profile => "Your name and home city",
+        SetupSteps.About => "About me",
+        SetupSteps.Photos => wordsInstead ? "Use words instead" : "Add some photos",
+        SetupSteps.Modes => "Choose your connection modes",
+        SetupSteps.Identity => "About you",
+        SetupSteps.DatingShowMe => "In Dating, show me",
+        "finishing" => "You're all set",
+        _ => "",
+    };
+
+    private string Lede => Current switch
+    {
+        SetupSteps.Profile => "Set the name people see and the area Swoovr shows you.",
+        SetupSteps.About => "Write a short introduction. It's your main bio, and you can write a different one for each mode later.",
+        SetupSteps.Photos => wordsInstead ? "No photos yet? Your own words can stand in on your tile until you add some." : "Add up to 10 photos now so people can see who you are. You can skip photos and use words instead.",
+        SetupSteps.Modes => "Swoovr has four modes that stay separate from each other. People in one mode can't see you in another unless they're browsing that mode too. Pick at least one; you can change this later.",
+        SetupSteps.Identity => "Choose what describes you and what shows on your profile. You can change these any time.",
+        SetupSteps.DatingShowMe => "Who would you like to see in Dating? Pick one or more. They'll see you only if you're in their choices too.",
+        "finishing" => "Your profile is ready.",
+        _ => "",
+    };
+
+    private static string ModeHelp(string id) => id switch
+    {
+        "dating" => "Meet people for dates and relationships.",
+        "friends" => "Make new friends near you.",
+        "activities" => "Find people to do things with.",
+        "business" => "Meet people for work and networking.",
+        _ => "",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var loaded = (await Members.OnboardingAsync()).Value;
+            var mine = (await Members.ProfileAsync()).Value;
+            var catalogue = (await Members.ModesAsync()).Value;
+            if (loaded is null || mine is null || catalogue is null) { Current = "error"; return; }
+            (view, profile, modes) = (loaded, mine, catalogue);
+            // Numbered against the whole journey, so a member who comes back sees "Step 4 of 5", not "Step 1 of 2".
+            // Dating's "show me" joins the list once Dating is on.
+            steps.AddRange([SetupSteps.Profile, SetupSteps.About, SetupSteps.Photos, SetupSteps.Modes, SetupSteps.Identity]);
+            await ShowAsync(loaded);
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException) { Current = "error"; }
+    }
+
+    private async Task ShowAsync(OnboardingView next)
+    {
+        (view, message, result) = (next, null, null);
+        foreach (var step in next.Pending.Where(s => !steps.Contains(s))) steps.Add(step);
+        switch (next.Step)
+        {
+            case SetupSteps.Profile:
+                // Q181.2 A: start from the registered first name, shown and editable; nothing is copied silently.
+                displayName = profile!.DisplayName ?? (await Members.RegisteredNamesAsync()).Value?.FirstName;
+                homeCity = profile.HomeCity;
+                break;
+            case SetupSteps.About:
+                about = profile!.About;
+                shareAbout = next.ShareAbout ?? true;
+                break;
+            case SetupSteps.Photos:
+                pictureText = profile!.PictureText;
+                uploadedHere = next.PhotoUploads;
+                await RefreshPhotosAsync();
+                break;
+            case SetupSteps.Modes:
+                chosenModes.Clear();
+                foreach (var m in profile!.Modes.Where(m => m.Enabled)) chosenModes.Add(m.Id);
+                break;
+            case SetupSteps.Identity or SetupSteps.DatingShowMe:
+                options ??= (await Members.ProfileOptionsAsync()).Value;
+                identity = (await Members.IdentityAsync()).Value;
+                if (options is null || identity is null) { Current = "error"; return; }
+                (gender, genderDescription, pronounId, orientation) = (identity.Gender, identity.GenderDescription, identity.PronounId, identity.Orientation);
+                pronounWords = identity.PronounId == SelfDescribe ? identity.Pronouns : null;
+                (showGender, showPronouns, showOrientation, showAge) = (identity.ShowGender, identity.ShowPronouns, identity.ShowOrientation, identity.ShowAge);
+                showMe.Clear();
+                foreach (var s in identity.DatingShowMe) showMe.Add(s);
+                break;
+            case null:
+                await FinishAsync();
+                return;
+        }
+        Current = next.Step;
+    }
+
+    private async Task NextAsync()
+    {
+        var mine = (await Members.ProfileAsync()).Value;
+        var next = (await Members.OnboardingAsync()).Value;
+        if (mine is null || next is null) { (result, message) = ("failed", "That didn't work. Try again."); return; }
+        profile = mine;
+        await ShowAsync(next);
+    }
+
+    private async Task SaveNameAndCityAsync()
+    {
+        if (profile is null || homeCity is null) return;
+        busy = true;
+        var saved = await Members.SaveProfileAsync(new ProfileUpdate(displayName?.Trim(), profile.About, homeCity.Id));
+        busy = false;
+        if (saved.Ok) { await NextAsync(); return; }
+        result = saved.Code ?? "failed";
+        message = saved.Code switch
+        {
+            ProblemCodes.HomeMarketLocked => "You moved your home city to a different region recently. You can move it there again 30 days after that move.",
+            ProblemCodes.UnknownPlace => "Pick your home city from the list.",
+            ProblemCodes.InvalidProfile => "Keep your display name to 40 characters of plain text.",
+            _ => "That didn't work. Try again.",
+        };
+    }
+
+    private async Task SaveAboutAsync()
+    {
+        if (profile is null) return;
+        busy = true;
+        var text = string.IsNullOrWhiteSpace(about) ? null : about.Trim();
+        if (text != profile.About)
+        {
+            var saved = await Members.SaveProfileAsync(new ProfileUpdate(profile.DisplayName, text, profile.HomeCity?.Id));
+            if (!saved.Ok) { busy = false; (result, message) = (saved.Code ?? "failed", "Keep your bio to 500 characters of plain text."); return; }
+        }
+        var next = await Members.ContinueOnboardingAsync(SetupSteps.About, shareAbout);
+        busy = false;
+        if (next.Value is null) { (result, message) = (next.Code ?? "failed", "That didn't work. Try again."); return; }
+        await NextAsync();
+    }
+
+    private async Task RefreshPhotosAsync()
+    {
+        if ((await Members.PhotosAsync()).Value is { } mine) library = mine.Photos.Where(p => !p.AlbumOnly).ToList();
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs e)
+    {
+        busy = true;
+        try
+        {
+            if (e.FileCount > UploadsLeft) { (result, message) = ("photo-limit", $"Choose up to {UploadsLeft} photos for now. You can add more later."); return; }
+            var files = e.GetMultipleFiles(ProfileUploadLimit);
+            var failures = 0;
+            for (var index = 0; index < files.Count; index++)
+            {
+                var file = files[index];
+                message = $"Uploading {index + 1} of {files.Count}…";
+                StateHasChanged();
+                if (file.Size > 10 * 1024 * 1024) { failures++; continue; }
+                using var stream = file.OpenReadStream(10 * 1024 * 1024);
+                using var buffer = new MemoryStream();
+                await stream.CopyToAsync(buffer);
+                if ((await Members.UploadPhotoAsync(buffer.ToArray(), file.Name, file.ContentType)).Ok) uploadedHere++; else failures++;
+            }
+            (result, message) = failures == 0 ? ("checking", "Uploaded. Photos are checked before anyone can see them.")
+                : ("error", $"{failures} upload(s) weren't accepted. Use JPEG, PNG or WebP up to 10 MB.");
+            await RefreshPhotosAsync();
+        }
+        finally { busy = false; }
+    }
+
+    private async Task SaveWordsAsync()
+    {
+        busy = true;
+        var saved = await Members.SavePictureTextAsync(pictureText);
+        busy = false;
+        if (saved.Ok) { profile = saved.Value; wordsInstead = false; await NextAsync(); return; }
+        (result, message) = (saved.Code ?? "failed", saved.Code == ProblemCodes.PictureTextContact
+            ? "Remove phone numbers, email addresses, links and handles, then try again."
+            : "Keep it to 100 characters on one line.");
+    }
+
+    private async Task SaveModesAsync()
+    {
+        if (profile is null || chosenModes.Count == 0) return;
+        busy = true;
+        foreach (var mode in profile.Modes.Where(m => chosenModes.Contains(m.Id) && !m.Enabled))
+        {
+            // Q181.4 A: the about step's "every mode" answer becomes each newly enabled mode's consent (D199).
+            var saved = await Members.SaveModeAsync(mode.Id, new ModeUpdate(true, true, mode.Intentions, mode.About, view?.ShareAbout ?? false));
+            if (!saved.Ok) { busy = false; (result, message) = (saved.Code ?? "failed", "That didn't work. Try again."); return; }
+        }
+        busy = false;
+        await NextAsync();
+    }
+
+    private IdentityUpdate Update(IReadOnlyList<string> datingShowMe) =>
+        new(Blank(gender), gender == "another" ? Blank(genderDescription) : null, pronounId == SelfDescribe ? Blank(pronounWords) : null, Blank(orientation),
+            showGender, showOrientation, showAge, datingShowMe, Blank(pronounId), showPronouns);
+
+    private async Task SaveIdentityAsync()
+    {
+        busy = true;
+        var saved = await Members.SaveIdentityAsync(Update(identity?.DatingShowMe ?? []));
+        if (!saved.Ok) { busy = false; (result, message) = (saved.Code ?? "failed", "Check the options you picked."); return; }
+        var next = await Members.ContinueOnboardingAsync(SetupSteps.Identity);
+        busy = false;
+        if (next.Value is null) { (result, message) = (next.Code ?? "failed", DatingOn ? "Dating needs your gender." : "That didn't work. Try again."); return; }
+        await NextAsync();
+    }
+
+    private async Task SaveShowMeAsync()
+    {
+        busy = true;
+        var saved = await Members.SaveIdentityAsync(Update(showMe.ToList()));
+        busy = false;
+        if (!saved.Ok) { (result, message) = (saved.Code ?? "failed", "Pick at least one."); return; }
+        await NextAsync();
+    }
+
+    private async Task FinishAsync()
+    {
+        Current = "finishing";
+        var done = await Members.CompleteOnboardingAsync();
+        if (done.Value is null) { (Current, result, message) = ("error", done.Code ?? "failed", null); return; }
+        var first = ExploreOrder.FirstOrDefault(id => profile?.Modes.Any(m => m.Id == id && m.Enabled) == true);
+        Navigation.NavigateTo(first is null ? "/explore" : "/explore?mode=" + first, forceLoad: true);
+    }
+
+    private static void Toggle(HashSet<string> set, string id, bool on) { if (on) set.Add(id); else set.Remove(id); }
+
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}

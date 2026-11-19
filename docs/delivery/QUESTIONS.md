@@ -2900,11 +2900,18 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 - Issue: [#359](https://github.com/repasscloud/wanderconnect/issues/359). Status: ANSWERED **A**, effective 17 November 2026 → **D377** (Privacy Notice 0.20; D351's location wording becomes 0.21). Follows D368 (#357).
 - The Privacy Notice in force (0.19) names MailerSend (email) in the European Union. Swoovr email now goes through Postmark (ActiveCampaign), which processes in the United States. The notice is unchanged until the owner approves wording. **A (proposed):** name Postmark (email) among service providers and in the United States list, as 0.20 from a date the owner gives. **B:** the owner's own wording.
 
+## Beta sign-up refusals — [#386](https://github.com/repasscloud/wanderconnect/issues/386), 19 November 2026
+
+### Q180 — Should sign-up say an email is already registered?
+
+- Issue: [#388](https://github.com/repasscloud/wanderconnect/issues/388). Status: OPEN. From [#386](https://github.com/repasscloud/wanderconnect/issues/386) / D381.
+- Registering with an address that already has an account gets Keycloak's stock duplicate-address error (reworded in D381, with Sign in and Forgot password? links), which tells a visitor the address is registered. **A (DEFAULT):** keep it; clear for members who forgot they registered. **B:** non-enumerating registration: always "Check your email", and the existing owner gets a sign-in/reset email (custom Keycloak registration step and new email wording).
+
 ## First sign-in onboarding — [#389](https://github.com/repasscloud/wanderconnect/issues/389), 19 November 2026
 
 ### Q181 — First sign-in onboarding decisions
 
-- Issue: [#390](https://github.com/repasscloud/wanderconnect/issues/390) (sub-issue of #389). Status: OPEN. Earliest blocking phase: the #389 identity and Dating steps (181.1). Other slices proceed on the DEFAULTs.
+- Issue: [#390](https://github.com/repasscloud/wanderconnect/issues/390) (sub-issue of #389). Status: OPEN. Earliest blocking phase: the #389 identity and Dating steps (181.1). Other slices proceed on the DEFAULTs. Built on every DEFAULT (A) as **D382** (19 November 2026); an answer changes D382.
 - **181.1** Trans man / Trans woman (new genders) and Dating "show me", which today matches gender ids exactly (D138/D161). **DEFAULT A:** "Man" includes Trans man and "Woman" includes Trans woman. B: separate "show me" options. C: both.
 - **181.2** Blank display name → registered first name (Q117/Q118, D301 keep the registered name separate). **DEFAULT A:** pre-fill it visibly and let the member edit it. B: copy it on Continue and say so.
 - **181.3** "Home city once every 30 days". Today only moves into a different market are locked (rules 28/34). **DEFAULT A:** keep the rule and word the screen accurately. B: any change locks it for 30 days.
@@ -2913,8 +2920,3 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 - **181.6** Pronouns: a list plus Self-describe (`varchar(50)`) and a separate Show my pronouns switch. **DEFAULT A:** switch defaults gender on, pronouns on, orientation off, age on; existing free text maps to a list option or Self-describe. B: other defaults.
 - **181.7** Who goes through the flow. **DEFAULT A:** every account without the completion flag, shown only the steps still missing. B: everyone, every step. C: new accounts only.
 - **181.8** Minimum to finish. **DEFAULT A:** at least one mode; gender, and at least one "show me", required only when Dating is on. B: gender required for everyone.
-
-### Q180 — Should sign-up say an email is already registered?
-
-- Issue: [#388](https://github.com/repasscloud/wanderconnect/issues/388). Status: OPEN. From [#386](https://github.com/repasscloud/wanderconnect/issues/386) / D381.
-- Registering with an address that already has an account gets Keycloak's stock duplicate-address error (reworded in D381, with Sign in and Forgot password? links), which tells a visitor the address is registered. **A (DEFAULT):** keep it; clear for members who forgot they registered. **B:** non-enumerating registration: always "Check your email", and the existing owner gets a sign-in/reset email (custom Keycloak registration step and new email wording).

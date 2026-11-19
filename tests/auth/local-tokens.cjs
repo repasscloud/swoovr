@@ -89,8 +89,21 @@ const memberToken = async (browser, member) => { const token=await codeToken(bro
   },
  });
   if(member.confirmRegisteredNames!==false)await confirmFictionalRegisteredNames(token);
+  if(member.onboarded!==false)await markFictionalOnboarded(token);
   return token;
 };
+
+/**
+ * Issue 389 (D382): suites written before the first-sign-in profile steps skip them, the way an existing member who
+ * finished them would. Fixture-only (direct SQL on the local test database, never an API bypass); a suite that tests
+ * onboarding passes `onboarded: false`.
+ */
+async function markFictionalOnboarded(token) {
+  await call(token, '/api/me');
+  const subject = claims(token).sub;
+  if (!/^[0-9a-f-]{36}$/i.test(subject)) throw new Error('Unexpected subject');
+  await sql(`UPDATE member_profiles SET onboarding_completed_at = now() WHERE onboarding_completed_at IS NULL AND account_id IN (SELECT id FROM accounts WHERE subject = '${subject}')`);
+}
 
 /** Explicit completion for owned fictional fixtures only, never a runtime auto-confirmation. */
 async function confirmFictionalRegisteredNames(token) {
@@ -127,6 +140,7 @@ async function appToken(browser, member) {
   const token = (await response.json()).access_token;
   if (!token) throw new Error('App token exchange failed');
   if(member.confirmRegisteredNames!==false)await confirmFictionalRegisteredNames(token);
+  if(member.onboarded!==false)await markFictionalOnboarded(token);
   return token;
 }
 
@@ -308,5 +322,5 @@ async function mailTo(address) {
   return Promise.all((list.messages ?? []).map(async m => (await (await fetch(`http://127.0.0.1:8025/api/v1/message/${m.ID}`)).json()).Text));
 }
 
-module.exports = { keycloak, api, web, admin, memberClientId,staffClientId,ownedRunId:owned?.runId,expectOwnedRegistration,claimOwnedRegistration,sleep, claims, localEnv, createMember, createStaff, memberToken, appToken, staffToken, fillStaffOtp, rootAdminToken, elevatedRootToken, fillRootAdmin,
+module.exports = { markFictionalOnboarded, keycloak, api, web, admin, memberClientId,staffClientId,ownedRunId:owned?.runId,expectOwnedRegistration,claimOwnedRegistration,sleep, claims, localEnv, createMember, createStaff, memberToken, appToken, staffToken, fillStaffOtp, rootAdminToken, elevatedRootToken, fillRootAdmin,
   cli, sql, call, membersRealm, mailTo, matchReady, elevate };

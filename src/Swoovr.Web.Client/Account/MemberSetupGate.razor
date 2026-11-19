@@ -3,7 +3,7 @@
    there first, so this card only shows if the page loaded without it. Required policies keep their own page. *@
 @if (!loaded) { <p role="status">Loading your account…</p> }
 else if(account is null) { <p role="status">We couldn't load your account. <a href="/account">Open your account</a> to check setup.</p> }
-else if(account.SetupStep is SetupSteps.Names or SetupSteps.Phone or SetupSteps.DateOfBirth)
+else if(account.SetupStep is SetupSteps.Names or SetupSteps.Phone or SetupSteps.DateOfBirth || SetupSteps.ProfileStep(account.SetupStep))
 {
     <section class="card account-section" data-setup-required="@account.SetupStep"><h1>Finish setting up your account</h1><p>@StepText</p><a class="primary-button" href="/welcome" data-enhance-nav="false">Continue setup</a></section>
 }
@@ -21,6 +21,8 @@ else if(Page=="chats") { <Swoovr.Web.Client.Messaging.ChatsPanel /> }
     {
         SetupSteps.Names => "Confirm your registered name.",
         SetupSteps.Phone => "Verify your mobile number.",
+        // Issue 389 (D382): the first-sign-in profile steps.
+        var step when SetupSteps.ProfileStep(step) => "Finish setting up your profile.",
         _ => "Confirm your date of birth.",
     };
     protected override async Task OnInitializedAsync()

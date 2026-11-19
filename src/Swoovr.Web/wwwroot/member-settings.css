@@ -504,3 +504,30 @@
   .data-inline { grid-template-columns: 20px minmax(0, 1fr); }
   .data-inline .button { grid-column: 2; justify-self: start; }
 }
+
+/* ---- Issue 389 (D382): first-sign-in profile steps on /welcome. Same card as D342; choice cards for modes and
+   "show me", a bio field with its count, the on-profile switches as a group. Theme tokens only. */
+.onboarding-form textarea { width: 100%; resize: vertical; min-height: 150px; }
+.onboarding-bio { display: grid; }
+.onboarding-count { justify-self: end; margin-top: 6px; color: var(--muted); font: var(--type-small); font-variant-numeric: tabular-nums; }
+.onboarding-choices, .onboarding-switches { display: grid; gap: 10px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.onboarding-switches legend { margin-bottom: 4px; font: 600 .9375rem/1.4 var(--font); }
+.onboarding-choice { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); cursor: pointer; transition: border-color .2s; }
+.onboarding-choice:hover, .onboarding-choice:has(input:checked) { border-color: var(--text); }
+.onboarding-choice input { margin-top: 3px; width: 18px; height: 18px; flex: 0 0 18px; accent-color: var(--primary); }
+.onboarding-choice > span { display: grid; gap: 2px; font: 400 1rem/1.4 var(--font); }
+.onboarding-choice strong { font-weight: 600; }
+.onboarding-choice-help { color: var(--muted); font: var(--type-small); }
+.onboarding-choice-compact { align-items: center; }
+.onboarding-choice-compact input { margin-top: 0; }
+.onboarding .city-search { margin: 0; }
+.onboarding-rules { display: grid; gap: 6px; margin: 0; padding: 14px 16px 14px 34px; border-radius: 14px; background: var(--soft); color: var(--softText); font: 400 .9375rem/1.5 var(--font); }
+.onboarding-upload { position: relative; cursor: pointer; }
+.onboarding-upload.is-disabled { color: var(--placeholder); cursor: not-allowed; }
+.onboarding-photos { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; margin: 0; padding: 0; }
+.onboarding-photos .ph-shot { display: block; aspect-ratio: 1; border-radius: 12px; overflow: hidden; }
+.onboarding-photos img { width: 100%; height: 100%; object-fit: cover; }
+.onboarding-warning { color: var(--text); }
+.onboarding-preview { display: flex; justify-content: center; padding: 18px; border: 1px dashed var(--border); border-radius: 16px; }
+.onboarding-preview .profile-tile { pointer-events: none; width: 170px; height: 270px; flex: 0 0 170px; }
+.person-text-picture .tile-quote { font-size: 1.5rem; -webkit-line-clamp: unset; }

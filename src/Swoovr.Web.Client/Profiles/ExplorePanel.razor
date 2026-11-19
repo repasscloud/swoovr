@@ -5,6 +5,7 @@
    tile shows (Q11). Without a home city, or outside every open market, the API refuses and the page says why. Travel is
    not a mode and has its own screen. *@
 @inject MemberClient Members
+@inject NavigationManager Navigation
 <div class="page-heading" data-explore="@(loaded ? "ready" : "loading")">
     <h1>Explore</h1>
     @if (market is not null) { <p class="field-help" data-explore-market data-explore-visiting="@(visitingCity is null ? "false" : "true")">@(visitingCity is { } city ? $"Visiting {city}: people in {market}" : $"People in {market}")</p> }
@@ -24,30 +25,30 @@
     <section class="explore-results" aria-live="polite" data-explore-mode="@selected" data-explore-state="@state">
         @if (state == "off")
         {
-            <div class="card notice">
+            <div class="card notice" data-explore-local="mode-not-enabled">
                 <p>@Label(selected) is off for you, so you can't see who's here.</p>
-                <p><a class="link" href="/me/profile">Turn it on in your profile</a></p>
+                <a class="button notice-action" href="/me/profile">Turn on @Label(selected)</a>
             </div>
         }
         else if (state == ProblemCodes.DateOfBirthRequired)
         {
             <div class="card notice" data-explore-local="date-of-birth-required">
-                <p>Add your date of birth to discover people. It's never shown.</p>
-                <p><a class="link" href="/account">Add your date of birth</a></p>
+                <p>Explore needs your date of birth. It's never shown to anyone.</p>
+                <a class="button notice-action" href="/account">Add date of birth</a>
             </div>
         }
         else if (state == ProblemCodes.DatingDetailsRequired)
         {
             <div class="card notice" data-explore-local="dating-details-required">
                 <p>Dating needs your gender and who you'd like to see.</p>
-                <p><a class="link" href="/me/matching">Set who you'd like to meet</a></p>
+                <a class="button notice-action" href="/me/matching">Set up Dating</a>
             </div>
         }
         else if (state == ProblemCodes.HomeCityRequired)
         {
             <div class="card notice" data-explore-local="home-city-required">
-                <p>Add your home city to discover people in your community.</p>
-                <p><a class="link" href="/me/profile">Add your home city</a></p>
+                <p>Explore shows people in your community, so it needs your home city. Only you can see it.</p>
+                <a class="button notice-action" href="/me/profile">Set your home city</a>
             </div>
         }
         else if (state == ProblemCodes.MarketNotOpen)
@@ -86,7 +87,7 @@
                 {
                     @* D348: a band only when both members show their distance; never a distance. *@
                     <ProfileTile Name="@person.DisplayName" Href="@($"/people/{person.Id}?mode={selected}")" Detail="@(person.Visiting is { } where ? $"Visiting {where}" : MemberText.Distance(person.Distance) ?? "")"
-                                 Intentions="person.Intentions" Quote="@Quote(person.About)" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)">
+                                 Intentions="person.Intentions" Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)">
                         <Badges><BadgeRow Badges="person.Badges" /></Badges>
                     </ProfileTile>
                 }
@@ -126,8 +127,10 @@
             else
             {
                 (modes, mine, interested) = (catalogue.Value, profile.Value, profile.Value.MarketInterest);
-                // Start on the first mode the member has on, else the first one shown.
-                selected = mine.Modes.FirstOrDefault(m => m.Enabled)?.Id ?? modes.FirstOrDefault()?.Id ?? "";
+                // Start on ?mode= when it names a shown mode (issue 389: onboarding ends on the first enabled mode), else
+                // the first mode the member has on, else the first one shown.
+                var asked = RequestedMode();
+                selected = modes.Any(m => m.Id == asked) ? asked! : mine.Modes.FirstOrDefault(m => m.Enabled)?.Id ?? modes.FirstOrDefault()?.Id ?? "";
             }
         }
         catch (HttpRequestException) { refused = "unavailable"; }
@@ -164,6 +167,13 @@
         busy = true;
         if (await Members.MarketInterestAsync(on) == 204) interested = on;
         busy = false;
+    }
+
+    private string? RequestedMode()
+    {
+        var query = new Uri(Navigation.Uri).Query.TrimStart('?');
+        return query.Split('&', StringSplitOptions.RemoveEmptyEntries).Select(p => p.Split('=', 2))
+            .Where(p => p.Length == 2 && p[0] == "mode").Select(p => Uri.UnescapeDataString(p[1])).FirstOrDefault();
     }
 
     private string Label(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;

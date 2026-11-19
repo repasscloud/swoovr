@@ -140,6 +140,8 @@ button.chip:disabled { cursor: default; opacity: .45; }
 .card > :last-child { margin-bottom: 0; }
 .notice { padding: 12px 16px; margin: 0 0 22px; border-radius: 12px; background: var(--soft); color: var(--softText); font: var(--type-small); }
 .notice p { margin: 2px 0 0; max-width: none; }
+/* Issue 389: one sentence, then one natural-width action (never a link that repeats the sentence). */
+.notice .notice-action { display: inline-flex; width: auto; min-height: 44px; margin-top: 12px; font-size: .9375rem; }
 
 /* Segmented control: soft track, surface selected segment, 13/600. Works with radios or links (aria-current). */
 .segmented { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--soft); }

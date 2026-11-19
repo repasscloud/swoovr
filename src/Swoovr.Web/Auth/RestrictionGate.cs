@@ -1,3 +1,4 @@
+using Swoovr.Contracts;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
 
@@ -20,10 +21,13 @@ public static class RestrictionGate
     /// onboarding screens at /welcome, including the account page itself. Its sub-routes (sign-in and sign-out, data,
     /// deletion, policies, the restricted screen), notices, support, safety and the public policies stay reachable.
     /// </summary>
-    private static readonly string[] SetupOpen = ["/welcome", "/safety", "/me/notices", "/me/notifications", "/me/standing", "/me/support", "/bff", "/signin-oidc", "/signout", "/not-found", "/error", "/_framework", "/_content", "/terms", "/privacy", "/community-guidelines", "/settings/appearance"];
+    private static readonly string[] SetupOpen = ["/welcome", "/safety", "/me/notices", "/me/notifications", "/me/standing", "/me/support", "/bff", "/signin-oidc", "/signout", "/not-found", "/error", "/_framework", "/_content", "/terms", "/privacy", "/community-guidelines", "/settings/appearance",
+        // Issue 389 (D382): the member's own photo links on the photo step.
+        "/media"];
 
-    /// <summary>The setup steps that keep a member in onboarding; required policies keep their own page (/account/policies).</summary>
-    public static bool Onboarding(string? setupStep) => setupStep is "names" or "phone" or "dateOfBirth";
+    /// <summary>The setup steps that keep a member in onboarding; required policies keep their own page (/account/policies).
+    /// Issue 389 (D382): the first-sign-in profile steps too, until the profile's onboarding flag is set.</summary>
+    public static bool Onboarding(string? setupStep) => setupStep is "names" or "phone" or "dateOfBirth" || SetupSteps.ProfileStep(setupStep);
 
     private static bool Matches(string path, IEnumerable<string> prefixes) =>
         prefixes.Any(o => path.Equals(o, StringComparison.OrdinalIgnoreCase) || path.StartsWith(o + "/", StringComparison.OrdinalIgnoreCase));
