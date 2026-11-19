@@ -17,15 +17,20 @@
             <div class="field"><label for="gender">Gender</label>
                 <select id="gender" @bind="gender"><option value="">Not set</option>@foreach (var g in options.Genders) { <option value="@g.Id">@g.Label</option> }</select></div>
             @if (gender == "another") { <div class="field"><label for="gender-description">Describe it (optional)</label><input id="gender-description" maxlength="40" @bind="genderDescription" /></div> }
-            <div class="field"><label for="pronouns">Pronouns (optional)</label><input id="pronouns" maxlength="40" @bind="pronouns" /></div>
+            @* Issue 389 (D382): a pronoun list plus Self-describe (50 characters), with its own switch. *@
+            <div class="field"><label for="pronouns">Pronouns (optional)</label>
+                <select id="pronouns" @bind="pronounId"><option value="">Not set</option>@foreach (var p in options.Pronouns ?? []) { <option value="@p.Id">@p.Label</option> }</select></div>
+            @if (pronounId == "self") { <div class="field"><label for="pronouns-own">Your pronouns</label><input id="pronouns-own" maxlength="50" @bind="pronouns" data-pronouns-own /></div> }
             <div class="field"><label for="orientation">Orientation (optional, never used to decide who sees you)</label>
                 <select id="orientation" @bind="orientation"><option value="">Not set</option>@foreach (var o in options.Orientations) { <option value="@o.Id">@o.Label</option> }</select></div>
-            <label class="check"><input type="checkbox" @bind="showGender" data-show-gender /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my gender and pronouns</label>
+            <label class="check"><input type="checkbox" @bind="showGender" data-show-gender /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my gender</label>
+            <label class="check"><input type="checkbox" @bind="showPronouns" data-show-pronouns /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my pronouns</label>
             <label class="check"><input type="checkbox" @bind="showOrientation" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my orientation</label>
             <label class="check"><input type="checkbox" @bind="showAge" data-show-age /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my age</label>
             <fieldset data-show-me><legend>In Dating, show me</legend>
-                @* D161: "Prefer not to say" is a privacy choice, not a gender, so it's never a "show me" option. *@
-                @foreach (var g in options.Genders.Where(g => g.Id != "unsaid"))
+                @* D161: "Prefer not to say" is a privacy choice, not a gender, so it's never a "show me" option. D382 (Q181.1 A): "Man" and
+                   "Woman" include Trans man and Trans woman, so the API's ShowMe list has four choices. *@
+                @foreach (var g in options.ShowMe ?? options.Genders.Where(g => g.Id is not ("unsaid" or "trans-man" or "trans-woman")))
                 {
                     <label class="check"><input type="checkbox" checked="@showMe.Contains(g.Id)" @onchange="e => Toggle(showMe, g.Id, e)" data-show-me-option="@g.Id" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> @g.Label</label>
                 }
@@ -83,7 +88,8 @@
     </section>
 }
 @code {
-    private bool loaded, busy, showGender = true, showOrientation, showAge = true, idVerifiedOnly;
+    private bool loaded, busy, showGender = true, showOrientation, showAge = true, idVerifiedOnly, showPronouns = true;
+    private string? pronounId;
     private ProfileOptionsView? options;
     private List<ConnectionModeView> modes = [];
     private string modeId = "dating", match = "any", visitors = "both", sort = "recent";
@@ -108,8 +114,9 @@
         {
             modes = (await Members.ModesAsync()).Value ?? [];
             if ((await Members.IdentityAsync()).Value is { } i)
-                (gender, genderDescription, pronouns, orientation, showGender, showOrientation, showAge, showMe) =
-                    (i.Gender, i.GenderDescription, i.Pronouns, i.Orientation, i.ShowGender, i.ShowOrientation, i.ShowAge, i.DatingShowMe.ToHashSet());
+                (gender, genderDescription, pronouns, orientation, showGender, showOrientation, showAge, showMe, pronounId, showPronouns) =
+                    (i.Gender, i.GenderDescription, i.PronounId == "self" ? i.Pronouns : null, i.Orientation, i.ShowGender, i.ShowOrientation, i.ShowAge, i.DatingShowMe.ToHashSet(),
+                     i.PronounId, i.ShowPronouns);
             await LoadFilterAsync();
         }
         loaded = true;
@@ -160,7 +167,7 @@
     private async Task SaveIdentityAsync()
     {
         busy = true;
-        var result = await Members.SaveIdentityAsync(new IdentityUpdate(gender, genderDescription, pronouns, orientation, showGender, showOrientation, showAge, showMe.ToList()));
+        var result = await Members.SaveIdentityAsync(new IdentityUpdate(gender, genderDescription, pronounId == "self" ? pronouns : null, orientation, showGender, showOrientation, showAge, showMe.ToList(), string.IsNullOrEmpty(pronounId) ? null : pronounId, showPronouns));
         busy = false;
         (identityStatus, identityMessage) = result.Ok ? ("saved", "Saved.") : (result.Code ?? "failed", "Check the options you picked.");
     }

@@ -55,7 +55,8 @@ public sealed class MatchingPage : ContentPage
 		var showMe = new Dictionary<string, Switch>();
 		var showMeRows = new VerticalStackLayout { Spacing = 4 };
 		// D161: "Prefer not to say" is a privacy choice, not a gender, so it's never a "show me" option.
-		foreach (var option in genders.Where(x => x.Id != "unsaid"))
+		// D382 (Q181.1 A): "Man" and "Woman" include Trans man and Trans woman, which aren't separate "show me" choices.
+		foreach (var option in genders.Where(x => x.Id is not ("unsaid" or "trans-man" or "trans-woman")))
 		{
 			showMe[option.Id] = Toggle($"ShowMe_{option.Id}", mine?.DatingShowMe.Contains(option.Id) == true);
 			showMeRows.Children.Add(Row(showMe[option.Id], option.Label));
