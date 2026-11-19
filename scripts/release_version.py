@@ -12,6 +12,8 @@ development/UAT builds. Production releases get the next Build from git tags `vX
                        redeploying a release keeps its version
   msbuild-args [X.Y.Z] MSBuild properties for that version (default: for-head) plus the commit for diagnostics
   bump major|minor     intentional release decision: Major+1 (Minor, Build -> 0) or Minor+1 (Build -> 0)
+  set X.Y              intentional release decision: move to a newer Major.Minor (Build -> 0); used by
+                       scripts/update-release.sh when the requested release starts a new Major.Minor
 """
 import re
 import subprocess
@@ -70,9 +72,22 @@ def msbuild_args(version):
 
 
 def bump(part):
-    text = PROPS.read_text()
     major, minor, _ = props()
-    major, minor = (major + 1, 0) if part == "major" else (major, minor + 1)
+    return write_version(*((major + 1, 0) if part == "major" else (major, minor + 1)))
+
+
+def set_version(value):
+    match = re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)", value or "")
+    if not match:
+        sys.exit("set expects X.Y (digits, no leading zeros)")
+    target, current = (int(match.group(1)), int(match.group(2))), props()[:2]
+    if target <= current:
+        sys.exit(f"{value} is not newer than Directory.Build.props {current[0]}.{current[1]}")
+    return write_version(*target)
+
+
+def write_version(major, minor):
+    text = PROPS.read_text()
     text = re.sub(r"<SwoovrVersionMajor>\d+</SwoovrVersionMajor>", f"<SwoovrVersionMajor>{major}</SwoovrVersionMajor>", text)
     text = re.sub(r"<SwoovrVersionMinor>\d+</SwoovrVersionMinor>", f"<SwoovrVersionMinor>{minor}</SwoovrVersionMinor>", text)
     text = re.sub(r"(<SwoovrVersionBuild Condition=\"[^\"]*\">)\d+(</SwoovrVersionBuild>)", r"\g<1>0\g<2>", text)
@@ -95,6 +110,7 @@ def main(argv):
         git("tag", "-a", f"v{version}", "-m", f"Swoovr {version}")
         print(version)
     elif command == "bump" and len(argv) > 2 and argv[2] in ("major", "minor"): print(bump(argv[2]))
+    elif command == "set" and len(argv) > 2: print(set_version(argv[2]))
     else: sys.exit(__doc__)
 
 
