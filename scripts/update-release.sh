@@ -61,32 +61,35 @@ if (( 10#$WANT_MAJOR != 10#$HAVE_MAJOR || 10#$WANT_MINOR != 10#$HAVE_MINOR )); t
 fi
 
 # Update repository.
-git checkout main
-git pull --ff-only
+git checkout -q main
+git pull -q --ff-only
 
 # New Major.Minor: bump, check, and merge it to main through a PR, then tag that merge.
 if [[ "$BUMP" == true ]]; then
     BRANCH="release/$VERSION"
-    git checkout -b "$BRANCH"
+    git checkout -q -b "$BRANCH"
     python3 scripts/release_version.py set "$WANT_MAJOR.$WANT_MINOR"
     python3 scripts/check_version.py
-    python3 -m unittest tests/release/test_release_version.py
+    python3 -m unittest -q tests/release/test_release_version.py 2>/dev/null \
+        || python3 -m unittest tests/release/test_release_version.py
     git add Directory.Build.props containers/keycloak/themes/swoovr/login/theme.properties
-    git commit -m "Bump Swoovr version to $1"
-    git push -u origin "$BRANCH"
+    git commit -q -m "Bump Swoovr version to $1"
+    git push -q -u origin "$BRANCH"
     gh pr create --base main --head "$BRANCH" --title "Bump Swoovr version to $1" \
         --body "Version bump for release $VERSION, made by scripts/update-release.sh (D320, docs/delivery/VERSIONING.md)."
-    gh pr merge "$BRANCH" --merge --delete-branch
-    git checkout main
-    git pull --ff-only
+    gh pr merge "$BRANCH" --merge --delete-branch > /dev/null
+    git checkout -q main
+    git pull -q --ff-only
+    echo "Merged version bump to main"
 fi
 
 # Configure deployment mode.
-gh variable set DEPLOYMENT_MODE --body upgrade
+gh variable set DEPLOYMENT_MODE --body upgrade > /dev/null
 
 # Create and push signed release tag.
 git tag -s -m "$VERSION" "$VERSION" origin/main
-git push origin "$VERSION"
+git push -q origin "$VERSION"
+echo "Pushed $VERSION; watching Deploy UAT"
 
 # Wait for the deployment run triggered by this tag (not the previous one),
 # then watch it.
@@ -108,4 +111,11 @@ if [[ -z "$RUN_ID" ]]; then
     exit 1
 fi
 
-gh run watch "$RUN_ID" --exit-status
+if gh run watch "$RUN_ID" --exit-status --compact --interval 10 > /dev/null; then
+    echo "Released $VERSION to UAT"
+else
+    echo "error: Deploy UAT failed for $VERSION. Failed step:" >&2
+    gh run view "$RUN_ID" --log-failed | grep -E '##\[error\]|error:' | tail -n 5 >&2
+    echo "Details: gh run view $RUN_ID --web" >&2
+    exit 1
+fi
