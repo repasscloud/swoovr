@@ -54,8 +54,9 @@ public static class MatchingEndpoints
                 AccountId = id, GenderId = Blank(update.Gender), GenderDescription = update.Gender == "another" ? Blank(update.GenderDescription) : null,
                 PronounId = pronounId, Pronouns = pronouns, OrientationId = Blank(update.Orientation), ShowGender = update.ShowGender, ShowOrientation = update.ShowOrientation,
                 ShowAge = update.ShowAge, DatingShowMe = (update.DatingShowMe ?? []).Distinct().ToList(),
-                // D382: null keeps the switch, so a client that predates it can't change it by saving.
-                ShowPronouns = update.ShowPronouns ?? identity.ShowPronouns,
+                // D382: a client that predates the pronoun switch (null) had one "Show my gender and pronouns" toggle, so turning it
+                // off hides pronouns too and turning it on keeps the current switch (PR #392 review).
+                ShowPronouns = update.ShowPronouns ?? (update.ShowGender && identity.ShowPronouns),
             };
             var check = MatchPolicy.Check(candidate, options.Where(o => o.Kind == "gender").Select(o => o.Id).ToHashSet(),
                 options.Where(o => o.Kind == "orientation").Select(o => o.Id).ToHashSet(), options.Where(o => o.Kind == "pronoun").Select(o => o.Id).ToHashSet());
