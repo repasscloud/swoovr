@@ -1,5 +1,7 @@
 # UAT image pipeline staging settings
 
+> **Superseded for UAT on 20 November 2026 (D384).** The Vultr processor VMs, gateway and per-VM ClamAV, the Cloudflare image Workers and the API staging pipeline are retired. Photo screening runs on the single UAT server behind the API: [IMAGE-MODERATION-UAT.md](IMAGE-MODERATION-UAT.md). Kept as a historical record ([D384](DECISIONS.md#d384--photo-screening-on-the-single-uat-server-behind-the-api-20-november-2026)).
+
 CONFIRMED: [owner instruction #261, 10 November 2026](https://github.com/repasscloud/wanderconnect/issues/261#issuecomment-6742634264). UAT application hosting is **OPEN**, including Vultr; production remains Azure (owner clarification in this chat). This prepares code/configuration only. It does not deploy the API, create Cloudflare resources or enable delivery. The existing media path remains the default.
 
 ## UAT service addresses

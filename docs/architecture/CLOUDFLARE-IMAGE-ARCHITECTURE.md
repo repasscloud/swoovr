@@ -1,5 +1,7 @@
 # Swoovr — Cloudflare Image Storage, Moderation, Delivery and API Integration
 
+> **Superseded for UAT on 20 November 2026 (D384).** The Vultr processor VMs, gateway and per-VM ClamAV, the Cloudflare image Workers and the API staging pipeline are retired. Photo screening runs on the single UAT server behind the API: [IMAGE-MODERATION-UAT.md](../delivery/IMAGE-MODERATION-UAT.md). Kept as a historical record ([D384](../delivery/DECISIONS.md#d384--photo-screening-on-the-single-uat-server-behind-the-api-20-november-2026)).
+
 **Status:** Proposed architecture / implementation planning  
 **Audience:** Codex, Claude, engineering reviewers  
 **Scope:** Swoovr web, iOS, Android, API, administration and Cloudflare infrastructure  

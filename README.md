@@ -35,6 +35,8 @@ src/
   Swoovr.Domain/              Authoritative business rules
   Swoovr.Infrastructure/      Persistence and provider adapters
 tests/Swoovr.Checks/         Dependency-free executable contract checks
+services/image-moderation/      Photo screening service (Python, own container; D384)
+deploy/vultr-uat/               Single-server UAT deployment (Compose, Caddy, operator scripts)
 docs/                          Product, design, architecture and delivery
 scripts/                       Local checks and design synchronization
 ```

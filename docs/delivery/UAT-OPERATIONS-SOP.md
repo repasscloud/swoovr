@@ -14,17 +14,18 @@ Technical detail lives in the [server runbook](../../deploy/vultr-uat/README.md)
 6. [Email](#6-email)
 7. [Settings: where each value lives](#7-settings-where-each-value-lives)
 8. [Looking at the server directly](#8-looking-at-the-server-directly)
-9. [Quick reference](#9-quick-reference)
+9. [Photos and image processing](#9-photos-and-image-processing)
+10. [Quick reference](#10-quick-reference)
 
 ## 1. How the system fits together
 
 ```
-your Mac ──git tag vX.Y.Z──▶ GitHub ──"Deploy UAT" workflow──▶ builds 5 images (GHCR)
+your Mac ──git tag vX.Y.Z──▶ GitHub ──"Deploy UAT" workflow──▶ builds 6 images (GHCR)
                                      │                          └─▶ SSH as root ──▶ server uat-01 (Vultr)
                                      └─"UAT maintenance" workflow (you start it by hand) ──▶ SSH ──▶ uat-01
 ```
 
-- **Server `uat-01`** (Vultr, Debian) runs everything in Docker: the API, the member web app (`uat.swoovr.app`), Admin (`admin-uat.swoovr.app`), Keycloak sign-in (`auth-uat.swoovr.app`), the Zammad helpdesk (`helpdesk-uat.swoovr.app`), PostgreSQL and supporting services. Cloudflare sits in front.
+- **Server `uat-01`** (Vultr, Debian) runs everything in Docker: the API, the member web app (`uat.swoovr.app`), Admin (`admin-uat.swoovr.app`), Keycloak sign-in (`auth-uat.swoovr.app`), the Zammad helpdesk (`helpdesk-uat.swoovr.app`), PostgreSQL, photo screening (`image-moderation`, private) and one virus scanner (`clamav`, private). Cloudflare sits in front.
 - **The `swoovr` command on the server** (`/opt/swoovr/swoovr-uat/bin/swoovr`) does every server-side step. GitHub only ever runs that command over SSH.
 - **Two GitHub workflows:**
   - **Deploy UAT** runs by itself when you push a version tag (section 3).
@@ -210,7 +211,50 @@ exit
 
 The full list of server commands is at the top of `deploy/vultr-uat/bin/swoovr` and in the [runbook "Day-2 commands"](../../deploy/vultr-uat/README.md#day-2-commands-on-the-host-exceptional).
 
-## 9. Quick reference
+## 9. Photos and image processing
+
+Every photo is checked before anyone else can see it:
+1. A virus scan (ClamAV), the moment it's uploaded.
+2. Automatic checks for nudity, explicit content and known abuse material (`image-moderation`, on the same server, never on the internet).
+3. Then one of three things happens: it is approved, sent to the photo review queue in Admin, or refused.
+
+Full detail: [IMAGE-MODERATION-UAT.md](IMAGE-MODERATION-UAT.md).
+
+### Is it working?
+
+Open **Admin → Overview** (Support and Admin see it). The **Image processing** panel says one of:
+
+- **Working normally.** Nothing to do.
+- **Photos are waiting longer than usual.** The checks run, but some photos have waited over an hour. *Why photos are waiting* lists the reason in plain words.
+- **Not processing photos.** The screening service or the virus scanner isn't answering. Photos stay private and wait; new uploads may be refused with "try again in a few minutes".
+
+A waiting photo is **never** shown to other members, and is never approved because a check failed.
+
+### When photos are waiting or not processing
+
+1. Note the reason shown on the panel.
+2. On the server (section 8):
+   ```bash
+   ./bin/swoovr status                              # is image-moderation / clamav running and healthy?
+   ./bin/swoovr job api-command media pending-report  # the same counts and reasons as the panel
+   ```
+   **You should see** both services listed as healthy. If one isn't, run `./bin/swoovr logs image-moderation` (or `clamav`). Its first start takes up to 10 minutes while it loads.
+3. If the reason mentions **Project Arachnid** (known-content check): check that the GitHub secrets `UAT_ARACHNID_USERNAME` and `UAT_ARACHNID_PASSWORD` are right, then deploy again. **Never** switch this check off.
+4. Once the panel says *Working normally* again, check the waiting photos straight away instead of waiting for the hourly retry:
+   ```bash
+   ./bin/swoovr job api-command media rescreen --pending
+   ```
+   **You should see** "N pending photos are due now". The panel's numbers fall within a minute or two.
+
+### After the first deployment of D384 (once)
+
+Follow "Owner steps for the first deployment" in [IMAGE-MODERATION-UAT.md](IMAGE-MODERATION-UAT.md). In short:
+- add the two Arachnid secrets;
+- make the new `swoovr-screening` package public when the deploy asks;
+- run `media rescreen --pending` to clear the photos that were stuck;
+- after 7 healthy days, retire the old Vultr image servers and Cloudflare image Workers using that page's checklist.
+
+## 10. Quick reference
 
 | I want to… | Do |
 | --- | --- |
@@ -222,3 +266,5 @@ The full list of server commands is at the top of `deploy/vultr-uat/bin/swoovr` 
 | Check an email problem | `scripts/uat/mail-test.sh <server IPv4> <address>` (section 6) |
 | See what's running | Maintenance `status` / `history` |
 | Change a setting | Section 7, then deploy |
+| Check image processing | Admin → Overview → *Image processing*, or `./bin/swoovr job api-command media pending-report` (section 9) |
+| Re-check waiting photos now | `./bin/swoovr job api-command media rescreen --pending` (section 9) |
