@@ -1,46 +1,42 @@
-# Image Moderation API
+# Swoovr image moderation service
 
-[![Docker image](https://img.shields.io/github/actions/workflow/status/repasscloud/image-moderation-api/docker-image.yml?label=docker%20image&logo=githubactions&logoColor=white)](https://github.com/repasscloud/image-moderation-api/actions/workflows/docker-image.yml)
-[![Latest release](https://img.shields.io/github/v/tag/repasscloud/image-moderation-api?sort=semver&label=release)](https://github.com/repasscloud/image-moderation-api/tags)
-[![License: MIT](https://img.shields.io/github/license/repasscloud/image-moderation-api)](LICENSE)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.162-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Docker](https://img.shields.io/badge/docker-amd64%20%7C%20arm64-2496ED?logo=docker&logoColor=white)](Dockerfile)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Last commit](https://img.shields.io/github/last-commit/repasscloud/image-moderation-api)](https://github.com/repasscloud/image-moderation-api/commits/main)
+Python 3.12 / FastAPI service that analyses photos with NudeNet, the Freepik NSFW
+Image Detector and Project Arachnid Shield (PDQ hash matching for known CSAM). It is
+CPU only and keeps no state: no database, no object storage and no policy decisions.
+The Swoovr API decides what happens to a photo; this service only reports findings.
 
-Standalone Python 3.12 / FastAPI service returning image analysis from NudeNet,
-Freepik NSFW Image Detector, and optional Project Arachnid Shield. CPU only; no
-application-specific policies, database, or filesystem scan endpoint. URL scanning
-accepts public HTTPS images with optional exact hostname restrictions.
-Results are predictions and known-content matches, not permission or legality decisions.
+Imported with full history from `repasscloud/image-moderation-api` (main @ 6219447,
+tags v1.0.0 and v1.0.1) on 20 November 2026. That repository is no longer the source.
 
-## Run with Docker
+## How Swoovr runs it
+
+- **UAT (single server):** the `image-moderation` container in
+  [`deploy/vultr-uat/compose.yaml`](../../deploy/vultr-uat/compose.yaml). It is on the
+  internal `screening` network with the API only, publishes no port and has no public
+  hostname. Its only outbound traffic is HTTPS to Shield through the `egress` network.
+  The API calls `POST http://image-moderation:8080/v1/scan` with a Bearer key.
+- **Malware scanning is done by the API**, before the photo is decoded, using the one
+  shared ClamAV container (the same one that scans support attachments). This service
+  runs with `ENABLE_PROCESSING=false`, so it never needs ClamAV itself.
+- **Local:** `compose.local.yaml` builds this directory (profile `screening`).
+- **Image:** built by `.github/workflows/deploy-uat.yml` (matrix component
+  `image-moderation`) as `ghcr.io/repasscloud/swoovr-image-moderation:<commit>`.
+- Operations, health and recovery: `docs/delivery/IMAGE-MODERATION-UAT.md`.
+
+The older `/v1/process` endpoint (ClamAV + WebP variants for the retired Cloudflare
+Worker design) is still in the code but is switched off (`ENABLE_PROCESSING=false`).
+
+## Build and run on its own
 
 ```sh
-cp .env.example .env
-# Set API_KEY if authentication is wanted; leave Shield credentials blank to disable it.
-docker compose build
-docker compose up -d
-curl http://localhost:8080/health
-curl http://localhost:8080/ready
+docker build -t swoovr-image-moderation services/image-moderation
+docker run --rm -p 127.0.0.1:8080:8080 -e API_KEY="$(openssl rand -hex 32)" swoovr-image-moderation
+curl http://127.0.0.1:8080/ready
 ```
 
-Compose publishes **127.0.0.1:8080 only**, uses one worker, a non-root UID 10001,
-a read-only root filesystem, dropped capabilities, a 4 GiB memory limit and two CPUs.
-The initial build downloads approximately hundreds of MB of model/dependency data;
-allow several GB of disk space and an internet connection. Model initialization may
-take a minute on a cold CPU. Docker's health check measures liveness; use `/ready`
-for a load balancer's readiness check. `docker compose down` stops the service and
-preserves the named model-cache volume. No GPU or host Python installation is required.
-
-For a private production network, remove `ports` from compose.yaml and attach this
-service and its caller to the same private Docker network. Call
-`http://moderation-api:8080` inside that network. Set API_KEY as another layer of
-protection, terminate TLS at a trusted proxy, enforce request deadlines and rate
-limits there, and restrict outbound access to Shield only if enabled. Do not expose
-an unauthenticated instance publicly. Do not log multipart bodies, Authorization,
-returned hashes, or filenames at the proxy. Disable docs with ENABLE_DOCS=false if needed.
+The build downloads several hundred MB of models and dependencies (pinned revision,
+checked by SHA-256 at startup) and runs offline afterwards. Model start-up takes up to
+a minute on a cold CPU; `/ready` reports when every engine has loaded.
 
 ## Configuration
 
@@ -378,15 +374,8 @@ docker compose exec -T moderation-api python - < scripts/verify_local_models.py
 The HTTP script uses a temporary localhost:8081 container for authentication checks
 and removes it afterwards. Keep Shield credentials absent for these local checks.
 
-## Independent Vultr image processor (Swoovr #294)
+## History
 
-The opt-in `/v1/process` endpoint inspects the original upload with local ClamAV,
-then validates and runs all three required engines, and prepares bounded private
-WebP versions in the same request. It returns findings and bytes, never a pass or
-publication decision. Existing `/v1/scan*` endpoints remain compatible.
-
-See [Vultr installation, rollout and contract](deploy/vultr/README.md). Processing
-requires `ENABLE_PROCESSING=true`, a nonblank `API_KEY`, both Shield credentials,
-and both local model engines enabled. Hosted readiness also checks local ClamAV
-and signature freshness. Worker authentication and Shield Basic authentication
-are distinct credentials. The stack runs independently of Swoovr web deployment.
+The Vultr two-VM deployment, Caddy gateway and per-VM ClamAV were retired when this
+service moved onto the single UAT server. Their records are kept in
+[`docs/history/`](docs/history/).
