@@ -232,16 +232,15 @@ case "$command" in
     trap failed ERR INT TERM
     if $fresh; then reset_data; fi
     free_ports
-    # The default image is the existing owner-maintained screening service. If it
-    # has never been built, build from the sibling checkout; no credentials copied.
+    # The screening service is built from services/image-moderation (in this repository); no credentials are copied.
     if $screening; then
       image=$(sed -n "s/^SWOOVR_SCREENING_IMAGE='\(.*\)'$/\1/p" "$state/docker.env")
-      image=${image:-image-moderation-api-moderation-api:latest}
+      image=${image:-swoovr-image-moderation:local}
       if ! docker image inspect "$image" >/dev/null 2>&1; then
-        if [[ "$image" == image-moderation-api-moderation-api:latest && -f ../image-moderation-api/Dockerfile ]]; then
-          docker build -t "$image" ../image-moderation-api
+        if [[ "$image" == swoovr-image-moderation:local ]]; then
+          docker build -t "$image" services/image-moderation
         else
-          docker pull "$image" || { echo 'Supply SWOOVR_SCREENING_IMAGE or sibling image-moderation-api; alternatively use --no-screening.' >&2; false; }
+          docker pull "$image" || { echo 'Supply SWOOVR_SCREENING_IMAGE, or use --no-screening.' >&2; false; }
         fi
       fi
     fi

@@ -68,11 +68,12 @@ wait_exited_ok() { # one-shot services (zammad-init): exited with 0
     sleep 10; waited=$((waited + 10))
   done
 }
-HEALTHY=(swoovr-postgres keycloak zammad-postgresql zammad-redis zammad-memcached zammad-railsserver api web admin)
+HEALTHY=(swoovr-postgres keycloak zammad-postgresql zammad-redis zammad-memcached zammad-railsserver image-moderation api web admin)
 wait_all() {
   local service
   for service in "${HEALTHY[@]}"; do
-    case "$service" in keycloak) wait_healthy "$service" 600 ;; zammad-railsserver) wait_healthy "$service" 900 ;;
+    # image-moderation: the first start copies and checks the models before /ready answers.
+    case "$service" in keycloak|image-moderation) wait_healthy "$service" 600 ;; zammad-railsserver) wait_healthy "$service" 900 ;;
       *) wait_healthy "$service" 300 ;; esac
   done
   wait_exited_ok zammad-init 900

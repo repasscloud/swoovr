@@ -189,9 +189,8 @@ services:
     security_opt: [no-new-privileges:true]
   screening:
     <<: *app
-    # Built by the launcher from the sibling image-moderation-api if missing.
-    # No provider credentials are copied from that repository.
-    image: ${SWOOVR_SCREENING_IMAGE:-image-moderation-api-moderation-api:latest}
+    # Built by the launcher from services/image-moderation if missing. No provider credentials are copied.
+    image: ${SWOOVR_SCREENING_IMAGE:-swoovr-image-moderation:local}
     profiles: [screening]
     environment:
       HOST: 0.0.0.0

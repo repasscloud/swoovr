@@ -4,7 +4,7 @@
 #
 #   validate           strict vX.Y.Z tag, tag == checked-out commit, commit reachable from origin/main, version matches
 #                      Directory.Build.props Major.Minor, DEPLOYMENT_MODE read ONCE and passed on as a job output
-#   build              five Swoovr images, linux/amd64 only, ghcr.io/repasscloud/swoovr-<image>:<full commit SHA>;
+#   build              six Swoovr images (incl. screening from services/image-moderation), linux/amd64 only, ghcr.io/repasscloud/swoovr-<image>:<full commit SHA>;
 #                      an existing commit tag is reused, never rebuilt or overwritten
 #   deploy             `uat` environment: release manifest, anonymous-pull check (packages must be PUBLIC), realm
 #                      templates, bundle, verified SSH as root, deploy, public smoke checks, summary
@@ -113,7 +113,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        component: [api, web, admin, operator, keycloak]
+        component: [api, web, admin, operator, keycloak, screening]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -143,9 +143,10 @@ jobs:
         if: steps.existing.outputs.exists != 'true'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: .
-          file: ${{ matrix.component == 'keycloak' && 'containers/uat/Keycloak.Dockerfile' || 'containers/uat/Dockerfile' }}
-          target: ${{ matrix.component }}
+          # screening = the photo screening service (services/image-moderation, its own Dockerfile and build context).
+          context: ${{ matrix.component == 'screening' && 'services/image-moderation' || '.' }}
+          file: ${{ matrix.component == 'screening' && 'services/image-moderation/Dockerfile' || matrix.component == 'keycloak' && 'containers/uat/Keycloak.Dockerfile' || 'containers/uat/Dockerfile' }}
+          target: ${{ matrix.component != 'screening' && matrix.component || '' }}
           platforms: linux/amd64
           build-args: |
             SWOOVR_VERSION=${{ needs.validate.outputs.version }}
@@ -239,7 +240,7 @@ jobs:
             echo "SWOOVR_TAG=$TAG"
             echo "SWOOVR_VERSION=$VERSION"
             echo "SWOOVR_COMMIT=$GITHUB_SHA"
-            for component in api web admin operator keycloak; do
+            for component in api web admin operator keycloak screening; do
               upper="$(tr '[:lower:]' '[:upper:]' <<< "$component")"
               echo "SWOOVR_${upper}_IMAGE=$REGISTRY/swoovr-$component@$(cat "digests/$component")"
             done
@@ -249,7 +250,7 @@ jobs:
           import json, os, sys, time
           values = dict(line.strip().split('=', 1) for line in open(sys.argv[1]) if '=' in line)
           images = {}
-          for component in ['api', 'web', 'admin', 'operator', 'keycloak']:
+          for component in ['api', 'web', 'admin', 'operator', 'keycloak', 'screening']:
               ref = values[f'SWOOVR_{component.upper()}_IMAGE']
               name, digest = ref.split('@')
               images[component] = {'name': name, 'tag': values['SWOOVR_COMMIT'], 'digest': digest, 'reference': ref}
@@ -266,7 +267,7 @@ jobs:
           set -euo pipefail
           anonymous="$(mktemp -d)"
           fail=0
-          for component in api web admin operator keycloak; do
+          for component in api web admin operator keycloak screening; do
             ref="$REGISTRY/swoovr-$component@$(cat "digests/$component")"
             if platforms="$(DOCKER_CONFIG="$anonymous" docker buildx imagetools inspect "$ref" \
                 --format '{{range .Manifest.Manifests}}{{.Platform.OS}}/{{.Platform.Architecture}} {{end}}' 2>/dev/null)"; then
@@ -388,9 +389,8 @@ jobs:
           PV_UAT_DIDIT_WEBHOOK_SECRET: ${{ secrets.UAT_DIDIT_WEBHOOK_SECRET }}
           PV_UAT_R2_ACCESS_KEY_ID: ${{ secrets.UAT_R2_ACCESS_KEY_ID }}
           PV_UAT_R2_SECRET_ACCESS_KEY: ${{ secrets.UAT_R2_SECRET_ACCESS_KEY }}
-          PV_UAT_SCREENING_API_KEY: ${{ secrets.UAT_SCREENING_API_KEY }}
-          PV_UAT_MEDIA_PIPELINE_SERVICE_TOKEN: ${{ secrets.UAT_MEDIA_PIPELINE_SERVICE_TOKEN }}
-          PV_UAT_MEDIA_PIPELINE_UPLOAD_SIGNING_KEY: ${{ secrets.UAT_MEDIA_PIPELINE_UPLOAD_SIGNING_KEY }}
+          PV_UAT_ARACHNID_USERNAME: ${{ secrets.UAT_ARACHNID_USERNAME }}
+          PV_UAT_ARACHNID_PASSWORD: ${{ secrets.UAT_ARACHNID_PASSWORD }}
           PV_UAT_MODERATION_ESCALATION_EMAIL: ${{ secrets.UAT_MODERATION_ESCALATION_EMAIL }}
           PV_UAT_MODERATION_ESCALATION_BACKUP_EMAIL: ${{ secrets.UAT_MODERATION_ESCALATION_BACKUP_EMAIL }}
           PV_UAT_TWILIO_SMS_ACCOUNT_SID: ${{ secrets.UAT_TWILIO_SMS_ACCOUNT_SID }}
@@ -408,7 +408,6 @@ jobs:
           PV_UAT_DIDIT_WORKFLOW_ID: ${{ vars.UAT_DIDIT_WORKFLOW_ID }}
           PV_UAT_R2_ENDPOINT: ${{ vars.UAT_R2_ENDPOINT }}
           PV_UAT_R2_BUCKET: ${{ vars.UAT_R2_BUCKET }}
-          PV_UAT_SCREENING_BASE_URL: ${{ vars.UAT_SCREENING_BASE_URL }}
           PV_UAT_TWILIO_SMS_FROM: ${{ vars.UAT_TWILIO_SMS_FROM }}
           PV_UAT_MAIL_FROM: ${{ vars.UAT_MAIL_FROM }}
           PV_UAT_MAIL_FROM_NAME: ${{ vars.UAT_MAIL_FROM_NAME }}
@@ -492,7 +491,7 @@ jobs:
             fi
             echo
             echo "### Images"
-            for component in api web admin operator keycloak; do
+            for component in api web admin operator keycloak screening; do
               [[ -f "digests/$component" ]] && echo "- \`$REGISTRY/swoovr-$component@$(cat "digests/$component")\` (tag \`$GITHUB_SHA\`)"
             done
             if grep -q '^initial-admin=pending' "$RUNNER_TEMP/results.txt" 2>/dev/null; then

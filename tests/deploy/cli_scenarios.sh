@@ -31,7 +31,7 @@ stage_release() { # stage_release TAG COMMIT -> release dir
   local tag="$1" commit="$2" m="$work/m-$1-$2" dir
   mkdir -p "$m"
   { echo "SWOOVR_TAG=$tag"; echo "SWOOVR_VERSION=${tag#v}"; echo "SWOOVR_COMMIT=$commit"
-    for c in api web admin operator keycloak; do echo "SWOOVR_$(tr a-z A-Z <<< "$c")_IMAGE=ghcr.io/repasscloud/swoovr-$c@sha256:$(printf '%064d' 1)"; done
+    for c in api web admin operator keycloak screening; do echo "SWOOVR_$(tr a-z A-Z <<< "$c")_IMAGE=ghcr.io/repasscloud/swoovr-$c@sha256:$(printf '%064d' 1)"; done
   } > "$m/release-manifest.env"
   echo '{"tag":"'"$tag"'"}' > "$m/release-manifest.json"
   ( cd "$repo" && deploy/vultr-uat/bin/make-bundle.sh "$m/release-manifest.env" "$work/realms" "$m/release-manifest.json" "$m/dist" ) > /dev/null
@@ -51,7 +51,7 @@ special = {'UAT_API_MAIL_SERVICE': 'postmark', 'UAT_KEYCLOAK_MAIL_SERVICE': 'pos
            'UAT_ZAMMAD_SUPPORT_NAME': 'Swoovr Support', 'UAT_INITIAL_ADMIN_EMAIL': 'first.admin@example.test',
            'UAT_ENTRA_TENANT_ID': '11111111-1111-4111-8111-111111111111', 'UAT_ENTRA_CLIENT_ID': '22222222-2222-4222-8222-222222222222',
            'UAT_KEYCLOAK_ENABLED_REALMS': 'swoovr-members,swoovr-staff', 'UAT_R2_ENDPOINT': 'https://r2.example.test',
-           'UAT_SCREENING_BASE_URL': 'https://screening.example.test', 'UAT_ZAMMAD_SUPPORT_ADDRESS': '-', 'UAT_ZAMMAD_IMAP_USERNAME': '-',
+           'UAT_ZAMMAD_SUPPORT_ADDRESS': '-', 'UAT_ZAMMAD_IMAP_USERNAME': '-',
            'UAT_ZAMMAD_IMAP_PASSWORD': '-', 'UAT_MAILERSEND_API_TOKEN': '-', 'UAT_ZAMMAD_MANAGE_MAIL': 'false'}
 print(json.dumps({name: special.get(name, 'fixture-value-' + name.lower()) for name in envtool.PROVIDER_VALUES}))
 PY
