@@ -297,7 +297,7 @@ Use this after the first D384 deployment (photos that were stuck before it), and
 
 **What this does and doesn't do:** it only moves each waiting photo's next check to "now". It never approves, rejects or shows a photo by itself; every photo still goes through the virus scan, the automatic checks and the normal rules.
 
-**If the number doesn't fall:** run step 3 again and read the reason. Photos whose member account is locked, suspended or being deleted stay waiting on purpose. Any other reason: see "When photos are waiting or not processing", above.
+**If the number doesn't fall:** run step 3 again and read the reason. Photos whose member account is locked, suspended or being deleted are *paused* on purpose. They are listed on their own line ("Paused with their account"), not in the pending number, and never make the panel look unhealthy. Any other reason: see "When photos are waiting or not processing", above.
 
 ### After the first deployment of D384 (once)
 

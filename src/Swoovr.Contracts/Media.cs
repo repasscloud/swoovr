@@ -71,11 +71,12 @@ public sealed record MediaSafetyAck(string Version, bool Confirmed);
 /// <paramref name="State"/>: `healthy` (both services answer, nothing stalled), `degraded` (services answer, but photos are
 /// stalled or waiting over an hour), `unavailable` (the screening service or the malware scanner doesn't answer).
 /// <paramref name="ScreeningReady"/> is null when the screener can't report readiness. <paramref name="Blocked"/> is null for
-/// Support (known-content matches are Admin-only).
+/// Support (known-content matches are Admin-only). The waiting counts cover photos the worker acts on; <paramref name="Paused"/>
+/// counts pending photos held while their account is locked, suspended or being deleted (never a processing problem).
 /// </summary>
 public sealed record ImageProcessingStatus(string State, bool? ScreeningReady, bool MalwareScannerReady, int Pending, int PendingOverHour,
     int Stalled, DateTimeOffset? OldestPendingAt, IReadOnlyList<ImageProcessingReason> Reasons, int Passed, int Review, int? Blocked,
-    DateTimeOffset Since, DateTimeOffset CheckedAt);
+    DateTimeOffset Since, DateTimeOffset CheckedAt, int Paused = 0);
 /// <summary>Why photos are waiting: the last screening attempt's machine code (for example `http-404` or `unreachable`).</summary>
 public sealed record ImageProcessingReason(string Code, int Count, int Stalled);
 public sealed record PhotoWorkload(int ManualReview, int PendingScreening, int Specialist, int Appeals, int Rejected, int AwaitingOtherAdmin = 0);

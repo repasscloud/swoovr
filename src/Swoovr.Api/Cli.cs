@@ -272,6 +272,7 @@ public static class Cli
                 var status = await Swoovr.Api.Media.ImageProcessingStatusEndpoints.ReadAsync(db, scope.ServiceProvider.GetRequiredService<Swoovr.Api.Media.ImageProcessingHealth>(), admin: false, now, CancellationToken.None);
                 Console.WriteLine($"Image processing: {status.State}. Screening service: {(status.ScreeningReady is { } ready ? ready ? "ready" : "not answering" : "unknown")}; malware scanner: {(status.MalwareScannerReady ? "ready" : "not answering")}.");
                 Console.WriteLine($"Pending: {status.Pending} ({status.PendingOverHour} over an hour, {status.Stalled} stalled). Oldest: {(status.OldestPendingAt is { } oldest ? oldest.ToString("u") : "none")}.");
+                if (status.Paused > 0) Console.WriteLine($"Paused with their account (locked, suspended or being deleted; not screened on purpose): {status.Paused}.");
                 foreach (var reason in status.Reasons) Console.WriteLine($"  {reason.Code}: {reason.Count} ({reason.Stalled} stalled)");
                 Console.WriteLine($"Last 24 hours: {status.Passed} approved automatically, {status.Review} sent to review.");
                 return status.State == "healthy" ? 0 : 1;

@@ -79,6 +79,10 @@ else
                 <li><a href="/media"><strong data-processing-blocked>@blocked</strong> known-content matches <span class="tile-note">Last 24 hours, sealed</span></a></li>
             }
         </ul>
+        @if (ip.Paused > 0)
+        {
+            <p class="help" data-processing-paused="@ip.Paused">@ip.Paused more @(ip.Paused == 1 ? "photo is" : "photos are") on hold because the member's account is locked, suspended or being deleted. That's expected and isn't counted above.</p>
+        }
         @if (ip.Reasons.Count > 0)
         {
             <h3 class="image-processing-subhead">Why photos are waiting</h3>

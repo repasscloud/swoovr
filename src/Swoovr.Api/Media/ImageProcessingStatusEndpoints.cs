@@ -45,7 +45,10 @@ public static class ImageProcessingStatusEndpoints
     public static async Task<ImageProcessingStatus> ReadAsync(SwoovrDbContext db, ImageProcessingHealth health, bool admin, DateTimeOffset now, CancellationToken cancellationToken)
     {
         var (screening, malware) = await health.CheckAsync(cancellationToken);
-        var pending = db.MediaItems.AsNoTracking().Where(i => i.Status == MediaStatus.Pending && i.RemovedAt == null);
+        // Only photos the worker acts on count towards the backlog and health. Photos paused with their account (locked,
+        // suspended, being deleted) are reported separately and never make processing look degraded.
+        var pending = db.MediaItems.AsNoTracking().ScreenablePending(db);
+        var paused = await db.MediaItems.AsNoTracking().Pending().CountAsync(cancellationToken) - await pending.CountAsync(cancellationToken);
         var stallBefore = now - MediaPolicy.StallAge;
         var rows = await pending.GroupBy(i => i.LastScreenError ?? "waiting")
             .Select(g => new { Code = g.Key, Count = g.Count(), Stalled = g.Count(i => i.ScreenAttempts >= MediaPolicy.StallAttempts || i.CreatedAt <= stallBefore) })
@@ -62,7 +65,7 @@ public static class ImageProcessingStatusEndpoints
         var state = screening == false || !malware ? "unavailable" : stalled > 0 || overHour > 0 ? "degraded" : "healthy";
         return new ImageProcessingStatus(state, screening, malware, total, overHour, stalled, oldest,
             rows.OrderByDescending(r => r.Count).ThenBy(r => r.Code, StringComparer.Ordinal).Select(r => new ImageProcessingReason(r.Code, r.Count, r.Stalled)).ToList(),
-            passed, review, blocked, since, now);
+            passed, review, blocked, since, now, Math.Max(0, paused));
     }
 
     public static void Map(WebApplication app)
@@ -91,7 +94,7 @@ public static class ImageProcessingStatusEndpoints
             try
             {
                 var status = await ReadAsync(db, health, admin: false, clock.GetUtcNow(), timeout.Token);
-                return Results.Json(new { status = status.State, screening = status.ScreeningReady, malware = status.MalwareScannerReady, pending = status.Pending, stalled = status.Stalled,
+                return Results.Json(new { status = status.State, screening = status.ScreeningReady, malware = status.MalwareScannerReady, pending = status.Pending, stalled = status.Stalled, paused = status.Paused,
                     pendingOverHour = status.PendingOverHour, reasons = status.Reasons.Select(r => new { r.Code, r.Count, r.Stalled }) },
                     statusCode: status.State == "healthy" ? 200 : 503);
             }

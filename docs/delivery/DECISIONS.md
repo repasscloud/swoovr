@@ -1281,7 +1281,7 @@ D201/D203 screening, D336 attachment scanning, D374 and D379 are unchanged.
 - **Malware scanning happens before decoding**, on the original bytes, synchronously, and fails closed. Infected or unscannable photos are refused and audited with ids only. A scanner that doesn't answer refuses the upload with `photo-check-unavailable` ("try again in a few minutes"). Nothing is ever stored unscanned, and no raw original is kept.
 - **Stalled** means 12 attempts (about 9 hours) or 24 hours. The photo is still private and still retried hourly. It is audited (`media.stalled`) and error-logged once, and shown on the Overview and `/health/screening`. It is never sent to human review unless its known-content check completed.
 - **Hosted startup requires `Media:Screening:ApiKey`** (at least 32 characters). It accepts either HTTPS or a private single-label service address such as `http://image-moderation:8080`.
-- **The worker sweep takes only photos it can act on**, so pending photos of inactive accounts can't starve retries.
+- **The worker sweep takes only photos it can act on**, so pending photos of inactive accounts can't starve retries. The status and `/health/screening` use the same rule (`MediaScreeningQueries.ScreenablePending`), so paused photos are reported separately and never degrade health.
 - **Operator recovery:** `media pending-report` and `media rescreen --pending [--reason <code>]`.
 - **Monitoring:** `/health/screening` (200 healthy, 503 degraded or unavailable). It is not a deploy gate. The deploy waits for `image-moderation` to be healthy.
 - **Members** see "Still being checked · taking longer than usual" after an hour.

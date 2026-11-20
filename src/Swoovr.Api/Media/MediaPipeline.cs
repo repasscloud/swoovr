@@ -573,9 +573,8 @@ public sealed class MediaScreeningWorker(IServiceScopeFactory scopes, MediaQueue
                     var db = scope.ServiceProvider.GetRequiredService<SwoovrDbContext>();
                     // Only photos the attempt can act on: an inactive account's pending photo is skipped by ScreenAsync without
                     // moving its due time, so taking it here would let 20 of them starve every other retry.
-                    due = await db.MediaItems
-                        .Where(i => i.Status == MediaStatus.Pending && i.RemovedAt == null && i.NextScreenAt <= sweep
-                            && (db.Accounts.Any(a => a.Id == i.AccountId && a.Status == AccountStatus.Active) || i.ObjectKey != null && i.ObjectKey.StartsWith("evidence/")))
+                    due = await db.MediaItems.ScreenablePending(db)
+                        .Where(i => i.NextScreenAt <= sweep)
                         .OrderBy(i => i.NextScreenAt).Select(i => i.Id).Take(20)
                         .ToListAsync(stoppingToken);
                 }
@@ -604,6 +603,18 @@ public sealed class MediaScreeningWorker(IServiceScopeFactory scopes, MediaQueue
             log.LogError(exception, "Media {Id}: screening attempt failed; it stays pending.", id);
         }
     }
+}
+
+/// <summary>
+/// Which pending photos the screening worker acts on: an Active account's, or one whose object is already sealed (it is
+/// blocked regardless of the account). Others are paused on purpose while the account is locked, suspended or being
+/// deleted. The worker sweep and the image processing status share this rule, so paused photos never count as a backlog.
+/// </summary>
+public static class MediaScreeningQueries
+{
+    public static IQueryable<MediaItem> Pending(this IQueryable<MediaItem> items) => items.Where(i => i.Status == MediaStatus.Pending && i.RemovedAt == null);
+    public static IQueryable<MediaItem> ScreenablePending(this IQueryable<MediaItem> items, SwoovrDbContext db) => items.Pending()
+        .Where(i => db.Accounts.Any(a => a.Id == i.AccountId && a.Status == AccountStatus.Active) || i.ObjectKey != null && i.ObjectKey.StartsWith("evidence/"));
 }
 
 public static class MediaSetup

@@ -86,6 +86,19 @@ static class ImageProcessingChecks
             var down = await ImageProcessingStatusEndpoints.ReadAsync(db, new ImageProcessingHealth(services.GetRequiredService<IServiceScopeFactory>(), TimeProvider.System), admin: false, now, default);
             check("a scanner that doesn't answer makes processing unavailable", down.State == "unavailable" && !down.MalwareScannerReady);
 
+            // Codex review on #395: a locked account's pending photo is paused on purpose (the worker skips it), so it is
+            // reported separately and never changes the backlog, stall counts or health.
+            scanner.Healthy = true;
+            ImageProcessingHealth Fresh() => new(services.GetRequiredService<IServiceScopeFactory>(), TimeProvider.System);
+            var before = await ImageProcessingStatusEndpoints.ReadAsync(db, Fresh(), admin: false, now, default);
+            var locked = Member(AccountStatus.Locked); db.Accounts.Add(locked);
+            db.MediaItems.Add(new MediaItem { Id = Guid.NewGuid(), AccountId = locked.Id, Status = MediaStatus.Pending, CreatedAt = now.AddDays(-3), ScreenAttempts = MediaPolicy.StallAttempts, LastScreenError = "paused-check", NextScreenAt = now.AddMinutes(-5), ObjectKey = "quarantine/" + Guid.NewGuid().ToString("N") });
+            await db.SaveChangesAsync();
+            var after = await ImageProcessingStatusEndpoints.ReadAsync(db, Fresh(), admin: false, now, default);
+            check("a paused account's photo is reported separately, never as backlog or degraded health",
+                after.Paused == before.Paused + 1 && after.Pending == before.Pending && after.Stalled == before.Stalled && after.PendingOverHour == before.PendingOverHour
+                && after.State == before.State && !after.Reasons.Any(r => r.Code == "paused-check"));
+            check("the worker's due query skips the paused photo", !await db.MediaItems.ScreenablePending(db).AnyAsync(i => i.AccountId == locked.Id));
             var rescreened = await pipeline.RescreenPendingAsync("http-404", now, default);
             db.ChangeTracker.Clear();
             check("rescreen makes matching pending photos due now, nothing else", rescreened == 1 && (await db.MediaItems.SingleAsync(i => i.Id == stalled.Id)) is { Status: MediaStatus.Pending, NextScreenAt: { } due } && Math.Abs((due - now).TotalMilliseconds) < 1);

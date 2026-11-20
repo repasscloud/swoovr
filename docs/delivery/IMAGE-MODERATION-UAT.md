@@ -113,6 +113,8 @@ On the 8 vCPU / 32 GB UAT VM, the processor's 4 GB / 2 CPU limit and ClamAV's 4 
 - the last 24 hours' automatic approvals and review referrals (and known-content matches for Admin);
 - *Why photos are waiting*, in plain words, by reason (for example "Screening service address is wrong (not found)").
 
+Photos whose account is locked, suspended or being deleted are paused on purpose: the worker skips them. They are shown as a separate note and never count as waiting or stalled, or make the status degraded (Codex review on #395).
+
 It shows counts only: never photos, photo ids or account ids. Reload the page to check again; health is cached for 15 seconds.
 
 **Monitoring:** `GET https://api-uat.swoovr.app/health/screening` returns:
