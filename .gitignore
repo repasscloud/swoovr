@@ -522,6 +522,26 @@ swoovr-zammad-integration-review-prompt.md
 !/tests/backups/*.py
 !/scripts/backups/requirements.txt
 
+# image-moderation
+.DS_Store
+*.tar.gz
+.env
+.env.*
+!.env.example
+.venv*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.local/
+model-cache/
+outputs/
+
+# Per-host deployment state and runtime secrets are never committed.
+deploy/vultr/compose.env
+deploy/vultr/processor.env
+deploy/vultr/control/
+
 # Other files
 tmp*.sh
 ignore-*.txt
