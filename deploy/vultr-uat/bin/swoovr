@@ -70,8 +70,12 @@ wait_exited_ok() { # one-shot services (zammad-init): exited with 0
 }
 HEALTHY=(swoovr-postgres keycloak zammad-postgresql zammad-redis zammad-memcached zammad-railsserver image-moderation api web admin)
 wait_all() {
-  local service
+  # Wait only for services the installed compose file defines: a rollback runs this script against an older bundle
+  # (before D384 there was no image-moderation), and an upgrade against a newer one.
+  local service defined
+  defined=" $(dc config --services | tr '\n' ' ') " || die 'compose.yaml does not parse'
   for service in "${HEALTHY[@]}"; do
+    [[ "$defined" == *" $service "* ]] || { echo "$service not in this release, not waited for"; continue; }
     # image-moderation: the first start copies and checks the models before /ready answers.
     case "$service" in keycloak|image-moderation) wait_healthy "$service" 600 ;; zammad-railsserver) wait_healthy "$service" 900 ;;
       *) wait_healthy "$service" 300 ;; esac

@@ -8,13 +8,17 @@ volumes=(swoovr-pgdata zammad-pgdata zammad-storage zammad-elasticsearch zammad-
 
 if [[ "${1:-}" == compose ]]; then
   shift
+  file=""
   while (($#)); do
-    case "$1" in --project-name|--project-directory|-f|--env-file|--profile) shift 2 ;; *) break ;; esac
+    case "$1" in -f) file="$2"; shift 2 ;; --project-name|--project-directory|--env-file|--profile) shift 2 ;; *) break ;; esac
   done
   sub="${1:-}"; shift || true
   case "$sub" in
     version) echo 2.30.0 ;;
-    config|pull|stop|cp|logs) cat > /dev/null 2>&1 < /dev/null; exit 0 ;;
+    config) # --services: the top-level services of the compose file, like the real command
+      [[ "${1:-}" == --services && -f "$file" ]] && awk '/^services:/{in_s=1; next} in_s && /^[^ #]/{exit} in_s && /^  [A-Za-z0-9_-]+:/{sub(/^  /, ""); sub(/:.*/, ""); print}' "$file"
+      exit 0 ;;
+    pull|stop|cp|logs) cat > /dev/null 2>&1 < /dev/null; exit 0 ;;
     ps)
       [[ "${1:-}" == -aq || "${1:-}" == -q ]] && shift
       if [[ -n "${1:-}" && "${1:-}" != -* ]]; then echo "c-$1"; else printf 'c-api\nc-web\nc-keycloak\n'; fi ;;

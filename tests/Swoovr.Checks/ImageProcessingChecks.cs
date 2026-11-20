@@ -85,6 +85,19 @@ static class ImageProcessingChecks
             scanner.Healthy = false;
             var down = await ImageProcessingStatusEndpoints.ReadAsync(db, new ImageProcessingHealth(services.GetRequiredService<IServiceScopeFactory>(), TimeProvider.System), admin: false, now, default);
             check("a scanner that doesn't answer makes processing unavailable", down.State == "unavailable" && !down.MalwareScannerReady);
+            // Codex review on #395: clamd accepts the connection but never answers PING. The health deadline reports it
+            // unavailable (cached), instead of the cancellation escaping and hiding the staff Overview panel.
+            scanner.Healthy = true; scanner.Hang = true;
+            var hung = await ImageProcessingStatusEndpoints.ReadAsync(db, new ImageProcessingHealth(services.GetRequiredService<IServiceScopeFactory>(), TimeProvider.System) { MalwareTimeout = TimeSpan.FromMilliseconds(50) }, admin: false, now, default);
+            check("a scanner that never answers times out as unavailable, without an error", hung.State == "unavailable" && !hung.MalwareScannerReady);
+            using (var caller = new CancellationTokenSource(TimeSpan.FromMilliseconds(50)))
+            {
+                var propagated = false;
+                try { await new ImageProcessingHealth(services.GetRequiredService<IServiceScopeFactory>(), TimeProvider.System) { MalwareTimeout = TimeSpan.FromMinutes(1) }.CheckAsync(caller.Token); }
+                catch (OperationCanceledException) { propagated = true; }
+                check("the caller's own cancellation still propagates", propagated);
+            }
+            scanner.Hang = false;
 
             // Codex review on #395: a locked account's pending photo is paused on purpose (the worker skips it), so it is
             // reported separately and never changes the backlog, stall counts or health.
@@ -116,9 +129,15 @@ static class ImageProcessingChecks
     {
         public AttachmentScanState Next = AttachmentScanState.Clean;
         public bool Healthy = true;
+        public bool Hang;
         public long LastLength;
         public string Name => "clamav";
-        public Task<bool> HealthyAsync(CancellationToken cancellationToken = default) => Task.FromResult(Healthy);
+        public async Task<bool> HealthyAsync(CancellationToken cancellationToken = default)
+        {
+            // Like ClamAvScanner: cancellation of the token it was given is rethrown, never turned into a result.
+            if (Hang) await Task.Delay(Timeout.Infinite, cancellationToken);
+            return Healthy;
+        }
         public Task<MalwareScanResult> ScanAsync(Stream content, CancellationToken cancellationToken = default)
         {
             LastLength = content.Length;

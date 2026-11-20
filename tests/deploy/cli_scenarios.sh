@@ -103,6 +103,7 @@ dump_line="$(grep -n 'pg_dump' "$FAKE_LOG" | head -1 | cut -d: -f1)"; migrate_li
 ls /opt/swoovr/backups/*-pre-upgrade-v1.0.4/swoovr.dump /opt/swoovr/backups/*-pre-upgrade-v1.0.4/SHA256SUMS > /dev/null && ok 'pre-upgrade backup has dumps and checksums' || bad 'pre-upgrade backup has dumps and checksums'
 [[ "$keys_before" == "$(grep -E '^(Evidence__Keys__1|IdentityStore__HmacKey|Phone__CodeKey)=' "$live/env/api.env" | sha256sum)" ]] && ok 'data keys preserved by upgrade' || bad 'data keys preserved by upgrade'
 grep -q 'SWOOVR_RESULT initial-admin=granted' "$work/out.log" && ok 'verified admin granted in stage 2' || bad 'verified admin granted in stage 2'
+grep -q 'ps -aq image-moderation' "$FAKE_LOG" && ok 'upgrade waits for image-moderation' || bad 'upgrade waits for image-moderation'
 cmp -s "$live/release.env.previous" "$r1/release.env" && ok 'previous release manifest kept for rollback' || bad 'previous release manifest kept for rollback'
 [[ "$(grep -c '"result": "success"' "$live/state/releases.jsonl")" == 2 ]] && grep -q '"failed_stage": "preflight"' "$live/state/releases.jsonl" && tail -1 "$live/state/releases.jsonl" | grep -q '"previous": {"commit": "'"$c1"'", "tag": "v1.0.3"}' "$live/state/releases.jsonl" && ok 'history records both releases and the previous one' || bad 'history records both releases and the previous one'
 
@@ -132,5 +133,17 @@ r5="$(stage_release v1.0.6 5555555555555555555555555555555555555555)"
 FAKE_FAIL_JOB=migrate deploy "$r5" upgrade && bad 'upgrade continued after a failed migration'
 tail -1 "$live/state/releases.jsonl" | grep -q '"failed_stage": "migrate"' && ok 'failed migration recorded at stage migrate' || bad 'failed migration recorded at stage migrate'
 [[ "$(count 'compose.* down')" == 0 ]] && ok 'failed migration deleted nothing' || bad 'failed migration deleted nothing'
+
+# 8. Rollback to a release from before D384 (no image-moderation service): the health waits follow the restored
+#    compose file, not this script's list, so the rollback completes and is recorded (Codex review on #395).
+python3 -c 'import re, sys
+path = sys.argv[1]; text = open(path, encoding="utf-8").read()
+open(path, "w", encoding="utf-8").write(re.sub(r"(?ms)^  image-moderation:\n.*?(?=^  [a-z])", "", text, count=1))' "$r2/compose.yaml"
+grep -q '^  image-moderation:' "$r2/compose.yaml" && bad 'fixture still defines image-moderation'
+: > "$FAKE_LOG"
+set +e; FAKE_VERSION=1.0.4 "$live/bin/swoovr" rollback --to v1.0.4 --yes > "$work/out.log" 2>&1; code=$?; set -e
+(( code == 0 )) || { cat "$work/out.log"; bad 'rollback to a release without image-moderation failed'; }
+! grep -q 'ps -aq image-moderation' "$FAKE_LOG" && grep -q 'ps -aq api' "$FAKE_LOG" && ok 'rollback waits only for the restored services' || bad 'rollback waits only for the restored services'
+tail -1 "$live/state/releases.jsonl" | grep -q '"result": "success"' && tail -1 "$live/state/releases.jsonl" | grep -q '"tag": "v1.0.4"' && ok 'rollback recorded as a success' || bad 'rollback recorded as a success'
 
 echo "ALL $pass CLI SCENARIO CHECKS PASSED"

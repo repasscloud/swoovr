@@ -17,6 +17,9 @@ public sealed class ImageProcessingHealth(IServiceScopeFactory scopes, TimeProvi
     private readonly SemaphoreSlim gate = new(1, 1);
     private (DateTimeOffset At, bool? Screening, bool Malware)? cached;
 
+    /// <summary>How long clamd may take to answer PING before it counts as unavailable.</summary>
+    public TimeSpan MalwareTimeout { get; init; } = TimeSpan.FromSeconds(5);
+
     public async Task<(bool? Screening, bool Malware)> CheckAsync(CancellationToken cancellationToken)
     {
         if (cached is { } hit && clock.GetUtcNow() - hit.At < CacheFor) return (hit.Screening, hit.Malware);
@@ -26,13 +29,21 @@ public sealed class ImageProcessingHealth(IServiceScopeFactory scopes, TimeProvi
             if (cached is { } again && clock.GetUtcNow() - again.At < CacheFor) return (again.Screening, again.Malware);
             await using var scope = scopes.CreateAsyncScope();
             var screening = scope.ServiceProvider.GetService<IMediaScreening>() is { } screener ? await screener.ReadyAsync(cancellationToken) : false;
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(5));
-            var malware = scope.ServiceProvider.GetService<IAttachmentMalwareScanner>() is { } scanner && await scanner.HealthyAsync(timeout.Token);
+            var malware = scope.ServiceProvider.GetService<IAttachmentMalwareScanner>() is { } scanner && await MalwareHealthyAsync(scanner, cancellationToken);
             cached = (clock.GetUtcNow(), screening, malware);
             return (screening, malware);
         }
         finally { gate.Release(); }
+    }
+
+    // A clamd that accepts the connection but never answers hits our own deadline: that is "unavailable", not an error
+    // (the scanner rethrows cancellation of the token it was given). Cancellation by the caller still propagates.
+    private async Task<bool> MalwareHealthyAsync(IAttachmentMalwareScanner scanner, CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(MalwareTimeout);
+        try { return await scanner.HealthyAsync(timeout.Token); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return false; }
     }
 }
 
