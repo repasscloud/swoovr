@@ -1,6 +1,6 @@
 # Local implementation evidence — 9 November 2026
 
-Tracking: [Swoovr #294](https://github.com/repasscloud/wanderconnect/issues/294).
+Tracking: Swoovr issue 294.
 This is local evidence, not hosted acceptance or deployment approval.
 
 - Source Docker image built successfully on ARM64 as `swoovr-image-processor:294-local` using the pinned Dockerfile/model snapshot.

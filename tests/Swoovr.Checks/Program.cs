@@ -20,7 +20,7 @@ if(args is ["--image-pipeline-persistence-checks"]){ImagePipelineChecks.Run();aw
 
 if(args is ["--image-pipeline-checks"]){ImagePipelineChecks.Run();return;}
 
-if(args is ["--media-checks"]){MediaChecks.Run();ImagePipelineChecks.Run();return;}
+if(args is ["--media-checks"]){MediaChecks.Run();ImagePipelineChecks.Run();ImageProcessingChecks.Run();return;}
 if(args is ["--device-client-checks"]){await DeviceClientChecks.Run();return;}
 if(args is ["--sms-checks"]){await SmsTransportChecks.Run();return;}
 
@@ -96,7 +96,7 @@ HelpdeskRetentionAndScanningChecks.Run();
 SeriousIncidentChecks.Run();
 IdentityStoreChecks.Run();
 ModePrivacyChecks.Run();
-MediaChecks.Run();ImagePipelineChecks.Run();
+MediaChecks.Run();ImagePipelineChecks.Run();ImageProcessingChecks.Run();
 MediaRecoveryChecks.Run();
 SafetyResourceChecks.Run();
 NotificationChecks.Run();

@@ -56,6 +56,8 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
     public async Task<(MediaItem? Item, MediaUploadError Error)> UploadAsync(Guid account, byte[] upload, Guid? replaces, DateTimeOffset now, CancellationToken cancellationToken,
         Guid? conversation = null, bool deferScreening = false, Guid? album = null)
     {
+        // Malware first, on the original bytes and before anything decodes them (the one shared ClamAV, D336).
+        if (await MalwareCheckAsync(account, upload, now, cancellationToken) is var refused and not MediaUploadError.None) return (null, refused);
         var processed = processor.Process(upload);
         if (processed.Error != MediaUploadError.None) return (null, processed.Error);
         var item = new MediaItem
@@ -80,6 +82,42 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
         await db.SaveChangesAsync(cancellationToken);
         if (!deferScreening) ScheduleScreening(item.Id);
         return (item, MediaUploadError.None);
+    }
+
+    /// <summary>
+    /// The malware scan of an upload. Fails closed: no scanner, no answer or a failed scan refuses the upload (nothing is
+    /// stored, the member can try again shortly); a detection is audited with ids only and the bytes are discarded.
+    /// </summary>
+    private async Task<MediaUploadError> MalwareCheckAsync(Guid account, byte[] upload, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (upload.Length == 0) return MediaUploadError.None;
+        if (services.GetService<IAttachmentMalwareScanner>() is not { } scanner)
+        {
+            log.LogError("Photo upload refused: no malware scanner is configured.");
+            return MediaUploadError.ScanUnavailable;
+        }
+        using var content = new MemoryStream(upload, writable: false);
+        var result = await scanner.ScanAsync(content, cancellationToken);
+        switch (result.State)
+        {
+            case AttachmentScanState.Clean: return MediaUploadError.None;
+            case AttachmentScanState.Infected:
+                // Its own context: the caller may hold unsaved changes or a transaction that this refusal must not commit.
+                await using (var audit = services.GetRequiredService<IServiceScopeFactory>().CreateAsyncScope())
+                {
+                    var auditDb = audit.ServiceProvider.GetRequiredService<SwoovrDbContext>();
+                    Audit.Record(auditDb, now, account, "account", "media.malware-refused", "account", account.ToString(), result.Scanner);
+                    await auditDb.SaveChangesAsync(cancellationToken);
+                }
+                log.LogWarning("Photo upload refused by the malware scan ({Scanner}).", result.Scanner);
+                return MediaUploadError.Malware;
+            case AttachmentScanState.Unsupported:
+                log.LogWarning("Photo upload couldn't be malware-scanned: {Failure}.", result.Failure);
+                return MediaUploadError.ScanUnsupported;
+            default:
+                log.LogWarning("Photo upload refused: the malware scanner is unavailable ({Failure}).", result.Failure);
+                return MediaUploadError.ScanUnavailable;
+        }
     }
 
     /// <summary>Queue only after an enclosing upload transaction commits, so the worker can see its row.</summary>
@@ -178,12 +216,34 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
     {
         (item.LastScreenError, item.NextScreenAt) = (reason, MediaPolicy.NextAttempt(item.ScreenAttempts, now));
         if (item.ScreenAttempts == 1) Audit.Record(db, now, null, "system", "media.pending", "media", item.Id.ToString(), reason);
+        // Stalled: still private and still retried hourly, but reported once (audit + error log for alerting) and shown on
+        // the staff Overview. Never sent to human review without its known-content check.
+        if (item.ScreenAttempts == MediaPolicy.StallAttempts)
+        {
+            Audit.Record(db, now, null, "system", "media.stalled", "media", item.Id.ToString(), reason);
+            log.LogError("Media {Id} is stalled after {Attempts} screening attempts: {Reason}.", item.Id, item.ScreenAttempts, reason);
+        }
         await using var barrier=await Swoovr.Api.Retention.PreservationLease.SharedAsync(db,cancellationToken);
         await using var transaction=db.Database.CurrentTransaction is null?await db.Database.BeginTransactionAsync(cancellationToken):null;
         await services.GetRequiredService<Swoovr.Api.Moderation.ModerationInspectionRecorder>().FailedInTransactionAsync(Swoovr.Api.Moderation.ModerationInspectionRecorder.ImageDefinition,item.Id,cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
         if(transaction is not null)await transaction.CommitAsync(cancellationToken);
         log.LogInformation("Media {Id} stays pending: {Reason}.", item.Id, reason);
+    }
+
+    /// <summary>
+    /// Operator recovery (`media rescreen`): makes pending photos due now so the worker screens them on its next sweep,
+    /// instead of waiting for the hourly retry. Optionally only those whose last attempt failed with <paramref name="reason"/>.
+    /// Decisions are untouched; a photo only leaves Pending through a completed screening.
+    /// </summary>
+    public async Task<int> RescreenPendingAsync(string? reason, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var query = db.MediaItems.Where(i => i.Status == MediaStatus.Pending && i.RemovedAt == null && (i.NextScreenAt == null || i.NextScreenAt > now));
+        if (reason is not null) query = query.Where(i => i.LastScreenError == reason);
+        var count = await query.ExecuteUpdateAsync(set => set.SetProperty(i => i.NextScreenAt, now), cancellationToken);
+        if (count > 0) Audit.Record(db, now, null, "system", "media.rescreen-requested", "media", "pending", reason ?? "all");
+        await db.SaveChangesAsync(cancellationToken);
+        return count;
     }
 
     /// <summary>Publishes a photo: the object moves out of quarantine; a replacement takes over its original's places.</summary>
@@ -509,9 +569,16 @@ public sealed class MediaScreeningWorker(IServiceScopeFactory scopes, MediaQueue
                 sweep = clock.GetUtcNow();
                 List<Guid> due;
                 await using (var scope = scopes.CreateAsyncScope())
-                    due = await scope.ServiceProvider.GetRequiredService<SwoovrDbContext>().MediaItems
-                        .Where(i => i.Status == MediaStatus.Pending && i.RemovedAt == null && i.NextScreenAt <= sweep).OrderBy(i => i.NextScreenAt).Select(i => i.Id).Take(20)
+                {
+                    var db = scope.ServiceProvider.GetRequiredService<SwoovrDbContext>();
+                    // Only photos the attempt can act on: an inactive account's pending photo is skipped by ScreenAsync without
+                    // moving its due time, so taking it here would let 20 of them starve every other retry.
+                    due = await db.MediaItems
+                        .Where(i => i.Status == MediaStatus.Pending && i.RemovedAt == null && i.NextScreenAt <= sweep
+                            && (db.Accounts.Any(a => a.Id == i.AccountId && a.Status == AccountStatus.Active) || i.ObjectKey != null && i.ObjectKey.StartsWith("evidence/")))
+                        .OrderBy(i => i.NextScreenAt).Select(i => i.Id).Take(20)
                         .ToListAsync(stoppingToken);
+                }
                 foreach (var id in due) await OneAsync(id, stoppingToken);
                 await using (var recovery = scopes.CreateAsyncScope())
                 {
@@ -586,6 +653,7 @@ public static class MediaSetup
             services.AddHttpClient<IMediaScreening, ImageModerationScreening>(http => http.Timeout = TimeSpan.FromSeconds(150));
         }
         services.AddSingleton<MediaQueue>();
+        services.AddSingleton<ImageProcessingHealth>();
         services.AddScoped<MediaLinks>();
         services.AddScoped<MediaPipeline>();
         if (persistence && configuration.GetValue("Media:Screening:Worker", true)) services.AddHostedService<MediaScreeningWorker>();

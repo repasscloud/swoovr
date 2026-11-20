@@ -54,6 +54,44 @@ else
     </ul>
     @if (support.More) { <p class="help" data-ticket-overview-more>Counts the 100 most recently updated open requests. Open the queue to see them all.</p> }
 }
+@* Image processing status (IMAGE-MODERATION-UAT.md): Support and Admin see whether photos are being checked and why any wait. *@
+@if (processing is { } ip)
+{
+    <section class="ui-card image-processing" data-image-processing="@ip.State" aria-labelledby="image-processing-title">
+        <div class="ui-card-head">
+            <h2 id="image-processing-title">Image processing</h2>
+            <span class="status-badge" data-level="@(ip.State == "unavailable" ? "urgent" : null)" data-image-processing-state>@ImageProcessingText.State(ip.State)</span>
+        </div>
+        <p class="help">@ImageProcessingText.Summary(ip.State)</p>
+        <dl class="image-processing-services">
+            <div><dt>Screening service</dt><dd data-screening-service>@ImageProcessingText.Service(ip.ScreeningReady)</dd></div>
+            <div><dt>Malware scanner</dt><dd data-malware-scanner>@ImageProcessingText.Service(ip.MalwareScannerReady)</dd></div>
+            <div><dt>Oldest waiting photo</dt><dd data-oldest-pending>@(ip.OldestPendingAt is { } oldest ? Waited(ip.CheckedAt - oldest) : "None waiting")</dd></div>
+        </dl>
+        <ul class="tiles" data-image-processing-counts>
+            <li><a href="/media"><strong data-processing-pending>@ip.Pending</strong> waiting to be checked</a></li>
+            <li><a href="/media"><strong data-processing-over-hour>@ip.PendingOverHour</strong> waiting over an hour</a></li>
+            <li><a href="/media"><strong data-processing-stalled>@ip.Stalled</strong> stalled <span class="tile-note">Still private and retried hourly</span></a></li>
+            <li><a href="/media"><strong data-processing-passed>@ip.Passed</strong> approved automatically <span class="tile-note">Last 24 hours</span></a></li>
+            <li><a href="/media"><strong data-processing-review>@ip.Review</strong> sent to review <span class="tile-note">Last 24 hours</span></a></li>
+            @if (ip.Blocked is { } blocked)
+            {
+                <li><a href="/media"><strong data-processing-blocked>@blocked</strong> known-content matches <span class="tile-note">Last 24 hours, sealed</span></a></li>
+            }
+        </ul>
+        @if (ip.Reasons.Count > 0)
+        {
+            <h3 class="image-processing-subhead">Why photos are waiting</h3>
+            <ul class="image-processing-reasons" data-image-processing-reasons>
+                @foreach (var reason in ip.Reasons)
+                {
+                    <li data-processing-reason="@reason.Code"><span>@ImageProcessingText.Reason(reason.Code)</span> <strong>@reason.Count</strong>@if (reason.Stalled > 0) { <span class="tile-note"> (@reason.Stalled stalled)</span> }</li>
+                }
+            </ul>
+        }
+        <p class="help" data-image-processing-checked>Checked @AccountLabels.When(ip.CheckedAt). Reload the page to check again.</p>
+    </section>
+}
 @if(photoWorkload is{}photos)
 {
     <ul class="tiles" data-photo-workload><li><a href="/media"><strong>@photos.ManualReview</strong> awaiting media review</a></li><li><a href="/media"><strong>@photos.PendingScreening</strong> waiting for screening</a></li><li><a href="/media/appeals"><strong>@photos.Appeals</strong> media appeals @if(photos.AwaitingOtherAdmin>0){<span class="tile-note" data-awaiting-other-admin="@photos.AwaitingOtherAdmin">@MediaText.AwaitingOtherAdmin(photos.AwaitingOtherAdmin)</span>}</a></li></ul>
@@ -65,6 +103,7 @@ else
     private string? refused;
     private HoldOverview? holds;
     private PhotoWorkload? photoWorkload;
+    private ImageProcessingStatus? processing;
     private bool legalOnly;
     private bool root;
     private LeOverview? le;
@@ -83,6 +122,10 @@ else
         catch (HttpRequestException) { tickets = null; }
         // D195: the officer's case timers (refused for everyone else, so it simply doesn't show).
         photoWorkload=(await Admin.PhotoWorkloadAsync()).Value;
+        // Refused for staff without Support (it simply doesn't show); a slow API never blocks the rest of the overview.
+        try { processing = (await Admin.ImageProcessingStatusAsync()).Value; }
+        catch (TaskCanceledException) { processing = null; }
+        catch (HttpRequestException) { processing = null; }
         le = (await Admin.LeOverviewAsync()).Value;
         // D189: overdue hold reviews head the page for admins and the security and legal officer.
         var overview = await Admin.HoldOverviewAsync();
@@ -94,4 +137,9 @@ else
         (open, urgent) = (cases.Value!.Count, cases.Value.Count(c => c.AwaitingAcknowledgement));
         appeals = (await Admin.AppealsAsync()).Value?.Count ?? 0;
     }
+
+    private static string Waited(TimeSpan waited) => waited.TotalMinutes < 1 ? "Under a minute"
+        : waited.TotalHours < 1 ? $"{(int)waited.TotalMinutes} min"
+        : waited.TotalDays < 1 ? $"{(int)waited.TotalHours} h {waited.Minutes} min"
+        : $"{(int)waited.TotalDays} d {waited.Hours} h";
 }

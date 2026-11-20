@@ -80,6 +80,8 @@ public static class PhotoText
         "photo-unsupported" => "Use a JPEG, PNG or WebP photo (not animated).",
         "photo-invalid" => "That photo couldn't be used. Photos need to be at least 200 pixels on each side.",
         "photo-limit" => "You've reached the photo limit. Delete one first.",
+        "photo-refused" => "That file can't be used. Choose a different photo.",
+        "photo-check-unavailable" => "Photos can't be checked right now. Try again in a few minutes.",
         "upload-limit" => "You've uploaded a lot of photos in the last hour. Try again later.",
         "attachment-limit" => "You can send up to 20 photos a day.",
         "photos-off" => "This person isn't accepting photos in chat.",

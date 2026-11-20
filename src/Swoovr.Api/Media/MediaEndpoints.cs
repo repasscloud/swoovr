@@ -19,6 +19,7 @@ public static class MediaEndpoints
     public static void Map(WebApplication app)
     {
         PhotoReviewWorkflows.Map(app);
+        ImageProcessingStatusEndpoints.Map(app);
         PhotoAlbumEndpoints.Map(app);
         var api = app.MapGroup("/api").RequireAuthorization();
         api.MapPost("/me/photos", async (HttpRequest request, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
@@ -84,6 +85,9 @@ public static class MediaEndpoints
                 MediaUploadError.Animated => Problem(StatusCodes.Status415UnsupportedMediaType, ProblemCodes.PhotoUnsupported, "Animated images can't be used."),
                 MediaUploadError.TooSmall => Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, $"Photos need to be at least {MediaPolicy.MinSide} pixels on each side."),
                 MediaUploadError.TooLarge => Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, "That photo has too many pixels."),
+                MediaUploadError.Malware => Problem(StatusCodes.Status422UnprocessableEntity, ProblemCodes.PhotoRefused, "That file can't be used. Choose a different photo."),
+                MediaUploadError.ScanUnsupported => Problem(StatusCodes.Status422UnprocessableEntity, ProblemCodes.PhotoRefused, "That photo couldn't be checked. Choose a different photo."),
+                MediaUploadError.ScanUnavailable => Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.PhotoCheckUnavailable, "Photos can't be checked right now. Try again in a few minutes."),
                 _ => Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, "That photo couldn't be read."),
             };
         }).DisableAntiforgery();

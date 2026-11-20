@@ -66,6 +66,18 @@ public sealed record MediaSafetyAck(string Version, bool Confirmed);
 /// <param name="Appeals">Undecided media appeals this Admin may decide.</param>
 /// <param name="AwaitingOtherAdmin">Issue 232: undecided appeals against this Admin's own decision. D298 sends them to a different
 /// Admin, so they are counted, never listed or decidable here.</param>
+/// <summary>
+/// Image processing health for the staff Overview (Support and Admin). Counts only, never photo or account ids.
+/// <paramref name="State"/>: `healthy` (both services answer, nothing stalled), `degraded` (services answer, but photos are
+/// stalled or waiting over an hour), `unavailable` (the screening service or the malware scanner doesn't answer).
+/// <paramref name="ScreeningReady"/> is null when the screener can't report readiness. <paramref name="Blocked"/> is null for
+/// Support (known-content matches are Admin-only).
+/// </summary>
+public sealed record ImageProcessingStatus(string State, bool? ScreeningReady, bool MalwareScannerReady, int Pending, int PendingOverHour,
+    int Stalled, DateTimeOffset? OldestPendingAt, IReadOnlyList<ImageProcessingReason> Reasons, int Passed, int Review, int? Blocked,
+    DateTimeOffset Since, DateTimeOffset CheckedAt);
+/// <summary>Why photos are waiting: the last screening attempt's machine code (for example `http-404` or `unreachable`).</summary>
+public sealed record ImageProcessingReason(string Code, int Count, int Stalled);
 public sealed record PhotoWorkload(int ManualReview, int PendingScreening, int Specialist, int Appeals, int Rejected, int AwaitingOtherAdmin = 0);
 public sealed record PhotoDecisionView(Guid Id, Guid MediaId, string Decision, string Reason, DateTimeOffset At, bool CanAppeal,
     Guid? AppealId = null, string? AppealOutcome = null);

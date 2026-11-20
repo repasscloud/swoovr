@@ -246,6 +246,8 @@
     private string UsedIn(MyPhotoView p) => string.Join(", ", new[] { ModesOf(p), AlbumsOf(p) }.Where(s => s.Length > 0));
     private string Where(MyPhotoView p)
     {
+        // Over an hour without a result: say so plainly. The photo stays private until it's checked.
+        if (p.State == "checking" && DateTimeOffset.UtcNow - p.CreatedAt > TimeSpan.FromHours(1)) return "Still being checked · taking longer than usual";
         if (p.State is "checking" or "in-review") return "Being checked";
         if (p.State == "not-approved") return "Not approved";
         var used = modes.Where(m => photos!.Modes.GetValueOrDefault(m.Id)?.Contains(p.Id) == true).Select(m => m.Label).ToList();
@@ -321,15 +323,18 @@
         try
         {
             if (e.FileCount + (photos?.Photos.Count ?? 0) > (photos?.MaxKept ?? 60)) { (status, message) = ("photo-limit", "Choose fewer photos, or delete photos from your library first."); return; }
-            var files = e.GetMultipleFiles(60); var failures = 0;
+            var files = e.GetMultipleFiles(60); var failures = 0; var checkUnavailable = false;
             for (var index = 0; index < files.Count; index++)
             {
                 var file = files[index]; message = $"Uploading {index + 1} of {files.Count}…"; StateHasChanged();
                 if (file.Size > 10 * 1024 * 1024) { failures++; continue; }
                 using var stream = file.OpenReadStream(10 * 1024 * 1024); using var buffer = new MemoryStream(); await stream.CopyToAsync(buffer);
-                if (!(await Members.UploadPhotoAsync(buffer.ToArray(), file.Name, file.ContentType)).Ok) failures++;
+                var uploaded = await Members.UploadPhotoAsync(buffer.ToArray(), file.Name, file.ContentType);
+                if (!uploaded.Ok) { failures++; checkUnavailable |= uploaded.Code == ProblemCodes.PhotoCheckUnavailable; }
             }
-            (status, message) = failures == 0 ? ("checking", "Uploaded. Photos are checked before anyone can see them.") : ("error", $"{failures} upload(s) weren't accepted. Use JPEG, PNG or WebP up to 10 MB, and check your library allowance.");
+            (status, message) = failures == 0 ? ("checking", "Uploaded. Photos are checked before anyone can see them.")
+                : checkUnavailable ? ("error", "Photos can't be checked right now, so they weren't uploaded. Try again in a few minutes.")
+                : ("error", $"{failures} upload(s) weren't accepted. Use JPEG, PNG or WebP up to 10 MB, and check your library allowance.");
             await RefreshAsync();
         }
         finally { busy = false; }
