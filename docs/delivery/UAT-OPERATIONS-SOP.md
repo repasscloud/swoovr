@@ -246,13 +246,66 @@ A waiting photo is **never** shown to other members, and is never approved becau
    ```
    **You should see** "N pending photos are due now". The panel's numbers fall within a minute or two.
 
+### Setting the Project Arachnid secrets (photo known-content checks)
+
+Run these from your checkout on your Mac (they work in zsh and bash). Each line waits for you to type or paste the value. The password isn't shown on screen, and nothing goes into your shell history or onto the command line.
+
+```bash
+printf 'Arachnid username: '; read -r ARACHNID_USER; printf '%s' "$ARACHNID_USER" | gh secret set UAT_ARACHNID_USERNAME --env uat; unset ARACHNID_USER
+printf 'Arachnid password: '; stty -echo; read -r ARACHNID_PASS; stty echo; echo; printf '%s' "$ARACHNID_PASS" | gh secret set UAT_ARACHNID_PASSWORD --env uat; unset ARACHNID_PASS
+```
+
+**You should see** `✓ Set Actions secret UAT_ARACHNID_USERNAME for …` and the same for the password. Check with:
+
+```bash
+gh secret list --env uat | grep ARACHNID
+```
+
+You should see both names with today's date. The values are never shown. The new values reach the server at the next deployment. To change a value later (for example after rotating the password), run the same line again.
+
+Remove the four settings the old Vultr/Cloudflare image setup used (D384). Three are secrets and one is a variable:
+
+```bash
+for name in UAT_SCREENING_API_KEY UAT_MEDIA_PIPELINE_SERVICE_TOKEN UAT_MEDIA_PIPELINE_UPLOAD_SIGNING_KEY; do gh secret delete "$name" --env uat; done
+gh variable delete UAT_SCREENING_BASE_URL --env uat
+```
+
+A "not found" message just means it was already gone. Do this once the D384 release is merged; deleting them earlier does no harm either.
+
+### Clearing photos that are stuck "being checked"
+
+Use this after the first D384 deployment (photos that were stuck before it), and any time the Overview panel showed *Not processing photos* and has now gone back to *Working normally*.
+
+1. In Admin → Overview, check that *Image processing* says **Working normally**, and both services say **Answering**. If not, fix that first ("When photos are waiting or not processing", above). Re-checking against a broken service only records another failed attempt.
+2. Connect to the server (section 8):
+   ```bash
+   ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes root@<server IPv4>
+   cd /opt/swoovr/swoovr-uat
+   ```
+3. See what is waiting, and why:
+   ```bash
+   ./bin/swoovr job api-command media pending-report
+   ```
+   **You should see** `Image processing: …`, the number of pending photos, and one line per reason. Before D384 the usual reason is `http-404`.
+4. Re-check every waiting photo now, instead of at its next hourly retry:
+   ```bash
+   ./bin/swoovr job api-command media rescreen --pending
+   ```
+   **You should see** `Media rescreen: N pending photos are due now; …`. To re-check only photos with one reason, add it, for example `media rescreen --pending --reason http-404`.
+5. Wait two or three minutes, then run step 3 again. **You should see** the pending number fall to 0, or close to it. In Admin, the photos are now approved, or waiting in the photo review queue (`/media`).
+6. Type `exit` to leave the server.
+
+**What this does and doesn't do:** it only moves each waiting photo's next check to "now". It never approves, rejects or shows a photo by itself; every photo still goes through the virus scan, the automatic checks and the normal rules.
+
+**If the number doesn't fall:** run step 3 again and read the reason. Photos whose member account is locked, suspended or being deleted stay waiting on purpose. Any other reason: see "When photos are waiting or not processing", above.
+
 ### After the first deployment of D384 (once)
 
-Follow "Owner steps for the first deployment" in [IMAGE-MODERATION-UAT.md](IMAGE-MODERATION-UAT.md). In short:
-- add the two Arachnid secrets;
-- make the new `swoovr-screening` package public when the deploy asks;
-- run `media rescreen --pending` to clear the photos that were stuck;
-- after 7 healthy days, retire the old Vultr image servers and Cloudflare image Workers using that page's checklist.
+Full detail: "Owner steps for the first deployment" in [IMAGE-MODERATION-UAT.md](IMAGE-MODERATION-UAT.md). In order:
+1. Set the Arachnid secrets and remove the four old settings (above).
+2. Release. Make the new `swoovr-screening` package public when the deploy asks (section 3), then re-run the job.
+3. Clear the photos that were stuck (above).
+4. After 7 healthy days, retire the old Vultr image servers and Cloudflare image Workers, using that page's checklist (issue 396).
 
 ## 10. Quick reference
 
@@ -267,4 +320,5 @@ Follow "Owner steps for the first deployment" in [IMAGE-MODERATION-UAT.md](IMAGE
 | See what's running | Maintenance `status` / `history` |
 | Change a setting | Section 7, then deploy |
 | Check image processing | Admin → Overview → *Image processing*, or `./bin/swoovr job api-command media pending-report` (section 9) |
-| Re-check waiting photos now | `./bin/swoovr job api-command media rescreen --pending` (section 9) |
+| Re-check waiting photos now | `./bin/swoovr job api-command media rescreen --pending` on the server (section 9, "Clearing photos that are stuck") |
+| Set or change the Arachnid secrets | Section 9, "Setting the Project Arachnid secrets" |

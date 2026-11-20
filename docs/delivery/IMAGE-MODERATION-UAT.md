@@ -85,7 +85,7 @@ On the 8 vCPU / 32 GB UAT VM, the processor's 4 GB / 2 CPU limit and ClamAV's 4 
    - `docker compose -p swoovr-uat exec api printenv Media__Screening__BaseUrl`. Before this release it shows the old gateway address.
    - `docker compose -p swoovr-uat exec swoovr-postgres sh -c 'psql -U "$POSTGRES_USER" -d swoovr -c "SELECT status, last_screen_error, count(*) FROM media_items WHERE status = '"'"'Pending'"'"' GROUP BY 1, 2;"'`. Expect mostly `http-404`. Counts only; no photo or member data is printed.
 2. **Rotate the leaked credentials.** The processor key and the Shield username and password were kept in plaintext notes in the old repositories' ignored `.local/` folders. They were never committed. Ask Project Arachnid for a new Shield password if you can. The processor key is no longer used (the host generates a new one).
-3. **GitHub `uat` environment.**
+3. **GitHub `uat` environment.** Exact commands: [UAT SOP §9](UAT-OPERATIONS-SOP.md#setting-the-project-arachnid-secrets-photo-known-content-checks).
    - Add the secrets `UAT_ARACHNID_USERNAME` and `UAT_ARACHNID_PASSWORD`.
    - Delete `UAT_SCREENING_API_KEY`, `UAT_SCREENING_BASE_URL`, `UAT_MEDIA_PIPELINE_SERVICE_TOKEN` and `UAT_MEDIA_PIPELINE_UPLOAD_SIGNING_KEY`.
 4. **Release.** Merge, then run `./scripts/update-release.sh X.Y.Z` (D383). The first run builds the new `ghcr.io/repasscloud/swoovr-screening` package.
@@ -99,7 +99,7 @@ On the 8 vCPU / 32 GB UAT VM, the processor's 4 GB / 2 CPU limit and ClamAV's 4 
    - An explicit test photo appears in the photo review queue.
    - The EICAR test file renamed `.jpg` is refused with "That file can't be used".
    - `docker stats` shows the memory headroom; record it here.
-6. **Recover the photos that were stuck.** On the host, run `./bin/swoovr job api-command media rescreen --pending`, then `./bin/swoovr job api-command media pending-report`.
+6. **Recover the photos that were stuck.** Step by step: [UAT SOP §9](UAT-OPERATIONS-SOP.md#clearing-photos-that-are-stuck-being-checked). On the host, run `./bin/swoovr job api-command media rescreen --pending`, then `./bin/swoovr job api-command media pending-report`.
    - Nothing else is needed: once screening answers, every pending photo is screened on its next retry. The rescreen just avoids waiting for the hourly retry.
    - Photos of inactive accounts stay pending by design and are reported.
 7. **Retire the old infrastructure** after 7 days of healthy UAT (see the checklist below).
