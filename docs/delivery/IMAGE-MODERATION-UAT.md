@@ -175,6 +175,18 @@ All of these are outside this repository and irreversible. Nothing here deletes 
   - the deploy configuration and CLI scenario tests;
   - the processor's own suite: ruff clean, 162 passed, 2 provider integrations skipped. This used a fresh `services/image-moderation/.venv` on macOS arm64 with the pinned versions (torch without the linux `+cpu` suffix).
 
+- **Local end-to-end** on the managed Docker platform rebuilt from this branch (`./scripts/local-platform.sh up --reuse`):
+  - the screener ran from the in-repo build (`swoovr-image-moderation:local`, healthy);
+  - `DropImageProcessingStaging` applied;
+  - `/health/screening` and `/health/attachments` answered 200 `healthy`.
+- `node tests/local-platform/image-processing.browser.cjs` passed:
+  - a fictional member's EICAR upload was refused (422 `photo-refused`) by the shared ClamAV;
+  - a synthetic photo went from checking to **approved** through real NudeNet/Freepik screening (local `RequireKnownContentCheck=false`, so Shield wasn't called);
+  - the admin Overview panel showed *Working normally*, both services *Answering* and 1 approved photo. Screenshots were checked at desktop and 390 px widths.
+  - The photo was then deleted.
+
+**Pre-existing, not caused by this change:** `tests/local-platform/browser.cjs` fails its `/account` text assertion on a fresh local stack, because the first-sign-in steps (D382) are shown there instead.
+
 **Not run:**
 - The compiled Azure template assertions (`tests/uat/infrastructure.py`; no Bicep CLI here).
 - A Docker build of the processor image.
