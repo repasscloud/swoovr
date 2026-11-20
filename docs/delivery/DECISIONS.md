@@ -1243,3 +1243,53 @@ Reversible: drop the profile steps from `setupStep` (or set `onboarding_complete
 Cause of the 19 November failure: the script was run from the working tree, and the pull inside it replaced the file mid-run, so the pre-#393 copy ran and only tagged. The script is now one function, which bash parses whole before running, and it restarts itself if the sync brought new release tooling.
 
 Reversible: return to tag-allocated builds by restoring `allocate` in `release_version.py` and the previous `update-release.sh`.
+
+### D384 — Photo screening on the single UAT server behind the API (20 November 2026)
+
+**CONFIRMED** owner instruction, 20 November 2026: photos stayed "being checked" on UAT. Keep everything in this one repository. Run the image processors on the single UAT server, hidden behind the API and reached privately without the internet. Use one shared ClamAV. Remove the Cloudflare Worker orchestration. Show image processing status to Support and Admin on the Overview page. PROD gets a different deployment (OPEN). The owner approved the investigation plan on the same day.
+
+**Cause** (code and configuration; host confirmation is step 1 of [IMAGE-MODERATION-UAT.md](IMAGE-MODERATION-UAT.md)): the API screens with `POST /v1/scan`. The only UAT screening address was the Vultr Caddy gateway, which forwarded `/v1/process` only and answered 404, so every photo stayed Pending and was retried hourly forever.
+
+This supersedes, for UAT:
+- the Vultr two-VM processor, its gateway and per-VM ClamAV (#294, [VULTR-IMAGE-PIPELINE.md](VULTR-IMAGE-PIPELINE.md));
+- the Cloudflare upload, processing and delivery Workers;
+- the API staging pipeline (#261–#265, [UAT-IMAGE-STAGING-2026-11-10.md](UAT-IMAGE-STAGING-2026-11-10.md)).
+
+D201/D203 screening, D336 attachment scanning, D374 and D379 are unchanged.
+
+**CONFIRMED** by the instruction:
+- `repasscloud/image-moderation-api` is imported with its full history into `services/image-moderation` (`git subtree`, main @ 6219447). Its Vultr, Alpine and gateway deployment and its Docker Hub workflow are removed.
+- `repasscloud/swoovr-cf-workers` was a verbatim copy of `workers/images` and needs no import. Both repositories are archived, not deleted, by the owner.
+- `image-moderation` runs on the UAT VM:
+  - it is on the internal `screening` network with the API only;
+  - it has no published port and no hostname, and egress only for Project Arachnid Shield;
+  - the API calls `http://image-moderation:8080` with a host-generated key;
+  - its image is `swoovr-screening`, the sixth image of the release.
+- The existing `clamav` container (the API's D336 scanner; Zammad has none of its own) is the one ClamAV. The API scans support attachments and photo uploads with it.
+- `workers/images`, the `ImagePipeline*` code and its settings are removed. The `DropImageProcessingStaging` migration drops the staging tables, which held no member photos.
+- The admin Overview shows an *Image processing* panel to Support and Admin:
+  - service status;
+  - photos waiting, waiting over an hour, and stalled;
+  - the oldest waiting photo;
+  - 24-hour outcomes (known-content matches for Admin only);
+  - reasons in plain words.
+
+  It shows counts only, never ids or images.
+
+**DEFAULT** (from the approved plan):
+- **Uploads stay API-received.** There are no presigned URLs: every client already uses `POST /api/me/photos`, and the API re-encodes anyway.
+- **Malware scanning happens before decoding**, on the original bytes, synchronously, and fails closed. Infected or unscannable photos are refused and audited with ids only. A scanner that doesn't answer refuses the upload with `photo-check-unavailable` ("try again in a few minutes"). Nothing is ever stored unscanned, and no raw original is kept.
+- **Stalled** means 12 attempts (about 9 hours) or 24 hours. The photo is still private and still retried hourly. It is audited (`media.stalled`) and error-logged once, and shown on the Overview and `/health/screening`. It is never sent to human review unless its known-content check completed.
+- **Hosted startup requires `Media:Screening:ApiKey`** (at least 32 characters). It accepts either HTTPS or a private single-label service address such as `http://image-moderation:8080`.
+- **The worker sweep takes only photos it can act on**, so pending photos of inactive accounts can't starve retries. The status and `/health/screening` use the same rule (`MediaScreeningQueries.ScreenablePending`), so paused photos are reported separately and never degrade health.
+- **Operator recovery:** `media pending-report` and `media rescreen --pending [--reason <code>]`.
+- **Monitoring:** `/health/screening` (200 healthy, 503 degraded or unavailable). It is not a deploy gate. The deploy waits for `image-moderation` to be healthy.
+- **Members** see "Still being checked · taking longer than usual" after an hour.
+- **Retiring the old Vultr VMs and Cloudflare resources** is an owner action, after 7 days of healthy UAT (checklist in the runbook). Nothing here deletes them.
+
+**OPEN:**
+- Production design.
+- Signature-freshness alerting (#376).
+- The NudeNet licence (Q174).
+
+Reversible: redeploy an earlier tag (photos simply wait), or point `Media__Screening__BaseUrl` at another screening service. Only the staging-table drop is one-way.

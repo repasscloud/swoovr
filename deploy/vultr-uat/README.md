@@ -19,7 +19,8 @@ Step-by-step owner procedures (maintenance actions, the break-glass admin, staff
 | `web`, `api`, `admin` | `ghcr.io/repasscloud/swoovr-{web,api,admin}@sha256:…` | Through Caddy only |
 | `keycloak` | `ghcr.io/repasscloud/swoovr-keycloak@sha256:…` | Through Caddy. `/admin` and the master realm only from the edge network (and optional Tailscale devices) |
 | `swoovr-postgres` | `postgres:17.11-trixie` | No. TLS-only; the `swoovr` and `keycloak` databases |
-| `clamav` | pinned ClamAV | No |
+| `clamav` | pinned ClamAV | No. The one malware scanner: support attachments and photo uploads (scanned by the API before decoding) |
+| `image-moderation` | `ghcr.io/repasscloud/swoovr-screening@sha256:…` (built from `services/image-moderation`) | No. Internal `screening` network with the API only; outbound HTTPS to Project Arachnid Shield. [IMAGE-MODERATION-UAT.md](../../docs/delivery/IMAGE-MODERATION-UAT.md) |
 | `zammad-*` (init, railsserver, scheduler, websocket, nginx) | Zammad 7.2.2 | nginx through Caddy (`helpdesk-uat`) |
 | `zammad-postgresql`, `-redis`, `-memcached`, `-elasticsearch` | pinned upstream | No |
 | `mailpit` | Mailpit 1.31.0 | No. SMS sink; UI on the VM's loopback `127.0.0.1:8025` |
@@ -184,7 +185,7 @@ If `swoovr-deploy` is ever missing on an existing Keycloak (for example, someone
 | Level | Checked by | Meaning |
 | --- | --- | --- |
 | Container running | `bin/swoovr` (`docker inspect`) | process up; restarting or unhealthy containers fail the deployment |
-| Container healthy | Compose health checks: PostgreSQL (both), Keycloak `/health/ready` (port 9000), API/Web/Admin `/health/live`, Zammad Rails, Redis, Memcached; `zammad-init` must exit 0 | each service answers its own probe |
+| Container healthy | Compose health checks: PostgreSQL (both), Keycloak `/health/ready` (port 9000), API/Web/Admin `/health/live`, image-moderation `/ready` (models loaded; up to 10 minutes on first start), Zammad Rails, Redis, Memcached; `zammad-init` must exit 0 | each service answers its own probe |
 | Application ready | through Caddy inside the VM: API `/health/ready` (database, no pending migrations, restore fence), API `/version` = the tag's version, `/health/attachments` (ClamAV), Web and Admin `/health/ready` (sign-in secret + API ready), helpdesk 200, OpenID discovery of each enabled realm with the right issuer | the release is live and its dependencies answer |
 | Public smoke | from the GitHub runner through Cloudflare: the same readiness and version, the home page, realm discovery, `/admin/` and the master realm **404**, the messaging hub **401** without sign-in, a helpdesk WebSocket upgrade **101** | DNS, Cloudflare, TLS, the edge filter and WebSockets work |
 
@@ -276,7 +277,7 @@ The manual `upgrade` and `reset` commands of the earlier bundle are gone: a depl
 
 - **Single host, single replica:** every deployment restarts the apps and signs members out (in-memory BFF sessions).
 - **Backups stay on the VM**; there are no off-host copies (owner: UAT is disposable).
-- **A refresh empties the configured R2 photo bucket** (`Media__R2__Bucket`), but not the Cloudflare image-pipeline buckets or queues (`workers/images`) or provider-side records (Didit sessions).
+- **A refresh empties the configured R2 photo bucket** (`Media__R2__Bucket`), but not provider-side records (Didit sessions). The screening models volume is rebuilt from the image.
 - **SMS goes to Mailpit** until Twilio SMS verification (D360). Zammad inbound mail needs the IMAP values.
 - **The Keycloak image bakes UAT policy URLs**; production needs its own build. The removed `images.yml` also held the Azure ACR promotion job; production promotion from GHCR digests is a follow-up.
 - **`founders allocate`** (a daily job, D130) has no schedule on Vultr.

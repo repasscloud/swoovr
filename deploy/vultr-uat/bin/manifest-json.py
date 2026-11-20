@@ -3,14 +3,14 @@
 
   manifest-json.py FILE              any manifest (release.env or release-manifest.env)
   manifest-json.py FILE --release    also require a D362 release: SWOOVR_TAG vX.Y.Z, SWOOVR_VERSION X.Y.Z equal to the
-                                     tag, a 40-hex SWOOVR_COMMIT and the five Swoovr images from ghcr.io/repasscloud
+                                     tag, a 40-hex SWOOVR_COMMIT and the six Swoovr images from ghcr.io/repasscloud
 """
 import json
 import re
 import sys
 
 TAG = re.compile(r'v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)')
-COMPONENTS = ('api', 'web', 'admin', 'operator', 'keycloak')
+COMPONENTS = ('api', 'web', 'admin', 'operator', 'keycloak', 'screening')
 
 
 def read(path):

@@ -4,8 +4,14 @@ cd "$(dirname "$0")/.."
 python3 scripts/check_naming.py
 python3 -m unittest discover -s tests/backups -p 'test_*.py'
 python3 -m unittest discover -s tests/zammad -p 'test_*.py'
-python3 -m unittest discover -s tests/image-pipeline -p 'test_*.py'
 python3 -m unittest discover -s tests/deploy -p 'test_*.py'
+# Photo screening service (services/image-moderation, Python). Its tests use fake engines (no models, no network) but need
+# its own virtual environment: python3 -m venv services/image-moderation/.venv && .venv/bin/pip install -r requirements-dev.txt
+if [[ -x services/image-moderation/.venv/bin/python ]]; then
+  (cd services/image-moderation && .venv/bin/python -m ruff check app tests scripts && .venv/bin/python -m pytest -q)
+else
+  echo 'SKIP image-moderation tests: no services/image-moderation/.venv (see scripts/check.sh)'
+fi
 python3 -m unittest discover -s tests/uat -p 'test_*.py'
 python3 scripts/check_design.py --check
 python3 scripts/check_version.py

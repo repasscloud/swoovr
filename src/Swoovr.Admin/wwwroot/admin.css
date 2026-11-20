@@ -857,3 +857,13 @@ a.ad-stat:hover { border-color: color-mix(in srgb, var(--muted) 55%, var(--borde
 @media (max-width: 480px) {
   .staff-filters { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Image processing status on the Overview (Support and Admin). */
+.image-processing .tiles { margin: 16px 0; }
+.image-processing-services { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; margin: 16px 0 0; }
+.image-processing-services div { background: var(--soft); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.image-processing-services dt { color: var(--muted); font-size: .75rem; margin: 0 0 4px; }
+.image-processing-services dd { margin: 0; font-weight: 600; color: var(--softText); }
+.image-processing-subhead { font-size: .875rem; margin: 8px 0; }
+.image-processing-reasons { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
+.image-processing-reasons li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .875rem; }

@@ -167,8 +167,9 @@ Source column: **G** = generated once on the host by `envtool.py init` (stored i
 | Zammad bootstrap password, DB passwords | `zammad-provision.env`, `zammad.env`, `zammad-postgres.env` | G | keep | new allowed | DB superuser is stored in `zammad-pgdata`. |
 | Didit API key, workflow ID, webhook secret | `api.env` | O | keep | keep | The webhook URL and secret are also set in the Didit console. |
 | Cloudflare R2 endpoint, bucket, access key, secret | `api.env` | O | keep | keep | Objects persist outside the VM (§5). |
-| Screening base URL + key; media pipeline service token + upload signing key | `api.env` | O | keep | keep | Must equal the Cloudflare Worker secrets (`workers/images`). |
+| Screening key (D384) | `screening.env`, `image-moderation.env` | G | keep | keep | Shared by the API and the private `image-moderation` container; the address is fixed in `compose.yaml`. |
 | Moderation escalation mailboxes | `api.env` | O | keep | keep | Personal addresses: sensitive. |
+| Project Arachnid Shield username + password (D384) | `image-moderation.env` | O (GitHub `UAT_ARACHNID_*`) | keep | keep | Photo known-content checks. Without them photos stay Pending. |
 | Twilio SMS SID/token/From | `api.env` | O | keep | keep | Filled although SMS is `mailpit`. |
 | Twilio Email key SID/secret, SendGrid key, sender, IMAP | `mail.env` | O | keep | keep | IMAP empty today. |
 | Web/Admin Data Protection key rings | `web-dataprotection`, `admin-dataprotection` volumes | R | keep (or users sign in again) | discard | Not secrets in env; ASP.NET keys in volumes. |

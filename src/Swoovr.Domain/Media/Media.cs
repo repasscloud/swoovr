@@ -154,6 +154,17 @@ public static class MediaPolicy
         _ => TimeSpan.FromHours(1),
     });
 
+    /// <summary>
+    /// DEFAULT: a pending photo counts as stalled after this many attempts (about 9 hours on the schedule above) or
+    /// <see cref="StallAge"/>. It stays private and keeps being retried hourly; it is reported and alerted, never sent to
+    /// human review without a completed known-content check.
+    /// </summary>
+    public const int StallAttempts = 12;
+    public static readonly TimeSpan StallAge = TimeSpan.FromHours(24);
+    /// <summary>Members see "taking longer than usual" after this long.</summary>
+    public static readonly TimeSpan SlowAge = TimeSpan.FromHours(1);
+    public static bool Stalled(int attempts, DateTimeOffset createdAt, DateTimeOffset now) => attempts >= StallAttempts || now - createdAt >= StallAge;
+
     /// <summary>Only passed photos may be shown to anyone but staff reviewing an uncertain one.</summary>
     public static bool Shown(MediaStatus status) => status == MediaStatus.Passed;
 
@@ -216,7 +227,12 @@ public static class MediaPolicy
     private static string Base64Url(byte[] data) => Convert.ToBase64String(data).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }
 
-public enum MediaUploadError { None, Empty, TooBig, UnsupportedType, Undecodable, Animated, TooSmall, TooLarge }
+/// <summary>
+/// Why an upload was refused. <see cref="Malware"/>: the malware scan of the original bytes found something (nothing is
+/// stored). <see cref="ScanUnsupported"/>: the scanner couldn't check it (over a limit). <see cref="ScanUnavailable"/>: the
+/// scanner didn't answer; nothing is stored and the member is asked to try again shortly (fail closed).
+/// </summary>
+public enum MediaUploadError { None, Empty, TooBig, UnsupportedType, Undecodable, Animated, TooSmall, TooLarge, Malware, ScanUnsupported, ScanUnavailable }
 
 /// <summary>
 /// Private object storage (D201: Cloudflare R2; a local private folder for tests). Nothing in it is public: Swoovr reads
@@ -240,6 +256,8 @@ public interface IMediaScreening
     string Name { get; }
     /// <summary>Never throws for service trouble: an unusable answer comes back with <see cref="ScreeningResponse.Unreachable"/> set.</summary>
     Task<ScreeningResponse> ScreenAsync(byte[] image, CancellationToken cancellationToken);
+    /// <summary>True when the service reports every engine ready, false when not, null when this screener can't tell.</summary>
+    Task<bool?> ReadyAsync(CancellationToken cancellationToken) => Task.FromResult<bool?>(null);
 }
 
 /// <summary>The stored copy of an upload: re-encoded JPEG without any metadata (EXIF, GPS, XMP, ICC comments).</summary>

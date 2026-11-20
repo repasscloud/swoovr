@@ -92,7 +92,7 @@ class WorkflowChecks(unittest.TestCase):
 
     def test_images_amd64_ghcr_commit_tag(self):
         build = self.wf['jobs']['build']
-        self.assertEqual(build['strategy']['matrix']['component'], ['api', 'web', 'admin', 'operator', 'keycloak'])
+        self.assertEqual(build['strategy']['matrix']['component'], ['api', 'web', 'admin', 'operator', 'keycloak', 'screening'])
         step = next(s for s in build['steps'] if s.get('id') == 'build')
         self.assertEqual(step['with']['platforms'], 'linux/amd64')
         self.assertEqual(step['with']['tags'], '${{ env.REGISTRY }}/swoovr-${{ matrix.component }}:${{ github.sha }}')

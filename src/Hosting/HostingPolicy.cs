@@ -67,7 +67,11 @@ public static class HostingPolicy
         else{Choice("Sms:Provider","twilio");foreach(var key in new[]{"AccountSid","AuthToken","From"})Require("Sms:Twilio:"+key);Url("Sms:Twilio:BaseUrl",false);}
         var push=Read("Push:Provider")??"disabled";if(push is not("disabled" or "providers"))errors.Add("unknown:Push:Provider");
         if(push=="providers"&&!Flag("Push:Apns:Enabled")&&!Flag("Push:Fcm:Enabled"))errors.Add("push-platform-required");
-        Choice("Media:Store","r2");foreach(var key in new[]{"Bucket","AccessKeyId","SecretAccessKey"})Require("Media:R2:"+key);Url("Media:R2:Endpoint");Url("Media:Screening:BaseUrl");
+        Choice("Media:Store","r2");foreach(var key in new[]{"Bucket","AccessKeyId","SecretAccessKey"})Require("Media:R2:"+key);Url("Media:R2:Endpoint");
+        // Photo screening runs beside the API on a private container network (UAT: http://image-moderation:8080) or behind
+        // HTTPS. Either way it needs its key: the service is never reachable without one.
+        if(!SecureUrl(Read("Media:Screening:BaseUrl"))&&!PrivateServiceUrl(Read("Media:Screening:BaseUrl")))errors.Add("unsafe-url:Media:Screening:BaseUrl");
+        if(Encoding.UTF8.GetByteCount(Read("Media:Screening:ApiKey")??"")<32)errors.Add("invalid-key:Media:Screening:ApiKey");
         foreach(var key in new[]{"ApiKey","WorkflowId","WebhookSecret"})Require("Didit:"+key);Url("Didit:BaseUrl",false);
         foreach(var key in new[]{"Moderation:EscalationEmail","Moderation:EscalationBackupEmail"})Require(key);
         // D336 (#221): production always scans support attachments before they can be downloaded; never switched off.
@@ -82,6 +86,16 @@ public static class HostingPolicy
         foreach(var feature in new[]{"MeetingSafety","TextHarm"})if(Flag(feature+":Enabled"))
         {if(!Flag(feature+":Worker",true))errors.Add("required-enabled:"+feature+":Worker");if(feature=="MeetingSafety")Url("MeetingSafety:PublicBaseUrl");}
         return errors.Distinct(StringComparer.Ordinal).ToArray();
+    }
+    /// <summary>
+    /// A container on the same private network, by its single-label service name and an explicit port (for example
+    /// http://image-moderation:8080). Never loopback, a dotted (routable) name, an IP address, credentials, a path or a query.
+    /// </summary>
+    public static bool PrivateServiceUrl(string? value)
+    {
+        if(!Uri.TryCreate(value,UriKind.Absolute,out var uri)||uri.Scheme!="http"||uri.HostNameType!=UriHostNameType.Dns||uri.Host.Contains('.')||uri.IsLoopback||uri.IsDefaultPort)return false;
+        if(uri.UserInfo.Length>0||uri.Query.Length>0||uri.Fragment.Length>0||uri.AbsolutePath!="/")return false;
+        return !uri.Host.Equals("localhost",StringComparison.OrdinalIgnoreCase)&&!uri.Host.Equals("mailpit",StringComparison.OrdinalIgnoreCase);
     }
     public static bool SecureUrl(string? value)
     {

@@ -1,6 +1,6 @@
 # UAT deployment through GitHub Actions: configuration
 
-D362 (DEFAULT design on the owner's request of 12 November 2026). Pushing a `vX.Y.Z` tag from `main` builds the five Swoovr images for linux/amd64, publishes them publicly to GHCR, connects to the UAT VM as root over verified SSH, runs the selected mode (upgrade or refresh), provisions the stack, and checks it. This page covers the one-time GitHub configuration and the inventory of every value. The operator runbook is [deploy/vultr-uat/README.md](../../deploy/vultr-uat/README.md). The background investigation is [UAT-DEPLOYMENT-PREREQUISITES.md](UAT-DEPLOYMENT-PREREQUISITES.md).
+D362 (DEFAULT design on the owner's request of 12 November 2026). Pushing a `vX.Y.Z` tag from `main` builds the six Swoovr images (including `screening`, the photo screening service from `services/image-moderation`) for linux/amd64, publishes them publicly to GHCR, connects to the UAT VM as root over verified SSH, runs the selected mode (upgrade or refresh), provisions the stack, and checks it. This page covers the one-time GitHub configuration and the inventory of every value. The operator runbook is [deploy/vultr-uat/README.md](../../deploy/vultr-uat/README.md). The background investigation is [UAT-DEPLOYMENT-PREREQUISITES.md](UAT-DEPLOYMENT-PREREQUISITES.md).
 
 **Status: implemented and tested locally; not yet run on GitHub or on the VM.** The workflows run only after the owner merges them and completes the prerequisites below.
 
@@ -42,7 +42,7 @@ What a refresh still guarantees on the VM:
 ## Prerequisites (one time)
 
 1. **Merge** the D362 change to `main` (the owner enables the two workflows by merging; they are listed in `ENABLED_WORKFLOWS` in `scripts/check_design.py`).
-2. **GHCR package visibility.** The first run pushes `ghcr.io/repasscloud/swoovr-{api,web,admin,operator,keycloak}`. Public packages are already allowed in the repasscloud organisation (owner, 12 November 2026), but a **new package is created private**. After the first build, the deploy job stops at *Images are public* with a pointer. For each package: repasscloud → Packages → `swoovr-<image>` → **Package settings** → **Change visibility** → **Public**. Then re-run the failed job. It checks an **anonymous** pull of every digest on every run. Images are never rebuilt for a commit that already has them.
+2. **GHCR package visibility.** The first run pushes `ghcr.io/repasscloud/swoovr-{api,web,admin,operator,keycloak,screening}`. **`swoovr-screening` is new (20 November 2026): make it public after its first build, the same way.** Public packages are already allowed in the repasscloud organisation (owner, 12 November 2026), but a **new package is created private**. After the first build, the deploy job stops at *Images are public* with a pointer. For each package: repasscloud → Packages → `swoovr-<image>` → **Package settings** → **Change visibility** → **Public**. Then re-run the failed job. It checks an **anonymous** pull of every digest on every run. Images are never rebuilt for a commit that already has them.
 3. **Environment:** `scripts/uat/setup-github-uat.sh environments` creates the GitHub Environment `uat`, which holds the secrets and variables below. It limits it to workflow runs for `v*` tags, so a branch or pull-request run can't read the SSH key, and sets `DEPLOYMENT_MODE=upgrade`. You can also do this by hand: Settings → Environments → New environment `uat` → Deployment branches and tags → Selected → add tag rule `v*`.
 4. **Tag protection (recommended):** `scripts/uat/setup-github-uat.sh tag-protection` creates a repository ruleset ("Release tags") for `v*`. Anyone with write access can still create a tag, but nobody except repository admins can move it to another commit or delete it. A deployed version then always means the same code. The same in the UI: Settings → Rules → Rulesets → New tag ruleset → target `v*` → *Restrict updates* and *Restrict deletions*, bypass: Repository admin.
 5. **SSH from GitHub's runners.** No Vultr firewall group is in front of the VM (owner, 12 November 2026). The host accepts key-only SSH on port 22 from any address (nftables `swoovr_host` and UFW both allow it; root by key only, `PermitRootLogin without-password`, collected 12 November 2026). Nothing needs opening. If you add a Vultr firewall group later, it must allow port 22 from GitHub's runners.
@@ -66,9 +66,8 @@ What a refresh still guarantees on the VM:
 | `UAT_DIDIT_WEBHOOK_SECRET` | `api.env` `Didit__WebhookSecret` | same value as in the Didit console |
 | `UAT_R2_ACCESS_KEY_ID` | `api.env` `Media__R2__AccessKeyId` | |
 | `UAT_R2_SECRET_ACCESS_KEY` | `api.env` `Media__R2__SecretAccessKey` | |
-| `UAT_SCREENING_API_KEY` | `api.env` `Media__Screening__ApiKey` | |
-| `UAT_MEDIA_PIPELINE_SERVICE_TOKEN` | `api.env` `Media__Pipeline__ServiceToken` | must equal the processing Worker's `API_SERVICE_TOKEN` |
-| `UAT_MEDIA_PIPELINE_UPLOAD_SIGNING_KEY` | `api.env` `Media__Pipeline__UploadSigningKey` | must equal the upload Worker's `UPLOAD_SIGNING_KEY` |
+| `UAT_ARACHNID_USERNAME` | `image-moderation.env` `ARACHNID_API_USERNAME` | Project Arachnid Shield (known-content checks for photos). **Required**: without it every photo stays Pending |
+| `UAT_ARACHNID_PASSWORD` | `image-moderation.env` `ARACHNID_API_PASSWORD` | |
 | `UAT_MODERATION_ESCALATION_EMAIL` | `api.env` `Moderation__EscalationEmail` | personal address, so kept secret |
 | `UAT_MODERATION_ESCALATION_BACKUP_EMAIL` | `api.env` `Moderation__EscalationBackupEmail` | |
 | `UAT_TWILIO_SMS_ACCOUNT_SID` | `api.env` `Sms__Twilio__AccountSid` | used when `UAT_SMS_SERVICE=twilio` |
@@ -78,6 +77,8 @@ What a refresh still guarantees on the VM:
 | `UAT_SENDGRID_API_KEY` | `mail.env` `SWOOVR_MAIL_SMTP_PASSWORD` | only with `UAT_ZAMMAD_MANAGE_MAIL=true` (or API email `smtp`) |
 | `UAT_MAILERSEND_API_TOKEN` | `mail.env` `SWOOVR_MAIL_MAILERSEND_API_TOKEN` | only if a service is `mailersend` |
 | `UAT_ZAMMAD_IMAP_PASSWORD` | `mail.env` `SWOOVR_ZAMMAD_IMAP_PASSWORD` | only with `UAT_ZAMMAD_MANAGE_MAIL=true` and an IMAP mailbox |
+
+The photo screening key between the API and the `image-moderation` container is generated on the host (`env/image-moderation.env` and `env/screening.env`, one value) and is never a GitHub secret. The former `UAT_SCREENING_API_KEY`, `UAT_SCREENING_BASE_URL`, `UAT_MEDIA_PIPELINE_SERVICE_TOKEN` and `UAT_MEDIA_PIPELINE_UPLOAD_SIGNING_KEY` are no longer read; delete them from the `uat` environment (20 November 2026, [IMAGE-MODERATION-UAT.md](IMAGE-MODERATION-UAT.md)).
 
 ### 2. GitHub Environment variables (`uat`)
 
@@ -90,7 +91,6 @@ What a refresh still guarantees on the VM:
 | `UAT_KEYCLOAK_ENABLED_REALMS` | `automation.env` `SWOOVR_KEYCLOAK_ENABLED_REALMS` | `swoovr-members,swoovr-staff` (default); venues can never be listed |
 | `UAT_DIDIT_WORKFLOW_ID` | `api.env` `Didit__WorkflowId` | |
 | `UAT_R2_ENDPOINT`, `UAT_R2_BUCKET` | `api.env` `Media__R2__Endpoint`, `Media__R2__Bucket` | |
-| `UAT_SCREENING_BASE_URL` | `api.env` `Media__Screening__BaseUrl` | |
 | `UAT_TWILIO_SMS_FROM` | `api.env` `Sms__Twilio__From` | E.164 |
 | `UAT_MAIL_FROM`, `UAT_MAIL_FROM_NAME`, `UAT_MAIL_HELPDESK_FROM_NAME` | `mail.env` `SWOOVR_MAIL_FROM`, `_FROM_NAME`, `_HELPDESK_FROM_NAME` | `hello@repasscloud.com`, `Swoovr`, `Swoovr Helpdesk` (D358) |
 | `UAT_API_MAIL_SERVICE`, `UAT_KEYCLOAK_MAIL_SERVICE`, `UAT_SMS_SERVICE` | `mail.env` `SWOOVR_API_MAIL_SERVICE`, `SWOOVR_KEYCLOAK_MAIL_SERVICE`, `SWOOVR_SMS_SERVICE` | `twilio`, `twilio`, `mailpit` (D360) |

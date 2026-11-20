@@ -126,6 +126,7 @@ static class PersistenceChecks
             await Modes(options, Check);
             await ModeNamePersistenceChecks.Run(options, Check);
             await PhotoReviewPersistenceChecks.Run(options, Check);
+            await ImageProcessingChecks.RunPersistence(options, Check);
             await MediaCopyProvenanceChecks.Run(options, Check);
             await DobChangePersistenceChecks.Run(options, Check);
             await AccountInspectionPersistenceChecks.Run(options, Check);

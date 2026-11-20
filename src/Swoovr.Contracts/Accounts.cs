@@ -279,6 +279,10 @@ public static class ProblemCodes
     public const string PhotoTooBig = "photo-too-big";
     public const string PhotoUnsupported = "photo-unsupported";
     public const string PhotoInvalid = "photo-invalid";
+    /// <summary>The malware scan refused the photo; nothing was stored.</summary>
+    public const string PhotoRefused = "photo-refused";
+    /// <summary>The photo couldn't be checked for malware right now (scanner unavailable); nothing was stored.</summary>
+    public const string PhotoCheckUnavailable = "photo-check-unavailable";
     public const string PhotoLimit = "photo-limit";
     public const string UploadLimit = "upload-limit";
     public const string UnknownPhoto = "unknown-photo";

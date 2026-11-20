@@ -266,6 +266,23 @@ public static class Cli
                 Console.WriteLine(resolved ? "Media alert outcome reconciled and audited." : "No uncertain alert reconciled; check state and a 20–2000 character explanation.");
                 return resolved ? 0 : 2;
             }
+            // Image processing recovery (IMAGE-MODERATION-UAT.md): counts and reason codes only, never ids or images.
+            case ["media", "pending-report"]:
+            {
+                var status = await Swoovr.Api.Media.ImageProcessingStatusEndpoints.ReadAsync(db, scope.ServiceProvider.GetRequiredService<Swoovr.Api.Media.ImageProcessingHealth>(), admin: false, now, CancellationToken.None);
+                Console.WriteLine($"Image processing: {status.State}. Screening service: {(status.ScreeningReady is { } ready ? ready ? "ready" : "not answering" : "unknown")}; malware scanner: {(status.MalwareScannerReady ? "ready" : "not answering")}.");
+                Console.WriteLine($"Pending: {status.Pending} ({status.PendingOverHour} over an hour, {status.Stalled} stalled). Oldest: {(status.OldestPendingAt is { } oldest ? oldest.ToString("u") : "none")}.");
+                if (status.Paused > 0) Console.WriteLine($"Paused with their account (locked, suspended or being deleted; not screened on purpose): {status.Paused}.");
+                foreach (var reason in status.Reasons) Console.WriteLine($"  {reason.Code}: {reason.Count} ({reason.Stalled} stalled)");
+                Console.WriteLine($"Last 24 hours: {status.Passed} approved automatically, {status.Review} sent to review.");
+                return status.State == "healthy" ? 0 : 1;
+            }
+            case ["media", "rescreen", "--pending", .. var rest] when rest is [] or ["--reason", { Length: > 0 and <= 64 }]:
+            {
+                var count = await scope.ServiceProvider.GetRequiredService<Swoovr.Api.Media.MediaPipeline>().RescreenPendingAsync(rest is [_, var code] ? code : null, now, CancellationToken.None);
+                Console.WriteLine($"Media rescreen: {count} pending photos are due now; the API screens them within a minute. Check with `media pending-report`.");
+                return 0;
+            }
             case ["media", "preserve"]:
             {
                 var run = await scope.ServiceProvider.GetRequiredService<Swoovr.Api.Media.MediaPipeline>().RecoverBlockedSweepAsync(now, CancellationToken.None);
@@ -411,7 +428,7 @@ public static class Cli
                     Console.WriteLine($"{e.Email}\t{BetaEnrolments.View(e).State}");
                 return 0;
             default:
-                Console.Error.WriteLine("Usage: policies notices stage <version> <public-title> /safety|/safety/advice --operator <root-account-id> | policies notices publish <id> --operator <root-account-id> --source-published true | policies notices process <id> | migrate | backups bundle | backups reconcile <owned-target-db> <authenticated-bundle-path> <authority-sha256> | contacts reconcile | root-admin grant <staff subject> | bans backfill | bans legacy-status | staff conflicts reconcile | legal grant|revoke <staff subject> | identity backfill | keys status | keys rotate contact-history|evidence|police|identity|location|all | location purge [--to n] | beta add <email>... | beta add --file <path> | beta revoke <email> | beta list | founders allocate | messages purge | accounts purge | notifications sweep | retention purge [--case <id>|--account <id>] | push tokens protect | media preserve [media-id] | media alerts resolve <id> primary|backup accepted|retry --note-file <path>");
+                Console.Error.WriteLine("Usage: policies notices stage <version> <public-title> /safety|/safety/advice --operator <root-account-id> | policies notices publish <id> --operator <root-account-id> --source-published true | policies notices process <id> | migrate | backups bundle | backups reconcile <owned-target-db> <authenticated-bundle-path> <authority-sha256> | contacts reconcile | root-admin grant <staff subject> | bans backfill | bans legacy-status | staff conflicts reconcile | legal grant|revoke <staff subject> | identity backfill | keys status | keys rotate contact-history|evidence|police|identity|location|all | location purge [--to n] | beta add <email>... | beta add --file <path> | beta revoke <email> | beta list | founders allocate | messages purge | accounts purge | notifications sweep | retention purge [--case <id>|--account <id>] | push tokens protect | media pending-report | media rescreen --pending [--reason <code>] | media preserve [media-id] | media alerts resolve <id> primary|backup accepted|retry --note-file <path>");
                 return 2;
         }
     }

@@ -15,7 +15,7 @@ COMMIT = 'b' * 40
 
 def manifest(**override):
     values = {'SWOOVR_TAG': 'v1.0.3', 'SWOOVR_VERSION': '1.0.3', 'SWOOVR_COMMIT': COMMIT}
-    for component in ['api', 'web', 'admin', 'operator', 'keycloak']:
+    for component in ['api', 'web', 'admin', 'operator', 'keycloak', 'screening']:
         values[f'SWOOVR_{component.upper()}_IMAGE'] = f'ghcr.io/repasscloud/swoovr-{component}@{DIGEST}'
     values.update(override)
     return ''.join(f'{k}={v}\n' for k, v in values.items() if v is not None)

@@ -24,7 +24,7 @@ Updated 22 October 2026. Start with [current delivery status](delivery/STATUS.md
 
 - [Vultr VM and Cloudflare operator runbook](delivery/VULTR-IMAGE-PIPELINE.md): independent processor setup, private input checks, secrets, rolling maintenance and cutover gates.
 
-- [Cloudflare image Workers handoff](../workers/images/CLOUDFLARE-HANDOFF.md): self-contained instructions for a separate session to create the UAT R2 buckets, Queues, event notification, private Wrangler configs, secrets and Worker custom domains, then verify the staging-only path.
+- [Photo screening on the single UAT server](delivery/IMAGE-MODERATION-UAT.md): how photos are scanned, screened and moderated on UAT (D384), the Overview status panel, recovery commands, rollback and the retirement checklist for the old Vultr processors and Cloudflare image Workers.
 
 ## UAT deployment redesign — 12 November 2026
 

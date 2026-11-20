@@ -21,6 +21,20 @@ public sealed class ImageModerationScreening(HttpClient http, ScreeningOptions o
 {
     public string Name => "image-moderation-api";
 
+    public async Task<bool?> ReadyAsync(CancellationToken cancellationToken)
+    {
+        if (!options.Configured) return false;
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            using var ready = await http.GetAsync(new Uri(options.BaseUrl!, "ready"), timeout.Token);
+            return ready.IsSuccessStatusCode;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+        { return false; }
+    }
+
     public async Task<ScreeningResponse> ScreenAsync(byte[] image, CancellationToken cancellationToken)
     {
         if (!options.Configured) return ScreeningResponse.Failed("not-configured");
@@ -128,6 +142,7 @@ public sealed class ImageModerationScreening(HttpClient http, ScreeningOptions o
 public sealed class SimulatedScreening(ScreeningVerdict verdict) : IMediaScreening
 {
     public string Name => "simulated";
+    public Task<bool?> ReadyAsync(CancellationToken cancellationToken) => Task.FromResult<bool?>(true);
 
     public Task<ScreeningResponse> ScreenAsync(byte[] image, CancellationToken cancellationToken) => Task.FromResult(verdict switch
     {

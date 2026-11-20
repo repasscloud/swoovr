@@ -9,9 +9,11 @@
 #   edge      172.30.0.0/24, outbound allowed. Caddy is 172.30.0.2 and also answers to the public hostnames, so a
 #             container calling https://auth-uat.swoovr.app reaches Caddy directly (no public-IP hairpin).
 #   data      internal only. Swoovr/Keycloak PostgreSQL and its authorised clients.
-#   ticketing internal only. API <-> Zammad nginx (alias swoovr-zammad) and API <-> ClamAV.
+#   ticketing internal only. API <-> Zammad nginx (alias swoovr-zammad) and API <-> ClamAV (the one shared scanner:
+#             support attachments and photo uploads).
+#   screening internal only. API <-> image-moderation (photo screening). No public hostname, no published port.
 #   zammad    internal only. Zammad's own PostgreSQL, Redis, Memcached and Elasticsearch.
-#   egress    outbound only for ClamAV signature updates.
+#   egress    outbound only: ClamAV signature updates and image-moderation's calls to Project Arachnid Shield.
 #   mail      internal only. API and api-command -> Mailpit (the SMS/mail sink, D360).
 #   mailpit-ui Mailpit alone; publishes its UI on the host loopback 127.0.0.1:8025 for an SSH tunnel.
 name: swoovr-uat
@@ -192,7 +194,8 @@ services:
   api:
     <<: *swoovr-app
     image: ${SWOOVR_API_IMAGE:?release.env}
-    env_file: [env/api.env]
+    # env/screening.env comes last so its generated screening key replaces any older value left in env/api.env.
+    env_file: [env/api.env, env/screening.env]
     environment:
       <<: [*swoovr-common, *mail-env]
       Hosting__PublicOrigin: https://api-uat.swoovr.app
@@ -209,10 +212,9 @@ services:
       MemberAdmin__ContactRetirementEnabled: "true"
       Phone__Required: "true"
       Retention__Worker: "true"
-      # Owner #261: opt-in staging records only; does not enable member delivery (UAT-IMAGE-STAGING-2026-11-10.md).
-      Media__Pipeline__Enabled: "true"
-      Media__Pipeline__UploadOrigin: https://images-upload-uat.swoovr.app
-      Media__Pipeline__AcceptedPolicyVersion: swoovr-images-2026-11-08-v1
+      # Photo screening on this server (IMAGE-MODERATION-UAT.md): the private image-moderation container. This value
+      # overrides any older Media__Screening__BaseUrl still in env/api.env.
+      Media__Screening__BaseUrl: http://image-moderation:8080
       Media__Screening__Worker: "true"
       Media__Screening__RequireKnownContentCheck: "true"
       Media__Store: r2
@@ -235,6 +237,8 @@ services:
       swoovr-postgres: { condition: service_healthy }
       keycloak: { condition: service_healthy }
       mailpit: { condition: service_started }
+      # Started, not healthy: model loading takes a minute and photos simply wait (Pending) until it is ready.
+      image-moderation: { condition: service_started }
     # Bash explicitly: the Ubuntu runtime's /bin/sh is dash (no /dev/tcp). The Host header must be the service's
     # AllowedHosts value, or ASP.NET Core host filtering answers 400. The connection itself stays on loopback.
     healthcheck: &dotnet-health
@@ -243,7 +247,7 @@ services:
       timeout: 5s
       start_period: 60s
       retries: 5
-    networks: [edge, data, ticketing, mail]
+    networks: [edge, data, ticketing, mail, screening]
 
   web:
     <<: *swoovr-app
@@ -325,16 +329,70 @@ services:
     restart: "no"
     network_mode: none
 
-  # ---------------------------------------------------------------- support attachment scanning (D336)
+  # ---------------------------------------------------------------- malware scanning (D336): the ONE ClamAV on this server
+  # The API is its only client and scans both support attachments and photo uploads (before decoding) with it.
+  # Limits match compose.local.yaml: they must cover the largest support attachment (160 MB).
   clamav:
     <<: [*restart, *logging]
     image: ${SWOOVR_CLAMAV_IMAGE:?release.env}
     environment:
       # Q173, D379: freshclam checks for new signatures every 2 hours (12 a day; the image's default is 1).
       FRESHCLAM_CHECKS: "12"
+      CLAMD_CONF_StreamMaxLength: 160M
+      CLAMD_CONF_MaxFileSize: 160M
+      CLAMD_CONF_MaxScanSize: 400M
+      CLAMD_CONF_AlertExceedsMax: "yes"
+      CLAMD_CONF_MaxThreads: "4"
+      # Signatures need about 1.5 GB per loaded copy; a concurrent reload would hold two. Reloads pause scanning briefly.
+      CLAMD_CONF_ConcurrentDatabaseReload: "no"
     volumes:
       - clamav-db:/var/lib/clamav
+    mem_limit: 4g
     networks: [ticketing, egress]
+
+  # ---------------------------------------------------------------- photo screening (IMAGE-MODERATION-UAT.md)
+  # Built from services/image-moderation. NudeNet, Freepik NSFW and Project Arachnid Shield (only a PDQ hash leaves
+  # the server). Reachable only from the API on the internal screening network; outbound HTTPS to Shield via egress.
+  # ENABLE_PROCESSING=false: the API scans malware itself with the shared ClamAV, so this service needs no scanner.
+  image-moderation:
+    <<: [*restart, *logging]
+    image: ${SWOOVR_SCREENING_IMAGE:?release.env}
+    init: true
+    env_file: [env/image-moderation.env]
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8080"
+      LOG_LEVEL: INFO
+      ENABLE_NUDENET: "true"
+      ENABLE_NSFW: "true"
+      ENABLE_PROCESSING: "false"
+      ENABLE_DOCS: "false"
+      MODEL_CACHE: /app/model-cache
+      MAX_IMAGE_SIZE_MB: "10"
+      MAX_IMAGE_PIXELS: "40000000"
+      MAX_IMAGE_DIMENSION: "8192"
+      MAX_CONCURRENT_SCANS: "1"
+      SCAN_TIMEOUT_SECONDS: "120"
+      ARACHNID_TIMEOUT_SECONDS: "15"
+    read_only: true
+    tmpfs: ["/tmp:size=64m,noexec,nosuid"]
+    cap_drop: [ALL]
+    security_opt:
+      - "no-new-privileges:true"
+    volumes:
+      - image-moderation-models:/app/model-cache
+    # Measured on the old processor VMs: about 0.9 GB resident after warm-up, about 5 s per photo on 2 CPUs.
+    mem_limit: 4g
+    cpus: 2
+    pids_limit: 128
+    stop_grace_period: 2m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8080/ready', timeout=5).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 180s
+      retries: 3
+    networks: [screening, egress]
 
   # ---------------------------------------------------------------- Zammad 7.2.2 (own PostgreSQL)
   zammad-postgresql:
@@ -526,7 +584,7 @@ services:
   api-command:
     <<: *job
     image: ${SWOOVR_API_IMAGE:?release.env}
-    env_file: [env/api.env, env/operator.env]
+    env_file: [env/api.env, env/operator.env, env/screening.env]
     environment:
       <<: [*swoovr-common, *mail-env]
       Hosting__PublicOrigin: https://api-uat.swoovr.app
@@ -538,7 +596,11 @@ services:
       MemberAdmin__ClientId: swoovr-api-accounts
       StaffAdmin__ClientId: swoovr-api-staff
       Media__Store: r2
-    networks: [data, edge, mail]
+      # `media pending-report` checks both image services like the serving API does.
+      Media__Screening__BaseUrl: http://image-moderation:8080
+      Attachments__Scanning__ClamAv__Host: clamav
+      Attachments__Scanning__ClamAv__Port: "3310"
+    networks: [data, edge, mail, ticketing, screening]
 
 networks:
   edge:
@@ -552,6 +614,8 @@ networks:
     internal: true
   zammad:
     internal: true
+  screening:
+    internal: true
   egress: {}
   mail:
     internal: true
@@ -564,6 +628,7 @@ volumes:
   web-dataprotection:
   admin-dataprotection:
   clamav-db:
+  image-moderation-models:
   zammad-pgdata:
   zammad-redis:
   zammad-elasticsearch:

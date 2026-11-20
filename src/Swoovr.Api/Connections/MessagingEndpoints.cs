@@ -260,6 +260,9 @@ public static class MessagingEndpoints
                 MediaUploadError.TooBig => Problem(StatusCodes.Status413PayloadTooLarge, ProblemCodes.PhotoTooBig, "Photos can be up to 10 MB."),
                 MediaUploadError.UnsupportedType or MediaUploadError.Animated => Problem(StatusCodes.Status415UnsupportedMediaType, ProblemCodes.PhotoUnsupported, "Use a JPEG, PNG or WebP photo."),
                 MediaUploadError.TooSmall => Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, $"Photos need to be at least {MediaPolicy.MinSide} pixels on each side."),
+                MediaUploadError.Malware => Problem(StatusCodes.Status422UnprocessableEntity, ProblemCodes.PhotoRefused, "That file can't be used. Choose a different photo."),
+                MediaUploadError.ScanUnsupported => Problem(StatusCodes.Status422UnprocessableEntity, ProblemCodes.PhotoRefused, "That photo couldn't be checked. Choose a different photo."),
+                MediaUploadError.ScanUnavailable => Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.PhotoCheckUnavailable, "Photos can't be checked right now. Try again in a few minutes."),
                 _ => Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, "That photo couldn't be read."),
             };
             now = clock.GetUtcNow();

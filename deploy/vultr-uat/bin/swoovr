@@ -68,11 +68,16 @@ wait_exited_ok() { # one-shot services (zammad-init): exited with 0
     sleep 10; waited=$((waited + 10))
   done
 }
-HEALTHY=(swoovr-postgres keycloak zammad-postgresql zammad-redis zammad-memcached zammad-railsserver api web admin)
+HEALTHY=(swoovr-postgres keycloak zammad-postgresql zammad-redis zammad-memcached zammad-railsserver image-moderation api web admin)
 wait_all() {
-  local service
+  # Wait only for services the installed compose file defines: a rollback runs this script against an older bundle
+  # (before D384 there was no image-moderation), and an upgrade against a newer one.
+  local service defined
+  defined=" $(dc config --services | tr '\n' ' ') " || die 'compose.yaml does not parse'
   for service in "${HEALTHY[@]}"; do
-    case "$service" in keycloak) wait_healthy "$service" 600 ;; zammad-railsserver) wait_healthy "$service" 900 ;;
+    [[ "$defined" == *" $service "* ]] || { echo "$service not in this release, not waited for"; continue; }
+    # image-moderation: the first start copies and checks the models before /ready answers.
+    case "$service" in keycloak|image-moderation) wait_healthy "$service" 600 ;; zammad-railsserver) wait_healthy "$service" 900 ;;
       *) wait_healthy "$service" 300 ;; esac
   done
   wait_exited_ok zammad-init 900
@@ -330,7 +335,7 @@ refresh_mode() {
   fi
   python3 "$here/bin/envtool.py" zammad-tokens-reset
   # Owner (12 November 2026): a refresh also empties the UAT photo bucket. After the reset, so no row points at a
-  # deleted object if this fails; a re-run repeats it. Cloudflare image-pipeline buckets are not touched.
+  # deleted object if this fails; a re-run repeats it.
   stage r2-empty
   job r2-empty --bucket "$(value_of "$here/env/api.env" Media__R2__Bucket)"
   stage check; check --bootstrap

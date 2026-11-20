@@ -1,5 +1,7 @@
 # Independent Vultr image processor and Cloudflare integration
 
+> **Superseded for UAT on 20 November 2026 (D384).** The Vultr processor VMs, gateway and per-VM ClamAV, the Cloudflare image Workers and the API staging pipeline are retired. Photo screening runs on the single UAT server behind the API: [IMAGE-MODERATION-UAT.md](IMAGE-MODERATION-UAT.md). Kept as a historical record ([D384](DECISIONS.md#d384--photo-screening-on-the-single-uat-server-behind-the-api-20-november-2026)).
+
 Tracking: [#294](https://github.com/repasscloud/wanderconnect/issues/294). Design: [requirements and migration](../superpowers/specs/2026-11-08-vultr-image-pipeline-design.md). Implementation: [task plan](../superpowers/plans/2026-11-08-vultr-image-pipeline.md).
 
 **Read the implementation evidence below before enabling anything.** This runbook prepares independent processor VMs and local integration. A successful image build, local test or health check is not a completed Swoovr production cutover. The existing media path remains default until lifecycle, evidence, review, delivery and clients are verified together. No VM, Worker, Queue or R2 resource is provisioned by running the local operator-input commands.
@@ -57,7 +59,7 @@ Do not assume a shared load balancer terminates backend encryption or authentica
 
 ## Cloudflare resource and Worker preparation
 
-For a separate Cloudflare setup session, use the step-by-step [Cloudflare image Workers handoff](../../workers/images/CLOUDFLARE-HANDOFF.md).
+For a separate Cloudflare setup session, use the step-by-step Cloudflare image Workers handoff (`workers/images/CLOUDFLARE-HANDOFF.md`, removed by D384; see git history).
 
 Source and test commands are in `workers/images/`. Pin the package lock and use `npm ci`; use local Wrangler dry runs before remote deployment. Follow the exact generated/configuration templates there rather than deploying placeholder resource names.
 
