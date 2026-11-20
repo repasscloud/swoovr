@@ -584,7 +584,7 @@ services:
   api-command:
     <<: *job
     image: ${SWOOVR_API_IMAGE:?release.env}
-    env_file: [env/api.env, env/operator.env]
+    env_file: [env/api.env, env/operator.env, env/screening.env]
     environment:
       <<: [*swoovr-common, *mail-env]
       Hosting__PublicOrigin: https://api-uat.swoovr.app
@@ -596,7 +596,11 @@ services:
       MemberAdmin__ClientId: swoovr-api-accounts
       StaffAdmin__ClientId: swoovr-api-staff
       Media__Store: r2
-    networks: [data, edge, mail]
+      # `media pending-report` checks both image services like the serving API does.
+      Media__Screening__BaseUrl: http://image-moderation:8080
+      Attachments__Scanning__ClamAv__Host: clamav
+      Attachments__Scanning__ClamAv__Port: "3310"
+    networks: [data, edge, mail, ticketing, screening]
 
 networks:
   edge:
