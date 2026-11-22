@@ -3,6 +3,7 @@
 This is the complete procedure for a **refresh** of the Swoovr UAT environment. It is written for someone who has never done one and knows nothing about how UAT is built. Follow it **top to bottom, in order**. Do not skip a step. Every command is given in full. Where a command needs a value only you have (for example the server's address), the step says exactly where to find it.
 
 Related documents (you don't need them to follow this page; they hold the background):
+
 - [UAT operations SOP](UAT-OPERATIONS-SOP.md): day-to-day owner procedures.
 - [Server runbook](../../deploy/vultr-uat/README.md): what the server does, in technical detail.
 - [GitHub deployment configuration](UAT-GITHUB-DEPLOYMENT.md): every GitHub secret and variable.
@@ -10,24 +11,43 @@ Related documents (you don't need them to follow this page; they hold the backgr
 
 ## Contents
 
-- [0. What a refresh is, and what it deletes](#0-what-a-refresh-is-and-what-it-deletes)
-- [1. Things you need before you start](#1-things-you-need-before-you-start)
-- [2. One-time set-up on your Mac (skip any part you have done before)](#2-one-time-set-up-on-your-mac-skip-any-part-you-have-done-before)
-- [3. Pre-flight checks (every refresh)](#3-pre-flight-checks-every-refresh)
-- [4. Choose the version to refresh to](#4-choose-the-version-to-refresh-to)
-- [5. UNLOCK: switch the deployment mode to refresh](#5-unlock-switch-the-deployment-mode-to-refresh)
-- [6. Run the refresh](#6-run-the-refresh)
-- [7. RELOCK: switch the deployment mode back to upgrade](#7-relock-switch-the-deployment-mode-back-to-upgrade)
-- [8. Read and check the result](#8-read-and-check-the-result)
-- [9. Replace the temporary Keycloak administrator](#9-replace-the-temporary-keycloak-administrator)
-- [10. Set up the break-glass root admin](#10-set-up-the-break-glass-root-admin)
-- [11. Set up the helpdesk (Zammad) mailbox again](#11-set-up-the-helpdesk-zammad-mailbox-again)
-- [12. Staff sign in again](#12-staff-sign-in-again)
-- [13. Registration and beta invitations](#13-registration-and-beta-invitations)
-- [14. Final checks](#14-final-checks)
-- [15. If something goes wrong](#15-if-something-goes-wrong)
-- [16. Every lock and unlock in this procedure](#16-every-lock-and-unlock-in-this-procedure)
-- [17. One-page checklist](#17-one-page-checklist)
+- [UAT refresh SOP: wipe and rebuild UAT, every step](#uat-refresh-sop-wipe-and-rebuild-uat-every-step)
+  - [Contents](#contents)
+  - [0. What a refresh is, and what it deletes](#0-what-a-refresh-is-and-what-it-deletes)
+  - [1. Things you need before you start](#1-things-you-need-before-you-start)
+  - [2. One-time set-up on your Mac (skip any part you have done before)](#2-one-time-set-up-on-your-mac-skip-any-part-you-have-done-before)
+    - [2.1 Install and sign in to the GitHub command line](#21-install-and-sign-in-to-the-github-command-line)
+    - [2.2 Get the repository](#22-get-the-repository)
+    - [2.3 Check you can reach the server](#23-check-you-can-reach-the-server)
+    - [2.4 Prepare Firefox for the private Keycloak admin console](#24-prepare-firefox-for-the-private-keycloak-admin-console)
+  - [3. Pre-flight checks (every refresh)](#3-pre-flight-checks-every-refresh)
+    - [3.1 Tell people](#31-tell-people)
+    - [3.2 Check GitHub sign-in](#32-check-github-sign-in)
+    - [3.3 Check no other deployment is running](#33-check-no-other-deployment-is-running)
+    - [3.4 Check the current deployment mode](#34-check-the-current-deployment-mode)
+    - [3.5 Check every required GitHub setting is present](#35-check-every-required-github-setting-is-present)
+    - [3.6 Note the break-glass root admin's email address](#36-note-the-break-glass-root-admins-email-address)
+    - [3.7 Check the server and the current deployment](#37-check-the-server-and-the-current-deployment)
+  - [4. Choose the version to refresh to](#4-choose-the-version-to-refresh-to)
+    - [Option A (usual): refresh the version that is running now](#option-a-usual-refresh-the-version-that-is-running-now)
+    - [Option B: refresh to a new version](#option-b-refresh-to-a-new-version)
+  - [5. UNLOCK: switch the deployment mode to refresh](#5-unlock-switch-the-deployment-mode-to-refresh)
+  - [6. Run the refresh](#6-run-the-refresh)
+  - [7. RELOCK: switch the deployment mode back to upgrade](#7-relock-switch-the-deployment-mode-back-to-upgrade)
+  - [8. Read and check the result](#8-read-and-check-the-result)
+  - [9. Replace the temporary Keycloak administrator](#9-replace-the-temporary-keycloak-administrator)
+    - [9.1 Find the temporary password (on the server)](#91-find-the-temporary-password-on-the-server)
+    - [9.2 UNLOCK: open the private tunnel to the Keycloak console](#92-unlock-open-the-private-tunnel-to-the-keycloak-console)
+    - [9.3 Create your personal Keycloak administrator](#93-create-your-personal-keycloak-administrator)
+    - [9.4 RELOCK: close the tunnel](#94-relock-close-the-tunnel)
+  - [10. Set up the break-glass root admin](#10-set-up-the-break-glass-root-admin)
+  - [11. Set up the helpdesk (Zammad) mailbox again](#11-set-up-the-helpdesk-zammad-mailbox-again)
+  - [12. Staff sign in again](#12-staff-sign-in-again)
+  - [13. Registration and beta invitations](#13-registration-and-beta-invitations)
+  - [14. Final checks](#14-final-checks)
+  - [15. If something goes wrong](#15-if-something-goes-wrong)
+  - [16. Every lock and unlock in this procedure](#16-every-lock-and-unlock-in-this-procedure)
+  - [17. One-page checklist](#17-one-page-checklist)
 
 ---
 
@@ -43,6 +63,7 @@ You never type deployment commands on the server. Instead, GitHub does it: a Git
 | `refresh` | A backup is taken, then **everything is deleted and rebuilt from nothing**. |
 
 **A refresh deletes:**
+
 - every member account, profile, message, connection and report;
 - every staff account in Keycloak (staff sign in again; see section 12);
 - every role given to staff **inside Swoovr Admin** (roles that come from Microsoft Entra come back by themselves);
@@ -53,6 +74,7 @@ You never type deployment commands on the server. Instead, GitHub does it: a Git
 - registration settings and beta enrolments (they go back to "beta registration only", with no enrolments; section 13).
 
 **A refresh does not delete or change:**
+
 - the server itself, its firewall, its certificates and its secrets (database passwords, encryption keys);
 - anything in GitHub (secrets, variables, code, tags);
 - anything in Microsoft Entra (groups and roles stay);
@@ -71,8 +93,8 @@ You need all of these. If one is missing, stop and get it first.
 | What | Why | Where it comes from |
 | --- | --- | --- |
 | A Mac with Terminal | All commands are typed into Terminal | Applications → Utilities → Terminal |
-| The repository checked out at `~/Developer/wanderconnect-brief` | The commands run from it | Section 2.2 |
-| The GitHub command line `gh`, signed in to an account with **admin** rights on the repository https://github.com/repasscloud/wanderconnect | It changes GitHub settings and starts the workflow | Section 2.1 |
+| The repository checked out at `~/Developer/swoovr` | The commands run from it | Section 2.2 |
+| The GitHub command line `gh`, signed in to an account with **admin** rights on the repository https://github.com/repasscloud/swoovr | It changes GitHub settings and starts the workflow | Section 2.1 |
 | The deploy SSH key `~/.ssh/swoovr-uat-deploy` | To reach the server | Created once when UAT was built ([GitHub deployment, prerequisite 6](UAT-GITHUB-DEPLOYMENT.md#prerequisites-one-time)) |
 | The server's public IPv4 address | To reach the server | Vultr console: https://my.vultr.com/ → **Products** → **Compute** → the server `uat-01` → **IPv4** (Overview tab). Write it down; this page calls it `<server IPv4>` |
 | Access to the mailbox of the break-glass root admin address | It receives a set-up email (section 10) | See section 3, step 3.6, for how to see which address it is |
@@ -82,6 +104,7 @@ You need all of these. If one is missing, stop and get it first.
 | About 1–2 hours | The deployment runs for a while, then the manual set-up follows | — |
 
 In every command below:
+
 - Replace `<server IPv4>` with the server's address, for example `203.0.113.10`. Type it **without** the `<` and `>`.
 - Replace `vX.Y.Z` with the version chosen in section 4, for example `v1.1.2`.
 - Lines starting with `#` are comments. You don't have to type them.
@@ -94,28 +117,35 @@ In every command below:
 
 1. Install Homebrew if `brew --version` doesn't print a version. Follow https://brew.sh/.
 2. Install `gh`:
+
    ```bash
    brew install gh
    ```
+
 3. Sign in:
+
    ```bash
    gh auth login
    ```
+
    Answer: **GitHub.com** → **HTTPS** → **Yes** (authenticate Git) → **Login with a web browser**. Copy the code it shows, press Enter, paste the code in the browser, approve.
+
 4. Check:
+
    ```bash
    gh auth status
    ```
+
    **You should see** `✓ Logged in to github.com account <your account>`.
 
 ### 2.2 Get the repository
 
-If `~/Developer/wanderconnect-brief` doesn't exist yet:
+If `~/Developer/swoovr` doesn't exist yet:
 
 ```bash
 mkdir -p ~/Developer
 cd ~/Developer
-gh repo clone https://github.com/repasscloud/wanderconnect wanderconnect-brief
+gh repo clone https://github.com/repasscloud/swoovr swoovr
 ```
 
 ### 2.3 Check you can reach the server
@@ -133,25 +163,34 @@ ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes root@<server IPv4> 'hostna
 The Keycloak admin console is deliberately **not** reachable from the internet. You reach it through an encrypted SSH tunnel to the server, in a separate Firefox profile. You set this up once.
 
 1. Make a private folder and download Cloudflare's Origin CA root certificate:
+
    ```bash
    mkdir -p ~/swoovr-uat-private && chmod 700 ~/swoovr-uat-private
    curl -fsSL https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem -o ~/swoovr-uat-private/origin_ca_rsa_root.pem
    ```
+
 2. Check its fingerprint:
+
    ```bash
    openssl x509 -in ~/swoovr-uat-private/origin_ca_rsa_root.pem -noout -fingerprint -sha256
+
    ```
+
    **It must print exactly:**
    `sha256 Fingerprint=D3:C7:E8:5C:91:70:7F:C0:A1:2A:BC:5D:88:26:67:47:AA:4F:A8:E7:B1:62:F6:33:FF:B3:C9:D9:89:94:76:20`
    If anything differs, **stop**: delete the file and don't use it.
+
 3. Create the Firefox profile: open Firefox, type `about:profiles` in the address bar, press Enter → **Create a New Profile** → **Next** → name it `swoovr-uat-admin` → **Finish**. Next to `swoovr-uat-admin`, choose **Launch profile in new browser**.
+
 4. In that new window: **Settings** (☰ menu) → search for `proxy` → **Network Settings** → **Settings…** →
    - **Manual proxy configuration**
    - **SOCKS Host:** `127.0.0.1`  **Port:** `1080`
    - **SOCKS v5**
    - tick **Proxy DNS when using SOCKS v5**
    - **OK**.
+
 5. Still in that window: **Settings** → search for `certificates` → **View Certificates…** → **Authorities** tab → **Import…** → choose `~/swoovr-uat-private/origin_ca_rsa_root.pem` (press ⌘⇧G in the file picker and type `~/swoovr-uat-private`) → tick **Trust this CA to identify websites** → **OK** → **OK**.
+
 6. Close that window. Use this profile **only** for the Keycloak admin console.
 
 *(If Tailscale has been set up for UAT, you can use it instead of the SSH tunnel: [UAT-TAILSCALE-SETUP.md §5](UAT-TAILSCALE-SETUP.md#5-keycloak-admin-through-tailscale). The SSH tunnel always works, so this page uses it.)*
@@ -163,7 +202,7 @@ The Keycloak admin console is deliberately **not** reachable from the internet. 
 Open Terminal and go to the repository. **Every** command from here on is typed in this Terminal window, unless a step says "on the server".
 
 ```bash
-cd ~/Developer/wanderconnect-brief
+cd ~/Developer/swoovr
 git checkout main
 git pull
 ```
@@ -207,7 +246,7 @@ scripts/uat/setup-github-uat.sh status
 
 **You should see** three lists (secrets, variables, the repository variable) and **no** line starting with `MISSING`. Also check that these two names appear under *secrets* (photos stay "being checked" forever without them):
 
-```
+```text
 UAT_ARACHNID_USERNAME
 UAT_ARACHNID_PASSWORD
 ```
@@ -243,6 +282,7 @@ exit
 ```
 
 **You should see:**
+
 - `history`: a list of deployed versions; the last line is what is running now, with `success`.
 - `status`: containers listed, then lines starting with `PASS`, and `SWOOVR_RESULT smoke=passed`.
 - `df`: the `Avail` column shows at least **15G** (the deployment refuses with less).
@@ -266,17 +306,23 @@ Nothing to do here. Go to section 5.
 Use this when there is new code on `main` that UAT should run after the refresh.
 
 1. Find the next version number:
+
    ```bash
    git fetch --tags
    git tag --sort=-v:refname | head -3
    python3 scripts/release_version.py next
    ```
+
    The second command suggests the next version, for example `1.1.3`.
+
 2. Release it as a normal **upgrade** first. The script does everything (version commit on `main`, tag, deployment) and watches it:
+
    ```bash
    ./scripts/update-release.sh 1.1.3
    ```
+
    Replace `1.1.3` with the suggested version. **You should see** one line per step ending in `PASS`, then `Status: SUCCESS` and `Release v1.1.3 completed successfully.` If it fails, read [VERSIONING.md "Releasing"](VERSIONING.md#releasing) and fix it before going on.
+
 3. Go to section 5. The run you re-run in section 6 is the one this release just made.
 
 ---
@@ -297,26 +343,36 @@ gh variable get DEPLOYMENT_MODE
 ## 6. Run the refresh
 
 1. Find the newest **successful** Deploy UAT run, and its tag:
+
    ```bash
    RUN=$(gh run list --workflow deploy-uat.yml --status success --limit 1 --json databaseId -q '.[0].databaseId')
    TAG=$(gh run list --workflow deploy-uat.yml --status success --limit 1 --json headBranch -q '.[0].headBranch')
    echo "run=$RUN tag=$TAG"
    ```
+
    **You should see** something like `run=19876543210 tag=v1.1.2`. The tag should be the version you chose in section 4. Write it down: this page calls it `vX.Y.Z` from now on.
+
 2. Re-run **all** jobs of that run (not only failed ones; the first job is the one that reads the mode):
+
    ```bash
    gh run rerun "$RUN"
    ```
+
    **If `gh` refuses to re-run it** (GitHub only re-runs runs from the last 30 days): set the mode back (`gh variable set DEPLOYMENT_MODE --body upgrade`), do section 4 **Option B** to make a fresh run, then come back to section 5.
+
 3. Watch it:
+
    ```bash
    gh run watch "$RUN" --exit-status
    ```
+
    It shows three stages: **Validate tag, branch and mode**, then **Image …** (six of them; they reuse the existing images, so they're quick), then **Deploy to UAT (refresh)**. The deploy stage takes the longest: Keycloak, the helpdesk and photo screening start from nothing.
+
 4. **Check the run really is a refresh.** In the watch output, or on the website, the deploy job's name must read **Deploy to UAT (refresh)**, and the run shows the warning *"DEPLOYMENT_MODE=refresh: this run deletes and recreates all UAT application data (after a verified backup), and empties the R2 photo bucket."* If it reads **(upgrade)**, the mode was not switched in time: it's harmless (nothing was wiped); go back to section 5.
+
 5. Wait until `gh run watch` ends. **You should see** every job with a ✓ and the command exits without an error.
 
-You can also follow it in the browser: https://github.com/repasscloud/wanderconnect/actions/workflows/deploy-uat.yml → the newest run.
+You can also follow it in the browser: https://github.com/repasscloud/swoovr/actions/workflows/deploy-uat.yml → the newest run.
 
 **If the run fails**, do **not** switch the mode back yet. Go to [section 15](#15-if-something-goes-wrong).
 
@@ -338,10 +394,13 @@ gh variable get DEPLOYMENT_MODE
 ## 8. Read and check the result
 
 1. Open the run's summary in the browser:
+
    ```bash
    gh run view "$RUN" --web
    ```
+
    Scroll to **UAT deployment: vX.Y.Z** at the bottom of the run page.
+
 2. **You should see** in the table:
 
    | Line | Expected value | Meaning |
@@ -440,29 +499,39 @@ The temporary `swoovr-bootstrap` account is **deleted automatically** by the nex
 1. **Open the set-up email** in the mailbox of the address from section 3.6.
    - From: **Swoovr**, `support@swoovr.com`. Check **Junk** / **Other** too.
    - The link is valid for **12 hours**.
+
 2. **If the email isn't there** (or the link expired), resend it. Use the version tag from section 6 (`vX.Y.Z`):
+
    ```bash
    gh workflow run uat-maintenance.yml --ref vX.Y.Z -f action=admin-invite
    sleep 5
    gh run watch $(gh run list --workflow uat-maintenance.yml --limit 1 --json databaseId -q '.[0].databaseId')
    ```
+
    The run's summary should show `root-account=invite-sent`. **The `--ref` must be the tag, never `main`.** From `main` it fails at once with *"The deployment was rejected or didn't satisfy other protection rules"*; nothing ran, so start it again with the tag. If it still doesn't arrive, follow [UAT operations SOP §6 "An email didn't arrive"](UAT-OPERATIONS-SOP.md#an-email-didnt-arrive-the-procedure), which includes:
+
    ```bash
    scripts/uat/mail-test.sh <server IPv4> <the address from 3.6>
    ```
+
 3. **Complete the email's steps:**
    - click the link and verify the address;
    - choose a password of at least 12 characters (save it in your password manager);
    - scan the QR code with your authenticator app and enter the 6-digit code.
    **Keep a backup of this authenticator offline** (for example the recovery codes printed and stored safely): this account exists for emergencies.
+
 4. **Sign in once to Admin:** open https://admin-uat.swoovr.app → use the **email and password form** (**not** "Sign in with Microsoft") → enter the 6-digit code. Admin then says something like **"Your role can't do this"**: that is **expected** at this point.
+
 5. **Give the account the root role:**
+
    ```bash
    gh workflow run uat-maintenance.yml --ref vX.Y.Z -f action=admin-finalize
    sleep 5
    gh run watch $(gh run list --workflow uat-maintenance.yml --limit 1 --json databaseId -q '.[0].databaseId')
    ```
+
    Open the run's summary (`gh run view --web` on the run, or Actions → **UAT maintenance** → the newest run). **You should see** `initial-admin=granted`.
+
 6. In Admin, choose **Sign in again** (or sign out and in again with the same email, password and code). The full Admin workspace appears.
 
 **If the result is not `granted`:**
@@ -486,28 +555,40 @@ The temporary `swoovr-bootstrap` account is **deleted automatically** by the nex
 Staff normally sign in to Zammad only through **Swoovr staff sign-in** and can't change mail settings. To change them you sign in as Zammad's built-in administrator, `swoovr-provisioner`. Its password form is normally switched **off**; you switch it on for this step and off again at the end.
 
 1. Connect to the server:
+
    ```bash
    ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes root@<server IPv4>
    cd /opt/swoovr/swoovr-uat
    ```
+
 2. **UNLOCK** Zammad's password sign-in:
+
    ```bash
    ./bin/swoovr zammad-admin-login on
    ```
+
    **You should see** `Zammad password sign-in is ON. …`
+
 3. Find the administrator password: run `less env/zammad-provision.env`, copy the value after `SWOOVR_ZAMMAD_BOOTSTRAP_PASSWORD=`, then press `q`. Don't print it with `cat` or `echo`.
+
 4. Open a **private** browser window (Safari: ⌘⇧N) at https://helpdesk-uat.swoovr.app. Sign in with the password form: **username** `swoovr-provisioner`, **password** from step 3.
+
 5. Connect the support mailbox: **Settings** (gear, bottom left) → **Channels** → **Microsoft 365** (if shown; issue #319) **or** **Email** → **Add account** → sign in with the Microsoft 365 support mailbox account (section 1) and accept the permissions. When asked for the **destination group**, choose **General Support**.
+
 6. Set the notification sender: **Settings** → **Channels** → **Email** → **Settings** tab → **Notification Sender**: `Swoovr Helpdesk <support mailbox address>` → **Submit**.
+
 7. Sign out of Zammad (avatar, bottom left → **Sign out**). Close the private window.
+
 8. **RELOCK** — back in the server Terminal:
+
    ```bash
    ./bin/swoovr zammad-admin-login off
    exit
    ```
+
    **You should see** `Zammad password sign-in is OFF (staff sign in with Swoovr staff sign-in only).`
 
-If you forget step 8, the next deployment switches it off anyway. Don't rely on that: do step 8.
+   If you forget step 8, the next deployment switches it off anyway. Don't rely on that: do step 8.
 
 9. **Check:** send an email from your own mailbox to the support mailbox address. Within a few minutes a new ticket should appear in the helpdesk (**General Support**) once staff can sign in (section 12).
 
@@ -524,6 +605,7 @@ The refresh deleted every staff account in Keycloak and in Swoovr. **Nothing in 
 5. Helpdesk: https://helpdesk-uat.swoovr.app → **Swoovr staff sign-in**. This works about a minute after their first Admin sign-in, and only if they have a staff role. Without a role it shows **403**.
 
 **Roles:**
+
 - Roles that come from Entra (groups **Swoovr UAT Support**, **Swoovr UAT Trust & Safety**, **Swoovr UAT Admin**, **Swoovr UAT Legal**) come back by themselves at sign-in. Every staff member must also be in the group **Swoovr UAT** (that's what lets them sign in at all). Entra admin centre: https://entra.microsoft.com → **Groups** → **All groups**. Detail: [UAT operations SOP §5](UAT-OPERATIONS-SOP.md#5-staff-access-and-roles-microsoft-entra).
 - Roles that were granted **inside Swoovr Admin** (Staff → a person → Internal roles), by invitation or on the command line are **gone**. Give them again: once the person has signed in (step 1), the root admin opens https://admin-uat.swoovr.app/staff → the person → **Internal roles**. Or use an invitation at https://admin-uat.swoovr.app/staff/new.
 
@@ -538,9 +620,11 @@ After a refresh, registration is back at its starting setting: **Beta registrati
 3. **Re-add the testers:** https://admin-uat.swoovr.app/beta → **Email to pre-authorise** → the tester's email → **Add enrolment**. Repeat for every tester. Each address gets an invitation email (from `support@swoovr.com`) with a link to https://uat.swoovr.app/ to create their account.
 4. **Testers create new accounts** at https://uat.swoovr.app. Their old UAT accounts and photos are gone. Identity checks (Didit) start again from the beginning.
 5. **SMS codes** (phone verification) don't go to real phones in UAT yet: they are caught on the server by Mailpit. To read one:
+
    ```bash
    ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes -L 8025:127.0.0.1:8025 -N root@<server IPv4>
    ```
+
    Leave it running and open http://127.0.0.1:8025 in your browser. Press **Control-C** in that Terminal when finished, to close the tunnel.
 
 ---
@@ -550,30 +634,44 @@ After a refresh, registration is back at its starting setting: **Beta registrati
 Do all of these. Write down anything that doesn't match.
 
 1. **Server status, through GitHub:**
+
    ```bash
    gh workflow run uat-maintenance.yml --ref vX.Y.Z -f action=status
    sleep 5
    gh run watch $(gh run list --workflow uat-maintenance.yml --limit 1 --json databaseId -q '.[0].databaseId')
    ```
+
    **You should see** a successful run whose log shows `PASS` lines and `smoke=passed`.
+
 2. **History:**
+
    ```bash
    gh workflow run uat-maintenance.yml --ref vX.Y.Z -f action=history
    sleep 5
    gh run watch $(gh run list --workflow uat-maintenance.yml --limit 1 --json databaseId -q '.[0].databaseId')
    ```
+
    **You should see** the last line: `vX.Y.Z … refresh  success`.
 3. **Temporary Keycloak admin removed:** the `admin-finalize` summary in section 10 step 5 should have shown `bootstrap-admin=deleted`. If it showed `kept-no-personal-admin`, section 9 wasn't completed: do it, then run `admin-finalize` again (section 10 step 5).
+
 4. **Root admin:** signed in to https://admin-uat.swoovr.app as the break-glass account, the full workspace is visible.
+
 5. **Photos:** Admin → **Overview** → the **Image processing** panel says **Working normally**, and both services say **Answering**. Photo screening loads its models on first start, which can take up to 10 minutes. If it says otherwise, see [UAT operations SOP §9](UAT-OPERATIONS-SOP.md#9-photos-and-image-processing).
+
 6. **Mail:** a test email to the support mailbox became a helpdesk ticket (section 11 step 9).
+
 7. **Deployment mode is locked:**
+
    ```bash
    gh variable get DEPLOYMENT_MODE
    ```
+
    **It must print** `upgrade`. If it prints `refresh`, do section 7 now.
+
 8. **Tunnels closed:** no Terminal window is still running an `ssh -D` or `ssh -L` command. Press Control-C in any that are.
+
 9. **Zammad password login is off:** https://helpdesk-uat.swoovr.app shows only **Swoovr staff sign-in**, with no username/password form.
+
 10. Tell everyone UAT is ready again.
 
 ---
@@ -596,6 +694,7 @@ Do all of these. Write down anything that doesn't match.
 | A release you didn't mean to be a refresh wiped UAT | `DEPLOYMENT_MODE` was left at `refresh` | Do sections 7–14 now |
 
 Where to look:
+
 - The run's log: `gh run view "$RUN" --log-failed`, or the run page in the browser.
 - On the server: `./bin/swoovr history` (the failed stage is shown), `./bin/swoovr status`, `./bin/swoovr logs <service>` (for example `api`, `keycloak`, `zammad-railsserver`, `image-moderation`).
 - Full recovery table: [server runbook "Recovery"](../../deploy/vultr-uat/README.md#recovery).
@@ -654,6 +753,7 @@ Print this and tick each line.
 ---
 
 **Known gaps in this page** (fill in when known):
+
 - The Microsoft 365 support mailbox address Zammad uses isn't recorded in the repository (sections 1 and 11).
 - The Deploy UAT summary's "First administrator pending … with the Entra account" text is out of date (D364 made the root admin a non-Entra account); the steps here are correct.
 - The refresh has not been timed; the deploy stage takes longest because Keycloak, Zammad and photo screening start from empty.
