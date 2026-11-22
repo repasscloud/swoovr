@@ -20,6 +20,15 @@ Related documents (you don't need them to follow this page; they hold the backgr
     - [2.2 Get the repository](#22-get-the-repository)
     - [2.3 Check you can reach the server](#23-check-you-can-reach-the-server)
     - [2.4 Prepare Firefox for the private Keycloak admin console](#24-prepare-firefox-for-the-private-keycloak-admin-console)
+      - [2.4.1 Why you need a special Firefox profile and a certificate](#241-why-you-need-a-special-firefox-profile-and-a-certificate)
+      - [2.4.2 Install Firefox](#242-install-firefox)
+      - [2.4.3 Download Cloudflare's Origin CA root certificate](#243-download-cloudflares-origin-ca-root-certificate)
+      - [2.4.4 Verify the certificate (three checks, all must pass)](#244-verify-the-certificate-three-checks-all-must-pass)
+      - [2.4.5 Create the separate Firefox profile](#245-create-the-separate-firefox-profile)
+      - [2.4.6 Send this profile's traffic through the tunnel (proxy settings)](#246-send-this-profiles-traffic-through-the-tunnel-proxy-settings)
+      - [2.4.7 Import the root certificate into this profile only](#247-import-the-root-certificate-into-this-profile-only)
+      - [2.4.8 Test the whole path once](#248-test-the-whole-path-once)
+      - [2.4.9 Rules for this profile](#249-rules-for-this-profile)
   - [3. Pre-flight checks (every refresh)](#3-pre-flight-checks-every-refresh)
     - [3.1 Tell people](#31-tell-people)
     - [3.2 Check GitHub sign-in](#32-check-github-sign-in)
@@ -99,7 +108,7 @@ You need all of these. If one is missing, stop and get it first.
 | The server's public IPv4 address | To reach the server | Vultr console: https://my.vultr.com/ → **Products** → **Compute** → the server `uat-01` → **IPv4** (Overview tab). Write it down; this page calls it `<server IPv4>` |
 | Access to the mailbox of the break-glass root admin address | It receives a set-up email (section 10) | See section 3, step 3.6, for how to see which address it is |
 | An authenticator app on your phone (Microsoft Authenticator, 1Password, Google Authenticator or similar) | Keycloak and the root admin need a 6-digit code | App Store |
-| Firefox | To open the private Keycloak admin console | https://www.mozilla.org/firefox/ |
+| Firefox, with the `swoovr-uat-admin` profile and Cloudflare's Origin CA root certificate imported into it | To open the private Keycloak admin console (section 9) | Section 2.4 sets up all of it, step by step |
 | The Microsoft 365 sign-in for the support mailbox that Zammad uses | To reconnect the helpdesk mailbox (section 11) | Your Microsoft 365 admin. **This address is not recorded in the repository**: write it down here when you know it |
 | About 1–2 hours | The deployment runs for a while, then the manual set-up follows | — |
 
@@ -160,40 +169,187 @@ ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes root@<server IPv4> 'hostna
 
 ### 2.4 Prepare Firefox for the private Keycloak admin console
 
-The Keycloak admin console is deliberately **not** reachable from the internet. You reach it through an encrypted SSH tunnel to the server, in a separate Firefox profile. You set this up once.
+Do this once per Mac. It takes about 15 minutes. After it, section 9 needs only "start the tunnel, open Firefox".
 
-1. Make a private folder and download Cloudflare's Origin CA root certificate:
+#### 2.4.1 Why you need a special Firefox profile and a certificate
 
-   ```bash
-   mkdir -p ~/swoovr-uat-private && chmod 700 ~/swoovr-uat-private
-   curl -fsSL https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem -o ~/swoovr-uat-private/origin_ca_rsa_root.pem
-   ```
+- The Keycloak admin console (`https://auth-uat.swoovr.app/admin/`) is deliberately **hidden from the internet**. Through Cloudflare it answers **404 Not Found**.
+- You reach it through an **SSH tunnel** (section 9.2). Firefox sends its traffic into the tunnel, and the server opens the page as if it were the one browsing. For that, Firefox must be set to use the tunnel as a **SOCKS proxy**.
+- Through the tunnel, Firefox talks to the server **directly**, not through Cloudflare. The server proves who it is with a **Cloudflare Origin certificate**, which only Cloudflare normally trusts. Browsers don't trust it, so Firefox would show **"Warning: Potential Security Risk Ahead"**.
+- To fix that safely, you import the certificate authority that issued it, **Cloudflare's Origin CA root certificate**, into **one separate Firefox profile** that you use only for this.
 
-2. Check its fingerprint:
+**Never** import this certificate into your normal Firefox profile or into the macOS Keychain, and **never** click "Accept the Risk and Continue" on a certificate warning for this site.
 
-   ```bash
-   openssl x509 -in ~/swoovr-uat-private/origin_ca_rsa_root.pem -noout -fingerprint -sha256
+What the server presents (checked 22 November 2026):
 
-   ```
+| | |
+| --- | --- |
+| Server certificate | `CloudFlare Origin Certificate`, for `uat`, `api-uat`, `admin-uat`, `auth-uat`, `helpdesk-uat`, `venues-uat` `.swoovr.app`, valid until **9 November 2028** |
+| Issued by | `CloudFlare Origin SSL Certificate Authority` (the **RSA** Origin CA root) |
+| Root certificate valid until | **15 August 2029** |
+| Root SHA-256 fingerprint | `D3:C7:E8:5C:91:70:7F:C0:A1:2A:BC:5D:88:26:67:47:AA:4F:A8:E7:B1:62:F6:33:FF:B3:C9:D9:89:94:76:20` |
 
-   **It must print exactly:**
-   `sha256 Fingerprint=D3:C7:E8:5C:91:70:7F:C0:A1:2A:BC:5D:88:26:67:47:AA:4F:A8:E7:B1:62:F6:33:FF:B3:C9:D9:89:94:76:20`
-   If anything differs, **stop**: delete the file and don't use it.
+Cloudflare also publishes an **ECC** Origin CA root. It is **not** the one UAT uses; don't download it.
 
-3. Create the Firefox profile: open Firefox, type `about:profiles` in the address bar, press Enter → **Create a New Profile** → **Next** → name it `swoovr-uat-admin` → **Finish**. Next to `swoovr-uat-admin`, choose **Launch profile in new browser**.
+#### 2.4.2 Install Firefox
 
-4. In that new window: **Settings** (☰ menu) → search for `proxy` → **Network Settings** → **Settings…** →
-   - **Manual proxy configuration**
-   - **SOCKS Host:** `127.0.0.1`  **Port:** `1080`
-   - **SOCKS v5**
-   - tick **Proxy DNS when using SOCKS v5**
+If Firefox isn't in your Applications folder, install it, either from https://www.mozilla.org/firefox/new/ (open the downloaded `.dmg` and drag Firefox to Applications), or with:
+
+```bash
+brew install --cask firefox
+```
+
+Check:
+
+```bash
+/Applications/Firefox.app/Contents/MacOS/firefox --version
+```
+
+**You should see** `Mozilla Firefox` and a version number. **Quit Firefox completely** (⌘Q) before going on.
+
+#### 2.4.3 Download Cloudflare's Origin CA root certificate
+
+Where it comes from: Cloudflare's documentation page **Origin CA certificates** (https://developers.cloudflare.com/ssl/origin-configuration/origin-ca/), section *Cloudflare Origin CA root certificate*, link **Cloudflare Origin RSA PEM**. The direct address of that file is used below.
+
+```bash
+mkdir -p ~/swoovr-uat-private && chmod 700 ~/swoovr-uat-private
+curl -fsSL https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem -o ~/swoovr-uat-private/origin_ca_rsa_root.pem
+ls -l ~/swoovr-uat-private/origin_ca_rsa_root.pem
+```
+
+**You should see** one file of about 1–2 KB. **If you see** `curl: (22)` or `Could not resolve host`: check your internet connection and try again.
+
+#### 2.4.4 Verify the certificate (three checks, all must pass)
+
+**Check 1: the fingerprint.** This proves the file is exactly Cloudflare's root, unmodified:
+
+```bash
+openssl x509 -in ~/swoovr-uat-private/origin_ca_rsa_root.pem -noout -fingerprint -sha256
+```
+
+**It must print exactly:**
+`sha256 Fingerprint=D3:C7:E8:5C:91:70:7F:C0:A1:2A:BC:5D:88:26:67:47:AA:4F:A8:E7:B1:62:F6:33:FF:B3:C9:D9:89:94:76:20`
+
+Compare every pair. (On some Macs it prints `SHA256 Fingerprint=` in capitals; that's fine.)
+
+**Check 2: what it is and how long it is valid:**
+
+```bash
+openssl x509 -in ~/swoovr-uat-private/origin_ca_rsa_root.pem -noout -subject -enddate
+```
+
+**You should see:**
+```
+subject=C=US, O=CloudFlare, Inc., OU=CloudFlare Origin SSL Certificate Authority, L=San Francisco, ST=California
+notAfter=Aug 15 17:00:00 2029 GMT
+```
+
+**Check 3: the UAT server's certificate really was issued by this root.** This copies the server's **public** certificate (never its private key) to your Mac and checks it against the root:
+
+```bash
+ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes root@<server IPv4> 'openssl x509 -in /etc/caddy/certs/uat-origin.pem' > ~/swoovr-uat-private/uat-origin.pem
+openssl verify -CAfile ~/swoovr-uat-private/origin_ca_rsa_root.pem ~/swoovr-uat-private/uat-origin.pem
+```
+
+**You should see** a line ending in `uat-origin.pem: OK`.
+
+**If any check differs: stop.** Delete the file (`rm ~/swoovr-uat-private/origin_ca_rsa_root.pem`), don't import it, and ask for help. If only check 3 fails with `unable to get local issuer certificate`, the server's certificate was replaced by one from a different authority (for example the ECC root): ask for help before importing anything.
+
+#### 2.4.5 Create the separate Firefox profile
+
+A Firefox *profile* is a separate set of settings, bookmarks and certificates. Your normal browsing isn't affected.
+
+With Firefox **quit**, create the profile from Terminal:
+
+```bash
+/Applications/Firefox.app/Contents/MacOS/firefox -CreateProfile swoovr-uat-admin
+```
+
+**You should see** `Success: created profile 'swoovr-uat-admin' at '…'`. **If you see** that it already exists, it was created before: carry on.
+
+Open it (this is also how you open it **every time** later, including in section 9.3):
+
+```bash
+/Applications/Firefox.app/Contents/MacOS/firefox -P swoovr-uat-admin --no-remote &
+```
+
+A new, empty Firefox window opens. To be sure it is the right profile, type `about:profiles` in its address bar and press Enter: the `swoovr-uat-admin` box says **This is the profile in use and it cannot be deleted.**
+
+*(Alternative without Terminal: in any Firefox window type `about:profiles` → **Create a New Profile** → **Next** → name `swoovr-uat-admin` → **Finish** → **Launch profile in new browser**.)*
+
+Do **all** of 2.4.6 to 2.4.8 **in this window**.
+
+#### 2.4.6 Send this profile's traffic through the tunnel (proxy settings)
+
+1. ☰ menu (top right) → **Settings** → **General** → scroll to the bottom → **Network Settings** → **Settings…**.
+2. Choose **Manual proxy configuration** and fill in **exactly**:
+
+   | Field | Value |
+   | --- | --- |
+   | HTTP Proxy | *(empty)* |
+   | Port (HTTP) | *(empty or 0)* |
+   | Also use this proxy for HTTPS | **unticked** |
+   | HTTPS Proxy | *(empty)* |
+   | SOCKS Host | `127.0.0.1` |
+   | Port (SOCKS) | `1080` |
+   | SOCKS v4 / SOCKS v5 | **SOCKS v5** |
+   | No proxy for | *(empty)* |
+   | Proxy DNS when using SOCKS v5 | **ticked** (important: without it Firefox looks up `auth-uat.swoovr.app` on your Mac and reaches the public Cloudflare address, which answers 404) |
+   | Enable DNS over HTTPS (at the bottom of this dialog, if shown) | **unticked** |
+
+3. **OK**.
+4. Still in Settings → **Privacy & Security** → scroll to **DNS over HTTPS** → choose **Off**. (It would otherwise send name lookups around the tunnel.)
+
+#### 2.4.7 Import the root certificate into this profile only
+
+1. ☰ → **Settings** → **Privacy & Security** → scroll to **Security** → **Certificates** → **View Certificates…**.
+2. **Authorities** tab → **Import…**.
+3. In the file picker press **⌘⇧G**, type `~/swoovr-uat-private/origin_ca_rsa_root.pem`, press Enter, then **Open**.
+4. In the dialog *"You have been asked to trust a new Certificate Authority (CA)"*:
+   - tick **Trust this CA to identify websites**;
+   - leave **Trust this CA to identify email users** **unticked**;
+   - optionally click **View** and check the SHA-256 fingerprint matches 2.4.4 check 1;
    - **OK**.
+5. **Check the import:** in the Authorities list, scroll to **CloudFlare, Inc.** and expand it. **You should see** **CloudFlare Origin SSL Certificate Authority**. Select it → **View…** → the **SHA-256** fingerprint must match `D3:C7:E8:5C:…:94:76:20` from 2.4.4. Close the tab, then **OK**.
 
-5. Still in that window: **Settings** → search for `certificates` → **View Certificates…** → **Authorities** tab → **Import…** → choose `~/swoovr-uat-private/origin_ca_rsa_root.pem` (press ⌘⇧G in the file picker and type `~/swoovr-uat-private`) → tick **Trust this CA to identify websites** → **OK** → **OK**.
+**If you see** *"This certificate is already installed as a certificate authority"*: it's already there. Do step 5 to check it.
 
-6. Close that window. Use this profile **only** for the Keycloak admin console.
+#### 2.4.8 Test the whole path once
 
-*(If Tailscale has been set up for UAT, you can use it instead of the SSH tunnel: [UAT-TAILSCALE-SETUP.md §5](UAT-TAILSCALE-SETUP.md#5-keycloak-admin-through-tailscale). The SSH tunnel always works, so this page uses it.)*
+1. In a **separate Terminal window**, start the tunnel (the same command as section 9.2):
+   ```bash
+   ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes -D 1080 -N root@<server IPv4>
+   ```
+   It prints nothing and keeps running.
+2. In another Terminal window, check the tunnel itself:
+   ```bash
+   curl -sk --socks5-hostname 127.0.0.1:1080 -o /dev/null -w '%{http_code}\n' https://auth-uat.swoovr.app/admin/
+   ```
+   **You should see** `302`.
+3. In the `swoovr-uat-admin` Firefox window, open https://auth-uat.swoovr.app/admin/. **You should see** the Keycloak sign-in page (*Sign in to your account*), with **no** certificate warning.
+4. Click the **padlock** left of the address → **Connection secure** → **More information** → **View Certificate**. **You should see** *Issuer Name*: **CloudFlare Origin SSL Certificate Authority**.
+5. Don't sign in now. Close the Firefox window, then press **Control-C** in the tunnel window.
+6. Negative test (proves this profile only works through the tunnel): open the profile again (2.4.5 command) **without** the tunnel and go to the same address. **You should see** *"The proxy server is refusing connections"*. That's correct. Close the window.
+
+**If the test fails:**
+
+| What you see | Cause | Fix |
+| --- | --- | --- |
+| *The proxy server is refusing connections* (while the tunnel runs) | The tunnel isn't running, or isn't on port 1080 | Check the tunnel window is still running the command from step 1, with `-D 1080` |
+| *Warning: Potential Security Risk Ahead* / `SEC_ERROR_UNKNOWN_ISSUER` | The root isn't imported in **this** profile, or *Trust this CA to identify websites* wasn't ticked | Check `about:profiles` says `swoovr-uat-admin` is in use; redo 2.4.7. **Never** click "Accept the Risk" |
+| A plain **404 Not Found** page | Firefox went round the tunnel, through Cloudflare | Redo 2.4.6: *Proxy DNS when using SOCKS v5* ticked, DNS over HTTPS **Off**, *No proxy for* empty |
+| `curl` in step 2 prints `000` | The tunnel isn't running | Redo step 1; see 9.2 for the messages the tunnel can print |
+| Tunnel window prints `channel N: open failed: connect failed: Name or service not known` | Firefox asked for an address the server can't look up (its own background requests) | Harmless; ignore it |
+| `Permission denied (publickey)` in the tunnel window | The command isn't using the deploy key | Use the command exactly as in step 1 |
+
+#### 2.4.9 Rules for this profile
+
+- Use the `swoovr-uat-admin` profile **only** for the Keycloak admin console. Don't browse other sites in it: while the tunnel runs, all of its traffic goes out from the UAT server.
+- Keep `~/swoovr-uat-private/` private (`chmod 700`, already set). It holds only public certificates, but keep the folder for this purpose only.
+- **When this must be redone:** on a new Mac; if the profile is deleted; or when the server's certificate is replaced (the current one expires on **9 November 2028**; redo 2.4.4 check 3 then). If Cloudflare ever publishes a new root (the current one expires on **15 August 2029**), repeat 2.4.3 to 2.4.7 with the fingerprint Cloudflare publishes for it, and update this page.
+- To remove everything: `about:profiles` → `swoovr-uat-admin` → **Remove** → **Delete Files**, then `rm -r ~/swoovr-uat-private`.
+
+*(If Tailscale has been set up for UAT, you can use it instead of the SSH tunnel: [UAT-TAILSCALE-SETUP.md §5](UAT-TAILSCALE-SETUP.md#5-keycloak-admin-through-tailscale). You still need this profile and the certificate, with the proxy set to **No proxy**. The SSH tunnel always works, so this page uses it.)*
 
 ---
 
@@ -473,9 +629,13 @@ curl -sk --socks5-hostname 127.0.0.1:1080 -o /dev/null -w '%{http_code}\n' https
 
 ### 9.3 Create your personal Keycloak administrator
 
-1. Open Firefox with the `swoovr-uat-admin` profile: type `about:profiles` in any Firefox window → next to `swoovr-uat-admin` → **Launch profile in new browser**.
+1. Open Firefox with the `swoovr-uat-admin` profile (set up in section 2.4; if you haven't done 2.4, do it now):
+
+   ```bash
+   /Applications/Firefox.app/Contents/MacOS/firefox -P swoovr-uat-admin --no-remote &
+   ```
 2. Go to https://auth-uat.swoovr.app/admin/ in that window.
-   **If** it says the connection failed: the tunnel (9.2) isn't running. **If** it shows a certificate warning: section 2.4 step 5 wasn't done.
+   **If** it says the connection failed: the tunnel (9.2) isn't running. **If** it shows a certificate warning: the certificate isn't imported in this profile; do section 2.4.7, and never click "Accept the Risk". **If** it shows a plain 404 page: the proxy settings are wrong; do section 2.4.6. More fixes: the table in 2.4.8.
 3. Sign in: **Username** `swoovr-bootstrap`, **Password** the value from 9.1.
 4. Top left, the realm drop-down must say **master** (Keycloak). If not, choose **master**.
 5. **Users** (left menu) → **Add user** (or **Create new user**):
