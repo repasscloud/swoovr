@@ -22,8 +22,12 @@
     {
         "not-approved" when Source is null => "Not approved · preview not available",
         "not-approved" => Revealed ? null : "Not approved",
-        "checking" or "in-review" => "Checking",
+        // Issue 406: automatic checks and a person's review are different waits; say which one this photo is in.
+        "checking" => "Checking",
+        "in-review" => "In review",
         _ when Photo.AlbumOnly && !Revealed => "Albums only",
+        // Issue 406: an approved photo whose preview can't be loaded never shows as an empty tile.
+        "approved" when Source is null => "Preview not available",
         _ => null,
     };
 }

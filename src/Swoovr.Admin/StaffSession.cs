@@ -73,6 +73,8 @@ public static class AdminText
         (403, "media-safety-ack-required") => "Acknowledge the current media safety notice under Media first, then open the photo again.",
         (403, "account-locked") => "This account is locked.",
         (403, _) => "Your role can't do this.",
+        // Issue 405: the API can't sign photo links or reach photo storage; staff can't fix it from here.
+        (503, "media-unavailable") => "Photos can't be shown right now: the server can't open photo storage or sign photo links. Try again later or tell the platform owner.",
         (404, _) => "Not found, or not available to your role.",
         (409, _) => "That doesn't apply right now.",
         (400, _) => "Check the form: choose a listed reason. Support restricts for up to 30 days; Trust & Safety and Admin for up to 90.",

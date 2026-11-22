@@ -62,7 +62,7 @@ with tempfile.TemporaryDirectory(prefix='swoovr-infra-') as private:
     keycloak=next(r for r in services['resources'] if r.get('name')=="[format('{0}-keycloak-app', parameters('prefix'))]")
     keycloak_env=keycloak['properties']['parameters']['environmentVariables']['value']
     require(next(e for e in keycloak_env if e['name']=='SWOOVR_REGISTRATION_AUTHORITY_URL')['value']=="[variables('registrationAuthorityUrl')]")
-    require(len([r for r in records if 'vkey' in r])==10)
+    require(len([r for r in records if 'vkey' in r])==13)
     require(all('value' not in r for r in records))
     require('cryptoVersions' in json.dumps(services['variables']['copy']))
     # Bicep folds concat into an ARM expression; inspect literal components in the compiled contract.

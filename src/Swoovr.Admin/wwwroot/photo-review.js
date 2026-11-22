@@ -4,7 +4,9 @@
     const dialog = document.querySelector('[data-photo-dialog],[data-review-dialog]');
     if (!dialog) { if (returnId) document.querySelector(`[data-review-open="${returnId}"]`)?.focus(); returnId = undefined; return; }
     if (typeof dialog.showModal === 'function' && !dialog.matches(':modal')) { dialog.removeAttribute('open'); dialog.showModal(); }
-    dialog.querySelector('a,button,input,select,textarea')?.focus();
+    // Issue 405: land on the photo control (Reveal/Conceal), not the first header link (the Next chevron), so after V
+    // the focus ring stays where the reviewer is looking.
+    (dialog.querySelector('[data-reveal]') ?? dialog.querySelector('a,button,input,select,textarea'))?.focus();
     if (dialog.dataset.ready) return;
     dialog.dataset.ready = 'true';
     dialog.addEventListener('close', () => { dialog.querySelectorAll('img').forEach(image => image.removeAttribute('src')); });
