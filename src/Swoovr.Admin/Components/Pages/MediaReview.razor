@@ -113,7 +113,9 @@ else
                             <dt>Uploaded</dt><dd>@selected.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC</dd>
                             <dt>Screening</dt><dd>@(selected.KnownContentChecked?"Known-content checked":"Known-content not run")</dd>
                             @* Issue 231: adult content may be approved for private albums only (album upload, ID Verified owner). *@
-                            <dt>Destination</dt><dd data-media-destination="@selected.Destination">@(selected.Destination=="album"?"Private album":"Photo library")<span class="ui-sub">@(selected.OwnerIdVerified?"Owner ID Verified":"Owner not ID Verified")</span></dd>
+                            <dt>Destination</dt><dd data-media-destination="@selected.Destination">@(selected.Destination=="album"?"Private album":"Photo library")</dd>
+                            @* Issue 419: the owner's ID status on its own line; "No" must stand out (red pill). *@
+                            <dt>ID Verified</dt><dd data-owner-id-verified="@(selected.OwnerIdVerified?"yes":"no")">@if(selected.OwnerIdVerified){<span class="ui-pill" data-tone="approve">Yes</span>}else{<span class="ui-pill" data-tone="warn">No</span>}</dd>
                             <dt>Member</dt><dd><a href="/accounts/@selected.AccountId">View account</a></dd>
                             <dt>Reference</dt><dd><span class="beta-ref"><code>@Short(selected.Id)</code><CopyButton Value="@selected.Id.ToString()" /></span></dd>
                         </dl>
@@ -131,7 +133,7 @@ else
                                 @foreach(var group in (queue.Reasons?.Where(r=>r.Selectable)??[]).GroupBy(r=>r.Decision))
                                 {
                                     <optgroup label="@(group.Key=="approve"?"Approve":group.Key=="reject"?"Reject":"Escalate")">
-                                        @foreach(var reason in group.Where(r=>r.Code!="APPROVED_ALBUM_EXPLICIT"||AlbumEligible(selected))){<option value="@reason.Code" data-decision="@reason.Decision" data-notes="@(reason.RequiresNotes?"required":null)" selected="@(Field("reasonCode")==reason.Code)">@MediaText.Reason(reason.Code)</option>}
+                                        @foreach(var reason in Ordered(group,selected)){<option value="@reason.Code" data-decision="@reason.Decision" data-notes="@(reason.RequiresNotes?"required":null)" selected="@(Field("reasonCode")==reason.Code)">@MediaText.Reason(reason.Code)</option>}
                                     </optgroup>
                                 }
                             </select>
@@ -164,6 +166,11 @@ else
     private static string Short(Guid id) => id.ToString()[..8];
     /// <summary>Issue 231: the API enforces this too; the option is only offered for an album upload by an ID Verified owner.</summary>
     private static bool AlbumEligible(MediaReviewItem item) => item.Destination == "album" && item.OwnerIdVerified && item.Purpose is null;
+    /// <summary>Issue 419: for an owner who isn't ID Verified, "Explicit content not allowed without ID verification" is the first
+    /// Reject reason (R picks it); for a verified owner it isn't offered. The album-only approval keeps its issue 231 rule.</summary>
+    private static IEnumerable<MediaReviewReasonView> Ordered(IEnumerable<MediaReviewReasonView> group, MediaReviewItem item) => group
+        .Where(r => (r.Code != "APPROVED_ALBUM_EXPLICIT" || AlbumEligible(item)) && (r.Code != "REJECT_EXPLICIT_NO_ID" || !item.OwnerIdVerified))
+        .OrderBy(r => r.Code == "REJECT_EXPLICIT_NO_ID" ? 0 : 1);
     private static string Ago(DateTimeOffset at){var m=(int)Math.Max(0,(DateTimeOffset.UtcNow-at).TotalMinutes);return m<60?$"{m} min ago":m<2880?$"{m/60} h ago":$"{m/1440} days ago";}
     private static RenderFragment Chevron(string path) => @<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="@path"/></svg>;
     private static readonly RenderFragment EyeOff = @<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7-.4 1-1.3 2.4-2.6 3.7M6.6 6.6C4.5 8 3 10.1 2 12c1 2.5 5 7 10 7 1.7 0 3.3-.5 4.6-1.3"/></svg>;

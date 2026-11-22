@@ -13,7 +13,8 @@
                 <AntiforgeryToken />
                 <div class="ad-toolbar">
                     <label class="ui-field ad-purpose"><span>Viewing purpose</span><select name="purpose" required>@foreach (var p in Purposes){<option selected="@(p == purpose)">@p</option>}</select></label>
-                    <p class="ui-help">Each view and reveal is recorded. <a href="/media">Media safety notice</a></p>
+                    @* Issue 408: the "Each view and reveal is recorded" line was removed; views are still audited (the API records
+                       every view) and the media safety notice stays under Media in the navigation. *@
                 </div>
                 @if (photos.Count == 0) { <p class="ui-help" data-media-empty>No photos.</p> }
                 <div class="ad-media-grid">

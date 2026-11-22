@@ -1332,3 +1332,21 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
 - **All photos** tiles drop the status/mode caption (#420); the viewer still shows status, modes and albums, and the Open button's accessible name still reads it out. **Private albums** cards show only "X of Y photos" (or "Up to 10 photos" when empty); the modes are shown inside the album (#421).
 - **Privacy & safety** (#416): the four cards sit in a 2×2 grid whose rows share a height, and Receive explicit media is full width below them, with the profile switches in columns. The wording no longer promises that nothing explicit gets through. It says that every photo is checked, that we make every effort to stop nudity, and to report the message if something gets through. "Set up a meeting check-in" is natural width.
 - **Coupon code** (#414): generic wording ("Have a coupon code? …"), the label "Coupon code" and the placeholder "Enter your code". Founder codes are still accepted (D65).
+
+### D388 — Admin: Sign-in & access layout, quieter photo inventory, ID status in photo review (23 November 2026)
+
+**CONFIRMED** by the owner in issues #410, #408 and #419 (22 November 2026).
+
+**DEFAULT** (implementation):
+- **Sign-in & access (#410).**
+  - The MFA status is a short list.
+  - Checkboxes have room beside their text, and Save MFA requirement is natural width.
+  - **Clear MFA credentials** opens a dialog (the same confirmation dialog as other account actions) instead of a fold-out. Its button is red text (`--destructive`, the D387 colour, added to `admin.css` and checked by `check_design.py`).
+  - "Verify MFA for a privileged action" is a button.
+  - Sign-in takes two thirds of the row and Sessions one third. In the lock form, Reason and Reference are wide and Expires narrow.
+- **Photo inventory (#408).** The "Each view and reveal is recorded. Media safety notice" line is gone. Every view is still audited by the API, and the safety notice is still under Media.
+- **Photo review (#419).**
+  - Destination is one line.
+  - **ID Verified** has its own row: "Yes", or "No" as a red pill (`data-tone="warn"`).
+  - New reject reason `REJECT_EXPLICIT_NO_ID`, "Explicit content not allowed without ID verification". When the owner isn't ID Verified it is the first Reject reason, so **R** selects it; for a verified owner it isn't offered (the API accepts it like any other reject reason).
+  - The member sees: "Nudity or sexual content needs ID verification. Verify your ID, then you can upload adult photos into a private album." It is appealable like other rejections.

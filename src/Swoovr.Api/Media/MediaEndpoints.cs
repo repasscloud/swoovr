@@ -284,7 +284,7 @@ public static class MediaEndpoints
     {
         "APPROVED_STANDARD"=>"Meets current photo rules","APPROVED_NON_EXPLICIT"=>"Non-explicit image permitted by current rules",
         "APPROVED_AFTER_REVIEW"=>"Acceptable after manual review","APPROVED_ALBUM_EXPLICIT"=>"Adult content — private albums only (ID Verified owner, album upload)","APPROVED_FALSE_POSITIVE"=>"Automated flag cleared after review",
-        "REJECT_EXPLICIT_BETA"=>"Explicit content not allowed here","REJECT_IMPERSONATION"=>"Impersonation or unauthorised image use",
+        "REJECT_EXPLICIT_NO_ID"=>"Explicit content not allowed without ID verification","REJECT_EXPLICIT_BETA"=>"Explicit content not allowed here","REJECT_IMPERSONATION"=>"Impersonation or unauthorised image use",
         "REJECT_PRIVACY"=>"Prohibited personal or location information","REJECT_VIOLENCE"=>"Graphic violence or disturbing content",
         "REJECT_HATE"=>"Hate or prohibited extremist imagery","REJECT_SPAM"=>"Spam or prohibited promotion","REJECT_IMAGE_QUALITY"=>"Technical or image-quality requirements",
         "REJECT_OTHER"=>"Other violation — notes required","ESCALATE_CHILD_SAFETY"=>"Child-safety concern — specialist review",

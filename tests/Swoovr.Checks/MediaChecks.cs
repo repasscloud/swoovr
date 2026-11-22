@@ -116,6 +116,9 @@ static class MediaChecks
         Expect(big.Error == MediaUploadError.None && big.Width == MediaPolicy.StoredMaxSide && big.Height == 683, "large photos are scaled to 2048");
         Expect(MediaReviewReasons.Create("approve","APPROVED_STANDARD",null) is{Code:"APPROVED_STANDARD",Notes:null},"routine approval has a stable reason code");
         Expect(MediaReviewReasons.Create("reject","REJECT_OTHER","   ") is null,"Other requires substantive notes server-side");
+        // Issue 419: explicit content from a member who isn't ID Verified is its own reject reason, appealable, with member wording.
+        Expect(MediaReviewReasons.Create("reject","REJECT_EXPLICIT_NO_ID",null) is{Code:"REJECT_EXPLICIT_NO_ID"}&&MediaReviewReasons.Create("approve","REJECT_EXPLICIT_NO_ID",null) is null,"no-ID explicit reason is a reject reason");
+        Expect(PhotoReviewPolicy.Appealable("reject","REJECT_EXPLICIT_NO_ID",noticeAt,noticeAt.AddDays(1))&&PhotoReviewPolicy.MemberReason("REJECT_EXPLICIT_NO_ID").Contains("ID verification",StringComparison.Ordinal),"no-ID explicit rejection is appealable and explains ID verification");
         Expect(MediaReviewReasons.Create("reject","REJECT_OTHER","  Fictional explanation.  ") is{Notes:"Fictional explanation."},"review notes are normalised");
         Expect(MediaReviewReasons.Create("reject","ESCALATE_CHILD_SAFETY",null) is null&&MediaReviewReasons.Create("approve","REJECT_PRIVACY",null) is null,"reason code cannot change its decision or downgrade escalation");
         Expect(MediaReviewReasons.Create("escalate","ESCALATE_CHILD_SAFETY",null) is not null,"serious concern follows existing escalation without a definitive finding");
