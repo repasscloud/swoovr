@@ -73,7 +73,8 @@
                     <li><a class="ph-album" href="/me/photos/albums/@album.Id" data-album="@album.Id">
                         <span class="ph-cover">@foreach (var photo in album.Photos.Take(4).Select(Photo).OfType<MyPhotoView>()) {<PhotoShot Photo="photo" Alt="" />}</span>
                         <span class="ph-album-name">@album.Name</span>
-                        <span class="field-help">@album.Photos.Count of @photos.MaxAlbumPhotos · @(album.Modes.Count == 0 ? "Not in any mode" : string.Join(", ", album.Modes.Select(ModeLabel)))</span>
+                        @* Issue 421: only the photo count; the album's modes are shown when it's opened. *@
+                        <span class="field-help">@album.Photos.Count of @photos.MaxAlbumPhotos photos</span>
                     </a></li>
                 }
                 @for (var i = Albums.Count; i < photos.MaxAlbums; i++)
@@ -98,8 +99,8 @@
                 {
                     <li class="ph-tile" data-photo="@photo.Id" data-photo-state="@photo.State">
                         <button type="button" class="ph-open" @onclick="() => Open(photo.Id, Context.Library)" aria-label="Open photo, @Where(photo)"><PhotoShot Photo="photo" Revealed="revealed.Contains(photo.Id)" Alt="" /></button>
-                        <div class="ph-tile-meta"><span class="ph-where" title="@Where(photo)">@Where(photo)</span>
-                            <button type="button" class="button button-secondary ph-xs" disabled="@busy" @onclick="() => AskDelete(photo.Id)" data-delete-photo="@photo.Id">Delete</button></div>
+                        @* Issue 420: no status/mode caption under the tile; the viewer shows it (and the Open label reads it out). *@
+                        <div class="ph-tile-meta"><button type="button" class="button button-secondary button-destructive ph-xs" disabled="@busy" @onclick="() => AskDelete(photo.Id)" data-delete-photo="@photo.Id">Delete</button></div>
                     </li>
                 }
             </ul>
@@ -131,7 +132,7 @@
                             </div>
                             <div class="ph-row">
                                 @if (decision.CanAppeal && appealing != decision.Id) { <button type="button" class="button button-small" @onclick="() => appealing = decision.Id" data-photo-appeal="@decision.Id">Appeal</button> }
-                                @if (photo is not null) { <button type="button" class="button button-secondary button-small" @onclick="() => AskDelete(photo.Id)">Delete</button> }
+                                @if (photo is not null) { <button type="button" class="button button-secondary button-destructive button-small" @onclick="() => AskDelete(photo.Id)">Delete</button> }
                             </div>
                         </li>
                     }
@@ -170,7 +171,7 @@
             {
                 <button type="button" class="button" @onclick="() => { viewing = null; appealing = appealable.Id; }">Appeal this decision</button>
             }
-            <button type="button" class="button button-secondary" disabled="@busy" @onclick="() => AskDelete(shown.Id)">Delete</button>
+            <button type="button" class="button button-secondary button-destructive" disabled="@busy" @onclick="() => AskDelete(shown.Id)">Delete</button>
         </Actions>
     </PhotoViewer>
 }
@@ -188,7 +189,7 @@
             <div class="ph-dialog-head"><h2 id="ph-delete-title">Delete this photo?</h2><button type="button" class="ph-close" @onclick="() => dialog = null" aria-label="Close">×</button></div>
             <div class="ph-row"><span class="ph-item-thumb"><PhotoShot Photo="doomed" Alt="" /></span>
                 <p>@(UsedIn(doomed) is { Length: > 0 } used ? $"It's removed from {used} and your library." : "It's removed from your library.") This can't be undone.</p></div>
-            <div class="ph-dialog-foot"><button type="button" class="button button-secondary" @onclick="() => dialog = null">Keep</button><button type="button" class="button" disabled="@busy" @onclick="() => DeleteAsync(doomed.Id)" data-confirm-delete-photo="@doomed.Id">Delete</button></div>
+            <div class="ph-dialog-foot"><button type="button" class="button button-secondary" @onclick="() => dialog = null">Keep</button><button type="button" class="button button-secondary button-destructive" disabled="@busy" @onclick="() => DeleteAsync(doomed.Id)" data-confirm-delete-photo="@doomed.Id">Delete</button></div>
         </div>
     </div>
 }

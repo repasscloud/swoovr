@@ -2904,7 +2904,7 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q180 — Should sign-up say an email is already registered?
 
-- Issue: [#388](https://github.com/repasscloud/wanderconnect/issues/388). Status: OPEN. From [#386](https://github.com/repasscloud/wanderconnect/issues/386) / D381.
+- Issue: [#388](https://github.com/repasscloud/wanderconnect/issues/388). Status: ANSWERED **A** (owner, 22 November 2026; closed): keep the D381 wording. No code change. From [#386](https://github.com/repasscloud/wanderconnect/issues/386) / D381.
 - Registering with an address that already has an account gets Keycloak's stock duplicate-address error (reworded in D381, with Sign in and Forgot password? links), which tells a visitor the address is registered. **A (DEFAULT):** keep it; clear for members who forgot they registered. **B:** non-enumerating registration: always "Check your email", and the existing owner gets a sign-in/reset email (custom Keycloak registration step and new email wording).
 
 ## First sign-in onboarding — [#389](https://github.com/repasscloud/wanderconnect/issues/389), 19 November 2026

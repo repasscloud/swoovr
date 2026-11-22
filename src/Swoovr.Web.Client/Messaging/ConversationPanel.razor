@@ -45,7 +45,7 @@
                 @if (m.Kind != "system")
                 {
                 <span class="request-actions">
-                    @if (m.CanDelete) { <button type="button" class="link-button" @onclick="() => DeleteAsync(m)" data-delete="@m.Id">Delete for both</button> }
+                    @if (m.CanDelete) { <button type="button" class="link-button button-destructive" @onclick="() => DeleteAsync(m)" data-delete="@m.Id">Delete for both</button> }
                     <button type="button" class="link-button" @onclick="() => HideAsync(m)" data-hide="@m.Id">Hide</button>
                     @if (!m.Mine && !m.Deleted) { <button type="button" class="link-button" @onclick="() => reporting = m.Id" data-report-message="@m.Id">Report</button> }
                 </span>

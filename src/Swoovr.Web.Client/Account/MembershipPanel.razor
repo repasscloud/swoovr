@@ -23,10 +23,11 @@
 <section class="settings-card" aria-labelledby="coupon-heading" id="coupon-code">
     <div class="settings-card-head">
         <h2 id="coupon-heading">Coupon code</h2>
-        <p>Founding members returning to Swoovr can restore their founding status with the code we emailed them.</p>
+        @* Issue 414 (owner, 22 November 2026): generic wording for any coupon; founder codes still work here (D65). *@
+        <p>Have a coupon code? Enter it below and select Apply code to add it to your account.</p>
     </div>
     <form class="settings-form" @onsubmit="RedeemAsync" data-coupon-form>
-        <div class="field"><label for="coupon">Code</label><input id="coupon" type="text" autocomplete="off" spellcheck="false" @bind="coupon" @bind:event="oninput" placeholder="FOUNDER-…" /></div>
+        <div class="field"><label for="coupon">Coupon code</label><input id="coupon" type="text" autocomplete="off" spellcheck="false" @bind="coupon" @bind:event="oninput" placeholder="Enter your code" /></div>
         <button type="submit" class="button button-small" disabled="@(busy || string.IsNullOrWhiteSpace(coupon))">Apply code</button>
         <p role="status" aria-live="polite" class="settings-status" data-coupon-result="@couponResult">@couponMessage</p>
     </form>

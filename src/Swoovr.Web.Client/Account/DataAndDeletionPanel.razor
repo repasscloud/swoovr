@@ -29,7 +29,7 @@ else if (view is not null)
             {
                 <div class="data-actions data-actions-start">
                     <button type="button" class="button" disabled="@busy" @onclick="CancelAsync" data-cancel-deletion>Cancel deletion</button>
-                    @if (!DeletingNow) { <button type="button" class="button button-secondary" disabled="@busy" @onclick="DeleteNowAsync" data-delete-now>Delete now</button> }
+                    @if (!DeletingNow) { <button type="button" class="button button-secondary button-destructive" disabled="@busy" @onclick="DeleteNowAsync" data-delete-now>Delete now</button> }
                 </div>
                 @if (reauth == "delete") { <SignInNotice Text="@DeletionText.SignInAgainContinue" ReturnUrl="@ReturnUrl" /> }
                 <p role="status" aria-live="polite" class="data-note" data-delete-result>@deleteMessage</p>
@@ -83,7 +83,7 @@ else if (view is not null)
                 @if (view.Founder) { <label class="check"><input type="checkbox" @bind="deleteFounderToken" data-delete-founder-token /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> @DeletionText.FounderDeleteOption</label> }
                 <label class="check"><input type="checkbox" @bind="confirmed" data-delete-confirm /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> @DeletionText.Confirm</label>
                 @if (reauth == "delete") { <SignInNotice Text="@DeletionText.SignInAgainContinue" ReturnUrl="@ReturnUrl" /> }
-                <div class="data-actions"><button type="submit" class="button" disabled="@(busy || !confirmed)" data-delete-account>Delete my account</button></div>
+                <div class="data-actions"><button type="submit" class="button button-secondary button-destructive" disabled="@(busy || !confirmed)" data-delete-account>Delete my account</button></div>
                 <p role="status" aria-live="polite" class="data-note" data-delete-result>@deleteMessage</p>
             </form>
         </section>

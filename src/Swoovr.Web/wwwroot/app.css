@@ -32,8 +32,12 @@
   /* D315 (owner, issue 181): the only colour outside black and white, so emergency calls stand out in every theme. */
   --emergency: #C8102E;
   --emergency-text: #FFFFFF;
+  /* Issue 420 (owner, 22 November 2026): every delete action has red text in every scheme and mode, so it isn't
+     pressed by accident. Contrast at least 4.5:1 on each theme's bg, surface and soft (checked by check_design.py). */
+  --destructive: #B0102A;
 }
-:root[data-theme="dark"] { --scrim: color-mix(in srgb, var(--bg) 72%, transparent); }
+:root[data-theme="dark"] { --scrim: color-mix(in srgb, var(--bg) 72%, transparent);
+  --destructive: #FF9494; }
 
 /* Base */
 * { box-sizing: border-box; }
@@ -84,6 +88,10 @@ h1, h2, p, legend, label { overflow-wrap: anywhere; }
 .button .icon { width: 19px; height: 19px; }
 .button-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 10px; }
 .button-small { min-height: 44px; font-size: .875rem; }
+/* Issue 420: destructive (delete) actions. Red text on the quiet button look; disabled keeps the secondary greys. */
+.button-destructive, .link-button.button-destructive { color: var(--destructive); }
+.button-destructive:hover:not(:disabled) { border-color: var(--destructive); }
+.button-destructive:disabled { color: var(--placeholder); }
 /* Pill button ("Filters"): outline, 13/600. */
 .pill-button { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 38px; padding: 0 15px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: 600 .9375rem/1 var(--font); }
 .pill-button:hover { border-color: var(--text); }
@@ -442,6 +450,9 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 /* #41: photos and starters in a conversation. */
 .chat-photo { display: block; max-width: min(240px, 100%); border-radius: 12px; }
 .bubble.mine .field-help { color: var(--onPrimary); }
+/* PR 426 review: a sent bubble is --primary, which red text can't sit on in every scheme. The delete action gets its own
+   --surface pill there, a pairing check_design.py already checks for --destructive (>= 4.5:1 in every scheme and mode). */
+.bubble .link-button.button-destructive { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--surface); text-decoration: none; }
 .composer-photo { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 8px 0; }
 .starters { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 12px 0; }
 .starters .chip { white-space: normal; text-align: left; max-width: 100%; padding: 8px 12px; }

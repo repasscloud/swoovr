@@ -160,14 +160,26 @@ web_styles = [p for p in [*root.glob('src/Swoovr.Web/**/*.razor'), *root.glob('s
 # D315 (owner, issue 181): one deliberate exception to black and white, the emergency call red. It is a single named token
 # pair in app.css :root, the Union Jack scheme's red, and white text on it must meet WCAG AA for normal text.
 emergency = re.compile(r'^\s*--emergency(?:-text)?:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
+# Issue 420 (owner, 22 November 2026): delete actions are red text in every scheme and mode. One light and one dark value,
+# each at least 4.5:1 against every theme's bg, surface and soft in that mode.
+destructive = re.compile(r'^\s*--destructive:\s*#[0-9A-Fa-f]{6};(?:\s*\})?\s*$', re.M)
 app_css = (root / 'src/Swoovr.Web/wwwroot/app.css').read_text()
 tokens = dict(re.findall(r'--(emergency(?:-text)?):\s*(#[0-9A-Fa-f]{6})', app_css))
 assert set(tokens) == {'emergency', 'emergency-text'}, 'app.css must define --emergency and --emergency-text once'
 low, high = sorted([luminance(tokens['emergency-text']), luminance(tokens['emergency'])])
 assert (high + .05) / (low + .05) >= 4.5, 'emergency button text contrast below 4.5:1'
+red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', app_css)
+assert len(red) == 2, 'app.css must define --destructive once for light (:root) and once for dark'
+# Red text never sits on a message bubble's --primary/--soft background: inside a bubble the delete action has a --surface pill.
+assert re.search(r'\.bubble \.link-button\.button-destructive \{[^}]*background: var\(--surface\)', app_css), 'delete in a message bubble needs its --surface pill'
+for mode, value in zip(['light', 'dark'], red):
+    for theme in data:
+        for key in ['bg', 'surface', 'soft']:
+            low, high = sorted([luminance(value), luminance(theme[mode][key])])
+            assert (high + .05) / (low + .05) >= 4.5, f'--destructive ({mode}) contrast below 4.5:1 on {theme["id"]} {key}'
 for path in web_styles:
     text = path.read_text()
-    if path.name == 'app.css': text = emergency.sub('', text)
+    if path.name == 'app.css': text = destructive.sub('', emergency.sub('', text))
     found = stray.search(re.sub(r'/\*.*?\*/', '', text, flags=re.S))
     assert not found, f'Stray colour/shadow/framework style in {path.relative_to(root)}: {found.group(0)}'
 
