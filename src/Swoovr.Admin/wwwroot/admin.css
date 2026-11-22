@@ -199,6 +199,10 @@ strong.beta-email, .beta-name { margin-top: 0; font-size: .875rem; font-weight: 
 .ui-copy { flex: none; display: inline-grid; place-items: center; width: 24px; height: 24px; min-height: 24px; padding: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
 .ui-copy:hover { background: var(--soft); border-color: var(--border); color: var(--text); filter: none; }
 .ui-copy[data-copied] { color: var(--text); border-color: var(--border); }
+/* Issue 412: a copy result you can see, not only a tooltip. */
+.ui-copy[data-copied="ok"] { background: var(--soft); border-color: var(--text); }
+.ui-copy-status { flex: none; color: var(--text); font-size: .6875rem; font-weight: 600; line-height: 1.4; }
+.ui-copy[data-copied="failed"] + .ui-copy-status { color: var(--muted); font-weight: 500; }
 /* Pill text shares the first-line top with plain cell text (margins cancel padding+border). */
 .ui-pill { margin: 0; padding: 2px 10px 2px 22px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: .75rem; font-weight: 600; line-height: 18px; white-space: nowrap; position: relative; }
 .ui-pill::before { content: ""; position: absolute; left: 9px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--text); }
