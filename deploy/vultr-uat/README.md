@@ -59,7 +59,7 @@ The workflow checks the host (`UAT_EXPECTED_HOSTNAME`, Debian amd64, Docker, 15 
 | Step | `upgrade` (`DEPLOYMENT_MODE=upgrade`, default) | `refresh` (`DEPLOYMENT_MODE=refresh`) |
 | --- | --- | --- |
 | Guard | refuses if the Swoovr database volume doesn't exist | needs `--confirm-refresh swoovr-uat:<tag>` (passed by the workflow) |
-| Check | `swoovr check` (all env values filled, digests pinned, TLS, origin certificate, Compose valid) | same, after the reset, allowing the four Zammad tokens |
+| Check | `swoovr check` (all env values filled, founder1 is hex (D386), digests pinned, TLS, origin certificate, Compose valid) | same, after the reset, allowing the four Zammad tokens; a non-hex founder1 is replaced first (`founder-key-reset`, D386) |
 | Backup | `pg_dump` of `swoovr`, `keycloak`, Zammad + Zammad storage; verified; **stops on failure** | same (pre-refresh); **stops before deleting anything** |
 | Data | `migrate` once, with Web/Admin/API stopped | `docker compose down --volumes` for `swoovr-uat` only, **empty the R2 photo bucket** (owner, 12 November 2026; the bucket is kept), then a full bootstrap: `db-bootstrap` → `migrate` → `places-import` → Keycloak → `keycloak-bootstrap` (3 disabled realms) |
 | Services | `up -d --remove-orphans`: only changed services are recreated | all started in dependency order |
@@ -221,7 +221,7 @@ docker exec -i "$ZP" sh -c 'pg_restore -U "$POSTGRES_USER" -d "$ZAMMAD_DB" --cle
 ./bin/swoovr rollback --to <the tag the backup was taken for>   # the images that match the restored schema
 ```
 
-This procedure has not been rehearsed on the VM. On UAT a **refresh is the normal recovery** (owner: disposable). A restored Swoovr database needs the same data keys (`env/` is never changed by a refresh or upgrade). After a Zammad restore, run `./bin/swoovr job api-command retention helpdesk --reconcile` ([BACKUP-RESTORE.md](../../docs/delivery/BACKUP-RESTORE.md#helpdesk-zammad-backups-and-restore)).
+This procedure has not been rehearsed on the VM. On UAT a **refresh is the normal recovery** (owner: disposable). A restored Swoovr database needs the same data keys (`env/` is never changed by a refresh or upgrade, except a refresh replacing a non-hex founder1 once, D386; the old value derived nothing). After a Zammad restore, run `./bin/swoovr job api-command retention helpdesk --reconcile` ([BACKUP-RESTORE.md](../../docs/delivery/BACKUP-RESTORE.md#helpdesk-zammad-backups-and-restore)).
 
 ## Troubleshooting
 
@@ -237,6 +237,7 @@ This procedure has not been rehearsed on the VM. On UAT a **refresh is the norma
 | ssh: connection timed out | something in front of the VM blocks port 22 (no Vultr firewall group is used today) |
 | `this host is …, expected …` | `UAT_EXPECTED_HOSTNAME` or `UAT_SSH_HOST` points at another machine |
 | `the first deployment must be a refresh` | no Swoovr database volume |
+| `Founders__Secrets__1 must be at least 64 hex characters` | the host still has the pre-D386 password-form founder1 (#407). Run one deployment with `DEPLOYMENT_MODE=refresh`; it replaces the key. Upgrades stop at this check, before any backup or downtime |
 | `another deployment is running` | a run or a maintenance job holds `/run/lock/swoovr-uat-deploy.lock` |
 | `… was deployed before from commit …` | a reused tag; push a new version |
 | `FAIL …: … is not filled` | a provider value is unset on GitHub and on the host; set it in the `uat` environment |

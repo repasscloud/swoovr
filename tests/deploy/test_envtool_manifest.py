@@ -130,6 +130,27 @@ class EnvTool(unittest.TestCase):
         self.assertEqual(self.run_tool('realms', str(realms)).returncode, 0)
         self.assertTrue(self.value('realms.env', 'SWOOVR_UAT_REALM_STAFF').startswith("'{"))
 
+    def test_founder_key_is_hex_and_only_reset_replaces_a_password(self):
+        # Issue 407: new hosts get a 64-hex founder1; an old generated password fails check and only a refresh replaces it.
+        self.run_tool('init')
+        self.assertRegex(self.value('api.env', 'Founders__Secrets__1'), r'^[0-9a-f]{64}$')
+        api = self.env / 'api.env'
+        password = 'Ab' * 24
+        api.write_text(api.read_text().replace(self.value('api.env', 'Founders__Secrets__1'), password))
+        self.run_tool('init')
+        self.assertEqual(self.value('api.env', 'Founders__Secrets__1'), password, 'init never changes an existing value')
+        result = self.run_tool('check')
+        self.assertIn('Founders__Secrets__1 must be at least 64 hex characters', result.stdout)
+        self.assertNotIn(password, result.stdout + result.stderr)
+        result = self.run_tool('founder-key-reset')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn(password, result.stdout + result.stderr)
+        replaced = self.value('api.env', 'Founders__Secrets__1')
+        self.assertRegex(replaced, r'^[0-9a-f]{64}$')
+        self.assertIn('unchanged', self.run_tool('founder-key-reset').stdout)
+        self.assertEqual(self.value('api.env', 'Founders__Secrets__1'), replaced, 'a hex key is never replaced')
+        self.assertNotIn('Founders__Secrets__1', self.run_tool('check').stdout)
+
 
 if __name__ == '__main__':
     unittest.main()

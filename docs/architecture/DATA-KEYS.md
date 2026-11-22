@@ -16,7 +16,7 @@ DEFAULT D234 implements the existing versioned-key boundaries (D187/D189/D191/D2
 | Push device encryption | `Push:TokenKeys:<positive int version>`; base64,32 bytes | Development only: founder1 + `swoovr:push-token:encryption` |
 | Push lookup | `Push:TokenLookupKey`; base64,32 bytes | Development only: founder1 + `swoovr:push-token:lookup` |
 
-Hosted APIs (UAT, Production) must configure `Media:LinkKey`, `Location:Keys:1` and `Accounts:HoldKey` explicitly and refuse to start without them (D385, #405/#406): the UAT founder1 is a generated password, not hex, so it derives nothing.
+Hosted APIs (UAT, Production) must configure `Media:LinkKey`, `Location:Keys:1` and `Accounts:HoldKey` explicitly and refuse to start without them (D385, #405/#406). Before D386 the UAT founder1 was a generated password, not hex, so it derived nothing. Since D386 (#407), founder secrets must be hex of at least 32 bytes: hosted startup refuses anything else (`HostingPolicy.FounderKey`, the parser `Founders.ReadSecrets` also uses), and the UAT template generates 64 hex characters.
 
 Explicit values keep precedence. If founder1 is absent, no legacy fallback is derived from another version. Adding an explicit newer encryption key preserves derived1 while founder1 remains configured; this also applies to Development push. Hosted push continues to require explicit keys. The full hosted configuration/startup enforcement is part of UAT readiness, not a completed deployment claim. The approved persistent banned-identifier registry is separate remaining work and must use its own versioned matching keys.
 

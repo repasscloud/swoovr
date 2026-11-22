@@ -343,6 +343,8 @@ refresh_mode() {
     die "volumes of $PROJECT remain after down --volumes; inspect them by hand (nothing else was removed)"
   fi
   python3 "$here/bin/envtool.py" zammad-tokens-reset
+  # Issue 407: founder1 must be hex. The reset above deleted everything derived from the old value, so only here may it change.
+  python3 "$here/bin/envtool.py" founder-key-reset
   # Owner (12 November 2026): a refresh also empties the UAT photo bucket. After the reset, so no row points at a
   # deleted object if this fails; a re-run repeats it.
   stage r2-empty
