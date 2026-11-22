@@ -170,8 +170,17 @@ $(grep '^ *MISSING' <<< "$settings")"
     fi
 
     stage "Deploy UAT run for $TAG"
-    RUN="$(gh run list --workflow "$WORKFLOW" --branch "$TAG" --status success --limit 1 --json databaseId -q '.[0].databaseId // empty')"
-    [[ -n "$RUN" ]] || fail "no successful Deploy UAT run for $TAG; deploy it as an upgrade first"
+    if [[ -n "$EXISTING" ]]; then
+        # The tag's newest run, whatever its result: re-running every job rebuilds nothing new and redoes the whole
+        # deployment as a refresh (22 November 2026: after a failed refresh, the v1.2.1 upgrade refused at stage
+        # check because the Zammad tokens were cleared, so the tag never had a successful run).
+        RUN="$(gh run list --workflow "$WORKFLOW" --branch "$TAG" --limit 1 --json databaseId,status \
+            -q '.[0] | select(.status == "completed") | .databaseId')"
+        [[ -n "$RUN" ]] || fail "no finished Deploy UAT run for $TAG (still running, or never deployed: release it first)"
+    else
+        RUN="$(gh run list --workflow "$WORKFLOW" --branch "$TAG" --status success --limit 1 --json databaseId -q '.[0].databaseId // empty')"
+        [[ -n "$RUN" ]] || fail "no successful Deploy UAT run for $TAG; deploy it as an upgrade first"
+    fi
     local attempt_before
     attempt_before="$(gh run view "$RUN" --json attempt -q .attempt)"
     pass
