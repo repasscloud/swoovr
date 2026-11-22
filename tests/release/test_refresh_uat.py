@@ -38,6 +38,8 @@ if args[:2] == ["variable", "set"]:
 if args[:2] == ["run", "list"]:
     workflow = args[args.index("--workflow") + 1]
     if has("--status", "success"): out(state["run_for_tag"].get(args[args.index("--branch") + 1], ""))
+    if "--branch" in args:  # newest run of the tag, any result
+        out(state.get("latest_run_for_tag", state["run_for_tag"]).get(args[args.index("--branch") + 1], ""))
     out(state["busy"].get(workflow, ""))
 if args[:2] == ["run", "rerun"]:
     if state.get("rerun_refused"): save(); sys.exit(1)
@@ -195,6 +197,20 @@ class RefreshUatTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertFalse(self.released.exists())
         self.assertEqual(self.state()["rerun_mode"], "refresh")
+
+    def test_existing_tag_whose_only_run_failed_is_refreshed(self):
+        self.set_state(tag=self.latest, run_for_tag={}, latest_run_for_tag={self.latest: "4141"})
+        code, out = self.refresh("--existing", self.latest, "--confirm-refresh", self.latest)
+        self.assertEqual(code, 0, out)
+        self.assertIn("run 4141", out)
+        self.assertEqual(self.state()["rerun_mode"], "refresh")
+
+    def test_existing_tag_without_a_finished_run_changes_nothing(self):
+        self.set_state(tag=self.latest, run_for_tag={}, latest_run_for_tag={})
+        code, out = self.refresh("--existing", self.latest, "--confirm-refresh", self.latest)
+        self.assertNotEqual(code, 0)
+        self.assertIn("no finished Deploy UAT run", out)
+        self.assert_nothing_changed()
 
     def test_wrong_or_missing_confirmation_changes_nothing(self):
         code, out = self.refresh("--confirm-refresh", "v9.9.9")
