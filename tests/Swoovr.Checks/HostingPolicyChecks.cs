@@ -41,6 +41,11 @@ static class HostingPolicyChecks
         {var c=Api();c["Founders:Secrets:1"]=value;Expect(Errors(c).Contains("invalid-key:Founders:Secrets:1"),"non-hex or short founder1 refused: "+value.Length);}
         {var c=Api();c["Founders:Secrets:1"]=Convert.ToHexString(new byte[32]).ToLowerInvariant();Expect(!Errors(c).Contains("invalid-key:Founders:Secrets:1"),"lower-case 64-hex founder1 passes");c["Founders:Secrets:1"]=" "+Convert.ToHexString(new byte[48])+" ";Expect(!Errors(c).Contains("invalid-key:Founders:Secrets:1"),"longer upper-case founder1 passes");}
         Expect(Swoovr.Hosting.HostingPolicy.FounderKey(new string('a',64)) is {Length:32}&&Swoovr.Hosting.HostingPolicy.FounderKey("zz")==null,"founder key parser");
+        // Issue 315: Twilio SMS takes a restricted API key (both parts, SK SID) or the Auth Token.
+        {var c=Api();if(c.GetValueOrDefault("Sms:Provider")=="twilio"){c.Remove("Sms:Twilio:AuthToken");Expect(Errors(c).Contains("required:Sms:Twilio:AuthToken"),"Twilio needs the Auth Token without an API key");
+            c["Sms:Twilio:ApiKeySid"]="SK"+new string('c',32);Expect(Errors(c).Contains("required:Sms:Twilio:ApiKeySecret"),"an API key SID needs its secret");
+            c["Sms:Twilio:ApiKeySecret"]="fictional-key-secret";Expect(!Errors(c).Any(e=>e.Contains("Sms:Twilio",StringComparison.Ordinal)),"an API key replaces the Auth Token");
+            c["Sms:Twilio:ApiKeySid"]="AC"+new string('c',32);Expect(Errors(c).Contains("invalid-key:Sms:Twilio:ApiKeySid"),"the API key SID starts with SK");}}
         Expect(Errors(new(),serving:false).Length==0,"minimal one-shot command does not demand unrelated live services");
         // #316: Twilio email, hosted SMTP relay, and the Mailpit sink only on UAT.
         // #357: Postmark email needs its server token.
