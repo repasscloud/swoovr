@@ -90,19 +90,11 @@ Run `./scripts/update-release.sh X.Y.Z` from a clean `main` (D383). It commits `
 | `refresh` | Backup, then **everything is deleted and rebuilt**: databases, Keycloak users, Zammad data and its mail setup, every photo in the R2 bucket | Sign-in/realm changes that need a rebuild, or a deliberate clean start |
 
 ```bash
-gh variable get DEPLOYMENT_MODE          # check first
-gh variable set DEPLOYMENT_MODE --body upgrade   # or refresh
-
 cd ~/Developer/wanderconnect-brief && git checkout main && git pull
-git tag v1.0.3 origin/main && git push origin v1.0.3
-gh run watch $(gh run list --workflow deploy-uat.yml --limit 1 --json databaseId -q '.[0].databaseId')
+./scripts/update-release.sh 1.1.3      # the next version; it sets DEPLOYMENT_MODE=upgrade itself
 ```
 
-**After a refresh:**
-- Set `DEPLOYMENT_MODE` back to `upgrade` once you're happy, or the next tag wipes everything again.
-- Repeat section 4 (the break-glass account is recreated and gets a new set-up email).
-- Repeat the Zammad mailbox setup ([runbook "Zammad mail"](../../deploy/vultr-uat/README.md#zammad-mail-microsoft-365)).
-- Staff sign in again with Microsoft and set up their authenticator again.
+**A refresh is never started with `update-release.sh`:** the script sets `DEPLOYMENT_MODE=upgrade` just before it pushes the tag. A refresh re-runs an existing Deploy UAT run while `DEPLOYMENT_MODE=refresh`. Every step, in order, with every command, is in the **[UAT refresh SOP](UAT-REFRESH-SOP.md)**. After a refresh you set the mode back to `upgrade`, replace the temporary Keycloak admin, set up the break-glass root (section 4) and the Zammad mailbox again, staff sign in again, and testers are re-enrolled.
 
 **If a deployment fails**, the run names the stage. Data is never deleted before a verified backup. See the [runbook "Recovery"](../../deploy/vultr-uat/README.md#recovery); the usual fix is to correct the cause and push a new tag (tags can't be reused or moved).
 
@@ -311,8 +303,8 @@ Full detail: "Owner steps for the first deployment" in [IMAGE-MODERATION-UAT.md]
 
 | I want to… | Do |
 | --- | --- |
-| Deploy a normal release | Check `DEPLOYMENT_MODE=upgrade`, push tag `vX.Y.Z` on `main` (section 3) |
-| Wipe and rebuild UAT | `DEPLOYMENT_MODE=refresh`, push a tag, then sections 4 and 5, then back to `upgrade` |
+| Deploy a normal release | `./scripts/update-release.sh X.Y.Z` from a clean `main` (section 3) |
+| Wipe and rebuild UAT | Follow the [UAT refresh SOP](UAT-REFRESH-SOP.md) from top to bottom |
 | Resend the root admin's set-up email | Maintenance `admin-invite` **from the tag** (section 2) |
 | Give the root admin role | Maintenance `admin-finalize` **from the tag** after the account signed in once |
 | Give someone a staff role | Add them to Swoovr UAT + the role group in Entra (section 5) |
