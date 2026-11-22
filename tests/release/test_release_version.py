@@ -93,6 +93,13 @@ class ReleaseVersion(unittest.TestCase):
         self.commit()
         self.assertEqual(self.run_script("for-head")[0], "1.0.13", "an untagged build reports the committed version")
 
+    def test_next_minor_bumps_minor_and_resets_build(self):
+        self.assertEqual(self.run_script("next-minor")[0], "1.1.0")
+        self.tag("v1.1.2")
+        self.assertEqual(self.run_script("next-minor")[0], "1.2.0", "from the highest of committed version and tags")
+        self.tag("v1.9.4")
+        self.assertEqual(self.run_script("next-minor")[0], "1.10.0", "numeric, not lexical")
+
     def test_msbuild_args_require_the_exact_committed_version(self):
         self.assertIn("-p:SwoovrVersionBuild=13 ", self.run_script("msbuild-args", "1.0.13")[0])
         for bad in ("1.0.14", "1.1.13", "2.0.13"):

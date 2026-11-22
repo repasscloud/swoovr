@@ -9,6 +9,15 @@ Related documents (you don't need them to follow this page; they hold the backgr
 - [GitHub deployment configuration](UAT-GITHUB-DEPLOYMENT.md): every GitHub secret and variable.
 - Decisions: D362 (deployment), D363 (staff roles from Entra), D364 (break-glass root admin), D383 (one-command releases).
 
+**Quick start: the refresh script.** After the one-time set-up (section 2) and telling people (section 3.1), one command does sections 3.2 to 8 and prepares section 9:
+
+```bash
+./scripts/refresh-uat.sh                     # releases the next minor version (1.1.2 -> 1.2.0), then refreshes to it
+./scripts/refresh-uat.sh --existing v1.2.0   # refreshes a tag that is already released (section 4 Option A, or a retry)
+```
+
+Run it from the repository root on `main` with a clean tree. It connects to the server as `swoovr-uat-root` (a host alias in `~/.ssh/config`; set `SWOOVR_UAT_SSH` to use another). It asks you to type `refresh vX.Y.Z` before anything changes. It runs every check in section 3, releases with `./scripts/update-release.sh`, unlocks, re-runs the deployment as a refresh, and **relocks as soon as the run's deploy job reads "Deploy to UAT (refresh)"** (and on any failure or Control-C). It then checks the result (section 8) and the server, copies the temporary Keycloak password (section 9.1) to your clipboard without showing it, and prints your remaining steps (sections 9.2 to 14) with the tag filled in. If it fails after the release, it prints the `--existing` command to retry. The rest of this page is the same procedure by hand, and the detail for every manual step.
+
 ## Contents
 
 - [UAT refresh SOP: wipe and rebuild UAT, every step](#uat-refresh-sop-wipe-and-rebuild-uat-every-step)
@@ -856,6 +865,8 @@ Do all of these. Write down anything that doesn't match.
 ## 15. If something goes wrong
 
 **Leave `DEPLOYMENT_MODE` at `refresh` until the refresh has succeeded**, unless a step below says otherwise. A failed refresh is fixed by running it again in refresh mode.
+
+**If you used `./scripts/refresh-uat.sh`**, the mode is already back at `upgrade`. `gh run rerun "$RUN" --failed` still re-runs as a refresh: the first job read the mode once and is not re-run. To re-run **every** job, use `./scripts/refresh-uat.sh --existing vX.Y.Z` (it unlocks again, re-runs and relocks).
 
 | What you see | What it means | What to do |
 | --- | --- | --- |

@@ -7,6 +7,7 @@ Directory.Build.props holds the full committed version X.Y.Z (D383, owner 20 Nov
 
   show [REV]           the committed version (at REV, default the working tree)
   next                 a suggestion: the highest of the committed version and every local vX.Y.Z tag, Build + 1
+  next-minor           the same highest version with Minor + 1 and Build reset to 0 (scripts/refresh-uat.sh)
   check-new X.Y.Z [vA.B.C ...]
                        refuse unless X.Y.Z is well formed, newer than the committed version and newer than every
                        given/local release tag (numeric comparison: 1.10.0 > 1.9.99)
@@ -131,6 +132,9 @@ def main(argv):
     elif command == "next" and not args:
         highest = max([props(), *tags()])
         print(text((highest[0], highest[1], highest[2] + 1)))
+    elif command == "next-minor" and not args:
+        highest = max([props(), *tags()])
+        print(text((highest[0], highest[1] + 1, 0)))
     elif command == "check-new" and args: print(check_new(args[0], args[1:]))
     elif command == "set" and len(args) == 1: print(set_version(args[0]))
     elif command == "verify" and 1 <= len(args) <= 2: print(verify(*args))
