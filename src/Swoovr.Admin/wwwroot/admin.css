@@ -1,5 +1,13 @@
 /* Admin presentation uses canonical theme tokens; docs/design remains read-only. */
 :root { --font: "Helvetica Neue", Helvetica, Arial, sans-serif; --line: color-mix(in srgb, var(--text) 12%, var(--surface)); }
+/* Issues 419/420 (owner, 22 November 2026): the same red as the member app (D387) for destructive actions and warnings that
+   must stand out, such as "ID Verified: No". At least 4.5:1 in every scheme (check_design.py). */
+:root {
+  --destructive: #B0102A;
+}
+:root[data-theme="dark"] {
+  --destructive: #FF9494;
+}
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 400 1rem/1.55 var(--font); }
 a { color: var(--text); }
@@ -319,6 +327,9 @@ a.ui-sub { color: var(--muted); }
 .ui-pill[data-tone="reject"] { background: var(--primary); color: var(--onPrimary); border-color: var(--primary); }
 .ui-pill[data-tone="reject"]::before { background: var(--onPrimary); }
 .ui-pill[data-tone="escalate"]::before { outline: 1px solid var(--text); outline-offset: 1px; }
+/* Issue 419: a warning pill that must stand out (red text and border in every scheme). */
+.ui-pill[data-tone="warn"] { color: var(--destructive); border-color: var(--destructive); font-weight: 700; }
+.ui-pill[data-tone="warn"]::before { background: var(--destructive); }
 .ui-segmented { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
 .ui-segmented a { display: inline-flex; align-items: center; height: 30px; padding: 0 12px; border-radius: 7px; color: var(--muted); font-size: .8125rem; font-weight: 600; text-decoration: none; }
 .ui-segmented a[aria-current="page"] { background: var(--soft); color: var(--text); }
@@ -491,6 +502,18 @@ tr[data-row-link]:hover td { background: color-mix(in srgb, var(--soft) 60%, tra
 .acct-row .ui-field { width: 120px; }
 .ui-choice-4 { grid-template-columns: repeat(4, 1fr); }
 .ui-list li > form { margin: 0; }
+/* Issue 410: Sign-in & access. Sign-in two thirds, Sessions one third; Reason and Reference wide, Expires narrow. */
+.acct-grid-access { grid-template-columns: minmax(0, 2.4fr) minmax(260px, 1fr); }
+.ad-fieldset-grid.ad-fieldset-lock { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.4fr) 120px; }
+.ui-check { display: flex; align-items: flex-start; gap: 10px; font-size: .875rem; line-height: 1.4; }
+.ui-check input[type="checkbox"] { flex: none; margin: 1px 0 0; }
+.mfa-status { margin: 0 0 16px; }
+.mfa-form { gap: 12px; max-width: 640px; }
+.mfa-reason { max-width: 360px; }
+.mfa-actions { align-items: center; }
+.mfa-actions button, .mfa-actions .ui-button-ghost { width: auto; height: 36px; min-height: 36px; }
+.ui-destructive { color: var(--destructive); }
+.ui-destructive:hover:not(:disabled) { border-color: var(--destructive); }
 @media (max-width: 900px) { .acct-grid { grid-template-columns: 1fr; } }
 .media-meta > div { display: contents; }
 .ui-card-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
@@ -673,7 +696,7 @@ a.ad-stat:hover { border-color: color-mix(in srgb, var(--muted) 55%, var(--borde
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 1100px) { .ad-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ad-form-row .ad-fieldset { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 900px) {
-  .ad-strip, .ad-strip-3, .ad-fieldset-grid, .ad-profile-body { grid-template-columns: 1fr; }
+  .ad-strip, .ad-strip-3, .ad-fieldset-grid, .ad-fieldset-grid.ad-fieldset-lock, .ad-profile-body { grid-template-columns: 1fr; }
   .ad-dl { grid-template-columns: minmax(0, 1fr) auto; }
   .ad-dl dt { grid-column: 1 / -1; min-height: 0; padding: 10px 0 0; border-bottom: 0; font-size: .75rem; }
   .ad-dl dd { padding-top: 4px; }

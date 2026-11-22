@@ -10,6 +10,7 @@ public static class MediaText
         "APPROVED_AFTER_REVIEW" => "Acceptable after review",
         "APPROVED_FALSE_POSITIVE" => "Automated flag cleared",
         "APPROVED_ALBUM_EXPLICIT" => "Adult content: private albums only",
+        "REJECT_EXPLICIT_NO_ID" => "Explicit content not allowed without ID verification",
         "REJECT_EXPLICIT_BETA" => "Explicit content not allowed here",
         "REJECT_IMPERSONATION" => "Impersonation or unauthorised use",
         "REJECT_PRIVACY" => "Personal or location information",

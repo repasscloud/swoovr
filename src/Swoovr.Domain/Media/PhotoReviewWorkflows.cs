@@ -44,6 +44,8 @@ public static class PhotoReviewPolicy
     public static string MemberReason(string code) => code switch
     {
         // #231: explicit content is allowed only in private albums of ID Verified members (supersedes D178).
+        // Issue 419: explicit content from a member who isn't ID Verified.
+        "REJECT_EXPLICIT_NO_ID" => "Nudity or sexual content needs ID verification. Verify your ID, then you can upload adult photos into a private album.",
         "REJECT_EXPLICIT_BETA" => "Nudity or sexual content can't be used on your profile. If you're ID Verified, you can upload it into a private album instead.",
         "REJECT_IMPERSONATION" => "Use only photos you have the right to share, without impersonating someone else.",
         "REJECT_PRIVACY" => "This photo contains personal or location information that cannot be shown.",

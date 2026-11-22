@@ -170,6 +170,8 @@ low, high = sorted([luminance(tokens['emergency-text']), luminance(tokens['emerg
 assert (high + .05) / (low + .05) >= 4.5, 'emergency button text contrast below 4.5:1'
 red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', app_css)
 assert len(red) == 2, 'app.css must define --destructive once for light (:root) and once for dark'
+admin_red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text())
+assert admin_red == red, 'admin.css --destructive must equal app.css (light, then dark)'
 # Red text never sits on a message bubble's --primary/--soft background: inside a bubble the delete action has a --surface pill.
 assert re.search(r'\.bubble \.link-button\.button-destructive \{[^}]*background: var\(--surface\)', app_css), 'delete in a message bubble needs its --surface pill'
 for mode, value in zip(['light', 'dark'], red):
@@ -180,6 +182,7 @@ for mode, value in zip(['light', 'dark'], red):
 for path in web_styles:
     text = path.read_text()
     if path.name == 'app.css': text = destructive.sub('', emergency.sub('', text))
+    if path.name == 'admin.css': text = destructive.sub('', text)
     found = stray.search(re.sub(r'/\*.*?\*/', '', text, flags=re.S))
     assert not found, f'Stray colour/shadow/framework style in {path.relative_to(root)}: {found.group(0)}'
 

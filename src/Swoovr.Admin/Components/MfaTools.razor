@@ -1,36 +1,49 @@
 @inject AdminClient Admin
 <section class="ui-card ui-section" aria-labelledby="mfa-tools-heading">
 <h2 id="mfa-tools-heading">Multi-factor authentication</h2>
-@if (message is not null) { <p role="status">@message</p> }
+@if (message is not null) { <p role="status" class="notice">@message</p> }
 @if (view is { } security)
 {
-    <p>@MfaText.Status(security.Status) · @(security.Required ? "Required" : "Optional")</p>
-    <p>Registered methods: @string.Join(", ",security.Methods.Select(MfaText.Method))</p>
-    @if(security.LastReset is{}reset) { <p>Last credential reset: @reset.ToString("u")</p> }
+    @* Issue 410 (owner, 22 November 2026): compact status, spaced checkboxes, natural-width buttons, Clear MFA credentials in a
+       dialog (not a fold-out) and "Verify MFA" as a button. *@
+    <dl class="ad-dl mfa-status">
+        <div><dt>Status</dt><dd>@MfaText.Status(security.Status) · @(security.Required ? "Required" : "Optional")</dd><dd></dd></div>
+        <div><dt>Registered methods</dt><dd>@(security.Methods.Count == 0 ? "None" : string.Join(", ",security.Methods.Select(MfaText.Method)))</dd><dd></dd></div>
+        @if(security.LastReset is{}reset) { <div><dt>Last credential reset</dt><dd>@reset.ToString("d MMM yyyy HH:mm") UTC</dd><dd></dd></div> }
+    </dl>
     @if(!Staff && workspace?.MemberOperations == true)
     {
-        <form method="post" @formname="mfa-requirement" @onsubmit="RequireAsync" class="ui-form">
+        <form method="post" @formname="mfa-requirement" @onsubmit="RequireAsync" class="ui-form mfa-form">
             <AntiforgeryToken />
-            <label><input type="checkbox" name="required" value="yes" checked="@security.Required" />Require MFA</label>
-            <label class="ui-field">Reason or case reference<input name="reason" required maxlength="80" placeholder="security-review or case:1234" pattern="[a-z][a-z0-9-]{2,63}(:[0-9]{1,18})?" /></label>
-            <label><input type="checkbox" name="confirm" value="yes" required />Confirm this policy change; existing sessions will end</label>
-            <button type="submit">Save MFA requirement</button>
-            <p>Removing the requirement keeps existing authenticator credentials.</p>
+            <label class="ui-check"><input type="checkbox" name="required" value="yes" checked="@security.Required" /><span>Require MFA</span></label>
+            <label class="ui-field mfa-reason"><span>Reason or case reference</span><input name="reason" required maxlength="80" placeholder="security-review or case:1234" pattern="[a-z][a-z0-9-]{2,63}(:[0-9]{1,18})?" /></label>
+            <label class="ui-check"><input type="checkbox" name="confirm" value="yes" required /><span>Confirm this policy change; existing sessions will end</span></label>
+            <p class="ui-help">Removing the requirement keeps existing authenticator credentials.</p>
+            <div class="acct-buttons mfa-actions">
+                <button type="submit">Save MFA requirement</button>
+                @if(AllowReset && workspace?.Administration == true) { <button type="button" class="ui-button-ghost ui-destructive" data-dialog-open="mfa-reset" data-mfa-reset-open>Clear MFA credentials</button> }
+                @if(workspace?.Administration==true) { <a class="ui-button-ghost" href="/sign-in?elevate=true" data-enhance-nav="false" data-mfa-elevate>Verify MFA for a privileged action</a> }
+            </div>
         </form>
+    }
+    else if(workspace?.Administration == true)
+    {
+        <div class="acct-buttons mfa-actions">
+            @if(AllowReset) { <button type="button" class="ui-button-ghost ui-destructive" data-dialog-open="mfa-reset" data-mfa-reset-open>Clear MFA credentials</button> }
+            <a class="ui-button-ghost" href="/sign-in?elevate=true" data-enhance-nav="false" data-mfa-elevate>Verify MFA for a privileged action</a>
+        </div>
     }
     @if(AllowReset && workspace?.Administration == true)
     {
-        <details><summary>Clear MFA credentials</summary>
-        <form method="post" @formname="mfa-reset" @onsubmit="ResetAsync" class="ui-form">
-            <AntiforgeryToken />
-            <label class="ui-field">Recovery case reference<input name="case" required maxlength="23" placeholder="case:1234" pattern="case:[0-9]{1,18}" /></label>
-            <label><input type="checkbox" name="identityVerified" value="yes" required />I independently verified this recovery request using the approved identity verification procedure</label>
-            <label><input type="checkbox" name="confirm" value="yes" required />Confirm credential clearing and sign-out of existing sessions</label>
-            <button type="submit">Clear MFA credentials</button>
-            @if(Staff || security.Required) { <p>MFA remains mandatory. The account must enrol again.</p> }
-        </form></details>
+        <ConfirmDialog Id="mfa-reset" FormName="mfa-reset" Title="Clear MFA credentials" Confirm="Clear credentials" OnSubmit="ResetAsync">
+            <div class="ui-form">
+                <label class="ui-field"><span>Recovery case reference</span><input name="case" required maxlength="23" placeholder="case:1234" pattern="case:[0-9]{1,18}" /></label>
+                <label class="ui-check"><input type="checkbox" name="identityVerified" value="yes" required /><span>I independently verified this recovery request using the approved identity verification procedure</span></label>
+                <label class="ui-check"><input type="checkbox" name="confirm" value="yes" required /><span>Confirm credential clearing and sign-out of existing sessions</span></label>
+                @if(Staff || security.Required) { <p class="ui-help">MFA remains mandatory. The account must enrol again.</p> }
+            </div>
+        </ConfirmDialog>
     }
-    @if(workspace?.Administration==true) { <p><a href="/sign-in?elevate=true" data-enhance-nav="false">Verify MFA for a privileged action</a></p> }
 }
 </section>
 @code {
