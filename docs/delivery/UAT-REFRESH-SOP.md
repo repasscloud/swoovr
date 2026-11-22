@@ -459,7 +459,17 @@ ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes -D 1080 -N root@<server IP
 
 The command **prints nothing and keeps running**: that is the tunnel. Leave this Terminal window open. Open a **new** Terminal window (⌘N) for anything else.
 
-**If you see** `channel … open failed: administratively prohibited`: the deploy key is limited to commands only. Use your own personal SSH key for the server instead (`ssh -D 1080 -N root@<server IPv4>`).
+**Messages you may see in the tunnel window:**
+- `channel 3: open failed: connect failed: Name or service not known` (the number varies): **harmless; ignore it and carry on.** Firefox sometimes asks, through the tunnel, for an address the server can't look up (its own background requests). The tunnel still works. Only if https://auth-uat.swoovr.app/admin/ itself won't load in step 9.3 is something wrong (see 9.3 step 2).
+- `Permission denied (publickey)`: the `-i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes` part is missing or the key file isn't there. Use the command exactly as written above. The deploy key is the only key the server accepts for `root`; there is no other one to fall back to.
+
+**To check the tunnel from Terminal** (in a second window, while the tunnel runs):
+
+```bash
+curl -sk --socks5-hostname 127.0.0.1:1080 -o /dev/null -w '%{http_code}\n' https://auth-uat.swoovr.app/admin/
+```
+
+**You should see** `302` (the console redirecting to its sign-in page). Without the tunnel the same address gives `404` from the internet, by design.
 
 ### 9.3 Create your personal Keycloak administrator
 
