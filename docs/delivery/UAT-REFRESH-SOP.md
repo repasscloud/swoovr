@@ -432,7 +432,9 @@ gh variable set UAT_INITIAL_ADMIN_EMAIL --env uat --body 'new-address@example.co
 ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes root@<server IPv4>
 ```
 
-Now you are **on the server** (the prompt changes to `root@uat-01`). Type:
+(If you keep an SSH alias for this, such as `ssh swoovr-uat-root`, that works too.) You first see a `Linux uat-01 …` banner and `Last login: …`.
+
+Now you are **on the server** (the prompt changes to `root@uat-01:~#`). Type:
 
 ```bash
 cd /opt/swoovr/swoovr-uat
@@ -442,13 +444,38 @@ df -h /opt/swoovr
 exit
 ```
 
-**You should see:**
+**You should see, for each command:**
 
-- `history`: a list of deployed versions; the last line is what is running now, with `success`.
-- `status`: containers listed, then lines starting with `PASS`, and `SWOOVR_RESULT smoke=passed`.
-- `df`: the `Avail` column shows at least **15G** (the deployment refuses with less).
+1. **`history`**: one line per deployment, oldest first: the time it finished, the tag, the first 12 characters of the commit, the mode (`upgrade`, `refresh` or `rollback`), and the result. The **last line** is what is running now and must say `success`. Write its tag down; section 4 Option A refreshes that version.
 
-`exit` takes you back to your Mac.
+   ```text
+   <finished, UTC>       v1.1.2     <commit>      upgrade  success
+   ```
+
+   A failed deployment shows `failed` and the stage it stopped at (for example `migrate`). That is fine on an **earlier** line. On the **last** line, stop and ask for help.
+
+   **If you see** `SyntaxError: unexpected character after line continuation character` instead: the server still runs a release from before this command was fixed (v1.1.2 and earlier). It is harmless and the next deployment replaces it. Read the history directly instead:
+
+   ```bash
+   tail -3 state/releases.jsonl
+   ```
+
+   The last line is what is running now. It must contain `"result": "success"`; its `"tag"` is the version.
+
+2. **`status`** prints three parts:
+
+   - **A container table** (`NAME  IMAGE  COMMAND …`). Every `swoovr-uat-…` container is `Up`, except two that are meant to be `Exited (0)`: `volume-permissions` and `zammad-init` (they run once and finish).
+   - **`== containers`**: one line per service. Everything `running` except those same two `exited`. `healthy` or `-` are both fine (`-` means the service has no health check, for example `caddy`, `zammad-nginx`). Nothing may say `unhealthy` or `restarting`. A `restarts=` count of 1 on the Zammad services is normal after a deployment; if a count goes up when you run `./bin/swoovr status` again a minute later, stop and ask for help.
+   - **`== application readiness through Caddy`**: nine `PASS` lines (API live, ready, version, attachment scanning, web, admin, helpdesk, and both realm discoveries), then `SWOOVR_RESULT smoke=passed`. The `api version` line must match the tag from `history` (`PASS api version 1.1.2` for `v1.1.2`). Any `FAIL` line: stop and ask for help.
+
+3. **`df`**: the `Avail` column shows at least **15G** (the deployment refuses with less), for example:
+
+   ```text
+   Filesystem      Size  Used Avail Use% Mounted on
+   /dev/vda2       601G   35G  541G   6% /
+   ```
+
+`exit` (you see `logout` and `Connection to … closed.`) takes you back to your Mac.
 
 ---
 

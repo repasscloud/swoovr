@@ -107,6 +107,8 @@ grep -q 'ps -aq image-moderation' "$FAKE_LOG" && ok 'upgrade waits for image-mod
 cmp -s "$live/release.env.previous" "$r1/release.env" && ok 'previous release manifest kept for rollback' || bad 'previous release manifest kept for rollback'
 [[ "$(grep -c '"result": "success"' "$live/state/releases.jsonl")" == 2 ]] && grep -q '"failed_stage": "preflight"' "$live/state/releases.jsonl" && tail -1 "$live/state/releases.jsonl" | grep -q '"previous": {"commit": "'"$c1"'", "tag": "v1.0.3"}' "$live/state/releases.jsonl" && ok 'history records both releases and the previous one' || bad 'history records both releases and the previous one'
 
+"$live/bin/swoovr" history > "$work/history.log" 2>&1 && [[ "$(wc -l < "$work/history.log")" == 3 ]] && tail -1 "$work/history.log" | grep -qE 'v1\.0\.4 +2{12} +upgrade +success' && ok 'history command prints every release' || bad 'history command prints every release'
+
 # 5. Tags are immutable: the same tag from another commit is refused.
 r3="$(stage_release v1.0.3 3333333333333333333333333333333333333333)"
 deploy "$r3" upgrade && bad 'reused tag accepted'; grep -q 'tags are immutable' "$work/out.log" && ok 'reused tag from another commit refused' || bad 'reused tag from another commit refused'

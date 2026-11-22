@@ -258,10 +258,12 @@ PY
 }
 history() {
   [[ -f "$here/state/releases.jsonl" ]] || { echo 'No releases recorded yet.'; return 0; }
-  python3 -I -c 'import json,sys
-for l in open(sys.argv[1]):
-    r=json.loads(l); print(f"{r[\"finished\"]}  {r[\"tag\"]:<10} {r[\"commit\"][:12]}  {r[\"mode\"]:<8} {r[\"result\"]:<8} {r.get(\"failed_stage\") or \"\"}")' \
-    "$here/state/releases.jsonl"
+  python3 -I - "$here/state/releases.jsonl" <<'PY'
+import json, sys
+for line in open(sys.argv[1], encoding='utf-8'):
+    r = json.loads(line)
+    print(f"{r['finished']}  {r['tag']:<10} {r['commit'][:12]}  {r['mode']:<8} {r['result']:<8} {r.get('failed_stage') or ''}")
+PY
 }
 
 # ------------------------------------------------------------------ backups (UAT disposable, but never destroy unrecorded data)
