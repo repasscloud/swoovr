@@ -83,7 +83,8 @@ public static class HostingPolicy
         Require("Attachments:Scanning:ClamAv:Host");
         // D337 (#224): a configured helpdesk needs its retention identity, so tickets don't outlive their retention periods.
         if(Has("Ticketing:Zammad:BaseUrl"))Require("Ticketing:Zammad:RetentionToken");
-        if(Encoding.UTF8.GetByteCount(Read("Founders:Secrets:1")??"")<32)errors.Add("invalid-key:Founders:Secrets:1");
+        // Issue 407: founder1 is read as hex (FounderKey); a non-hex value used to pass here and was silently ignored.
+        if(FounderKey(Read("Founders:Secrets:1")) is null)errors.Add("invalid-key:Founders:Secrets:1");
         if(Encoding.UTF8.GetByteCount(Read("Phone:CodeKey")??"")<32)errors.Add("invalid-key:Phone:CodeKey");
         Ring("Bans:HmacKeys",int.MaxValue,longKey:true);Ring("ContactHistory:Keys");Base64("ContactHistory:LookupKey");Ring("Evidence:Keys");Ring("IdentityStore:Keys");Base64("IdentityStore:HmacKey");Ring("Push:TokenKeys",int.MaxValue);Base64("Push:TokenLookupKey");
         // Issues 405/406: hosted APIs never rely on the founder1 fallback (DATA-KEYS.md), so these explicit keys must exist.
@@ -92,6 +93,13 @@ public static class HostingPolicy
         foreach(var feature in new[]{"MeetingSafety","TextHarm"})if(Flag(feature+":Enabled"))
         {if(!Flag(feature+":Worker",true))errors.Add("required-enabled:"+feature+":Worker");if(feature=="MeetingSafety")Url("MeetingSafety:PublicBaseUrl");}
         return errors.Distinct(StringComparer.Ordinal).ToArray();
+    }
+    /// <summary>A founder secret (`Founders:Secrets:{version}`): hex of at least 32 bytes, else null. Founders.ReadSecrets uses the same rule.</summary>
+    public static byte[]? FounderKey(string? value)
+    {
+        if(string.IsNullOrWhiteSpace(value))return null;
+        try{var bytes=Convert.FromHexString(value.Trim());return bytes.Length>=32?bytes:null;}
+        catch(FormatException){return null;}
     }
     /// <summary>
     /// A container on the same private network, by its single-label service name and an explicit port (for example

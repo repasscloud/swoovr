@@ -1307,3 +1307,18 @@ Reversible: redeploy an earlier tag (photos simply wait), or point `Media__Scree
 **OPEN:** founder coupons need founder1 as hex, but the UAT template generates a password, so founder grants are unavailable on UAT. Tracked separately; changing founder1 changes every key derived from it.
 
 Reversible: remove the keys from the template; existing links simply expire (links last minutes).
+
+### D386 — Founder secret 1 is hex on UAT; a non-hex value fails before deploying (23 November 2026)
+
+**Context (#407):** the UAT template generated `Founders__Secrets__1` as a 48-character password. The API only reads hex (at least 32 bytes), so it silently ignored the key: no founding places could be granted on UAT, and `HostingPolicy` (which checked only the length) let the API start.
+
+**CONFIRMED** by the owner (22 November 2026, chat): option A + C, and the next deployment is a refresh.
+
+**DEFAULT** (implementation):
+- `envtool.py` has a `GENERATE_HEX32` kind (64 lower-case hex characters). The template generates `Founders__Secrets__1` with it, under the new store name `founder-key-v1-hex`.
+- `HostingPolicy` refuses a founder1 that isn't hex of at least 32 bytes (`invalid-key:Founders:Secrets:1`). It uses the same parser as `Founders.ReadSecrets` (`HostingPolicy.FounderKey`).
+- Neither upgrade nor refresh normally changes an existing env value (D362), so a refresh runs `envtool.py founder-key-reset` straight after its reset. This replaces founder1 only when it isn't hex. A valid hex key is never changed.
+- `envtool.py check` fails on a non-hex founder1 with "only a refresh may replace it". An **upgrade** therefore stops at its first check, before any backup, image pull or downtime, until a refresh has run.
+- The old value derived nothing (the API ignored it), so no data or backup depends on it and it isn't kept.
+
+Reversible: a refresh with an earlier tag still starts with the hex key, which earlier releases also accept.

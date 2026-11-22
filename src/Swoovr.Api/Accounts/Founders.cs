@@ -41,12 +41,8 @@ public sealed class Founders(IServiceProvider services, IConfiguration configura
         foreach (var child in configuration.GetSection("Founders:Secrets").GetChildren())
         {
             if (!int.TryParse(child.Key, out var version) || version < 1 || string.IsNullOrWhiteSpace(child.Value)) continue;
-            try
-            {
-                var bytes = Convert.FromHexString(child.Value.Trim());
-                if (bytes.Length >= 32) secrets[version] = bytes;
-            }
-            catch (FormatException) { }
+            // Issue 407: the same rule HostingPolicy enforces at startup, so a hosted API can't start with an ignored key.
+            if (Swoovr.Hosting.HostingPolicy.FounderKey(child.Value) is { } bytes) secrets[version] = bytes;
         }
         return secrets;
     }

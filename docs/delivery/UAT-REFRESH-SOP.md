@@ -93,7 +93,7 @@ You never type deployment commands on the server. Instead, GitHub does it: a Git
 
 **A refresh does not delete or change:**
 
-- the server itself, its firewall, its certificates and its secrets (database passwords, encryption keys);
+- the server itself, its firewall, its certificates and its secrets (database passwords, encryption keys). One exception (D386, #407): if the founder coupon key isn't in the hex form the app needs, the refresh replaces it once;
 - anything in GitHub (secrets, variables, code, tags);
 - anything in Microsoft Entra (groups and roles stay);
 - records held by outside providers (for example Didit identity-check sessions, Postmark email history).

@@ -12,6 +12,8 @@
                        into the env files named in PROVIDER_VALUES. Empty = keep the host value, "-" = set empty.
                        Prints names only (D362)
   zammad-tokens-reset  mark the four Zammad tokens in env/api.env as unfilled (refresh: Zammad's data is new)
+  founder-key-reset    refresh only: replace a Founders__Secrets__1 that isn't 64+ hex characters with a generated hex key
+                       (issue 407; the data that depended on the old value is deleted by the same refresh)
 """
 import base64, json, os, re, secrets, string, sys
 from pathlib import Path
@@ -19,7 +21,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ENV = ROOT / 'env'
 STORE = ENV / '.generated'
-PLACEHOLDER = re.compile(r'__(GENERATE_PASSWORD|GENERATE_KEY32):([a-z0-9-]+)__')
+PLACEHOLDER = re.compile(r'__(GENERATE_PASSWORD|GENERATE_KEY32|GENERATE_HEX32):([a-z0-9-]+)__')
+# Issue 407: the API reads Founders__Secrets__N as hex of at least 32 bytes (Founders.ReadSecrets, HostingPolicy).
+FOUNDER_KEY = 'Founders__Secrets__1'
+FOUNDER_STORE = 'founder-key-v1-hex'
+HEX_KEY = re.compile(r'(?:[0-9a-fA-F]{2}){32,}')
 UNFILLED = re.compile(r'__(?:GENERATE_|OWNER|RUN_)\S*?__')
 ALPHABET = string.ascii_letters + string.digits
 
@@ -65,14 +71,33 @@ def set_values(path, values):
     private_write(path, '\n'.join(lines) + '\n')
 
 
+def generate(kind):
+    # Passwords: 48 alphanumerics (meets the 32-1024 printable ASCII rule of database-bootstrap).
+    if kind == 'GENERATE_PASSWORD':
+        return ''.join(secrets.choice(ALPHABET) for _ in range(48))
+    # Issue 407: 32 random bytes as 64 lower-case hex characters.
+    if kind == 'GENERATE_HEX32':
+        return secrets.token_hex(32)
+    return base64.b64encode(secrets.token_bytes(32)).decode()
+
+
+def founder_key_problem():
+    api = ENV / 'api.env'
+    if not api.exists():
+        return None
+    value = read_pairs(api).get(FOUNDER_KEY, '').strip()
+    if UNFILLED.search(value) or HEX_KEY.fullmatch(value):
+        return None
+    return (f'api.env: {FOUNDER_KEY} must be at least 64 hex characters (issue 407); '
+            'only a refresh may replace it (DEPLOYMENT_MODE=refresh)')
+
+
 def init():
     store = read_pairs(STORE)
 
     def generated(kind, name):
         if name not in store:
-            # Passwords: 48 alphanumerics (meets the 32-1024 printable ASCII rule of database-bootstrap).
-            store[name] = (''.join(secrets.choice(ALPHABET) for _ in range(48)) if kind == 'GENERATE_PASSWORD'
-                           else base64.b64encode(secrets.token_bytes(32)).decode())
+            store[name] = generate(kind)
         return store[name]
 
     created, added = [], []
@@ -112,6 +137,8 @@ def check(mode=None):
             # Compose interpolates $ in unquoted env_file values, silently changing a secret.
             if not line.startswith('#') and '$' in value and not (value.startswith("'") and value.endswith("'")):
                 problems.append(f'{path.name}:{number}: {key} contains $; wrap the whole value in single quotes')
+    if (problem := founder_key_problem()):
+        problems.append(problem)
     mail = ENV / 'mail.env'
     if not mail.exists():
         problems.append('mail.env is missing (envtool.py init)')
@@ -374,11 +401,24 @@ def zammad_tokens_reset():
     print('Zammad tokens in env/api.env marked unfilled; zammad-provision writes new ones.')
 
 
+
+def founder_key_reset():
+    """Issue 407, refresh only: founder1 was generated as a password, which the API ignores. A refresh deletes every
+    founder token and derived value, so a new hex key is safe there. A valid hex key is never changed."""
+    if founder_key_problem() is None:
+        print(f'{FOUNDER_KEY} in env/api.env is already hex; unchanged.')
+        return
+    store = read_pairs(STORE)
+    store.setdefault(FOUNDER_STORE, generate('GENERATE_HEX32'))
+    private_write(STORE, ''.join(f'{key}={value}\n' for key, value in sorted(store.items())))
+    set_values(ENV / 'api.env', {FOUNDER_KEY: store[FOUNDER_STORE]})
+    print(f'{FOUNDER_KEY} in env/api.env replaced with a generated hex key (issue 407).')
+
 if __name__ == '__main__':
     command, *rest = sys.argv[1:] or ['help']
     actions = {'init': init, 'check': check, 'realms': realms, 'provision-input': provision_input,
                'provision-output': provision_output, 'apply-provider': apply_provider,
-               'zammad-tokens-reset': zammad_tokens_reset}
+               'zammad-tokens-reset': zammad_tokens_reset, 'founder-key-reset': founder_key_reset}
     if command not in actions:
         print(__doc__)
         raise SystemExit(64)
