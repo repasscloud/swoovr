@@ -83,6 +83,9 @@ public static class HostingPolicy
         if(Encoding.UTF8.GetByteCount(Read("Founders:Secrets:1")??"")<32)errors.Add("invalid-key:Founders:Secrets:1");
         if(Encoding.UTF8.GetByteCount(Read("Phone:CodeKey")??"")<32)errors.Add("invalid-key:Phone:CodeKey");
         Ring("Bans:HmacKeys",int.MaxValue,longKey:true);Ring("ContactHistory:Keys");Base64("ContactHistory:LookupKey");Ring("Evidence:Keys");Ring("IdentityStore:Keys");Base64("IdentityStore:HmacKey");Ring("Push:TokenKeys",int.MaxValue);Base64("Push:TokenLookupKey");
+        // Issues 405/406: hosted APIs never rely on the founder1 fallback (DATA-KEYS.md), so these explicit keys must exist.
+        // Without Media:LinkKey no photo link can be signed: member photos stay blank and staff can't reveal review photos.
+        Base64("Media:LinkKey");Ring("Location:Keys");if(Encoding.UTF8.GetByteCount(Read("Accounts:HoldKey")??"")<32)errors.Add("invalid-key:Accounts:HoldKey");
         foreach(var feature in new[]{"MeetingSafety","TextHarm"})if(Flag(feature+":Enabled"))
         {if(!Flag(feature+":Worker",true))errors.Add("required-enabled:"+feature+":Worker");if(feature=="MeetingSafety")Url("MeetingSafety:PublicBaseUrl");}
         return errors.Distinct(StringComparer.Ordinal).ToArray();

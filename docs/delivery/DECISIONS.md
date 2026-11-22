@@ -1293,3 +1293,17 @@ D201/D203 screening, D336 attachment scanning, D374 and D379 are unchanged.
 - The NudeNet licence (Q174).
 
 Reversible: redeploy an earlier tag (photos simply wait), or point `Media__Screening__BaseUrl` at another screening service. Only the staging-table drop is one-way.
+
+### D385 — Explicit photo-link, location and hold keys on hosted APIs; clearer photo states (22 November 2026)
+
+**Context (#405, #406):** on UAT no photo link could be signed. Staff Reveal answered 503 ("The API answered 503."), approved member photos showed as empty tiles, and the onboarding tiles kept saying "Checking". `Media:LinkKey` was never in the UAT API template, and its founder1 fallback can't work there: `Founders__Secrets__1` is a generated password, but founder1 must be hex to derive anything. `Location:Keys` (Near me) and `Accounts:HoldKey` (terminated-contact holds) had the same gap. Screening itself worked (one photo passed, two went to review). The staff Approve on 22 November was refused with 403 `mfa-elevation-required` (D366: MFA older than 60 minutes); that refusal is correct.
+
+**DEFAULT:**
+- `deploy/vultr-uat/env/api.env.example` generates `Media__LinkKey` and `Location__Keys__1` (base64, 32 bytes) and `Accounts__HoldKey` (48 characters). The next upgrade deploy appends them to the existing env once (D362); no refresh is needed. `infra/uat/secret-bindings.json` binds them for Azure (`mediaLink`, `location`, `hold` crypto versions).
+- Hosted API startup refuses to run without them (`HostingPolicy`), so this can't silently happen again.
+- Admin media review: a failed reveal is explained inside the photo frame. A 503 says photos can't be opened or linked. An expired MFA check offers **Sign in again** and comes back to the same photo. The dialog focuses Reveal/Conceal, not the Next chevron.
+- Members: tiles say "Checking" (automatic checks) or "In review" (a person is reviewing). An approved photo without a preview says "Preview not available" instead of showing an empty tile. The onboarding photo step re-reads the library while photos are being checked, as Me → Photos does.
+
+**OPEN:** founder coupons need founder1 as hex, but the UAT template generates a password, so founder grants are unavailable on UAT. Tracked separately; changing founder1 changes every key derived from it.
+
+Reversible: remove the keys from the template; existing links simply expire (links last minutes).

@@ -37,7 +37,7 @@ def validate(values):
     for image in images.values():
         if not isinstance(image,str) or not re.fullmatch(r'[a-z0-9][a-z0-9.-]*\.azurecr\.io/[a-z0-9/._-]+@sha256:[0-9a-f]{64}',image):raise ValueError('Images must be immutable Azure registry digests.')
     versions=required('cryptoVersions')
-    keys={'founder','phone','ban','contact','contactLookup','evidence','identity','identityHmac','push','pushLookup'}
+    keys={'founder','phone','ban','contact','contactLookup','evidence','identity','identityHmac','push','pushLookup','mediaLink','location','hold'}
     if set(versions)!=keys or any(not isinstance(v,str) or not re.fullmatch('[0-9a-f]{32}',v) for v in versions.values()):raise ValueError('Every logical crypto key requires its exact physical vault version.')
     networks=required('trustedProxyNetworks').split(',')
     for value in networks:

@@ -32,7 +32,10 @@
         "identity": "REPLACE_WITH_PHYSICAL_VAULT_VERSION",
         "identityHmac": "REPLACE_WITH_PHYSICAL_VAULT_VERSION",
         "push": "REPLACE_WITH_PHYSICAL_VAULT_VERSION",
-        "pushLookup": "REPLACE_WITH_PHYSICAL_VAULT_VERSION"
+        "pushLookup": "REPLACE_WITH_PHYSICAL_VAULT_VERSION",
+        "mediaLink": "REPLACE_WITH_PHYSICAL_VAULT_VERSION",
+        "location": "REPLACE_WITH_PHYSICAL_VAULT_VERSION",
+        "hold": "REPLACE_WITH_PHYSICAL_VAULT_VERSION"
       }
     },
     "trustedProxyNetworks": {

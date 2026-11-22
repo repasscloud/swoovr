@@ -98,7 +98,11 @@ else
                             }
                             else
                             {
-                                <div class="media-veil" role="status">@EyeOff<span>Concealed</span><button type="submit" class="ui-button-sm" data-reveal="@selected.Id" aria-label="Reveal photo">Reveal</button><kbd>V</kbd></div>
+                                <div class="media-veil" role="status">@EyeOff<span>Concealed</span><button type="submit" class="ui-button-sm" data-reveal="@selected.Id" aria-label="Reveal photo">Reveal</button><kbd>V</kbd>
+                                    @* Issue 405: a failed reveal says why where the photo should be, not only beside Save. *@
+                                    @if(revealError is not null){<p class="media-error" data-reveal-error="@resultCode">@revealError</p>}
+                                    @if(reauth){<a href="@AdminText.SignInAgain(QueueUrl(Page,selected.Id))" class="ui-button-sm" data-enhance-nav="false" data-reauth>Sign in again</a>}
+                                </div>
                             }
                         </form>
                     </div>
@@ -134,6 +138,8 @@ else
                         </label>
                         <label class="ui-field" data-notes-field hidden="@((posted is null || posted.Decision=="approve") && string.IsNullOrWhiteSpace(Field("reason")))"><span>Notes <em data-notes-hint>@(posted?.RequiresNotes==true?"(required)":"(optional)")</em></span><textarea name="reason" maxlength="500" placeholder="Context for the record">@Field("reason")</textarea></label>
                         @if(message is not null){<p class="media-error" role="status" data-result="@resultCode">@message</p>}
+                        @* Issue 405: an expired MFA check (D366) is fixed by signing in again; offer it right here. *@
+                        @if(reauth&&message is not null){<a href="@AdminText.SignInAgain(QueueUrl(Page,selected.Id))" class="ui-button-ghost" data-enhance-nav="false" data-reauth>Sign in again</a>}
                         <div class="media-side-actions">
                             @if(next is not null){<a class="ui-button-ghost" href="@QueueUrl(Page,next.Id)">Skip</a>}else{<span></span>}
                             <button type="submit" data-photo-decide>Save and next</button>
@@ -151,8 +157,8 @@ else
     [SupplyParameterFromQuery(Name="reason")] public string? Reason { get; set; }
     [SupplyParameterFromQuery(Name="review")] public Guid? Focus { get; set; }
     private MediaReviewQueue? queue;
-    private string? message,loadError,resultCode,link;
-    private bool revealed;
+    private string? message,loadError,resultCode,link,revealError;
+    private bool revealed,reauth;
     private MediaReviewItem? Selected => queue?.Items.FirstOrDefault(i=>i.Id==Focus);
     private int Pages => queue is null ? 1 : Math.Max(1,1+(queue.Total-1)/Math.Max(1,queue.PageSize));
     private static string Short(Guid id) => id.ToString()[..8];
@@ -180,7 +186,7 @@ else
         if(Field("conceal")=="true"){link=null;revealed=false;await LoadAsync();return;}
         var result=await Admin.ViewMediaAsync(id,"Routine photo review reveal");
         if(result.Ok){link=result.Value!.Link.Split('/').Last();revealed=true;resultCode="ok";}
-        else{link=null;revealed=false;message=AdminText.Refusal(result.Status,result.Code);}
+        else{link=null;revealed=false;resultCode=result.Code??result.Status.ToString();revealError=AdminText.Refusal(result.Status,result.Code);reauth=AdminText.NeedsSignIn(result.Status,result.Code);}
         await LoadAsync();
     }
     private async Task DecideAsync(Guid id)
@@ -194,6 +200,6 @@ else
         var result=await Admin.DecideMediaAsync(id,new MediaDecision(reason.Decision,reason.Decision=="approve"?null:notes,reason.Code));
         link=null;revealed=false;resultCode=result.Ok?"ok":result.Code;
         if(result.Ok){var next=queue?.Items.FirstOrDefault(i=>i.Id!=id);Navigation.NavigateTo(QueueUrl(Page,next?.Id));}
-        else{message=AdminText.Refusal(result.Status,result.Code);await LoadAsync();}
+        else{message=AdminText.Refusal(result.Status,result.Code);reauth=AdminText.NeedsSignIn(result.Status,result.Code);await LoadAsync();}
     }
 }

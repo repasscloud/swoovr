@@ -376,6 +376,10 @@
             await RefreshPhotosAsync();
         }
         finally { busy = false; }
+        // Issue 406: screening finishes a moment after upload. Re-read the library while anything is still being checked,
+        // as Me → Photos does, so each tile turns into the photo or "In review" without leaving the step.
+        for (var i = 0; i < 20 && Current == SetupSteps.Photos && library.Any(p => p.State == "checking"); i++)
+        { await Task.Delay(1500); await RefreshPhotosAsync(); StateHasChanged(); }
     }
 
     private async Task SaveWordsAsync()
