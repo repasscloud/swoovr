@@ -85,13 +85,22 @@ try:
         except urllib.error.HTTPError as error: assert error.code == 401, (header, error.code)
     # An unconfigured web host keeps sign-in off and never redirects to a provider.
     with urllib.request.urlopen(web+'account') as r: assert r.url.rstrip('/') == web.rstrip('/')
+    # Issue 351: signed-out visitors reach the error page and the sign-in retry page instead of the home page.
+    for path in ['Error', 'account?signin=retry']:
+        with urllib.request.urlopen(web+path) as r:
+            assert r.url == web+path, (path, r.url)
+            html = r.read().decode()
+            assert 'Development Mode' not in html and 'Development environment' not in html, path
+            if path == 'Error': assert 'data-error-page' in html and 'Something went wrong.' in html
+    for path in ['account?signin=other', 'account/deletion?signin=retry']:
+        with urllib.request.urlopen(web+path) as r: assert r.url.rstrip('/') == web.rstrip('/'), (path, r.url)
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *args): return None
     try: urllib.request.build_opener(NoRedirect).open(web+'account/sign-in'); raise AssertionError('expected redirect')
     except urllib.error.HTTPError as error: assert error.code == 302 and error.headers['Location'] == '/', error.headers['Location']
     print('PASS: appearance route and linked runtime scripts/styles.')
     print(f'PASS: {bff_checked} fixed member client routes are on the BFF allow-list (401 without sign-in, never 404).')
-    print('PASS: session endpoint 401 for missing/malformed tokens; unconfigured web sign-in stays off.')
+    print('PASS: session endpoint 401 for missing/malformed tokens; unconfigured web sign-in stays off; signed-out error/retry pages reachable.')
     print('PASS: API liveness/status JSON and Blazor foundation HTTP response.')
 finally:
     for p,log in processes:

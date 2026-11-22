@@ -111,9 +111,13 @@ public static class MemberSignIn
             var protocol = path is "/account/sign-in" or "/account/create" or "/account/sign-out"
                 or "/signin-oidc" or "/signout-callback-oidc" or "/signout-oidc"
                 or "/health/live" or "/health/ready";
+            // Issue 351: a failed sign-in must be visible to someone who isn't signed in yet: the error page and the
+            // sign-in retry notice (OnRemoteFailure). Only `?signin=retry` opens /account; it shows the sign-in prompt.
+            var signInFailure = string.Equals(path, "/Error", StringComparison.OrdinalIgnoreCase)
+                || (path == "/account" && context.Request.Query["signin"] == "retry");
             var resource = context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Authorization.IAllowAnonymous>() is not null
                 || context.Request.Path.StartsWithSegments("/bff");
-            if (context.User.Identity?.IsAuthenticated != true && !publicPage && !protocol && !resource)
+            if (context.User.Identity?.IsAuthenticated != true && !publicPage && !protocol && !signInFailure && !resource)
             {
                 context.Response.Headers.CacheControl = "no-store";
                 context.Response.Redirect("/");
