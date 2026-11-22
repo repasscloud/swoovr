@@ -93,8 +93,8 @@ You need all of these. If one is missing, stop and get it first.
 | What | Why | Where it comes from |
 | --- | --- | --- |
 | A Mac with Terminal | All commands are typed into Terminal | Applications → Utilities → Terminal |
-| The repository checked out at `~/Developer/wanderconnect-brief` | The commands run from it | Section 2.2 |
-| The GitHub command line `gh`, signed in to an account with **admin** rights on the repository https://github.com/repasscloud/wanderconnect | It changes GitHub settings and starts the workflow | Section 2.1 |
+| The repository checked out at `~/Developer/swoovr` | The commands run from it | Section 2.2 |
+| The GitHub command line `gh`, signed in to an account with **admin** rights on the repository https://github.com/repasscloud/swoovr | It changes GitHub settings and starts the workflow | Section 2.1 |
 | The deploy SSH key `~/.ssh/swoovr-uat-deploy` | To reach the server | Created once when UAT was built ([GitHub deployment, prerequisite 6](UAT-GITHUB-DEPLOYMENT.md#prerequisites-one-time)) |
 | The server's public IPv4 address | To reach the server | Vultr console: https://my.vultr.com/ → **Products** → **Compute** → the server `uat-01` → **IPv4** (Overview tab). Write it down; this page calls it `<server IPv4>` |
 | Access to the mailbox of the break-glass root admin address | It receives a set-up email (section 10) | See section 3, step 3.6, for how to see which address it is |
@@ -140,12 +140,12 @@ In every command below:
 
 ### 2.2 Get the repository
 
-If `~/Developer/wanderconnect-brief` doesn't exist yet:
+If `~/Developer/swoovr` doesn't exist yet:
 
 ```bash
 mkdir -p ~/Developer
 cd ~/Developer
-gh repo clone https://github.com/repasscloud/wanderconnect wanderconnect-brief
+gh repo clone https://github.com/repasscloud/swoovr swoovr
 ```
 
 ### 2.3 Check you can reach the server
@@ -167,8 +167,8 @@ The Keycloak admin console is deliberately **not** reachable from the internet. 
    ```bash
    mkdir -p ~/swoovr-uat-private && chmod 700 ~/swoovr-uat-private
    curl -fsSL https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem -o ~/swoovr-uat-private/origin_ca_rsa_root.pem
-
    ```
+
 2. Check its fingerprint:
 
    ```bash
@@ -202,7 +202,7 @@ The Keycloak admin console is deliberately **not** reachable from the internet. 
 Open Terminal and go to the repository. **Every** command from here on is typed in this Terminal window, unless a step says "on the server".
 
 ```bash
-cd ~/Developer/wanderconnect-brief
+cd ~/Developer/swoovr
 git checkout main
 git pull
 ```
@@ -372,7 +372,7 @@ gh variable get DEPLOYMENT_MODE
 
 5. Wait until `gh run watch` ends. **You should see** every job with a ✓ and the command exits without an error.
 
-You can also follow it in the browser: https://github.com/repasscloud/wanderconnect/actions/workflows/deploy-uat.yml → the newest run.
+You can also follow it in the browser: https://github.com/repasscloud/swoovr/actions/workflows/deploy-uat.yml → the newest run.
 
 **If the run fails**, do **not** switch the mode back yet. Go to [section 15](#15-if-something-goes-wrong).
 
