@@ -545,4 +545,5 @@ deploy/vultr/control/
 # Other files
 tmp*.sh
 ignore-*.txt
+ignore-*.md
 notes-review.txt
