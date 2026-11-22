@@ -9,7 +9,7 @@ Runbook for the UAT deployment (D361 host, D362 automation). The complete, dispo
 **Status (13 November 2026):** the automated deployment runs on GitHub and the VM: refreshes v1.0.1 and v1.0.2 succeeded with every public check passing (v1.0.0 failed at `r2-empty`, fixed in v1.0.1). `tests/deploy` covers every mode locally with fake Docker.
 
 
-Step-by-step owner procedures (maintenance actions, the break-glass admin, staff roles, email checks): [UAT operations SOP](../../docs/delivery/UAT-OPERATIONS-SOP.md).
+Step-by-step owner procedures (maintenance actions, the break-glass admin, staff roles, email checks): [UAT operations SOP](../../docs/delivery/UAT-OPERATIONS-SOP.md). Every step of a refresh, in order: [UAT refresh SOP](../../docs/delivery/UAT-REFRESH-SOP.md). `update-release.sh` always deploys as `upgrade`; a refresh re-runs a Deploy UAT run with `DEPLOYMENT_MODE=refresh`.
 
 ## What runs on the host
 

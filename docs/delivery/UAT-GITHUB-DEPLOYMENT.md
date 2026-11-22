@@ -31,7 +31,7 @@ gh variable set DEPLOYMENT_MODE --body refresh    # the next tag push wipes and 
 gh variable set DEPLOYMENT_MODE --body upgrade    # back to normal releases (the default when unset)
 ```
 
-The variable is read when the run starts, not stored in the tag. So **set it back to `upgrade` straight after a refresh**, or the next tag refreshes again. The run's summary and the host history (`state/releases.jsonl`) record the mode of every deployment, and a refresh run shows a warning annotation.
+The variable is read when the run starts, not stored in the tag. So **set it back to `upgrade` straight after a refresh**, or the next run refreshes again. `./scripts/update-release.sh` sets `upgrade` itself before pushing its tag (D383), so a refresh is started by re-running an existing Deploy UAT run (`gh run rerun <id>`) while the variable is `refresh`: every step is in the [UAT refresh SOP](UAT-REFRESH-SOP.md). The run's summary and the host history (`state/releases.jsonl`) record the mode of every deployment, and a refresh run shows a warning annotation.
 
 What a refresh still guarantees on the VM:
 - The workflow passes `--confirm-refresh swoovr-uat:<tag>` automatically, so `bin/swoovr` refuses a refresh started any other way.
