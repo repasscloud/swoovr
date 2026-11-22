@@ -239,7 +239,8 @@ openssl x509 -in ~/swoovr-uat-private/origin_ca_rsa_root.pem -noout -subject -en
 ```
 
 **You should see:**
-```
+
+```none
 subject=C=US, O=CloudFlare, Inc., OU=CloudFlare Origin SSL Certificate Authority, L=San Francisco, ST=California
 notAfter=Aug 15 17:00:00 2029 GMT
 ```
@@ -317,14 +318,18 @@ Do **all** of 2.4.6 to 2.4.8 **in this window**.
 #### 2.4.8 Test the whole path once
 
 1. In a **separate Terminal window**, start the tunnel (the same command as section 9.2):
+
    ```bash
    ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes -D 1080 -N root@<server IPv4>
    ```
+
    It prints nothing and keeps running.
 2. In another Terminal window, check the tunnel itself:
+
    ```bash
    curl -sk --socks5-hostname 127.0.0.1:1080 -o /dev/null -w '%{http_code}\n' https://auth-uat.swoovr.app/admin/
    ```
+
    **You should see** `302`.
 3. In the `swoovr-uat-admin` Firefox window, open https://auth-uat.swoovr.app/admin/. **You should see** the Keycloak sign-in page (*Sign in to your account*), with **no** certificate warning.
 4. Click the **padlock** left of the address → **Connection secure** → **More information** → **View Certificate**. **You should see** *Issuer Name*: **CloudFlare Origin SSL Certificate Authority**.
@@ -616,6 +621,7 @@ ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes -D 1080 -N root@<server IP
 The command **prints nothing and keeps running**: that is the tunnel. Leave this Terminal window open. Open a **new** Terminal window (⌘N) for anything else.
 
 **Messages you may see in the tunnel window:**
+
 - `channel 3: open failed: connect failed: Name or service not known` (the number varies): **harmless; ignore it and carry on.** Firefox sometimes asks, through the tunnel, for an address the server can't look up (its own background requests). The tunnel still works. Only if https://auth-uat.swoovr.app/admin/ itself won't load in step 9.3 is something wrong (see 9.3 step 2).
 - `Permission denied (publickey)`: the `-i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes` part is missing or the key file isn't there. Use the command exactly as written above. The deploy key is the only key the server accepts for `root`; there is no other one to fall back to.
 
@@ -634,6 +640,7 @@ curl -sk --socks5-hostname 127.0.0.1:1080 -o /dev/null -w '%{http_code}\n' https
    ```bash
    /Applications/Firefox.app/Contents/MacOS/firefox -P swoovr-uat-admin --no-remote &
    ```
+
 2. Go to https://auth-uat.swoovr.app/admin/ in that window.
    **If** it says the connection failed: the tunnel (9.2) isn't running. **If** it shows a certificate warning: the certificate isn't imported in this profile; do section 2.4.7, and never click "Accept the Risk". **If** it shows a plain 404 page: the proxy settings are wrong; do section 2.4.6. More fixes: the table in 2.4.8.
 3. Sign in: **Username** `swoovr-bootstrap`, **Password** the value from 9.1.
