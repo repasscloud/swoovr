@@ -36,9 +36,10 @@
         </ul>
     }
 </section>
+@* Issue 416: a 2×2 grid, so cards side by side share a row height, and Receive explicit media full width below.
+   Narrow screens keep the reading order: serious incident, resources, meeting, privacy. *@
 <div class="me-safety-grid">
-    <div class="me-col">
-        <section class="me-card" id="serious" aria-labelledby="serious-heading" data-swoovr-actions>
+        <section class="me-card me-safety-serious" id="serious" aria-labelledby="serious-heading" data-swoovr-actions>
             <h2 class="me-card-title" id="serious-heading"><Icon Name="shield" Size="20" />Report a serious safety incident</h2>
             <p class="me-card-lede">@SafetyText.SeriousPeopleHelp</p>
             @if (!peopleLoaded) { <p role="status" class="me-meta">Loading…</p> }
@@ -49,7 +50,7 @@
                 <div class="me-card-foot"><span class="me-meta">@people.Count people</span><a class="button button-secondary me-pill-button" href="@SafetyText.PeoplePath(meeting)" data-safety-all-people>See all people</a></div>
             }
         </section>
-        <section class="me-card" aria-labelledby="resources-heading">
+        <section class="me-card me-safety-resources" aria-labelledby="resources-heading">
             <h2 class="me-card-title" id="resources-heading"><Icon Name="book" Size="20" />Safety resources</h2>
             <ul class="me-links">
                 <li><a href="@("/safety" + (pack?.Country is { } c ? "?country=" + c : ""))" data-enhance-nav="false">Support services@(pack?.CountryName is { } name ? " in " + name : "")<Icon Name="arrow-right" Size="18" /></a></li>
@@ -58,14 +59,12 @@
                 <li><a href="/community-guidelines">Community Guidelines<Icon Name="arrow-right" Size="18" /></a></li>
             </ul>
         </section>
-    </div>
-    <div class="me-col">
-        <section class="me-card" aria-labelledby="meeting-heading">
+        <section class="me-card me-safety-meeting" aria-labelledby="meeting-heading">
             <h2 class="me-card-title" id="meeting-heading"><Icon Name="clock" Size="20" />I'm meeting someone</h2>
             <p class="me-card-lede">Share your plans with a trusted contact and check in when you're home.</p>
-            <a class="button" href="/me/meeting-safety" data-meeting-entry>Set up a meeting check-in</a>
+            <a class="button me-pill-button" href="/me/meeting-safety" data-meeting-entry>Set up a meeting check-in</a>
         </section>
-        <section class="me-card" aria-labelledby="privacy-heading">
+        <section class="me-card me-safety-privacy" aria-labelledby="privacy-heading">
             <h2 class="me-card-title" id="privacy-heading"><Icon Name="lock" Size="20" />Privacy</h2>
             <ul class="me-items me-items-compact">
                 <li class="me-item"><div class="me-item-main"><p class="me-item-title">Blocked people</p>@if (blockedCount is { } n) { <p class="me-meta" data-blocked-count="@n">@(n == 1 ? "1 person" : $"{n} people")</p> }</div><a class="button button-secondary me-pill-button me-item-action" href="/connections#blocked-heading">Manage</a></li>
@@ -73,9 +72,8 @@
                 <li class="me-item"><div class="me-item-main"><p class="me-item-title">Privacy Notice</p></div><a class="button button-secondary me-pill-button me-item-action" href="/privacy">Read</a></li>
             </ul>
         </section>
-        <ExplicitMediaCard />
-    </div>
 </div>
+<ExplicitMediaCard />
 @code {
     /// <summary>The host's default (D153 Cloudflare only where trusted, else the deployment fallback) and where it came from.</summary>
     [Parameter] public string? DefaultCountry { get; set; }

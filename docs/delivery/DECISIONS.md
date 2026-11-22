@@ -1322,3 +1322,13 @@ Reversible: remove the keys from the template; existing links simply expire (lin
 - The old value derived nothing (the API ignored it), so no data or backup depends on it and it isn't kept.
 
 Reversible: a refresh with an earlier tag still starts with the hex key, which earlier releases also accept.
+
+### D387 — Red text for every delete action; tidier photos and Privacy & safety; generic coupon wording (23 November 2026)
+
+**CONFIRMED** by the owner in issues #420, #421, #416 and #414 (22 November 2026). Q180 (#388) answered **A** the same day: sign-up keeps the D381 "already uses this email" wording.
+
+**DEFAULT** (implementation):
+- **Delete is red.** `app.css` adds a second fixed colour beside D315's emergency red: `--destructive`, `#B0102A` in light and `#FF9494` in dark. Each is at least 4.5:1 against every scheme's bg, surface and soft in its mode, and `check_design.py` enforces this. `.button-destructive` gives red text on the quiet button look and is used by every delete action in the member app: photo tiles, photo decisions, the photo viewer, album and confirm dialogs, Delete now, Delete my account, Delete for both and Account → Delete account. "Remove" (from a mode, an album, a trip or a linked sign-in) isn't a delete and keeps the normal look. The small trash icon drawn over album photos keeps its contrast-safe overlay; the confirm dialog it opens is red.
+- **All photos** tiles drop the status/mode caption (#420); the viewer still shows status, modes and albums, and the Open button's accessible name still reads it out. **Private albums** cards show only "X of Y photos" (or "Up to 10 photos" when empty); the modes are shown inside the album (#421).
+- **Privacy & safety** (#416): the four cards sit in a 2×2 grid whose rows share a height, and Receive explicit media is full width below them, with the profile switches in columns. The wording no longer promises that nothing explicit gets through. It says that every photo is checked, that we make every effort to stop nudity, and to report the message if something gets through. "Set up a meeting check-in" is natural width.
+- **Coupon code** (#414): generic wording ("Have a coupon code? …"), the label "Coupon code" and the placeholder "Enter your code". Founder codes are still accepted (D65).

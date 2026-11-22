@@ -10,7 +10,7 @@
         {
             <p class="ph-banner" data-explicit-needs-id>@PhotoText.ExplicitNeedsId <a class="button button-small" href="/me/verification">Verify your ID</a></p>
         }
-        <div>
+        <div class="me-explicit-modes">
             @foreach (var (mode, on) in settings.Modes)
             {
                 <label class="ph-switch-row"><span>@Label(mode)</span>

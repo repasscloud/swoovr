@@ -57,7 +57,7 @@
                             @onchange="e => ModeAsync(mode.Id, e.Value is true)" data-album-mode="@mode.Id" /></label>
                     }
                 </fieldset>
-                <button type="button" class="button button-secondary button-small" disabled="@busy" @onclick="() => confirmAlbumDelete = true" data-delete-album>Delete album</button>
+                <button type="button" class="button button-secondary button-destructive button-small" disabled="@busy" @onclick="() => confirmAlbumDelete = true" data-delete-album>Delete album</button>
                 <p class="field-help">Deleting the album keeps its library photos. Adult photos in it are deleted.</p>
             </section>
         </div>
@@ -80,7 +80,7 @@
             {
                 <button type="button" class="button button-secondary" disabled="@busy" @onclick="() => RemoveAsync(shown.Id)" data-viewer-remove>Remove</button>
             }
-            <button type="button" class="button button-secondary" disabled="@busy" @onclick="() => { viewing = null; deleting = shown.Id; }" data-viewer-delete>Delete</button>
+            <button type="button" class="button button-secondary button-destructive" disabled="@busy" @onclick="() => { viewing = null; deleting = shown.Id; }" data-viewer-delete>Delete</button>
         </Actions>
     </PhotoViewer>
 }
@@ -98,7 +98,7 @@
         <div class="ph-dialog" role="dialog" aria-modal="true" aria-labelledby="ph-del" @onclick:stopPropagation="true">
             <div class="ph-dialog-head"><h2 id="ph-del">Delete this photo?</h2><button type="button" class="ph-close" @onclick="() => deleting = null" aria-label="Close">×</button></div>
             <p>@(doomed.AlbumOnly ? "It's removed from this album and your library." : "It's removed from every mode, every album and your library.") This can't be undone.</p>
-            <div class="ph-dialog-foot"><button type="button" class="button button-secondary" @onclick="() => deleting = null">Keep</button><button type="button" class="button" disabled="@busy" @onclick="() => DeleteAsync(doomed.Id)" data-confirm-delete-photo="@doomed.Id">Delete</button></div>
+            <div class="ph-dialog-foot"><button type="button" class="button button-secondary" @onclick="() => deleting = null">Keep</button><button type="button" class="button button-secondary button-destructive" disabled="@busy" @onclick="() => DeleteAsync(doomed.Id)" data-confirm-delete-photo="@doomed.Id">Delete</button></div>
         </div>
     </div>
 }
@@ -110,7 +110,7 @@
         <div class="ph-dialog" role="dialog" aria-modal="true" aria-labelledby="ph-del-album" @onclick:stopPropagation="true">
             <div class="ph-dialog-head"><h2 id="ph-del-album">Delete @album.Name?</h2><button type="button" class="ph-close" @onclick="() => confirmAlbumDelete = false" aria-label="Close">×</button></div>
             <p>@(adult > 0 ? $"Its library photos stay in your library. Its {adult} adult photo{(adult == 1 ? "" : "s")} will be deleted." : "Its photos stay in your library.") This can't be undone.</p>
-            <div class="ph-dialog-foot"><button type="button" class="button button-secondary" @onclick="() => confirmAlbumDelete = false">Keep</button><button type="button" class="button" disabled="@busy" @onclick="DeleteAlbumAsync" data-confirm-delete-album>Delete album</button></div>
+            <div class="ph-dialog-foot"><button type="button" class="button button-secondary" @onclick="() => confirmAlbumDelete = false">Keep</button><button type="button" class="button button-secondary button-destructive" disabled="@busy" @onclick="DeleteAlbumAsync" data-confirm-delete-album>Delete album</button></div>
         </div>
     </div>
 }
