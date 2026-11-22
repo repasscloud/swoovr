@@ -172,6 +172,8 @@ red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', app_css)
 assert len(red) == 2, 'app.css must define --destructive once for light (:root) and once for dark'
 admin_red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text())
 assert admin_red == red, 'admin.css --destructive must equal app.css (light, then dark)'
+# Red text never sits on a message bubble's --primary/--soft background: inside a bubble the delete action has a --surface pill.
+assert re.search(r'\.bubble \.link-button\.button-destructive \{[^}]*background: var\(--surface\)', app_css), 'delete in a message bubble needs its --surface pill'
 for mode, value in zip(['light', 'dark'], red):
     for theme in data:
         for key in ['bg', 'surface', 'soft']:
