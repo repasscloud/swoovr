@@ -8,16 +8,23 @@ using Swoovr.Infrastructure.Email;
 namespace Swoovr.Infrastructure.Messaging;
 
 /// <summary>Twilio Programmable Messaging settings (D153, D154): account SID, auth token and the sender number.</summary>
-public sealed record TwilioOptions(string? AccountSid, string? AuthToken, string? From, Uri BaseUrl)
+/// <summary>Issue 315: an optional restricted API key (SK… SID and secret) authenticates instead of the account Auth Token, which
+/// can then be left empty. The Account SID still names the account in the URL. A half-configured key is not configured.</summary>
+public sealed record TwilioOptions(string? AccountSid, string? AuthToken, string? From, Uri BaseUrl, string? ApiKeySid = null, string? ApiKeySecret = null)
 {
+    public bool UsesApiKey => !string.IsNullOrWhiteSpace(ApiKeySid) || !string.IsNullOrWhiteSpace(ApiKeySecret);
+    public static bool ValidKeySid(string? sid) => sid is { Length: 34 } && sid.StartsWith("SK", StringComparison.Ordinal) && sid.AsSpan(2).ToArray().All(Uri.IsHexDigit);
+    /// <summary>Basic-auth user and password: the API key when one is set, else the Account SID and Auth Token.</summary>
+    public (string User, string Password) Credential => UsesApiKey ? (ApiKeySid!, ApiKeySecret!) : (AccountSid!, AuthToken!);
     public static bool HostedEndpoint(Uri uri)=>uri.Scheme=="https"&&uri.UserInfo.Length==0&&uri.Query.Length==0&&uri.Fragment.Length==0&&uri.AbsolutePath=="/"&&(uri.Host=="api.twilio.com"||uri.Host.StartsWith("api.",StringComparison.Ordinal)&&uri.Host.EndsWith(".twilio.com",StringComparison.Ordinal));
-    public bool Configured => !string.IsNullOrWhiteSpace(AccountSid) && !string.IsNullOrWhiteSpace(AuthToken) && !string.IsNullOrWhiteSpace(From);
+    public bool Configured => !string.IsNullOrWhiteSpace(AccountSid) && !string.IsNullOrWhiteSpace(From)
+        && (UsesApiKey ? ValidKeySid(ApiKeySid) && !string.IsNullOrWhiteSpace(ApiKeySecret) : !string.IsNullOrWhiteSpace(AuthToken));
 }
 
 /// <summary>
 /// Twilio Programmable Messaging (not Twilio Verify: Swoovr makes and checks its own codes, D153): POST
-/// /2010-04-01/Accounts/{AccountSid}/Messages.json with To, From and Body, basic authentication with the account SID and
-/// auth token; a valid201 message acknowledgement means provider acceptance, never recipient delivery. Only fixed status/kind is logged, never the number or the code. Used only when `Sms:Provider`
+/// /2010-04-01/Accounts/{AccountSid}/Messages.json with To, From and Body, basic authentication with a restricted API key
+/// (issue 315) or the account SID and auth token; a valid201 message acknowledgement means provider acceptance, never recipient delivery. Only fixed status/kind is logged, never the number or the code. Used only when `Sms:Provider`
 /// is "twilio" (D174: nothing is sent until the owner says so).
 /// </summary>
 public sealed class TwilioMessageSender(HttpClient http, TwilioOptions options, ILogger<TwilioMessageSender> log) : IVerificationMessageSender
@@ -38,7 +45,8 @@ public sealed class TwilioMessageSender(HttpClient http, TwilioOptions options, 
                 ["To"] = number, ["From"] = options.From!, ["Body"] = body,
             }),
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes($"{options.AccountSid}:{options.AuthToken}")));
+        var (user, password) = options.Credential;
+        request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.ASCII.GetBytes($"{user}:{password}")));
         using var deadline=CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);deadline.CancelAfter(TimeSpan.FromSeconds(15));
         try
         {

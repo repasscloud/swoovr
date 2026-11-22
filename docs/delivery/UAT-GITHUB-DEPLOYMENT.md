@@ -71,7 +71,9 @@ What a refresh still guarantees on the VM:
 | `UAT_MODERATION_ESCALATION_EMAIL` | `api.env` `Moderation__EscalationEmail` | personal address, so kept secret |
 | `UAT_MODERATION_ESCALATION_BACKUP_EMAIL` | `api.env` `Moderation__EscalationBackupEmail` | |
 | `UAT_TWILIO_SMS_ACCOUNT_SID` | `api.env` `Sms__Twilio__AccountSid` | used when `UAT_SMS_SERVICE=twilio` |
-| `UAT_TWILIO_SMS_AUTH_TOKEN` | `api.env` `Sms__Twilio__AuthToken` | |
+| `UAT_TWILIO_SMS_AUTH_TOKEN` | `api.env` `Sms__Twilio__AuthToken` | not needed when the API key below is set |
+| `UAT_TWILIO_SMS_API_KEY_SID` | `api.env` `Sms__Twilio__ApiKeySid` | optional restricted API key (`SK…`, #315); used instead of the Auth Token. Set `UAT_TWILIO_SMS_AUTH_TOKEN` to `-` to clear the token from the host |
+| `UAT_TWILIO_SMS_API_KEY_SECRET` | `api.env` `Sms__Twilio__ApiKeySecret` | with the key SID |
 | `UAT_TWILIO_EMAIL_KEY_SID` | `mail.env` `SWOOVR_MAIL_TWILIO_KEY_SID` | Twilio Email API (API and Keycloak, D360) |
 | `UAT_TWILIO_EMAIL_KEY_SECRET` | `mail.env` `SWOOVR_MAIL_TWILIO_KEY_SECRET` | |
 | `UAT_SENDGRID_API_KEY` | `mail.env` `SWOOVR_MAIL_SMTP_PASSWORD` | only with `UAT_ZAMMAD_MANAGE_MAIL=true` (or API email `smtp`) |
