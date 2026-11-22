@@ -651,7 +651,11 @@ Never change this value in the file: Keycloak reads it only when its database is
 In Terminal:
 
 ```bash
+# without config
 ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes -D 1080 -N root@<server IPv4>
+
+# with config
+ssh swoovr-uat-root -D 1080 -N
 ```
 
 The command **prints nothing and keeps running**: that is the tunnel. Leave this Terminal window open. Open a **new** Terminal window (⌘N) for anything else.
