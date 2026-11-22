@@ -11,7 +11,10 @@ const {managedEdge}=require('./managed-edge.cjs');
   const base='http://localhost:15881';let ready=false;for(let i=0;i<150;i++){try{if((await fetch(base)).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100))}assert(ready,'owned Web ready');
   edge=await managedEdge(chromium);const context=await edge.browser.newContext(),page=await context.newPage(),failures=[];
   const check=async(name,action)=>{try{await action()}catch(error){failures.push(name+': '+error.message)}};
-  await check('guest account routing',async()=>{for(const route of ['/account','/account/','/account?signin=retry','/me/photos','/settings/appearance','/explore','/unknown-route','/law-enforcement','/me/meeting-safety']){const r=await fetch(base+route,{redirect:'manual'});assert.equal(r.status,302);assert.equal(r.headers.get('location'),'/');}});
+  await check('guest account routing',async()=>{for(const route of ['/account','/account/','/account?signin=other','/me/photos','/settings/appearance','/explore','/unknown-route','/law-enforcement','/me/meeting-safety']){const r=await fetch(base+route,{redirect:'manual'});assert.equal(r.status,302);assert.equal(r.headers.get('location'),'/');}});
+  // Issue 351: a failed sign-in stays visible to a signed-out visitor: the retry notice (configured synthetic provider) and the error page.
+  await check('guest sign-in retry and error pages',async()=>{let r=await fetch(base+'/account?signin=retry',{redirect:'manual'});assert.equal(r.status,200);assert.match(await r.text(),/data-signin-retry/);
+   r=await fetch(base+'/Error',{redirect:'manual'});assert.equal(r.status,200);const html=await r.text();assert.match(html,/data-error-page/);assert.doesNotMatch(html,/Development Mode/)});
   await check('public pages stay reachable',async()=>{for(const route of ['/','/terms','/community-guidelines','/privacy','/safety/advice','/safety']){const r=await fetch(base+route,{redirect:'manual'});assert.equal(r.status,200,route);}});
   await check('guest safety only country resources',async()=>{const html=await(await fetch(base+'/safety')).text();assert.doesNotMatch(html,/data-swoovr-actions|data-serious-entry|I’m meeting someone/)});
   await check('BFF privacy',async()=>{const r=await fetch(base+'/bff/api/me',{headers:{'X-Swoovr-Bff':'1'},redirect:'manual'});assert.equal(r.status,401)});
@@ -21,6 +24,6 @@ const {managedEdge}=require('./managed-edge.cjs');
   await page.evaluate(()=>localStorage.setItem('swoovr.appearance.v1',JSON.stringify({scheme:'violet',mode:'dark'})));await page.reload();await check('guest Standard theme',async()=>assert.equal(await page.locator('html').getAttribute('data-scheme'),'standard'));
   for(const width of [375,768,1440]){await page.setViewportSize({width,height:900});await check('reflow '+width,async()=>assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)));if(width===375||width===1440)await page.screenshot({path:'/tmp/swoovr-intake-public-'+width+'.png',fullPage:true});}
   await context.close();assert.equal(failures.length,0,failures.join('\n'));
-  console.log('PASS: actual Edge guest landing/navigation/reflow; HTTP account routing, retry and BFF privacy.');
+  console.log('PASS: actual Edge guest landing/navigation/reflow; HTTP account routing, sign-in retry/error pages and BFF privacy.');
  }finally{if(edge)await edge.close();if(child.exitCode===null){const done=new Promise(resolve=>child.once('exit',resolve));child.kill('SIGTERM');await done;}console.log('CLEANUP: owned Web and browser stopped.');}
 })().catch(e=>{console.error(e.message);process.exitCode=1});

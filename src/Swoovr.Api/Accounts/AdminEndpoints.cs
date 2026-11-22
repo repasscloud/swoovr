@@ -259,7 +259,7 @@ public static class AdminEndpoints
             var (current, denied) = await StaffAsync(user, accounts, AccountRole.Support, cancellationToken);
             if (denied is not null) return denied;
             var query = AccountSearch.Parse(q);
-            if (query is null) return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Enter a mobile number, email address or name.");
+            if (query is null) return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Enter an account ID, mobile number, email address or name.");
             var db = accounts.Db!;
             var source = from a in db.Accounts
                          join p in db.MemberProfiles on a.Id equals p.AccountId into profiles from p in profiles.DefaultIfEmpty()
@@ -267,8 +267,11 @@ public static class AdminEndpoints
                          select new { a, p, m };
             // D365 (issue 331): a `%` search also looks in email addresses (stored lower-case); exact searches are unchanged.
             var emailPattern = AccountSearch.EmailPattern(query);
+            // Issue 411: an account id is an exact match on the id.
+            var accountId = query.Kind == "id" ? Guid.Parse(query.Value) : Guid.Empty;
             source = query.Kind switch
             {
+                "id" => source.Where(x => x.a.Id == accountId),
                 "phone" => source.Where(x => x.m != null && x.m.Number == query.Value),
                 "email" when query.Wildcard => source.Where(x => x.a.Email != null && EF.Functions.ILike(x.a.Email, emailPattern, "\\")),
                 "email" => source.Where(x => x.a.Email == query.Value),

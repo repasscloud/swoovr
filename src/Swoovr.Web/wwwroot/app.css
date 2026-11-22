@@ -408,6 +408,9 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 .status-page { padding-top: 24px; }
 .status-page h2 { font-weight: 400; color: var(--muted); }
 .status-page code { font-family: var(--font-mono); font-size: .8125rem; overflow-wrap: anywhere; }
+/* Issue 351: a natural-width action on the error page. */
+.status-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0 0; }
+.status-actions .button { width: auto; padding: 0 20px; }
 
 .blazor-error-boundary { background: var(--surface); color: var(--text); border: 1px solid var(--text); border-radius: var(--radius); padding: 16px; }
 .blazor-error-boundary::after { content: "An error has occurred. Reload to try again."; }

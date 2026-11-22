@@ -3,7 +3,7 @@
 <PageTitle>Accounts — Swoovr admin</PageTitle>
 <header class="ui-page-head">
     <h1>Accounts</h1>
-    <p>Find a member by mobile, email, first name or last name. Use % as a wildcard.</p>
+    <p>Find a member by account ID, mobile, email, first name or last name. Use % as a wildcard.</p>
 </header>
 <section class="ui-card" aria-label="Search accounts">
     <form method="get" action="/accounts" class="ui-big-search" data-enhance="false" data-account-search>
@@ -11,7 +11,7 @@
         <button type="submit">Search</button>
     </form>
     <div class="ui-kinds" data-kind-chips>
-        @foreach (var (kind, label) in new[] { ("phone", "Mobile"), ("email", "Email"), ("name", "Name") })
+        @foreach (var (kind, label) in new[] { ("id", "Account ID"), ("phone", "Mobile"), ("email", "Email"), ("name", "Name") })
         {
             <span class="ui-chip" data-kind="@kind" aria-current="@(Kind == kind ? "true" : null)">@label</span>
         }
@@ -23,6 +23,7 @@
     <section class="ui-card">
         <h2 class="ui-card-title">Examples</h2>
         <ul class="ui-list">
+            <li><span><code class="ui-wild">fc995a28-7da3-4d1d-8ce9-a16f632f413a</code></span><span class="ui-help">Account ID · always that exact account</span></li>
             <li><span><code class="ui-wild">0491 570 115</code> · <code class="ui-wild">+61491570115</code></span><span class="ui-help">Mobile · spaces and + optional</span></li>
             <li><span><code class="ui-wild">Name@Example.com</code></span><span class="ui-help">Email · matched in lower case</span></li>
             <li><span><code class="ui-wild">Wynyard%</code> · <code class="ui-wild">%wynyard%</code></span><span class="ui-help">Name or email · % matches anything</span></li>
@@ -62,8 +63,8 @@ else if (result is not null)
     private AccountSearchResult? result;
     private string? loadError;
     private string? Text => !string.IsNullOrWhiteSpace(Query) ? Query : Email;
-    private string? Kind => result?.Kind ?? (string.IsNullOrWhiteSpace(Text) ? null : Text.Contains('@') ? "email" : Text.Trim().All(c => char.IsAsciiDigit(c) || c is ' ' or '+' or '-' or '(' or ')' or '.') ? "phone" : "name");
-    private static string Hint(string? kind) => kind switch { "phone" => "Spaces removed · + optional", "email" => "Lower-cased · use % as a wildcard", "name" => "First or last name · with %, email too", _ => "" };
+    private string? Kind => result?.Kind ?? (string.IsNullOrWhiteSpace(Text) ? null : Guid.TryParse(Text.Trim(), out _) ? "id" : Text.Contains('@') ? "email" : Text.Trim().All(c => char.IsAsciiDigit(c) || c is ' ' or '+' or '-' or '(' or ')' or '.') ? "phone" : "name");
+    private static string Hint(string? kind) => kind switch { "id" => "Exact account ID", "phone" => "Spaces removed · + optional", "email" => "Lower-cased · use % as a wildcard", "name" => "First or last name · with %, email too", _ => "" };
     private static string StatusLabel(string s) => s switch { "suspended" => "Suspended", "terminated" => "Terminated", "pendingDeletion" => "Deletion pending", "deleted" => "Deleted", "restricted" => "Restricted", _ => s };
 
     protected override async Task OnInitializedAsync()
@@ -71,6 +72,6 @@ else if (result is not null)
         if (string.IsNullOrWhiteSpace(Text)) return;
         var response = await Admin.SearchAccountsAsync(Text.Trim());
         if (response.Ok) result = response.Value;
-        else loadError = response.Status == 400 ? "Enter a mobile number, email address or name. A search can't be only %." : AdminText.Refusal(response.Status, response.Code);
+        else loadError = response.Status == 400 ? "Enter an account ID, mobile number, email address or name. A search can't be only %." : AdminText.Refusal(response.Status, response.Code);
     }
 }

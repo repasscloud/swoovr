@@ -248,9 +248,16 @@ def mail_problems(values, api=None):
         if get('SWOOVR_ZAMMAD_IMAP_KEEP_ON_SERVER') not in ('true', 'false'):
             problems.append('SWOOVR_ZAMMAD_IMAP_KEEP_ON_SERVER must be true or false')
     if sms == 'twilio' and api is not None:
-        for key in ['Sms__Twilio__AccountSid', 'Sms__Twilio__AuthToken', 'Sms__Twilio__From']:
+        for key in ['Sms__Twilio__AccountSid', 'Sms__Twilio__From']:
             if not api.get(key, '').strip():
                 problems.append(f'SWOOVR_SMS_SERVICE=twilio needs {key} in env/api.env')
+        # Issue 315: a restricted API key (both parts) or the Auth Token.
+        key_sid, key_secret = api.get('Sms__Twilio__ApiKeySid', '').strip(), api.get('Sms__Twilio__ApiKeySecret', '').strip()
+        if key_sid or key_secret:
+            if not re.fullmatch(r'SK[0-9a-fA-F]{32}', key_sid) or not key_secret:
+                problems.append('SWOOVR_SMS_SERVICE=twilio: Sms__Twilio__ApiKeySid (SK...) and Sms__Twilio__ApiKeySecret go together')
+        elif not api.get('Sms__Twilio__AuthToken', '').strip():
+            problems.append('SWOOVR_SMS_SERVICE=twilio needs Sms__Twilio__AuthToken, or Sms__Twilio__ApiKeySid and Sms__Twilio__ApiKeySecret, in env/api.env')
     return problems
 
 
@@ -306,6 +313,8 @@ PROVIDER_VALUES = {
     'UAT_MODERATION_ESCALATION_BACKUP_EMAIL': [('api.env', 'Moderation__EscalationBackupEmail')],
     'UAT_TWILIO_SMS_ACCOUNT_SID': [('api.env', 'Sms__Twilio__AccountSid')],
     'UAT_TWILIO_SMS_AUTH_TOKEN': [('api.env', 'Sms__Twilio__AuthToken')],
+    'UAT_TWILIO_SMS_API_KEY_SID': [('api.env', 'Sms__Twilio__ApiKeySid')],
+    'UAT_TWILIO_SMS_API_KEY_SECRET': [('api.env', 'Sms__Twilio__ApiKeySecret')],
     'UAT_TWILIO_EMAIL_KEY_SID': [('mail.env', 'SWOOVR_MAIL_TWILIO_KEY_SID')],
     'UAT_TWILIO_EMAIL_KEY_SECRET': [('mail.env', 'SWOOVR_MAIL_TWILIO_KEY_SECRET')],
     'UAT_SENDGRID_API_KEY': [('mail.env', 'SWOOVR_MAIL_SMTP_PASSWORD')],
