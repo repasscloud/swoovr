@@ -23,7 +23,7 @@ if [[ "${1:-}" == compose ]]; then
       [[ "${1:-}" == -aq || "${1:-}" == -q ]] && shift
       if [[ -n "${1:-}" && "${1:-}" != -* ]]; then echo "c-$1"; else printf 'c-api\nc-web\nc-keycloak\n'; fi ;;
     up) for v in "${volumes[@]}"; do touch "$state/volumes/$v"; done ;;
-    down) [[ " $* " == *" --volumes "* ]] && rm -f "$state/volumes/"* ;;
+    down) [[ " $* " == *" --volumes "* ]] && rm -f "$state/volumes/"* "$state/zammad-columns" ;;
     run)
       while [[ "${1:-}" == --* || "${1:-}" == -T ]]; do shift; done
       service="${1:-}"; shift || true
@@ -47,7 +47,9 @@ if [[ "${1:-}" == compose ]]; then
           echo "{\"status\":\"ok\"} {\"status\":\"ready\"} {\"status\":\"healthy\"} {\"version\":\"${FAKE_VERSION:-0.0.0}\"} \"issuer\":\"https://auth-uat.swoovr.app/realms/$realm\" $host" ;;
         zammad-railsserver)
           cat > /dev/null
-          echo 'SWOOVR_PROVISION_RESULT={"version":"7.2.2","groups":{"General Support":1},"identity_token":"t1","staff_directory_token":"t2","retention_token":"t3","home_city_check_token":"t4"}' ;;
+          # Like provision.rb: the Swoovr ticket columns are added (schema_changed) only on an empty Zammad database.
+          changed=false; [[ -f "$state/zammad-columns" ]] || { changed=true; touch "$state/zammad-columns"; }
+          echo 'SWOOVR_PROVISION_RESULT={"version":"7.2.2","schema_changed":'"$changed"',"groups":{"General Support":1},"identity_token":"t1","staff_directory_token":"t2","retention_token":"t3","home_city_check_token":"t4"}' ;;
       esac ;;
     *) exit 0 ;;
   esac

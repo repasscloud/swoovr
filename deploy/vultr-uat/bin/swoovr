@@ -114,6 +114,13 @@ zammad_provision() {
     die 'Zammad provisioning; private diagnostics in env/.zammad-provision-error.log'
   fi
   python3 "$here/bin/envtool.py" provision-output < "$output"
+  # provision.rb added ticket columns without Zammad's restart event (it would kill the runner); restart the long-running
+  # Zammad processes now so they load the new columns.
+  if grep -q '^SWOOVR_PROVISION_RESULT=.*"schema_changed":true' "$output"; then
+    say 'Zammad restart (new ticket fields)'
+    dc restart zammad-railsserver zammad-scheduler zammad-websocket
+    wait_healthy zammad-railsserver 900
+  fi
   rm -f "$output"
 }
 
