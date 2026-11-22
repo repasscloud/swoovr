@@ -92,11 +92,15 @@ grep -q 'fixture-value-uat_didit_api_key' "$live/env/api.env" && ! grep -q 'fixt
 for job in db-bootstrap migrate places-import keycloak-bootstrap keycloak-reconcile; do
   grep -q "run --rm -T $job" "$FAKE_LOG" || bad "bootstrap skipped $job"
 done; ok 'bootstrap ran db-bootstrap, migrate, places-import, keycloak-bootstrap, keycloak-reconcile'
+prov_line="$(grep -n 'exec -T zammad-railsserver bundle exec rails runner /tmp/swoovr-provision.rb' "$FAKE_LOG" | head -1 | cut -d: -f1)"
+restart_line="$(grep -n 'restart zammad-railsserver zammad-scheduler zammad-websocket' "$FAKE_LOG" | head -1 | cut -d: -f1)"
+[[ -n "$prov_line" && -n "$restart_line" ]] && (( restart_line > prov_line )) && ok 'new Zammad ticket fields: Zammad restarted after provisioning' || bad 'new Zammad ticket fields: Zammad restarted after provisioning'
 
 # 4. Upgrade: backup first, then migrate, never down/volume removal; data keys unchanged.
 keys_before="$(grep -E '^(Evidence__Keys__1|IdentityStore__HmacKey|Phone__CodeKey)=' "$live/env/api.env" | sha256sum)"
 : > "$FAKE_LOG"
 FAKE_VERSION=1.0.4 FAKE_ADMIN_STATE=ready deploy "$r2" upgrade || { cat "$work/out.log"; bad 'upgrade failed'; }
+[[ "$(count 'restart zammad-railsserver')" == 0 ]] && ok 'unchanged Zammad schema: no Zammad restart' || bad 'unchanged Zammad schema: no Zammad restart'
 [[ "$(count 'compose.* down')" == 0 && "$(count 'volume rm')" == 0 && "$(count prune)" == 0 && "$(count r2-empty)" == 0 ]] && ok 'upgrade never removes containers, volumes, photos or prunes' || bad 'upgrade never removes containers, volumes, photos or prunes'
 dump_line="$(grep -n 'pg_dump' "$FAKE_LOG" | head -1 | cut -d: -f1)"; migrate_line="$(grep -n 'run --rm -T migrate' "$FAKE_LOG" | head -1 | cut -d: -f1)"
 (( dump_line < migrate_line )) && ok 'pre-upgrade backup taken before migrations' || bad 'pre-upgrade backup taken before migrations'

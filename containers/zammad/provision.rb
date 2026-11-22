@@ -190,7 +190,11 @@ end
     screens: {create_middle: {'ticket.agent' => {null: true}}, edit: {'ticket.agent' => {null: true}}},
     position: 1000, created_by_id: actor, updated_by_id: actor)
 end
-ObjectManager::Attribute.migration_execute if ObjectManager::Attribute.pending_migration?
+# Add the columns without Zammad's own restart event (22 November 2026): with auto_shutdown on, trigger_restart stops the
+# Rails processes, the railsserver container restarts, and this runner dies with it before it prints its result (the
+# v1.2.0 refresh failed at stage helpdesk). The caller restarts the Zammad services once it has the result.
+schema_changed = ObjectManager::Attribute.pending_migration?
+ObjectManager::Attribute.migration_execute(false) if schema_changed
 # DEFAULT ordinary correspondence templates. Operators may author further permission-scoped templates.
 text = TextModule.find_or_initialize_by(name: 'Swoovr support acknowledgement')
 text.assign_attributes(content: 'Thank you for contacting Swoovr support. We will review your request.', active: true,
@@ -358,7 +362,7 @@ trigger.assign_attributes(condition: {'ticket.state_id' => {'operator' => 'is', 
   perform: {'notification.webhook' => {'webhook_id' => webhook.id.to_s}}, activator: 'action',
   execution_condition_mode: 'always', active: events, created_by_id: actor, updated_by_id: actor)
 trigger.save!
-puts "SWOOVR_PROVISION_RESULT=" + JSON.generate({version: Version.get, groups: groups,
+puts "SWOOVR_PROVISION_RESULT=" + JSON.generate({version: Version.get, groups: groups, schema_changed: schema_changed,
   customer_role_id: customer_role.id, agent_role_id: agent_role.id,
   provisioning_token: api_token(admin, 'swoovr-local-provisioning', ['admin', 'ticket.agent']),
   identity_token: api_token(identity, 'swoovr-local-identity', ['admin.user']),

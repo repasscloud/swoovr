@@ -189,6 +189,10 @@ def main():
         target = ENV.parent / 'provisioned.json'
         private_write(target, json.dumps(data))
         print('Provisioned Zammad ' + data['version'] + '; groups: ' + str(len(data['groups'])))
+        if data.get('schema_changed'):
+            # provision.rb skipped Zammad's restart event (it kills the runner); restart so the new ticket fields load.
+            compose('restart', 'zammad-railsserver', 'zammad-scheduler', 'zammad-websocket')
+            compose('up', '-d', '--wait', '--wait-timeout', '180')
     elif args.action == 'runtime':
         import json
         api_settings(json.loads((ENV.parent / 'provisioned.json').read_text()))
