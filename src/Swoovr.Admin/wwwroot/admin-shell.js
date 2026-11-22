@@ -54,7 +54,7 @@
 // Issue 412: the async Clipboard API can be refused (Safari, an unfocused document, browser settings) and the old code
 // only changed the tooltip, so nothing visibly happened. Fall back to a selection copy placed inside the nearest
 // dialog (a modal dialog makes the rest of the page inert, so a textarea on <body> can't be selected), show a visible
-// result, and when both ways fail select the reference so ⌘C / Ctrl+C works.
+// result, and when both ways fail offer the full value, selected, so ⌘C / Ctrl+C works.
 (() => {
   function legacyCopy(button, text) {
     const host = button.closest('dialog') ?? document.body;
@@ -69,10 +69,19 @@
     button.focus({ preventScroll: true });
     return ok;
   }
-  function selectReference(button) {
-    const code = button.parentElement?.querySelector('code'); if (!code) return;
-    const range = document.createRange(); range.selectNodeContents(code);
-    const selection = getSelection(); selection?.removeAllRanges(); selection?.addRange(range);
+  // Last resort: the visible <code> is often a shortened id (first 8 characters), so never select that. Show the full
+  // data-copy value in a read-only field beside the button, focused and selected for ⌘C / Ctrl+C. It goes away once
+  // copied or when focus leaves it.
+  function offerManualCopy(button, text) {
+    button.parentElement?.querySelector('[data-copy-manual]')?.remove();
+    const field = document.createElement('input');
+    field.type = 'text'; field.readOnly = true; field.value = text; field.className = 'ui-copy-manual';
+    field.dataset.copyManual = ''; field.setAttribute('aria-label', 'Reference to copy'); field.size = Math.min(40, Math.max(8, text.length));
+    button.after(field);
+    const done = () => setTimeout(() => field.remove(), 0);
+    field.addEventListener('copy', done, { once: true });
+    field.addEventListener('blur', done, { once: true });
+    field.focus({ preventScroll: true }); field.select(); field.setSelectionRange(0, text.length);
   }
   function show(button, state) {
     clearTimeout(button._copyTimer);
@@ -93,7 +102,7 @@
       try { await navigator.clipboard.writeText(text); ok = true; } catch { ok = false; }
     }
     if (!ok) ok = legacyCopy(button, text);
-    if (!ok) selectReference(button);
     show(button, ok ? 'ok' : 'failed');
+    if (!ok) offerManualCopy(button, text);
   });
 })();
