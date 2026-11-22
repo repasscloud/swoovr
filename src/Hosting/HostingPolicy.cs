@@ -64,7 +64,10 @@ public static class HostingPolicy
         }
         if(Has("Sms:Twilio:BaseUrl")&&Uri.TryCreate(Read("Sms:Twilio:BaseUrl"),UriKind.Absolute,out var smsUri)&&!(smsUri.Scheme=="https"&&smsUri.AbsolutePath=="/"&&(smsUri.Host=="api.twilio.com"||smsUri.Host.StartsWith("api.",StringComparison.Ordinal)&&smsUri.Host.EndsWith(".twilio.com",StringComparison.Ordinal))))errors.Add("twilio-api-origin-required");
         if(Read("Sms:Provider")=="mailpit"){if(uat)Require("Mailpit:Host");}
-        else{Choice("Sms:Provider","twilio");foreach(var key in new[]{"AccountSid","AuthToken","From"})Require("Sms:Twilio:"+key);Url("Sms:Twilio:BaseUrl",false);}
+        else{Choice("Sms:Provider","twilio");foreach(var key in new[]{"AccountSid","From"})Require("Sms:Twilio:"+key);Url("Sms:Twilio:BaseUrl",false);
+            // Issue 315: a restricted API key (both parts, SK… SID) or the Auth Token.
+            if(Has("Sms:Twilio:ApiKeySid")||Has("Sms:Twilio:ApiKeySecret")){Require("Sms:Twilio:ApiKeySecret");var sid=Read("Sms:Twilio:ApiKeySid");if(!(sid is{Length:34}&&sid.StartsWith("SK",StringComparison.Ordinal)&&sid[2..].All(Uri.IsHexDigit)))errors.Add("invalid-key:Sms:Twilio:ApiKeySid");}
+            else Require("Sms:Twilio:AuthToken");}
         var push=Read("Push:Provider")??"disabled";if(push is not("disabled" or "providers"))errors.Add("unknown:Push:Provider");
         if(push=="providers"&&!Flag("Push:Apns:Enabled")&&!Flag("Push:Fcm:Enabled"))errors.Add("push-platform-required");
         Choice("Media:Store","r2");foreach(var key in new[]{"Bucket","AccessKeyId","SecretAccessKey"})Require("Media:R2:"+key);Url("Media:R2:Endpoint");

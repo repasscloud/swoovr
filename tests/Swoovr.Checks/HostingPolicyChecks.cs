@@ -36,6 +36,11 @@ static class HostingPolicyChecks
         foreach(var value in new[]{"http://image-moderation","http://localhost:8080","http://127.0.0.1:8080","http://screening.example.test:8080","http://10.0.0.5:8080","http://user:secret@image-moderation:8080","http://image-moderation:8080/v1","http://image-moderation:8080/?k=v","ftp://image-moderation:8080"})
         {var c=Api();c["Media:Screening:BaseUrl"]=value;Expect(Errors(c).Contains("unsafe-url:Media:Screening:BaseUrl"),"unsafe screening address refused: "+value);}
         {var c=Api();c.Remove("Media:Screening:ApiKey");Expect(Errors(c).Contains("invalid-key:Media:Screening:ApiKey"),"screening key required");c["Media:Screening:ApiKey"]="short";Expect(Errors(c).Contains("invalid-key:Media:Screening:ApiKey"),"short screening key refused");Expect(Errors(c,env:"Development").Length==0,"Development may screen without a key");}
+        // Issue 315: Twilio SMS takes a restricted API key (both parts, SK SID) or the Auth Token.
+        {var c=Api();if(c.GetValueOrDefault("Sms:Provider")=="twilio"){c.Remove("Sms:Twilio:AuthToken");Expect(Errors(c).Contains("required:Sms:Twilio:AuthToken"),"Twilio needs the Auth Token without an API key");
+            c["Sms:Twilio:ApiKeySid"]="SK"+new string('c',32);Expect(Errors(c).Contains("required:Sms:Twilio:ApiKeySecret"),"an API key SID needs its secret");
+            c["Sms:Twilio:ApiKeySecret"]="fictional-key-secret";Expect(!Errors(c).Any(e=>e.Contains("Sms:Twilio",StringComparison.Ordinal)),"an API key replaces the Auth Token");
+            c["Sms:Twilio:ApiKeySid"]="AC"+new string('c',32);Expect(Errors(c).Contains("invalid-key:Sms:Twilio:ApiKeySid"),"the API key SID starts with SK");}}
         Expect(Errors(new(),serving:false).Length==0,"minimal one-shot command does not demand unrelated live services");
         // #316: Twilio email, hosted SMTP relay, and the Mailpit sink only on UAT.
         // #357: Postmark email needs its server token.
