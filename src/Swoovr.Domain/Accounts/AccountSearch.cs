@@ -1,7 +1,7 @@
 namespace Swoovr.Domain;
 
 /// <summary>
-/// A parsed D307 staff account search: "phone" (E.164), "email" (normalised, or a lower-cased ILIKE pattern when
+/// A parsed D307 staff account search: "id" (an account id, canonical lower-case form), "phone" (E.164), "email" (normalised, or a lower-cased ILIKE pattern when
 /// <see cref="Wildcard"/>) or "name" (ILIKE pattern, `\` escape; with a `%` wildcard it also matches the email address).
 /// </summary>
 public sealed record AccountSearchQuery(string Kind, string Value, bool Wildcard = false);
@@ -13,6 +13,8 @@ public sealed record AccountSearchQuery(string Kind, string Value, bool Wildcard
 /// D365 (owner, issue 331): a `%` search also looks in email addresses. With `@` it is an email pattern
 /// (`%name@company%`); without `@` it matches first name, last name or email (`%name%`).
 /// Empty and wildcard-only searches are refused so staff cannot list every account.
+/// Issue 411 (owner, 22 November 2026): an account id (any GUID form, with or without braces/dashes) is an exact id
+/// match and always finds that account.
 /// </summary>
 public static class AccountSearch
 {
@@ -22,6 +24,7 @@ public static class AccountSearch
     {
         var text = input?.Trim();
         if (string.IsNullOrEmpty(text) || text.Length > MaxLength || text.Any(char.IsControl)) return null;
+        if (Guid.TryParse(text, out var id)) return new("id", id.ToString("D"));
         var wildcard = text.Contains('%');
         // Nothing but wildcards, `@` and spaces would list every account.
         if (text.Replace("%", "").Replace("@", "").Trim().Length == 0) return null;
