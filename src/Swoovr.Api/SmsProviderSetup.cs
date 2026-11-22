@@ -14,8 +14,9 @@ public static class SmsProviderSetup
         if(smsChoice is not(null or "disabled" or "simulated" or "mailpit" or "twilio"))throw new InvalidOperationException("Sms:Provider must be disabled, simulated, mailpit or twilio.");
         if(smsChoice=="twilio")
         {
-            var twilio=new TwilioOptions(configuration["Sms:Twilio:AccountSid"],configuration["Sms:Twilio:AuthToken"],configuration["Sms:Twilio:From"],new Uri(configuration["Sms:Twilio:BaseUrl"]??"https://api.twilio.com/"));
-            if(!twilio.Configured)throw new InvalidOperationException("Configured Twilio requires AccountSid, AuthToken and From.");
+            var twilio=new TwilioOptions(configuration["Sms:Twilio:AccountSid"],configuration["Sms:Twilio:AuthToken"],configuration["Sms:Twilio:From"],new Uri(configuration["Sms:Twilio:BaseUrl"]??"https://api.twilio.com/"),
+                configuration["Sms:Twilio:ApiKeySid"],configuration["Sms:Twilio:ApiKeySecret"]);
+            if(!twilio.Configured)throw new InvalidOperationException("Configured Twilio requires AccountSid and From, plus either ApiKeySid (SK…) and ApiKeySecret, or AuthToken.");
             services.AddSingleton(twilio);
             services.AddHttpClient<IVerificationMessageSender,TwilioMessageSender>((provider,http)=>
             {

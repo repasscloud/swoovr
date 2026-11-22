@@ -89,13 +89,15 @@
   });
 })();
 
-// Accounts search: show which kind of search the text will run (mobile, email or name) while typing.
+// Accounts search: show which kind of search the text will run (account ID, mobile, email or name) while typing.
 document.addEventListener('input', event => {
   const input = event.target.closest?.('[data-kind-input]'); if (!input) return;
   const v = input.value.trim();
-  const kind = !v ? '' : v.includes('@') ? 'email' : /^[\d\s+().-]+$/.test(v) && /\d/.test(v) ? 'phone' : 'name';
+  // Issue 411: an account ID (with or without dashes or braces) is an exact ID search, as in AccountSearch.Parse.
+  const isGuid = t => /^[0-9a-f]{32}$/i.test(t.replace(/^\{(.*)\}$/, '$1').replace(/^\((.*)\)$/, '$1').replace(/^([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i, '$1$2$3$4$5'));
+  const kind = !v ? '' : isGuid(v) ? 'id' : v.includes('@') ? 'email' : /^[\d\s+().-]+$/.test(v) && /\d/.test(v) ? 'phone' : 'name';
   // D365 (issue 331): with %, a name search also looks in email addresses. Same wording as Accounts.razor.
-  const hints = { phone: 'Spaces removed · + optional', email: 'Lower-cased · use % as a wildcard', name: 'First or last name · with %, email too', '': '' };
+  const hints = { id: 'Exact account ID', phone: 'Spaces removed · + optional', email: 'Lower-cased · use % as a wildcard', name: 'First or last name · with %, email too', '': '' };
   document.querySelectorAll('[data-kind-chips] [data-kind]').forEach(c => c.toggleAttribute('aria-current', c.dataset.kind === kind));
   const hint = document.querySelector('[data-kind-hint]'); if (hint) hint.textContent = hints[kind];
 });

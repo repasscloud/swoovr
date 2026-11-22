@@ -23,6 +23,13 @@ static class AccountSearchChecks
         Check("email pattern for the stored column", AccountSearch.EmailPattern(AccountSearch.Parse("%Casey%")!) == "%casey%");
         Check("underscore is literal", AccountSearch.Parse("a_b") == new AccountSearchQuery("name", "a\\_b"));
         Check("backslash is literal", AccountSearch.Parse("a\\b") == new AccountSearchQuery("name", "a\\\\b"));
+        // Issue 411: an account id always means that exact account, whatever GUID form is pasted.
+        Check("account id", AccountSearch.Parse("fc995a28-7da3-4d1d-8ce9-a16f632f413a") == new AccountSearchQuery("id", "fc995a28-7da3-4d1d-8ce9-a16f632f413a"));
+        Check("account id upper case and spaces", AccountSearch.Parse("  FC995A28-7DA3-4D1D-8CE9-A16F632F413A ") == new AccountSearchQuery("id", "fc995a28-7da3-4d1d-8ce9-a16f632f413a"));
+        Check("account id in braces", AccountSearch.Parse("{fc995a28-7da3-4d1d-8ce9-a16f632f413a}") == new AccountSearchQuery("id", "fc995a28-7da3-4d1d-8ce9-a16f632f413a"));
+        Check("account id without dashes", AccountSearch.Parse("fc995a287da34d1d8ce9a16f632f413a") == new AccountSearchQuery("id", "fc995a28-7da3-4d1d-8ce9-a16f632f413a"));
+        Check("account id is not a wildcard", AccountSearch.Parse("fc995a28-7da3-4d1d-8ce9-a16f632f413a")!.Wildcard == false);
+        Check("partial id is a name", AccountSearch.Parse("fc995a28-7da3")!.Kind == "name");
         foreach (var bad in new[] { null, "", "  ", "%", "%%", " % ", "%@%", "@%", "% @ %", new string('x', 121) }) Check($"refuses '{bad}'", AccountSearch.Parse(bad) is null);
         Console.WriteLine($"PASS account search: {count} checks.");
     }
