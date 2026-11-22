@@ -185,13 +185,17 @@ host_key() {
 }
 
 status() {
-  echo "Environment uat secrets set:"; gh secret list --repo "$REPO" --env uat --json name --jq '.[].name' | sed 's/^/  /'
-  echo "Environment uat variables set:"; gh variable list --repo "$REPO" --env uat --json name --jq '.[].name' | sed 's/^/  /'
-  echo "Repository variables:"; gh variable list --repo "$REPO" --json name,value --jq '.[] | select(.name == "DEPLOYMENT_MODE") | "  \(.name)=\(.value)"'
-  local name missing=0
+  # List each kind once (22 November 2026: a transient API failure inside a per-name lookup was reported as
+  # MISSING). A failed listing is an error, never a missing setting.
+  local secrets variables repo_vars name missing=0
+  secrets="$(gh secret list --repo "$REPO" --env uat --json name --jq '.[].name')" || { echo 'ERROR could not list the uat environment secrets' >&2; return 2; }
+  variables="$(gh variable list --repo "$REPO" --env uat --json name --jq '.[].name')" || { echo 'ERROR could not list the uat environment variables' >&2; return 2; }
+  repo_vars="$(gh variable list --repo "$REPO" --json name,value --jq '.[] | select(.name == "DEPLOYMENT_MODE") | "  \(.name)=\(.value)"')" || { echo 'ERROR could not list the repository variables' >&2; return 2; }
+  echo "Environment uat secrets set:"; [[ -z "$secrets" ]] || sed 's/^/  /' <<< "$secrets"
+  echo "Environment uat variables set:"; [[ -z "$variables" ]] || sed 's/^/  /' <<< "$variables"
+  echo "Repository variables:"; [[ -z "$repo_vars" ]] || echo "$repo_vars"
   for name in "${REQUIRED[@]}"; do
-    if ! gh secret list --repo "$REPO" --env uat --json name --jq '.[].name' | grep -qx "$name" \
-        && ! gh variable list --repo "$REPO" --env uat --json name --jq '.[].name' | grep -qx "$name"; then
+    if ! grep -qx "$name" <<< "$secrets" && ! grep -qx "$name" <<< "$variables"; then
       echo "MISSING $name"; missing=1
     fi
   done
