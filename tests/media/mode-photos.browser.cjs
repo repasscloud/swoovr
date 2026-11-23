@@ -67,7 +67,7 @@ if (!process.env.SWOOVR_TEST_API_BASE || !process.env.SWOOVR_TEST_APP_DATABASE |
    assert.equal((await fetch(api+'/api/me/photos',{method:'POST',headers:{Authorization:'Bearer '+a,'Swoovr-Version':'2026-10-28'},body:form})).status,409,'sixty-library cap');
    await canvas.goto(web+'/account/sign-in');await canvas.fill('#username',owner.email);await canvas.fill('#password',owner.password);await Promise.all([canvas.waitForURL(web+'/explore'),canvas.click('#kc-login')]);
    await canvas.goto(web+'/me/photos');await canvas.waitForSelector('[data-photos-panel=ready]');
-   assert.equal(await canvas.locator('#photo-input').getAttribute('multiple'),'');
+   assert.equal(await canvas.locator('[data-photo-input]').getAttribute('multiple'),'');
    for(const width of [375,768,1440]){await canvas.setViewportSize({width,height:1000});assert.ok(await canvas.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));}
    console.log('PASS: D293 owned mode main/placeholder/privacy,60 library,Free8/Premium24,downgrade retention/reorder,ownership and actual photo editor');
   }finally{await context.close();}
