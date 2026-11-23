@@ -62,6 +62,18 @@ static class ChatAttachmentChecks
         Expect(four.Distinct().Count() == 3, "each starter is worded differently");
 
         // Wording.
+        // Issue 445: the profile gallery shows each distinct photo once, main first, keeping mode order.
+        {
+            var (m, a, b, c) = (new Swoovr.Contracts.PhotoView(Guid.NewGuid(), "api/media/m"), new Swoovr.Contracts.PhotoView(Guid.NewGuid(), "api/media/a"), new Swoovr.Contracts.PhotoView(Guid.NewGuid(), "api/media/b"), new Swoovr.Contracts.PhotoView(Guid.NewGuid(), "api/media/c"));
+            IReadOnlyList<Swoovr.Contracts.PhotoView> L(params Swoovr.Contracts.PhotoView[] p) => p;
+            Expect(PhotoText.Gallery(null, []).Count == 0 && PhotoText.Gallery(null, [("dating", "Dating", null), ("friends", "Friends", L())]).Count == 0, "no photos: empty gallery");
+            var one = PhotoText.Gallery(m, [("dating", "Dating", L(m))]);
+            Expect(one.Count == 1 && one[0].ModeId is null, "only the main photo: shown once, as the main photo");
+            var many = PhotoText.Gallery(m, [("dating", "Dating", L(a, m, b)), ("friends", "Friends", L(b, c))]);
+            Expect(many.Select(g => g.Photo.Id).SequenceEqual([m.Id, a.Id, b.Id, c.Id]) && many[1].ModeId == "dating" && many[3].ModeId == "friends", "main first, then each mode's order, each photo once even across modes");
+            var noMain = PhotoText.Gallery(null, [("dating", "Dating", L(a, b))]);
+            Expect(noMain.Select(g => g.Photo.Id).SequenceEqual([a.Id, b.Id]) && noMain.All(g => g.ModeId == "dating"), "no main photo: the mode's photos in order");
+        }
         Expect(PhotoText.ChatState("checking").StartsWith("Checking") && PhotoText.ChatState("not-approved").StartsWith("Not approved"), "chat photo states");
         Expect(PhotoText.Refusal("photos-off") == "This person isn't accepting photos in chat." && PhotoText.Refusal("attachment-limit").Contains("20"), "chat refusals");
 

@@ -341,7 +341,11 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 250;
     await benPage.goto(`${web}/people/${pub.ana}?mode=friends`);
     await benPage.waitForSelector('[data-person-photo="main"]');
     await benPage.waitForFunction(() => document.querySelector('[data-person-photo="main"]').naturalWidth > 0); pass();
-    assert.equal(await benPage.locator('[data-person-photo="friends"]').count(), 3); pass();
+    // Issue 445: the main photo is also one of the three Friends placements; it shows once, as the main photo.
+    assert.equal(await benPage.locator('[data-person-photo="friends"]').count(), 2); pass();
+    assert.equal(await benPage.locator('[data-person-photos]').getAttribute('data-person-photos'), '3'); pass();
+    const shownSources = await benPage.locator('[data-person-photos] img').evaluateAll(images => images.map(i => i.getAttribute('src')));
+    assert.equal(new Set(shownSources).size, shownSources.length, 'no photo is shown twice'); pass();
     assert.equal(await benPage.locator('[data-person-photo="dating"]').count(), 0); pass();
     if (output) await benPage.screenshot({ path: output + '/web-person-photos.png', fullPage: true });
     await benPage.goto(web + '/explore?mode=friends');

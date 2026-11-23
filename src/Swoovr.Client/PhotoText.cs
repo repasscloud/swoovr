@@ -9,6 +9,25 @@ public static class PhotoText
     public static string Web(string link) => "/media/" + link[(link.LastIndexOf('/') + 1)..];
     public static string App(Uri apiBase, string link) => new Uri(apiBase, link).ToString();
 
+    /// <summary>One photo in a profile gallery: the mode it was shown from (null for the main photo).</summary>
+    public sealed record GalleryPhoto(Swoovr.Contracts.PhotoView Photo, string? ModeId, string? ModeLabel);
+
+    /// <summary>
+    /// Issue 445: the profile gallery. The main photo first, then each shown mode's photos in their order, each distinct
+    /// photo exactly once. The main photo is also one of its mode's placements and a photo can be placed in more than
+    /// one mode, so the API lists them more than once; nothing stored is removed, only the repeat isn't shown.
+    /// </summary>
+    public static IReadOnlyList<GalleryPhoto> Gallery(Swoovr.Contracts.PhotoView? main, IEnumerable<(string Id, string Label, IReadOnlyList<Swoovr.Contracts.PhotoView>? Photos)> modes)
+    {
+        var seen = new HashSet<Guid>();
+        var gallery = new List<GalleryPhoto>();
+        if (main is not null && seen.Add(main.Id)) gallery.Add(new(main, null, null));
+        foreach (var mode in modes)
+            foreach (var photo in mode.Photos ?? [])
+                if (seen.Add(photo.Id)) gallery.Add(new(photo, mode.Id, mode.Label));
+        return gallery;
+    }
+
     /// <summary>What a member's own photo state means. Every refusal reads the same, whatever the reason.</summary>
     public static string State(string state) => state switch
     {

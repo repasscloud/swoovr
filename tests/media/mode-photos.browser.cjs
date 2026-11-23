@@ -35,6 +35,19 @@ if (!process.env.SWOOVR_TEST_API_BASE || !process.env.SWOOVR_TEST_APP_DATABASE |
     assert.equal(person.photo.id,ids[i]);assert.equal(person.modes[0].mainPhoto.id,ids[i]);
     for(const other of modes.filter(m=>m!==mode))assert.ok(!JSON.stringify(person).includes(ids[modes.indexOf(other)]));
    }
+   // Issue 445: Friends is [ids[1] (main), ids[5]]; the profile page shows each photo once, the main photo first.
+   {
+    const viewing=await edge.browser.newContext(),page=await viewing.newPage();
+    try{
+     await page.goto(web+'/account/sign-in');await page.fill('#username',viewer.email);await page.fill('#password',viewer.password);await Promise.all([page.waitForURL(web+'/explore'),page.click('#kc-login')]);
+     await page.goto(`${web}/people/${id}?mode=friends`);await page.waitForSelector('[data-person-photos]');
+     assert.equal(await page.locator('[data-person-photos]').getAttribute('data-person-photos'),'2','main photo plus one other, not three');
+     assert.equal(await page.locator('[data-person-photo="main"]').count(),1);assert.equal(await page.locator('[data-person-photo="friends"]').count(),1);
+     const sources=await page.locator('[data-person-photos] img').evaluateAll(images=>images.map(i=>i.getAttribute('src')));
+     assert.equal(new Set(sources).size,sources.length,'no photo shown twice');
+     if(process.env.SWOOVR_SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SWOOVR_SCREENSHOT_DIR,'445-person-friends.png'),fullPage:true});
+    }finally{await viewing.close();}
+   }
    assert.equal((await place('friends',[ids[0]],ids[2])).status,400,'main must be in gallery');
    assert.equal((await place('friends',ids.slice(0,9),ids[0])).status,400,'Free ninth refused');
    assert.equal((await place('friends',[ids[0],ids[0]],ids[0])).status,400,'duplicates refused');

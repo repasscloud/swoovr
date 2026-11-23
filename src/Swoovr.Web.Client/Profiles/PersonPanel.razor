@@ -22,14 +22,15 @@
 {
     <div class="person-layout">
     <div class="person-story">
-    @* D203: the main photo, then each shown mode's own photos (approved only, short-lived links; never another mode's). *@
-    @if (person.Photo is not null || person.Modes.Any(m => m.Photos?.Count > 0))
+    @* D203: the main photo, then each shown mode's own photos (approved only, short-lived links; never another mode's).
+       Issue 445: each distinct photo once; the main photo is also in its mode's list. *@
+    @if (PhotoText.Gallery(person.Photo, person.Modes.Select(m => (m.Id, m.Label, m.Photos))) is { Count: > 0 } gallery)
     {
-        <section class="person-photos" aria-label="Photos" data-person-photos="@((person.Photo is null ? 0 : 1) + person.Modes.Sum(m => m.Photos?.Count ?? 0))">
-            @if (person.Photo is not null) { <img src="@PhotoText.Web(person.Photo.Link)" alt="@($"{person.DisplayName}'s photo")" class="person-photo" data-person-photo="main" /> }
-            @foreach (var mode in person.Modes.Where(m => m.Photos?.Count > 0))
+        <section class="person-photos" aria-label="Photos" data-person-photos="@gallery.Count">
+            @foreach (var shown in gallery)
             {
-                foreach (var photo in mode.Photos!) { <img src="@PhotoText.Web(photo.Link)" alt="@($"{person.DisplayName}'s photo in {mode.Label}")" class="person-photo" data-person-photo="@mode.Id" loading="lazy" /> }
+                if (shown.ModeId is null) { <img src="@PhotoText.Web(shown.Photo.Link)" alt="@($"{person.DisplayName}'s photo")" class="person-photo" data-person-photo="main" /> }
+                else { <img src="@PhotoText.Web(shown.Photo.Link)" alt="@($"{person.DisplayName}'s photo in {shown.ModeLabel}")" class="person-photo" data-person-photo="@shown.ModeId" loading="lazy" /> }
             }
         </section>
     }
