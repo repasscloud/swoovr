@@ -839,6 +839,10 @@ After a refresh, registration is back at its starting setting: **Beta registrati
 5. **SMS codes** (phone verification) don't go to real phones in UAT yet: they are caught on the server by Mailpit. To read one:
 
    ```bash
+   # with config
+   ssh swoovr-uat-root -L 8025:127.0.0.1:8025 -N
+   
+   # without config
    ssh -i ~/.ssh/swoovr-uat-deploy -o IdentitiesOnly=yes -L 8025:127.0.0.1:8025 -N root@<server IPv4>
    ```
 
