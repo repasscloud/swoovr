@@ -41,7 +41,10 @@ public static class TicketingEndpoints
         admin.MapPost("/staff-sync",(HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.SyncStaffAsync(ct)));
         admin.MapGet("/text-modules",(HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.TextModulesAsync(ct)));
         admin.MapGet("/macros",(HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.MacrosAsync(ct)));
-        admin.MapPost("/customers",(TicketCustomerLookup request,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.CustomerAsync(request,ct)));
+        // Issue 453: looking a member up is a read (exempt from the elevation middleware); creating their helpdesk
+        // customer (Create=true) is a change, so it keeps the same MFA elevation as every other admin mutation.
+        admin.MapPost("/customers",async(TicketCustomerLookup request,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t,IConfiguration config)=>
+            request.Create&&await MfaPrivilegedMiddleware.RequireAsync(c,a,t,config) is { } elevation?elevation:await Run(c,a,f,t,true,(r,ct)=>r.CustomerAsync(request,ct)));
         admin.MapPost("",(TicketOnBehalf request,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.CreateAsync(request.Ticket,request.AccountId,ct)));
         admin.MapGet("/{id:long}",(long id,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.DetailAsync(id,ct)));
         admin.MapPut("/{id:long}",(long id,TicketChange request,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.ChangeAsync(id,request,ct)));

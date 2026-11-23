@@ -70,8 +70,20 @@ public static partial class SupportTicketText
     /// <summary>D336: a file still in quarantine ("checking") or refused ("blocked").</summary>
     public static string HeldStatus(string status) => status == "blocked" ? "Blocked by the malware check" : "Checking for malware";
 
-    public static string Problem(int status, string? code) => code switch
+    /// <summary>
+    /// The wording for a ticketing refusal. Issue 453: every code the ticket routes return has its own text, so nothing
+    /// falls back to "This request isn't available." by accident; <paramref name="staff"/> picks Admin's wording.
+    /// </summary>
+    public static string Problem(int status, string? code, bool staff = false) => code switch
     {
+        "mfa-elevation-required" => "This needs a sign-in with MFA in the last 60 minutes. Sign in again, then repeat it.",
+        "stale-session" => "For your security, this needs a recent sign-in. Sign in again, then repeat it.",
+        "ticket-unavailable" when staff => "This request doesn't exist, or your role or queue access doesn't allow this.",
+        "ticket-unavailable" => "This request isn't available.",
+        "ticket-staff-actor-invalid" or "ticket-actor-mismatch" when staff => "Your helpdesk access isn't ready. It's set up from your Swoovr role within a few minutes; if this continues, an admin can check Support requests › Integration health.",
+        "ticket-actor-mismatch" => Unavailable,
+        "ticket-customer-unavailable" or "ticket-customer-inactive" or "ticket-customer-role-invalid" when staff => "This member's helpdesk record isn't usable right now. Try again shortly, or an admin can check Support requests › Integration health.",
+        "ticket-customer-unavailable" or "ticket-customer-inactive" or "ticket-customer-role-invalid" => Unavailable,
         "ticket-changed" => "This request changed while you were working on it. The latest version is shown.",
         "ticket-reconciliation-required" => "We couldn't confirm your last message was sent. Send it again: it won't be sent twice.",
         "ticket-follow-up-unavailable" => "This request is closed. Start a new request if you still need help.",

@@ -234,6 +234,9 @@ def main():
             check(call(support,'/api/admin/tickets/customers','POST',{'query':query})['accountId']==people['member'][2],'precise customer lookup by supported server identity')
         customer=psql(database,"SELECT provider_user_id FROM ticketing_identity WHERE account_id='"+people['member'][2]+"'")
         check(call(support,'/api/admin/tickets/customers','POST',{'query':customer})['accountId']==people['member'][2],'numeric customer lookup resolves only durable server mapping')
+        # Issue 453: for Admin the lookup is a read, so it never needs MFA elevation (POST only keeps the query out of the URL).
+        for query in (people['member'][2],people['member'][1]['email'],'swoovr-'+people['member'][2],customer):
+            check(call(adminperson,'/api/admin/tickets/customers','POST',{'query':query})['accountId']==people['member'][2],'Admin member lookup by account ID, email, login and helpdesk number')
         # Ordinary staff assignment, close/reopen macro, follow-up, scoped search and bounded bulk.
         current=call(support,f'/api/admin/tickets/{ticket}')['ticket']
         owner=next(o['id'] for o in caps['owners'] if o['name']==people['support'][1]['email'])
