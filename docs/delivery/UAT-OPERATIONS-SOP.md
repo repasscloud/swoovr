@@ -21,11 +21,11 @@ Technical detail lives in the [server runbook](../../deploy/vultr-uat/README.md)
 
 ```
 your Mac ──git tag vX.Y.Z──▶ GitHub ──"Deploy UAT" workflow──▶ builds 6 images (GHCR)
-                                     │                          └─▶ SSH as root ──▶ server uat-01 (Vultr)
+                                     │                          └─▶ SSH as root ──▶ server uat-01 (dedicated)
                                      └─"UAT maintenance" workflow (you start it by hand) ──▶ SSH ──▶ uat-01
 ```
 
-- **Server `uat-01`** (Vultr, Debian) runs everything in Docker: the API, the member web app (`uat.swoovr.app`), Admin (`admin-uat.swoovr.app`), Keycloak sign-in (`auth-uat.swoovr.app`), the Zammad helpdesk (`helpdesk-uat.swoovr.app`), PostgreSQL, photo screening (`image-moderation`, private) and one virus scanner (`clamav`, private). Cloudflare sits in front.
+- **Server `uat-01`** (a dedicated server since 23 November 2026, Debian 13; D391) runs everything in Docker: the API, the member web app (`uat.swoovr.app`), Admin (`admin-uat.swoovr.app`), Keycloak sign-in (`auth-uat.swoovr.app`), the Zammad helpdesk (`helpdesk-uat.swoovr.app`), PostgreSQL, photo screening (`image-moderation`, private) and one virus scanner (`clamav`, private). Cloudflare sits in front.
 - **The `swoovr` command on the server** (`/opt/swoovr/swoovr-uat/bin/swoovr`) does every server-side step. GitHub only ever runs that command over SSH.
 - **Two GitHub workflows:**
   - **Deploy UAT** runs by itself when you push a version tag (section 3).

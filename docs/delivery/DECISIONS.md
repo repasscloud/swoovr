@@ -1402,3 +1402,12 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
   - `PUT /api/me/notification-settings` now keeps the stored chat values when they're omitted, as it already did for the limit. The Notifications page omits them.
   - So a page left open in another tab can't restore older values for settings it doesn't show (PR 434 review).
   - A restricted member doesn't see the card, because their settings answer 403.
+
+### D391 — UAT moves to a dedicated server that keeps the hostname `uat-01` (23 November 2026)
+
+**CONFIRMED** by the owner on [#394](https://github.com/repasscloud/swoovr/issues/394), 23 November 2026: the new dedicated server (Debian 13, root, one IPv4) replaces the Vultr VM of D361, and "this server will stay as `uat-01`". This supersedes D361's hosting choice. The bundle, workflow and `swoovr` command are unchanged.
+
+**DEFAULT** (builder):
+- `UAT_EXPECTED_HOSTNAME` stays `uat-01`. With both hosts named `uat-01`, the guard against deploying to the wrong box is the pinned `UAT_SSH_HOST_KEY` plus `UAT_SSH_HOST`, not the hostname.
+- `bin/tls-setup` and `bin/cloudflare-ips` now refuse to run before `bin/host-setup`: they print `run bin/host-setup first` instead of stopping half-way on a missing `curl`, `iptables` or `DOCKER-USER` chain (seen on the new host).
+- The `deploy/vultr-uat/` path and `VULTR-VM.md` keep their names until after cutover (the bundle layout doesn't change mid-migration). Renaming them is a follow-up on #394.

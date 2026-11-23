@@ -9,6 +9,10 @@ Labels follow the repository rules: **CONFIRMED** = owner requirement, **DEFAULT
 - **Answered later the same day:** Q-B: no Vultr firewall group exists and the host already accepts key-only SSH, so the runners connect directly; Tailscale stays manual. Q-D: a refresh empties the R2 photo bucket. The UAT_REFRESH_CONFIRM/approval gate was dropped: `DEPLOYMENT_MODE` alone selects refresh.
 - The owner wants **no** database dump of the current UAT (fresh start), so §8.4 is not needed.
 
+### Host replacement (23 November 2026, #394, D391)
+
+UAT moved from the Vultr VM to a **dedicated server that keeps the hostname `uat-01`**. Owner preflight on the new host: Debian 13.8 (trixie) amd64, 12 cores, 62 GiB RAM, two 465.8 GB NVMe disks in software RAID 1 (`md0` `/boot`, `md1` LVM root, 452 GB), public interface `enp1s0f1`, no `172.30.` address, no global IPv6. SSH is key-only (`00-swoovr.conf`). Same hostname means the `UAT_EXPECTED_HOSTNAME` check no longer tells the two hosts apart: the pinned `UAT_SSH_HOST_KEY` (and `UAT_SSH_HOST`) does. The collection below describes the **old Vultr VM** and is historical.
+
 ### Server collection results (12 November 2026, `collect-20261112-2225`)
 
 Collected with `scripts/uat/collect-server-state.sh` and checked by names, hashes and metadata only.
@@ -36,7 +40,7 @@ Related: [Vultr runbook](../../deploy/vultr-uat/README.md), [VM guide](../../dep
 
 ### 1.1 What is deployed
 
-The UAT stack runs on one Vultr cloud VM (D361, CONFIRMED) named `uat-01` (seen in #323), Debian, Docker, as the Compose project `swoovr-uat` from the unpacked bundle at `/opt/swoovr/swoovr-uat/`.
+The UAT stack runs on one dedicated server (D391, replacing the Vultr cloud VM of D361) named `uat-01`, Debian, Docker, as the Compose project `swoovr-uat` from the unpacked bundle at `/opt/swoovr/swoovr-uat/`.
 
 - **Release on the host:** `release.env` pins commit `5a7fa887d7b415818f74c691117084a575d315be` (the merge of PR #317). Its five Swoovr digests are identical to the committed [`swoovr-release/release-manifest.env`](../../swoovr-release/release-manifest.env). Its nine third-party pins are identical to [`deploy/vultr-uat/thirdparty.env`](../../deploy/vultr-uat/thirdparty.env).
 - **Bundle provenance:** every bundle file in the local backup (`compose.yaml`, `Caddyfile`, `bin/*`, `zammad/*`, `postgres/*`, `README.md`, `VULTR-VM.md`) is byte-identical to `deploy/vultr-uat/` at that commit.

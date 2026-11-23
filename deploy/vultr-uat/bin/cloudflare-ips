@@ -10,6 +10,12 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 cache=/etc/swoovr/cloudflare-ranges
 iface_file=/etc/swoovr/edge-interface
+# DOCKER-USER exists only once Docker (installed by bin/host-setup) is running; without it the rules can't load (#394).
+needed=(iptables); [[ "${1:-}" == --apply-cached ]] || needed+=(curl)
+for cmd in "${needed[@]}"; do
+  command -v "$cmd" > /dev/null || { echo "FAIL $cmd is not installed: run bin/host-setup first." >&2; exit 1; }
+done
+iptables -S DOCKER-USER > /dev/null 2>&1 || { echo 'FAIL no DOCKER-USER chain (Docker not installed or not running): run bin/host-setup first.' >&2; exit 1; }
 if [[ "${1:-}" != --apply-cached ]]; then
   v4="$(curl -fsSL https://www.cloudflare.com/ips-v4)"; v6="$(curl -fsSL https://www.cloudflare.com/ips-v6)"
   [[ $(wc -l <<<"$v4") -ge 10 ]] || { echo 'Unexpected Cloudflare IPv4 list.' >&2; exit 1; }

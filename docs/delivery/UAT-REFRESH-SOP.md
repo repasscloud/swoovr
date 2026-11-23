@@ -71,7 +71,7 @@ Run it from the repository root on `main` with a clean tree. It connects to the 
 
 ## 0. What a refresh is, and what it deletes
 
-UAT is the test copy of Swoovr. It runs on **one server**, named `uat-01`, hosted at Vultr. Everything (the apps, the databases, sign-in, the helpdesk) runs on that server in Docker. Cloudflare sits in front of it.
+UAT is the test copy of Swoovr. It runs on **one server**, named `uat-01`, a dedicated (physical) server (D391; until 23 November 2026 it was a Vultr VM of the same name). Everything (the apps, the databases, sign-in, the helpdesk) runs on that server in Docker. Cloudflare sits in front of it.
 
 You never type deployment commands on the server. Instead, GitHub does it: a GitHub **workflow** named **Deploy UAT** connects to the server and runs everything. A GitHub setting (a *repository variable*) named `DEPLOYMENT_MODE` tells that workflow which kind of deployment to do:
 
@@ -114,7 +114,7 @@ You need all of these. If one is missing, stop and get it first.
 | The repository checked out at `~/Developer/swoovr` | The commands run from it | Section 2.2 |
 | The GitHub command line `gh`, signed in to an account with **admin** rights on the repository https://github.com/repasscloud/swoovr | It changes GitHub settings and starts the workflow | Section 2.1 |
 | The deploy SSH key `~/.ssh/swoovr-uat-deploy` | To reach the server | Created once when UAT was built ([GitHub deployment, prerequisite 6](UAT-GITHUB-DEPLOYMENT.md#prerequisites-one-time)) |
-| The server's public IPv4 address | To reach the server | Vultr console: https://my.vultr.com/ → **Products** → **Compute** → the server `uat-01` → **IPv4** (Overview tab). Write it down; this page calls it `<server IPv4>` |
+| The server's public IPv4 address | To reach the server | The dedicated server provider's panel for `uat-01` (the same address is the `UAT_SSH_HOST` secret in the GitHub `uat` environment). Write it down; this page calls it `<server IPv4>` |
 | Access to the mailbox of the break-glass root admin address | It receives a set-up email (section 10) | See section 3, step 3.6, for how to see which address it is |
 | An authenticator app on your phone (Microsoft Authenticator, 1Password, Google Authenticator or similar) | Keycloak and the root admin need a 6-digit code | App Store |
 | Firefox, with the `swoovr-uat-admin` profile and Cloudflare's Origin CA root certificate imported into it | To open the private Keycloak admin console (section 9) | Section 2.4 sets up all of it, step by step |
@@ -908,7 +908,7 @@ Do all of these. Write down anything that doesn't match.
 | The run failed at **Validate tag, branch and mode** with *Deployment mode* | `DEPLOYMENT_MODE` has a typo | `gh variable set DEPLOYMENT_MODE --body refresh`, then `gh run rerun "$RUN"` |
 | Failed at **Images are public** | A GitHub package is private | For the package named in the error: https://github.com/orgs/repasscloud/packages → `swoovr-<name>` → **Package settings** → **Change visibility** → **Public**. Then `gh run rerun "$RUN" --failed` |
 | Failed at **Server preflight** with *host key verification failed* | The server's identity doesn't match | **Stop.** Ask for help. Never turn off the check |
-| Failed with `ssh: connection timed out` | Something blocks port 22 | Check the server is running in the Vultr console; ask for help |
+| Failed with `ssh: connection timed out` | Something blocks port 22 | Check the server is running in the dedicated server provider's panel (or its out-of-band console); ask for help |
 | Failed with `another deployment is running` | Another run or maintenance job holds the lock | Wait for it, then `gh run rerun "$RUN" --failed` |
 | Failed with `FAIL …: … is not filled` | A setting is missing | Set it (section 3.5), then `gh run rerun "$RUN" --failed` |
 | Failed at **pre-refresh-backup** | The backup failed. **Nothing was deleted** | Usually disk space (needs 5 GB free in `/opt/swoovr/backups`). Ask for help; then `gh run rerun "$RUN" --failed` |
