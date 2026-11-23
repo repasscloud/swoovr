@@ -1086,7 +1086,7 @@ Reversible: set `emailTheme` back to `base` (Keycloak), or pass no `Html` (API).
 | 2 | Photo verification | **Optional** for members, never a prerequisite for sign-up or general access. Status reflects the real outcome, with invalidation, expiry and revocation | Not built (D132). New issue [#372](https://github.com/repasscloud/wanderconnect/issues/372) |
 | 3 | Identity verification | **Approved**: Didit approach, kept separate from photo verification; production integration testing before public release | Built (D126–D129, D166, D186). Production integration testing outstanding |
 | 4 | Ban evasion | **Risk-based**: flag suspected re-registrations for manual review. An unconfirmed signal never bans automatically. No unnecessary or indefinite biometric retention; staff decisions audited | Exact email/mobile fingerprints block (D217); D191 identity HMAC is exact-match only. Review queue for weaker signals: new issue [#373](https://github.com/repasscloud/wanderconnect/issues/373). Related #83, #99 |
-| 5 | Sensitive media | **Recipient opt-in**: blocked by default; explicit, revocable recipient consent; classification and moderation before delivery; existing ID/age rules still apply | Built for albums: per-profile "Receive explicit media", off by default, only while ID Verified (D338, `ExplicitMediaPolicy`). Chat photos carry no explicit content (D178/D203). App-store policy: #54 |
+| 5 | Sensitive media | **Recipient opt-in**: blocked by default; explicit, revocable recipient consent; classification and moderation before delivery; existing ID/age rules still apply | Built for albums: per-profile "Receive explicit media", off by default, only while ID Verified (D338, `ExplicitMediaPolicy`). Chat photos carry no explicit content (D178/D203) until D389 ([#431](https://github.com/repasscloud/swoovr/issues/431)): a stored rating, album sharing in chat gated on the recipient's choice, Q182 open. App-store policy: #54 |
 | 6 | Location protection | **Approved**: server-side distances, no precise coordinates to others, probing/triangulation safeguards, arrival privacy kept | Built: coordinates never leave the server (D110), arrival keeps none (D149), snapped bands and per-hour search/filter limits (`LocationPrivacy`, D347/D348). Near me (D351) ships with #278–#283 |
 | 7 | Block and report | **Retain**; new features need block/report before release | Built for profiles, requests, messages, conversations. Keep testing |
 | 8 | Moderation | **Retain** queues, evidence, escalation, appeals and audit | Built (D131, D133–D136, D216). Keep testing |
@@ -1350,6 +1350,27 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
   - **ID Verified** has its own row: "Yes", or "No" as a red pill (`data-tone="warn"`).
   - New reject reason `REJECT_EXPLICIT_NO_ID`, "Explicit content not allowed without ID verification". When the owner isn't ID Verified it is the first Reject reason, so **R** selects it; for a verified owner it isn't offered (the API accepts it like any other reject reason).
   - The member sees: "Nudity or sexual content needs ID verification. Verify your ID, then you can upload adult photos into a private album." It is appealable like other rejections.
+
+### D389 — Explicit media: a stored rating on every photo, chat delivery gated on the recipient's choice, explicit albums (23 November 2026)
+
+**CONFIRMED** by the owner (23 November 2026), tracked in [#431](https://github.com/repasscloud/swoovr/issues/431). These extend D338's later slices and replace "chat photos carry no explicit content" (D178/D203/D209) with the rules below:
+1. Nudes sent straight to chat are rejected.
+2. Nudes in albums can be added and sent, but only to a recipient who has turned on Receive explicit media.
+3. Every new image (camera or upload) passes the filters before it is shown in chat.
+4. Every new image added to chat is moderated. A nude is marked **explicit**, and its delivery is allowed or denied by the recipient's settings.
+5. Explicit images live in an album, and that album shows **contains explicit**. Deleting the last explicit photo clears it.
+6. A photo that passes moderation is shown at once, in an album, the profile, the library or chat.
+
+**OPEN** in Q182 ([#432](https://github.com/repasscloud/swoovr/issues/432)). Rules 1 and 4 overlap for a nude sent straight to chat (182.1). "Moderated" could mean the automatic check or a person for every chat photo (182.2). Plus sending a whole album (182.3), opt-out after delivery (182.4), which mode's switch counts (182.5), recipient blur (182.6) and the recipient's export (182.7).
+
+**DEFAULT** (design to build; not built yet; reversible):
+- **Rating.** `media_items.content_rating` is `standard` | `explicit`, and only a reviewer decision sets `explicit` (D205: the automatic check only flags). Every `album_only` row is backfilled to `explicit`. `album_only` still means "lives only in its album". Explicit photos never reach a mode, the main photo, Explore, Traveller cards, onboarding or the library list.
+- **Album flag.** Derived in queries (at least one live explicit photo), never stored, so it can't drift. The owner sees an **Explicit** badge.
+- **Direct chat photos** (182.1 A, 182.2 A). Camera and upload share `POST /conversations/{id}/photos` and the unchanged D203 pipeline. A passed photo is delivered live at once. A flagged one goes to review. New reject reason `REJECT_EXPLICIT_CHAT` refuses it and sets `explicit`. Only the sender is told, and an ID Verified sender is offered **Save to a private album** (album-only explicit, no second review). The recipient learns nothing.
+- **Album photos in chat.** A photo, or the whole album (182.3 A), sent from your own album isn't re-screened. An explicit photo needs all of these: the sender ID Verified now; the recipient ID Verified now, with `ExplicitMediaPolicy.Effective` on for a mode the pair is connected in that the album is assigned to (182.5 A); no block, an open conversation, Photos in chat on, and the normal send rules and 20-a-day limit. Otherwise it gets 409 `explicit-not-accepted` with sender-only wording. The server decides; the client only hides options.
+- **Checked again on every view.** A member link to an explicit photo is issued only after the gate passes again. Opt-out, an ID Verified lapse, a block or the end of the conversation stops delivered photos loading (182.4 A). The recipient sees them blurred with Show (182.6 A).
+- **Never bypassed.** Malware, Arachnid and the nudity/NSFW check run on every new upload. No opt-in or verification skips them. D338's "direct-chat moderation bypass" means no more than "an approved album photo isn't screened again".
+- **Elsewhere.** Push, notification and list previews never carry an image. The recipient's export lists "photo (explicit)" without the image (182.7 A). Reports keep explicit photos as evidence (D209). A rating overturn goes through the D338 appeals queue to a different admin. Photos found explicit after passing are counted for threshold calibration (Q81). Public policy text is unchanged (D310). Mobile (Flutter) explicit features wait for an owner decision on store rules (#54).
 
 ### D390 — Member redesigns: Your profile, Who I'd like to meet, Notifications; chat settings on Privacy & safety (23 November 2026)
 

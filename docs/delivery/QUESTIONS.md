@@ -2924,3 +2924,16 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 - **181.6** Pronouns: a list plus Self-describe (`varchar(50)`) and a separate Show my pronouns switch. **DEFAULT A:** switch defaults gender on, pronouns on, orientation off, age on; existing free text maps to a list option or Self-describe. B: other defaults.
 - **181.7** Who goes through the flow. **DEFAULT A:** every account without the completion flag, shown only the steps still missing. B: everyone, every step. C: new accounts only.
 - **181.8** Minimum to finish. **DEFAULT A:** at least one mode; gender, and at least one "show me", required only when Dating is on. B: gender required for everyone.
+
+## Explicit media in chat — [#431](https://github.com/repasscloud/swoovr/issues/431), 23 November 2026
+
+### Q182 — Explicit media in chat: open decisions
+
+- Issue: [#432](https://github.com/repasscloud/swoovr/issues/432) (for #431). Status: OPEN. Earliest blocking phase: the #431 chat-delivery slice (182.1, 182.2). Work proceeds on every DEFAULT (A), recorded as **D389**; an answer changes D389.
+- **182.1 A nude sent straight to chat.** **DEFAULT A:** never delivered directly. It is marked explicit, and the sender alone gets a notice, plus **Save to a private album** if ID Verified. From the album it follows the recipient's setting. **B:** delivered directly when both are ID Verified and the recipient has opted in, and it is also filed into the sender's album. **C:** always rejected, with no album offer.
+- **182.2 Who moderates chat photos.** **DEFAULT A:** the automatic check for every photo, a person only for flagged ones (passed photos show at once). **B:** a person reviews every chat photo before delivery, so nothing shows at once.
+- **182.3 What can be sent from an album.** **DEFAULT A:** single photos and the whole album, both gated per photo. **B:** single photos only.
+- **182.4 Opt-out after delivery.** **DEFAULT A:** explicit photos already delivered stop loading when the recipient turns the switch off, ID Verified lapses, someone blocks or the chat ends. **B:** only future sends are affected.
+- **182.5 Which profile's switch counts.** A pair can be connected in several modes. **DEFAULT A:** the album must be in a mode the pair is connected in, and the recipient's switch must be on for that mode. **B:** on for every connected mode.
+- **182.6 Recipient display.** **DEFAULT A:** explicit photos open blurred with Show, even when opted in. **B:** shown normally once opted in.
+- **182.7 Recipient's data export.** **DEFAULT A:** lists "photo (explicit)" without the image. **B:** includes the image.
