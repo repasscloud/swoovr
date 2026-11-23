@@ -27,6 +27,20 @@ async function mailLink(to, after) {
   }
   throw Error('Expected email was not caught by the mail sink');
 }
+// The simulated SMS sender addresses each code to sms-<E.164 digits>@simulated.swoovr.invalid (VerificationSenders.Address),
+// so only this phone's messages count, even when other local checks are sending codes at the same time.
+async function mailCode(phone, after) {
+  const to = `sms-${phone.replace(/^\+/, '')}@simulated.swoovr.invalid`;
+  for (let i = 0; i < 40; i++) {
+    const list = await (await fetch(mailSink + '/api/v1/messages')).json();
+    for (const m of list.messages.filter(m => Date.parse(m.Created) >= after - 1000 && m.To.some(t => t.Address.toLowerCase() === to))) {
+      const text = (await (await fetch(`${mailSink}/api/v1/message/${m.ID}`)).json()).Text;
+      const code = /Your Swoovr code is (\d{6})/.exec(text)?.[1]; if (code) return code;
+    }
+    await sleep(250);
+  }
+  throw Error('Expected the simulated mobile code in the mail sink');
+}
 async function mailCount(to) {
   const list = await (await fetch(mailSink + '/api/v1/messages')).json();
   return list.messages.filter(m => m.To.some(t => t.Address === to)).length;
@@ -74,11 +88,13 @@ async function mailCount(to) {
     assert.match(await page.locator('.sw-ver').innerText(), /^Version \d+\.\d+\.\d+$/); assert.doesNotMatch(await page.locator('body').innerText(), /in development|Starting in Adelaide/i); pass();
     assert.equal(await page.locator('[data-scheme], input[name=scheme]').count(), 0); pass();
     await assertSwoovrType(page, 'Keycloak sign-in'); pass();
-    // The prototype's white sign-in screen is the Standard surface token (#FFFFFF light, #161616 dark).
-    await themeCheck(async()=>assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(255, 255, 255)'));
+    // Standard tokens: on desktop (760px and wider) the page is the background (#FAFAFA light, #0A0A0A dark) and the form
+    // sits on a surface card (#FFFFFF light, #161616 dark); phones keep the full-surface screen.
+    const colours = () => page.evaluate(() => [getComputedStyle(document.body).backgroundColor, getComputedStyle(document.querySelector('.pf-v5-c-login__container')).backgroundColor]);
+    await themeCheck(async()=>assert.deepEqual(await colours(), ['rgb(250, 250, 250)', 'rgb(255, 255, 255)']));
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.waitForFunction(() => document.documentElement.classList.contains('pf-v5-theme-dark'));
-    await themeCheck(async()=>assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(22, 22, 22)'));
+    await themeCheck(async()=>assert.deepEqual(await colours(), ['rgb(10, 10, 10)', 'rgb(22, 22, 22)']));
     await assertSwoovrType(page, 'Keycloak sign-in dark'); pass();
     await shot(page, 'sign-in-dark');
     await page.emulateMedia({ colorScheme: 'light' });
@@ -119,8 +135,26 @@ async function mailCount(to) {
     await page.check('[data-onboarding-names-confirm]');
     await page.click('[data-onboarding-step=names] button[type=submit]');
     await page.waitForSelector('[data-onboarding-step=names]',{state:'detached'});pass();
-    await page.waitForSelector('[data-onboarding-step=dob]');await page.fill('#onboarding-dob','1990-05-01');await page.check('[data-onboarding-dob-confirm]');
-    await page.click('[data-onboarding-step=dob] button[type=submit]');await page.waitForSelector('[data-onboarding-step=done]');pass();
+    // Issue 134: walk the current set-up steps (D342, D382) in whatever order they come: date of birth, mobile number and its
+    // code, then the profile steps. Only the steps this suite needs are filled; the rest have their own suite.
+    const seen = [], phone = '+61491570006';
+    for (let i = 0; i < 15 && new URL(page.url()).pathname === '/welcome'; i++) {
+      const at = await page.waitForSelector('[data-onboarding-step]', { timeout: 20000 }).then(el => el.getAttribute('data-onboarding-step')).catch(() => null);
+      if (!at) break;
+      seen.push(at);
+      if (at === 'dob') { await page.fill('#onboarding-dob', '1990-05-01'); await page.check('[data-onboarding-dob-confirm]'); }
+      else if (at === 'mobile') { started = Date.now(); await page.fill('#onboarding-mobile', '0491 570 006'); } // Australia: +61491570006
+      else if (at === 'code') await page.fill('#onboarding-code', await mailCode(phone, started));
+      else if (at === 'profile') { if (!await page.locator('[data-city-picked]').count()) { await page.fill('#onboarding-home-city', 'Adelaide'); await page.locator('[data-city]').first().click(); } }
+      else if (at === 'photos') { await page.click('[data-onboarding-words-instead]'); continue; }
+      else if (at === 'picture-text') await page.fill('#onboarding-picture-text', 'Coffee first, then mountains.');
+      else if (at === 'modes') await page.check('[data-onboarding-mode=friends] input');
+      await page.click(`[data-onboarding-step=${at}] button[type=submit]`);
+      await page.waitForFunction(name => document.querySelector('[data-onboarding-step]')?.getAttribute('data-onboarding-step') !== name, at, { timeout: 20000 });
+    }
+    assert.ok(seen.includes('dob'), `set-up asked for the date of birth (${seen.join(', ')})`);
+    pass();
+    await page.waitForURL(url => new URL(url).pathname !== '/welcome', { timeout: 20000 }); pass();
     await page.goto(web+'/account');await accountReady(page);
     assert.match(await page.locator('h1').innerText(), /Account settings/); pass();
     assert.equal(await page.locator('[data-adult-attested]').getAttribute('data-adult-attested'), 'true'); pass();
@@ -136,7 +170,7 @@ async function mailCount(to) {
     assert.ok([404, 405].includes((await page.request.get(web + '/account/sign-out', { maxRedirects: 0 })).status())); pass();
     await page.goto(web + '/account'); await accountReady(page);
     assert.match(await page.locator('h1').innerText(), /Account settings/, 'GET must not sign out'); pass();
-    await Promise.all([page.waitForURL(web + '/'), page.click('text=Sign out')]);
+    await Promise.all([page.waitForURL(web + '/'), page.getByRole('button', { name: 'Sign out', exact: true }).click()]);
     await page.goto(web + '/account');
     assert.equal(page.url(),web+'/','guest account navigation returns to the home preview');pass();
     assert.equal(await page.locator('a[href="/account/sign-in"]').count()>0,true);pass();
