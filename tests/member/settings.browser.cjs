@@ -18,12 +18,12 @@ module.exports=async({page,context,sql,ownedMedia,root})=>{
  await page.fill('#home-city','Adelaide');await page.locator('[data-city="2078025"]').click();
  const label=await page.locator('[data-city-search] > label').boundingBox(),value=await page.locator('[data-city-picked]').boundingBox();assert(label.y+label.height<=value.y,'City label stays above selected value');
  await page.locator('[data-core-form] button[type=submit]').click();await page.locator('[data-core-status=saved]').waitFor();
- const friends=page.locator('[data-mode-card=friends]');await friends.locator('input[type=checkbox]').nth(0).check();await friends.locator('[data-mode-enabled]').count();await page.locator('[data-mode-card=friends][data-mode-enabled=true]').waitFor();
+ const friends=page.locator('[data-mode-card=friends]');if(await friends.getAttribute('data-mode-open')!=='true')await page.locator('[data-mode-toggle=friends]').click();await friends.locator('input[type=checkbox]').nth(0).check();await friends.locator('[data-mode-enabled]').count();await page.locator('[data-mode-card=friends][data-mode-enabled=true]').waitFor();
  await friends.locator('input[type=checkbox]').nth(1).uncheck();await page.locator('[data-mode-card=friends][data-mode-visible=false]').waitFor();
  await page.reload();await page.locator('[data-mode-card=friends][data-mode-visible=false]').waitFor();assert.equal(await page.inputValue('#display-name'),'Fictional Member');
  await page.goto(base+'/me/matching');await page.locator('[data-filter-form=dating]').waitFor();
- await page.fill('#min-age','24');await page.fill('#max-age','44');await page.locator('#max-age').blur();await page.selectOption('#filter-mode','friends');await page.locator('[data-filter-form=friends]').waitFor();
- await page.selectOption('#filter-mode','dating');await page.locator('[data-filter-form=dating]').waitFor();assert.equal(await page.inputValue('#min-age'),'24');assert.equal(await page.inputValue('#max-age'),'44');await page.locator('[data-filter-status=draft]').waitFor();
+ await page.selectOption('#min-age','24');await page.selectOption('#max-age','44');await page.locator('#max-age').blur();await page.check('[data-filter-mode=friends]');await page.locator('[data-filter-form=friends]').waitFor();
+ await page.check('[data-filter-mode=dating]');await page.locator('[data-filter-form=dating]').waitFor();assert.equal(await page.inputValue('#min-age'),'24');assert.equal(await page.inputValue('#max-age'),'44');await page.locator('[data-filter-status=draft]').waitFor();
  const requiredChip=page.locator('[data-required-chip]').first(),excludedChip=page.locator('[data-excluded-chip]').nth(1);
  const requiredId=await requiredChip.getAttribute('data-required-chip'),excludedId=await excludedChip.getAttribute('data-excluded-chip');
  await requiredChip.check();assert(await page.locator(`[data-excluded-chip="${requiredId}"]`).isDisabled());await excludedChip.check();
@@ -34,13 +34,13 @@ module.exports=async({page,context,sql,ownedMedia,root})=>{
  await page.reload();await page.locator('[data-filter-form=dating]').waitFor();assert.equal(await page.inputValue('#min-age'),'24');
  assert.equal(await page.locator('[data-plus-filters]').getAttribute('data-plus-filters'),'off');assert(await page.locator('#distance').isDisabled());
  // A transient read failure must retain the cached draft; a delayed switch must not expose stale fields.
- await page.fill('#min-age','25');await page.locator('#min-age').blur();
- await page.selectOption('#filter-mode','friends');await page.locator('[data-filter-form=friends]').waitFor();
+ await page.selectOption('#min-age','25');await page.locator('#min-age').blur();
+ await page.check('[data-filter-mode=friends]');await page.locator('[data-filter-form=friends]').waitFor();
  await page.route('**/bff/api/me/modes/dating/filters',async route=>{await sleep(600);await route.fulfill({status:503,contentType:'application/problem+json',body:'{"code":"test-owned-transient"}'});},{times:1});
- await page.selectOption('#filter-mode','dating');assert.equal(await page.locator('[data-filter-form]').count(),0,'No stale previous-mode fields during load');
+ await page.check('[data-filter-mode=dating]');assert.equal(await page.locator('[data-filter-form]').count(),0,'No stale previous-mode fields during load');
  await page.getByText('We couldn’t load this mode’s filters.',{exact:false}).waitFor();
- await page.selectOption('#filter-mode','friends');await page.locator('[data-filter-form=friends]').waitFor();
- await page.selectOption('#filter-mode','dating');await page.locator('[data-filter-form=dating]').waitFor();assert.equal(await page.inputValue('#min-age'),'25','Draft survives failed reload');
+ await page.check('[data-filter-mode=friends]');await page.locator('[data-filter-form=friends]').waitFor();
+ await page.check('[data-filter-mode=dating]');await page.locator('[data-filter-form=dating]').waitFor();assert.equal(await page.inputValue('#min-age'),'25','Draft survives failed reload');
  await page.locator('[data-filter-form] button[type=submit]').click();await page.locator('[data-filter-status=saved]').waitFor();
  // Author only synthetic photo fixture state in the disposable database. This is not a live moderation result.
  const account=await sql("SELECT id FROM accounts WHERE email LIKE 'swoovr-member-settings-%@example.test'");assert(account);

@@ -51,7 +51,8 @@ const plus = days => { const d = new Date(todayIn('Australia/Adelaide') + 'T00:0
 
     // Options are data (D138).
     let r = await call(tokens.ana, '/api/profile-options');
-    assert.deepEqual(r.body.genders.map(g => g.id), [...everyone, 'unsaid']); assert.ok(r.body.orientations.length >= 5); pass();
+    assert.deepEqual(r.body.genders.map(g => g.id), ['man', 'woman', 'trans-man', 'trans-woman', 'non-binary', 'another', 'unsaid']); // D382 (Q181.1 A)
+    assert.deepEqual(r.body.showMe.map(g => g.id), everyone); // "Man" and "Woman" include Trans man and Trans woman assert.ok(r.body.orientations.length >= 5); pass();
 
     // Date of birth (D139): required, never an age alone, never shown.
     assert.deepEqual(code(await call(tokens.eve, '/api/me/age', { method: 'PUT', body: { age: 30 } })), [400, 'date-of-birth-required']); pass();
@@ -109,7 +110,7 @@ const plus = days => { const d = new Date(todayIn('Australia/Adelaide') + 'T00:0
     assert.ok(ids_(await explore('oth', 'dating')).includes(pid.gus)); pass(); // oth sees women, not only "another"
     // Identity validation; orientation never decides who anyone sees.
     assert.deepEqual(code(await call(tokens.gus, '/api/me/identity', { method: 'PUT', body: { gender: 'robot', showGender: true, showOrientation: false, showAge: true, datingShowMe: everyone } })), [400, 'invalid-profile']); pass();
-    assert.deepEqual(code(await call(tokens.gus, '/api/me/identity', { method: 'PUT', body: { gender: 'man', pronouns: 'x'.repeat(41), showGender: true, showOrientation: false, showAge: true, datingShowMe: everyone } })), [400, 'invalid-profile']); pass();
+    assert.deepEqual(code(await call(tokens.gus, '/api/me/identity', { method: 'PUT', body: { gender: 'man', pronouns: 'x'.repeat(51), showGender: true, showOrientation: false, showAge: true, datingShowMe: everyone } })), [400, 'invalid-profile']); pass(); // D382: pronouns up to 50
     assert.deepEqual(code(await call(tokens.gus, '/api/me/identity', { method: 'PUT', body: { gender: 'man', showGender: true, showOrientation: false, showAge: true, datingShowMe: ['robot'] } })), [400, 'invalid-profile']); pass();
     await call(tokens.dex, '/api/me/identity', { method: 'PUT', body: { gender: 'non-binary', orientation: 'gay', showGender: true, showOrientation: true, showAge: true, datingShowMe: everyone } });
     assert.ok(ids_(await explore('gus', 'dating')).includes(pid.dex)); pass();
@@ -209,7 +210,7 @@ const plus = days => { const d = new Date(todayIn('Australia/Adelaide') + 'T00:0
     await page.click('[data-identity-form] button[type=submit]');
     await page.waitForSelector('[data-identity-status=saved]'); pass();
     assert.equal(await sql(`SELECT gender_id || ':' || array_to_string(dating_show_me, ',') FROM member_identities WHERE account_id = '${ids.fay}'`), 'woman:man'); pass();
-    await page.fill('#min-age', '25'); await page.fill('#max-age', '45');
+    await page.selectOption('#min-age','25'); await page.selectOption('#max-age','45');
     await page.click('[data-filter-form] button[type=submit]');
     await page.waitForSelector('[data-filter-status=saved]'); pass();
     assert.equal(await page.locator('[data-plus-filters]').getAttribute('data-plus-filters'), 'off'); pass();

@@ -85,14 +85,15 @@ const NEUTRAL = "You've reached the unanswered message limit for this conversati
   await page.waitForSelector('[data-composer][data-composer-state="open"]');pass();
   assert.equal((await settings('b',{unansweredLimit:5})).status,200);
 
-  // Web: B's setting is in Notifications next to photos in chat, and saves.
+  // Web: B's setting is on Privacy & safety in the Chat card, next to photos in chat (issue 415, D390), and saves.
   const bContext=await browser.newContext();const bPage=await bContext.newPage();
   await bPage.goto(web+'/account/sign-in?intro=done');await bPage.fill('#username',members[1].email);await bPage.fill('#password',members[1].password);
   await Promise.all([bPage.waitForURL(web+'/explore'),bPage.click('#kc-login')]);
-  await bPage.goto(web+'/me/notifications');await bPage.waitForSelector('[data-setting="unanswered-limit"]');
+  await bPage.goto(web+'/me/safety');await bPage.waitForSelector('[data-chat-settings] [data-setting="unanswered-limit"]');
   assert.equal(await bPage.inputValue('[data-setting="unanswered-limit"]'),'5');pass();
-  await bPage.selectOption('[data-setting="unanswered-limit"]','10');await bPage.click('[data-save-settings]');
-  await bPage.waitForSelector('[data-settings-status="saved"]');
+  await bPage.selectOption('[data-setting="unanswered-limit"]','10');await bPage.click('[data-save-chat]');
+  await bPage.waitForSelector('[data-chat-status="saved"]');
+  await bPage.goto(web+'/me/notifications');await bPage.waitForSelector('[data-notifications="ready"]');assert.equal(await bPage.locator('[data-setting="unanswered-limit"]').count(),0);pass();
   assert.equal((await call(tk.b,'/api/me/notification-settings')).body.unansweredLimit,10);pass();
   await context.close();await bContext.close();
   console.log(`PASS: unanswered-message limit (${passed} checks).`);

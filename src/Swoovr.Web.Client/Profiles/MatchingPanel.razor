@@ -3,6 +3,7 @@
    decides who anyone sees. Filters are per mode: the free ones for everyone (including distance up to 50 km, D347), the
    wider distances and Plus sorting when the entitlement service says Plus (D151). Excluded intentions work both ways: people holding one can't find or contact you in that mode. *@
 @inject MemberClient Members
+<div class="rd-page">
 <div class="page-heading" data-matching="@(loaded ? (options is null ? "refused" : "ready") : "loading")">
     <p class="breadcrumb"><a href="/account">Me</a> / Who I'd like to meet</p>
     <h1>Who I'd like to meet</h1>
@@ -11,73 +12,110 @@
 </div>
 @if (options is not null)
 {
-    <section class="card account-section" aria-labelledby="identity-heading">
-        <h2 id="identity-heading">About you</h2>
-        <form class="stack" @onsubmit="SaveIdentityAsync" data-identity-form>
-            <div class="field"><label for="gender">Gender</label>
-                <select id="gender" @bind="gender"><option value="">Not set</option>@foreach (var g in options.Genders) { <option value="@g.Id">@g.Label</option> }</select></div>
-            @if (gender == "another") { <div class="field"><label for="gender-description">Describe it (optional)</label><input id="gender-description" maxlength="40" @bind="genderDescription" /></div> }
-            @* Issue 389 (D382): a pronoun list plus Self-describe (50 characters), with its own switch. *@
-            <div class="field"><label for="pronouns">Pronouns (optional)</label>
-                <select id="pronouns" @bind="pronounId"><option value="">Not set</option>@foreach (var p in options.Pronouns ?? []) { <option value="@p.Id">@p.Label</option> }</select></div>
-            @if (pronounId == "self") { <div class="field"><label for="pronouns-own">Your pronouns</label><input id="pronouns-own" maxlength="50" @bind="pronouns" data-pronouns-own /></div> }
-            <div class="field"><label for="orientation">Orientation (optional, never used to decide who sees you)</label>
-                <select id="orientation" @bind="orientation"><option value="">Not set</option>@foreach (var o in options.Orientations) { <option value="@o.Id">@o.Label</option> }</select></div>
-            <label class="check"><input type="checkbox" @bind="showGender" data-show-gender /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my gender</label>
-            <label class="check"><input type="checkbox" @bind="showPronouns" data-show-pronouns /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my pronouns</label>
-            <label class="check"><input type="checkbox" @bind="showOrientation" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my orientation</label>
-            <label class="check"><input type="checkbox" @bind="showAge" data-show-age /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my age</label>
-            <fieldset data-show-me><legend>In Dating, show me</legend>
+    @* Issue 418 (owner-approved mockup): identity in one row, what shows on your profile and Dating's "show me" as chips. *@
+    <section class="rd-card" aria-labelledby="identity-heading">
+        <div class="rd-row rd-row-baseline"><h2 id="identity-heading">About you</h2><p class="field-help">Orientation never decides who sees you.</p></div>
+        <form @onsubmit="SaveIdentityAsync" data-identity-form>
+            <div class="rd-grid rd-grid-3">
+                <div class="field"><label for="gender">Gender</label>
+                    <select id="gender" @bind="gender"><option value="">Not set</option>@foreach (var g in options.Genders) { <option value="@g.Id">@g.Label</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                @* Issue 389 (D382): a pronoun list plus Self-describe (50 characters), with its own switch. *@
+                <div class="field"><label for="pronouns">Pronouns</label>
+                    <select id="pronouns" @bind="pronounId"><option value="">Not set</option>@foreach (var p in options.Pronouns ?? []) { <option value="@p.Id">@p.Label</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                <div class="field"><label for="orientation">Orientation</label>
+                    <select id="orientation" @bind="orientation"><option value="">Not set</option>@foreach (var o in options.Orientations) { <option value="@o.Id">@o.Label</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                @if (gender == "another") { <div class="field"><label for="gender-description">Describe your gender (optional)</label><input id="gender-description" maxlength="40" @bind="genderDescription" /></div> }
+                @if (pronounId == "self") { <div class="field"><label for="pronouns-own">Your pronouns</label><input id="pronouns-own" maxlength="50" @bind="pronouns" data-pronouns-own /></div> }
+            </div>
+            <fieldset class="rd-group"><legend>On my profile</legend>
+                <div class="rd-chips">
+                    <label class="rd-chip"><input type="checkbox" @bind="showGender" data-show-gender />Gender</label>
+                    <label class="rd-chip"><input type="checkbox" @bind="showPronouns" data-show-pronouns />Pronouns</label>
+                    <label class="rd-chip"><input type="checkbox" @bind="showOrientation" data-show-orientation />Orientation</label>
+                    <label class="rd-chip"><input type="checkbox" @bind="showAge" data-show-age />Age</label>
+                </div>
+            </fieldset>
+            <fieldset class="rd-group" data-show-me><legend>In Dating, show me</legend>
                 @* D161: "Prefer not to say" is a privacy choice, not a gender, so it's never a "show me" option. D382 (Q181.1 A): "Man" and
                    "Woman" include Trans man and Trans woman, so the API's ShowMe list has four choices. *@
-                @foreach (var g in options.ShowMe ?? options.Genders.Where(g => g.Id is not ("unsaid" or "trans-man" or "trans-woman")))
-                {
-                    <label class="check"><input type="checkbox" checked="@showMe.Contains(g.Id)" @onchange="e => Toggle(showMe, g.Id, e)" data-show-me-option="@g.Id" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> @g.Label</label>
-                }
+                <div class="rd-chips">
+                    @foreach (var g in options.ShowMe ?? options.Genders.Where(g => g.Id is not ("unsaid" or "trans-man" or "trans-woman")))
+                    {
+                        <label class="rd-chip"><input type="checkbox" checked="@showMe.Contains(g.Id)" @onchange="e => Toggle(showMe, g.Id, e)" data-show-me-option="@g.Id" />@g.Label</label>
+                    }
+                </div>
+                <p class="field-help">Works both ways: you see someone in Dating only if each of you is in the other's choice. People who prefer not to say their gender can appear for anyone.</p>
             </fieldset>
-            <p class="field-help">"Show me" works both ways: you see someone in Dating only if each of you is in the other's choice. People who prefer not to say their gender can appear for anyone.</p>
-            <button type="submit" class="button" disabled="@busy">Save identity</button>
-            <p role="status" aria-live="polite" class="field-help" data-identity-status="@identityStatus">@identityMessage</p>
+            <div class="rd-actions">
+                <p role="status" aria-live="polite" class="field-help rd-status" data-identity-status="@identityStatus">@identityMessage</p>
+                <button type="submit" class="button" disabled="@busy">Save</button>
+            </div>
         </form>
     </section>
-    <section class="card account-section" aria-labelledby="filters-heading">
-        <h2 id="filters-heading">Filters</h2>
-        <div class="field"><label for="filter-mode">Mode</label>
-            <select id="filter-mode" value="@modeId" disabled="@busy" @onchange="ChangeModeAsync">@foreach (var m in modes) { <option value="@m.Id">@m.Label</option> }</select></div>
+    <section class="rd-card" aria-labelledby="filters-heading">
+        <div class="rd-row">
+            <h2 id="filters-heading">Filters</h2>
+            <div class="segmented" role="radiogroup" aria-label="Mode">
+                @foreach (var m in modes)
+                {
+                    <label class="segment"><input type="radio" name="filter-mode" value="@m.Id" checked="@(m.Id == modeId)" disabled="@busy" @onchange="ChangeModeAsync" data-filter-mode="@m.Id" />@m.Label</label>
+                }
+            </div>
+        </div>
         @if (filter is not null)
         {
-            <form class="stack" @onsubmit="SaveFiltersAsync" data-filter-form="@modeId">
+            <form @onsubmit="SaveFiltersAsync" data-filter-form="@modeId">
                 <fieldset disabled="@busy" class="settings-fields">
-                <div class="field-row">
-                    <div class="field"><label for="min-age">Age from</label><input id="min-age" type="number" min="18" max="120" @bind="minAge" /></div>
-                    <div class="field"><label for="max-age">to</label><input id="max-age" type="number" min="18" max="120" @bind="maxAge" /></div>
+                <div class="rd-row rd-start">
+                    @* Issue 418 (owner): the age range on one line, picked from a list. *@
+                    <div class="rd-age rd-age-compact" role="group" aria-labelledby="age-label">
+                        <span class="rd-age-label" id="age-label">Age</span>
+                        <div class="field"><label for="min-age" class="visually-hidden">Age from</label>
+                            <select id="min-age" @bind="minAge"><option value="">Any</option>@foreach (var n in Ages) { <option value="@n" disabled="@(maxAge is { } top && n > top)">@n</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                        <span class="field-help">to</span>
+                        <div class="field"><label for="max-age" class="visually-hidden">Age to</label>
+                            <select id="max-age" @bind="maxAge"><option value="">Any</option>@foreach (var n in Ages) { <option value="@n" disabled="@(minAge is { } bottom && n < bottom)">@n</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                    </div>
+                    <label class="rd-switch"><input type="checkbox" class="ph-switch" @bind="idVerifiedOnly" data-id-only /><span>ID Verified people only</span></label>
                 </div>
-                <label class="check"><input type="checkbox" @bind="idVerifiedOnly" data-id-only /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> ID Verified people only</label>
-                <fieldset><legend>Must have (@required.Count of 5)</legend>
-                    <label class="check"><input type="radio" name="match" checked="@(match == "any")" @onchange='() => match = "any"' /> Any of these</label>
-                    <label class="check"><input type="radio" name="match" checked="@(match == "all")" @onchange='() => match = "all"' /> All of these</label>
-                    @foreach (var chip in Chips) { <label class="check"><input type="checkbox" disabled="@(busy || !required.Contains(chip.Id) && (required.Count >= 5 || excluded.Contains(chip.Id)))" checked="@required.Contains(chip.Id)" @onchange="e => Toggle(required, chip.Id, e)" data-required-chip="@chip.Id" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> @chip.Label</label> }
+                <fieldset class="rd-group">
+                    <legend>Must have <span class="rd-count">· @required.Count of 5</span></legend>
+                    <div class="segmented" role="radiogroup" aria-label="Match">
+                        <label class="segment"><input type="radio" name="match" checked="@(match == "any")" @onchange='() => match = "any"' />Any of these</label>
+                        <label class="segment"><input type="radio" name="match" checked="@(match == "all")" @onchange='() => match = "all"' />All of these</label>
+                    </div>
+                    <div class="rd-chips">
+                        @foreach (var chip in Chips) { <label class="rd-chip"><input type="checkbox" disabled="@(busy || !required.Contains(chip.Id) && (required.Count >= 5 || excluded.Contains(chip.Id)))" checked="@required.Contains(chip.Id)" @onchange="e => Toggle(required, chip.Id, e)" data-required-chip="@chip.Id" />@chip.Label</label> }
+                    </div>
                 </fieldset>
-                <fieldset><legend>Not for me (@excluded.Count of 10, works both ways)</legend>
-                    @foreach (var chip in Chips) { <label class="check"><input type="checkbox" disabled="@(busy || !excluded.Contains(chip.Id) && (excluded.Count >= 10 || required.Contains(chip.Id)))" checked="@excluded.Contains(chip.Id)" @onchange="e => Toggle(excluded, chip.Id, e)" data-excluded-chip="@chip.Id" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> @chip.Label</label> }
+                <fieldset class="rd-group">
+                    <legend>Not for me <span class="rd-count">· @excluded.Count of 10 · works both ways</span></legend>
+                    <div class="rd-chips">
+                        @foreach (var chip in Chips) { <label class="rd-chip rd-chip-no"><input type="checkbox" disabled="@(busy || !excluded.Contains(chip.Id) && (excluded.Count >= 10 || required.Contains(chip.Id)))" checked="@excluded.Contains(chip.Id)" @onchange="e => Toggle(excluded, chip.Id, e)" data-excluded-chip="@chip.Id" />@chip.Label</label> }
+                    </div>
                 </fieldset>
-                <div class="field"><label for="visitors">Visitors in Travel</label>
-                    <select id="visitors" @bind="visitors"><option value="both">Here now and arriving soon</option><option value="current">Here now</option><option value="upcoming">Arriving soon</option><option value="neither">Don't show visitors</option></select></div>
-                <div class="field"><label for="distance">Within (km of my home city)</label>
-                    <select id="distance" @bind="distance" data-distance-filter>
-                        <option value="">Any distance</option>
-                        @foreach (var km in DistanceChoices)
-                        {
-                            <option value="@km" data-distance-option="@km">@DistanceLabel(km)</option>
-                        }
-                    </select></div>
-                @if (!filter.PlusAvailable) { <p class="field-help" data-distance-help>Distances over @(LocationLimits.FreeMaxKm) km are part of Plus.</p> }
-                <fieldset disabled="@(!filter.PlusAvailable)" data-plus-filters="@(filter.PlusAvailable ? "on" : "off")"><legend>Plus</legend>
-                    <label class="check"><input type="checkbox" checked="@(sort == "compatibility")" @onchange='e => sort = e.Value is true ? "compatibility" : "recent"' /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Most in common first</label>
-                    @if (!filter.PlusAvailable) { <p class="field-help">These filters are part of Plus.</p> }
-                </fieldset>
-                <button type="submit" class="button" disabled="@busy">Save filters</button>
-                <p role="status" aria-live="polite" class="field-help" data-filter-status="@filterStatus">@filterMessage</p>
+                <div class="rd-grid">
+                    <div class="field"><label for="visitors">Visitors in Travel</label>
+                        <select id="visitors" @bind="visitors"><option value="both">Here now and arriving soon</option><option value="current">Here now</option><option value="upcoming">Arriving soon</option><option value="neither">Don't show visitors</option></select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                    <div class="field"><label for="distance">Within (km of my home city)</label>
+                        <select id="distance" @bind="distance" data-distance-filter>
+                            <option value="">Any distance</option>
+                            @foreach (var km in DistanceChoices)
+                            {
+                                <option value="@km" data-distance-option="@km">@DistanceLabel(km)</option>
+                            }
+                        </select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                </div>
+                <div class="rd-row rd-foot">
+                    <fieldset class="rd-group" disabled="@(!filter.PlusAvailable)" data-plus-filters="@(filter.PlusAvailable ? "on" : "off")"><legend class="visually-hidden">Plus</legend>
+                        <label class="rd-switch"><input type="checkbox" class="ph-switch" checked="@(sort == "compatibility")" @onchange='e => sort = e.Value is true ? "compatibility" : "recent"' /><span>Most in common first <span class="rd-tag">Plus</span></span></label>
+                    </fieldset>
+                    <div class="rd-actions">
+                        <p role="status" aria-live="polite" class="field-help rd-status" data-filter-status="@filterStatus">@filterMessage</p>
+                        <button type="submit" class="button" disabled="@busy">Save filters</button>
+                    </div>
+                </div>
+                @if (!filter.PlusAvailable) { <p class="field-help" data-distance-help>Distances over @(LocationLimits.FreeMaxKm) km and Most in common first are part of Plus.</p> }
                 </fieldset>
             </form>
         }
@@ -87,6 +125,7 @@
         }
     </section>
 }
+</div>
 @code {
     private bool loaded, busy, showGender = true, showOrientation, showAge = true, idVerifiedOnly, showPronouns = true;
     private string? pronounId;
@@ -98,6 +137,7 @@
     private HashSet<Guid> required = [], excluded = [];
     private int? minAge, maxAge, distance;
     private FilterView? filter;
+    private static readonly IReadOnlyList<int> Ages = Enumerable.Range(18, 103).ToList(); // 18–120, the API's range
     private IEnumerable<IntentionView> Chips => modes.FirstOrDefault(m => m.Id == modeId)?.Intentions ?? [];
 
     // D347: the server lists the distances this member's tier allows. A saved wider distance from a lapsed paid plan

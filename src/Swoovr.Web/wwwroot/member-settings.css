@@ -1,26 +1,13 @@
 /* Local settings refinement. All colours continue to come from the member's theme. */
 .member-settings { width:100%; max-width:960px; margin-inline:auto; min-width:0; }
-.member-settings .field > label { position:static; display:block; padding:0; margin:0 0 8px; white-space:normal; overflow:visible; text-overflow:clip; text-transform:none; letter-spacing:normal; font-size:14px; }
-.member-settings .field input, .member-settings .field select, .member-settings .field textarea { padding:12px 14px; }
+.member-settings .field > label, .me-chat-form .field > label { position:static; display:block; padding:0; margin:0 0 8px; white-space:normal; overflow:visible; text-overflow:clip; text-transform:none; letter-spacing:normal; font-size:14px; }
+.member-settings .field input, .member-settings .field select, .member-settings .field textarea, .me-chat-form .field select { padding:12px 14px; }
 .member-settings .city-picked { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:0; padding:12px 14px; }
-.member-settings .mode-settings { display:grid; gap:16px; }
-.member-settings .mode-settings > h2, .member-settings .mode-settings > p { grid-column:1 / -1; }
-.member-settings .mode-settings .account-section { margin:0; min-width:0; }
-.member-settings .mode-settings .check { margin-block:14px; }
 .member-settings fieldset { min-width:0; }
 .member-settings .settings-list h2 { font-size:14px; padding:20px 16px 8px; margin:0; }
 .member-settings .mode-choices { display:flex; flex-wrap:wrap; gap:8px; margin-block:16px; }
 .member-settings .mode-choices [aria-pressed="true"] { background:var(--text); color:var(--bg); }
 .member-settings .photo-grid { grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); }
-@media (min-width:768px) {
- .member-settings .mode-settings { grid-template-columns:repeat(2,minmax(0,1fr)); }
- .member-settings [data-core-form], .member-settings [data-identity-form] { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
- .member-settings [data-core-form] > :not(.field), .member-settings [data-identity-form] > :not(.field) { grid-column:1 / -1; }
- .member-settings [data-core-form] > .field:has(textarea) { grid-column:1 / -1; }
- .member-settings [data-filter-form] .settings-fields > fieldset:not([data-plus-filters]) { display:flex; flex-wrap:wrap; gap:12px 24px; }
- .member-settings [data-filter-form] .settings-fields > fieldset > legend { margin-bottom:12px; }
- .member-settings [data-filter-form] .settings-fields > fieldset > .check { flex:0 1 260px; }
-}
 
 .member-settings .settings-fields { display:contents; }
 
@@ -542,3 +529,104 @@
 .onboarding-preview { display: flex; justify-content: center; padding: 18px; border: 1px dashed var(--border); border-radius: 16px; }
 .onboarding-preview .profile-tile { pointer-events: none; width: 170px; height: 270px; flex: 0 0 170px; }
 .person-text-picture .tile-quote { font-size: 1.5rem; -webkit-line-clamp: unset; }
+
+/* ---- Issues 422, 418 and 415 (M1 redesigns): Your profile, Who I'd like to meet and Notifications, built from the
+   owner-approved mockups. Cards with fields side by side, chips and switches instead of long checkbox lists, and
+   natural-width buttons (app.css makes every .button full width and caps every <p> at 65ch). Theme tokens only. */
+.rd-page { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.rd-page p { max-width: none; margin: 0; }
+.rd-page .page-heading { margin: 0; }
+.rd-page .page-heading h1 { margin-bottom: 6px; }
+.rd-page .button { width: auto; min-height: 40px; padding: 0 18px; border-radius: 999px; font-size: .875rem; }
+.rd-page .button-xs { min-height: 32px; padding: 0 12px; font-size: .75rem; }
+.rd-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.rd-head .page-heading { flex: 1 1 280px; }
+.rd-card { display: grid; gap: 16px; align-content: start; margin: 0; padding: 24px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); min-width: 0; }
+.rd-card h2 { margin: 0; font: 700 1.125rem/1.3 var(--font); }
+.rd-card h3 { margin: 0; font: 700 .9375rem/1.3 var(--font); }
+.rd-card form { display: grid; gap: 16px; min-width: 0; }
+.rd-compact { padding: 20px 24px; gap: 12px; }
+.rd-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.rd-row-baseline { align-items: baseline; }
+.rd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.rd-grid-3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+.rd-grid-wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: stretch; }
+.rd-grid-wide > .rd-span { grid-column: 1 / -1; }
+.rd-group { display: grid; gap: 8px; min-width: 0; border: 0; margin: 0; padding: 0; }
+.rd-group > legend { padding: 0; margin-bottom: 8px; font: 700 .9375rem/1.3 var(--font); }
+.rd-count { color: var(--muted); font-weight: 400; }
+.rd-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; }
+.rd-foot { padding-top: 14px; border-top: 1px solid var(--border); }
+.rd-page .field textarea.rd-large { min-height: 168px; }
+.rd-page .rd-status:empty { display: none; }
+
+/* A chip that is a real checkbox or radio: the input covers the chip (invisible), so it stays clickable and labelled. */
+.rd-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.rd-chip { position: relative; display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: 600 .8125rem/1.2 var(--font); cursor: pointer; }
+.rd-chip input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; border-radius: 999px; }
+.rd-chip:has(input:checked) { background: var(--primary); border-color: var(--primary); color: var(--onPrimary); }
+.rd-chip.rd-chip-no:has(input:checked) { background: var(--soft); border-color: var(--border); color: var(--muted); text-decoration: line-through; }
+.rd-chip:has(input:disabled) { opacity: .45; cursor: default; }
+.rd-chip:has(input:disabled) input { cursor: default; }
+.rd-chip:has(input:focus-visible) { outline: 2px solid var(--text); outline-offset: 2px; }
+.rd-page .chip-row { gap: 8px; margin: 0; }
+.rd-page .chip-row .chip { min-height: 34px; padding: 0 12px; font: 600 .8125rem/1.2 var(--font); }
+.rd-page .chip-picker > p { margin: 0 0 10px; }
+
+/* Segmented choices (mode, Any/All) and inline switches. */
+.rd-page .segmented { display: inline-flex; flex-wrap: wrap; border-radius: 999px; }
+.rd-page .segment { flex: 0 0 auto; min-height: 34px; padding: 0 14px; border-radius: 999px; }
+.rd-page .segment input { border-radius: 999px; }
+.rd-switch { display: inline-flex; align-items: center; gap: 10px; font: 400 .875rem/1.3 var(--font); color: var(--text); cursor: pointer; }
+.rd-switch .ph-switch { order: -1; }
+.rd-set { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; padding: 8px 0; border-top: 1px solid var(--border); cursor: pointer; }
+.rd-set:first-of-type { border-top: 0; }
+.rd-set > span { display: grid; gap: 2px; min-width: 0; }
+.rd-tag { display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px; border: 1px solid var(--text); border-radius: 999px; font: 700 .625rem/1 var(--font); letter-spacing: .06em; text-transform: uppercase; }
+
+/* Age from/to on one line. */
+.rd-age { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.rd-age .field { width: 112px; }
+.rd-age-label { font: 600 .875rem/1 var(--font); }
+
+/* Connection modes: one folding row each. */
+.rd-mode { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); min-width: 0; }
+.rd-mode-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 14px 18px; }
+.rd-mode-name { flex: 1 1 140px; display: grid; gap: 2px; min-width: 0; }
+.rd-mode-name strong { font-size: 1rem; }
+.rd-mode-body { display: grid; gap: 14px; padding: 16px 18px 18px; border-top: 1px solid var(--border); }
+.rd-mode-body[hidden] { display: none; }
+.rd-mode-body .field-help { margin: 0; }
+
+/* Notification centre rows. */
+.rd-notes { list-style: none; margin: 0; padding: 0; }
+.rd-note { display: flex; align-items: flex-start; gap: 14px; padding: 14px 4px; border-top: 1px solid var(--border); color: var(--text); text-decoration: none; }
+.rd-notes > li:first-child .rd-note { border-top: 0; }
+.rd-note:hover strong, .rd-note:hover .rd-note-title { text-decoration: underline; }
+.rd-note[data-read=yes] { color: var(--muted); }
+.rd-note-ico { display: flex; align-items: center; justify-content: center; flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--soft); color: var(--text); }
+.rd-note[data-read=yes] .rd-note-ico { color: var(--muted); }
+.rd-note-text { flex: 1; display: grid; gap: 2px; min-width: 0; }
+.rd-note-title { font: 400 .9375rem/1.35 var(--font); overflow-wrap: anywhere; }
+.rd-note[data-read=no] .rd-note-title { font-weight: 700; }
+.rd-dot { flex: none; width: 8px; height: 8px; margin-top: 14px; border-radius: 50%; background: var(--text); }
+.rd-age .field.rd-fill { flex: 1 1 0; width: auto; min-width: 0; }
+/* Issue 415: the Chat card on Privacy & safety. */
+.me-chat-form { display: grid; gap: 12px; }
+.me-chat-form p { max-width: none; margin: 0; }
+.me-chat-form .ph-switch-row > span { display: grid; gap: 2px; padding-block: 8px; }
+.me-chat-form .me-card-foot { margin-top: 0; }
+.rd-row > .rd-grow { flex: 1 1 320px; }
+.rd-row.rd-start { justify-content: flex-start; gap: 12px 28px; }
+.me-chat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px 32px; align-items: start; }
+.me-chat-grid .ph-switch-row { border-top: 0; }
+.me-chat-limit { display: grid; gap: 8px; }
+.me-chat-form .me-card-foot .me-pill-button { width: auto; }
+@container me-page (min-width: 720px) { .me-safety-grid > .me-safety-chat { grid-column: 1 / -1; } }
+/* Selects in the redesigned settings show their chevron level with the box (labels sit above the box here). */
+.member-settings .field > .field-chevron, .me-chat-form .field > .field-chevron { top: auto; bottom: 19px; transform: rotate(-90deg); }
+.member-settings .field > select, .me-chat-form .field > select { appearance: none; padding-right: 40px; }
+.rd-age-compact .field { width: 104px; }
+.rd-group > .segmented { justify-self: start; }
+.rd-row > p.field-help { flex: 1 1 320px; }
+.rd-row > .rd-actions { margin-left: auto; }

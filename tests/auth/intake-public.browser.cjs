@@ -16,7 +16,9 @@ const {managedEdge}=require('./managed-edge.cjs');
   await check('guest sign-in retry and error pages',async()=>{let r=await fetch(base+'/account?signin=retry',{redirect:'manual'});assert.equal(r.status,200);assert.match(await r.text(),/data-signin-retry/);
    r=await fetch(base+'/Error',{redirect:'manual'});assert.equal(r.status,200);const html=await r.text();assert.match(html,/data-error-page/);assert.doesNotMatch(html,/Development Mode/)});
   await check('public pages stay reachable',async()=>{for(const route of ['/','/terms','/community-guidelines','/privacy','/safety/advice','/safety']){const r=await fetch(base+route,{redirect:'manual'});assert.equal(r.status,200,route);}});
-  await check('guest safety only country resources',async()=>{const html=await(await fetch(base+'/safety')).text();assert.doesNotMatch(html,/data-swoovr-actions|data-serious-entry|I’m meeting someone/)});
+  // Issue 429 (D308/D329): guests get country resources plus "Report to Swoovr", which goes to Swoovr support, never /me/safety.
+  await check('guest safety: resources and support report only',async()=>{const html=await(await fetch(base+'/safety')).text();assert.doesNotMatch(html,/data-swoovr-actions|I’m meeting someone/);
+   for(const tag of html.match(/<a\b[^>]*data-serious-entry[^>]*>/g)??[]){const href=(tag.match(/href="([^"]*)"/)||[])[1]||'';assert.match(href,/^https?:\/\//,'serious entry goes to support');assert.doesNotMatch(href,/\/me\/safety/);}});
   await check('BFF privacy',async()=>{const r=await fetch(base+'/bff/api/me',{headers:{'X-Swoovr-Bff':'1'},redirect:'manual'});assert.equal(r.status,401)});
   await page.goto(base);
   await check('guest navigation',async()=>{assert.equal(await page.locator('[data-tab]').count(),0);assert(await page.getByRole('link',{name:'Sign in',exact:true}).count()>0);assert(await page.getByRole('link',{name:'Create account',exact:true}).count()>0)});

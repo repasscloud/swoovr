@@ -50,6 +50,8 @@ if (!process.env.SWOOVR_TEST_API_BASE || !process.env.SWOOVR_TEST_APP_DATABASE) 
       await page.fill('#username', owner.email); await page.fill('#password', owner.password);
       await Promise.all([page.waitForURL(web + '/explore'), page.click('#kc-login')]);
       await page.goto(web + '/me/profile'); await page.waitForSelector('[data-profile-editor=ready]');
+      // Issue 422: mode rows fold; open Activities first.
+      if (await page.getAttribute('[data-mode-card=activities]', 'data-mode-open') !== 'true') await page.click('[data-mode-toggle=activities]');
       await page.fill('#name-activities', 'Activity UI'); await page.locator('#name-activities').blur();
       await page.waitForFunction(() => document.querySelector('[data-mode-status]')?.textContent.includes('saved'));
       assert.equal((await call(a, '/api/me/profile')).body.modes.find(m => m.id === 'activities').displayName, 'Activity UI');

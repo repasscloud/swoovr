@@ -1,0 +1,53 @@
+@* Issue 415 (D390, owner 22 November 2026): the chat boundaries moved here from Notifications. Accept photos in chat and
+   the unanswered-message limit (issue 300, D380: Off by default, never shown to the people it applies to). Both are
+   stored with the notification settings, so a save sends back every other setting exactly as it was loaded. A
+   restricted member's settings answer 403, so the card doesn't show for them. *@
+@inject MemberClient Members
+@if (settings is not null)
+{
+    <section class="me-card me-safety-chat" aria-labelledby="chat-heading" data-chat-settings>
+        <h2 class="me-card-title" id="chat-heading"><Icon Name="chat" Size="20" />Chat</h2>
+        <form class="me-chat-form" @onsubmit="SaveAsync">
+            <div class="me-chat-grid">
+                <label class="ph-switch-row"><span>Accept photos in chat<span class="field-help">@NotificationText.PhotosHelp</span></span>
+                    <input type="checkbox" class="ph-switch" @bind="chatPhotos" data-setting="chat-photos" /></label>
+                <div class="me-chat-limit">
+                    <div class="field">
+                        <label for="unanswered-limit">@MessageText.LimitLabel</label>
+                        <select id="unanswered-limit" @bind="unansweredLimit" data-setting="unanswered-limit">
+                            @foreach (var (value, label) in MessageText.LimitChoices) { <option value="@value">@label</option> }
+                        </select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span>
+                    </div>
+                    <p class="field-help">@MessageText.LimitHelp</p>
+                </div>
+            </div>
+            <div class="me-card-foot">
+                <p role="status" aria-live="polite" class="field-help" data-chat-status="@status">@message</p>
+                <button type="submit" class="button me-pill-button" disabled="@busy" data-save-chat>Save chat settings</button>
+            </div>
+        </form>
+    </section>
+}
+@code {
+    private NotificationSettingsView? settings;
+    private bool busy, chatPhotos = true;
+    private int unansweredLimit;
+    private string? status, message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if ((await Members.NotificationSettingsAsync()).Value is { } s) Show(s);
+    }
+
+    private void Show(NotificationSettingsView s) => (settings, chatPhotos, unansweredLimit) = (s, s.ChatPhotos, s.UnansweredLimit);
+
+    private async Task SaveAsync()
+    {
+        if (settings is null || busy) return;
+        busy = true;
+        var result = await Members.SaveNotificationSettingsAsync(NotificationText.Update(settings) with { ChatPhotos = chatPhotos, UnansweredLimit = unansweredLimit });
+        busy = false;
+        if (result.Value is { } s) { Show(s); (status, message) = ("saved", "Saved."); }
+        else (status, message) = (result.Code ?? "failed", "Those settings couldn't be saved.");
+    }
+}

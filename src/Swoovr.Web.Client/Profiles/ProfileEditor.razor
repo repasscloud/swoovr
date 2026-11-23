@@ -3,107 +3,148 @@
    member picks up to the API's limit, shown as "n of 5", and the API enforces it again. Choices stay when a mode is off. *@
 @inject MemberClient Members
 @inject IJSRuntime JS
+<div class="rd-page">
 <div class="page-heading" data-profile-editor="@(loaded ? "ready" : "loading")">
     <p class="breadcrumb"><a href="/account">Me</a> / Profile</p>
     <h1>Your profile</h1>
     @if (!loaded) { <p role="status">Loading…</p> }
     else if (refused is not null) { <p role="status" data-profile-refused="@refused">@(refused == ProblemCodes.BetaNotEnrolled ? "Your profile opens once your email is on the invitation list." : "We couldn't load your profile.")</p> }
+    else { <p class="field-help">What people see in every mode. Each mode below can use its own name and about.</p> }
 </div>
 @if (loaded && refused is null && profile is not null)
 {
-
-    <section class="card account-section" aria-labelledby="core-heading">
+    @* Issue 422 (owner-approved mockup): name and home city side by side, a full-width about, and the save on the right. *@
+    <section class="rd-card" aria-labelledby="core-heading">
         <h2 id="core-heading">About you</h2>
-        <p class="field-help">Your main public profile. Each mode can use its own name; leaving it blank uses your main display name.</p>
-        <form class="stack" @onsubmit="SaveProfileAsync" data-core-form>
-            <div class="field"><label for="display-name">Display name</label><input id="display-name" maxlength="40" @bind="displayName" autocomplete="nickname" /></div>
-            <CitySearch InputId="home-city" Label="Home city" @bind-Selected="homeCity" />
-            <p class="field-help">Only you see your home city. It decides who counts as local when people visit (Travel).</p>
-            @if (profile.HomeCity is not null)
+        <form @onsubmit="SaveProfileAsync" data-core-form>
+            <div class="rd-grid">
+                <div class="field"><label for="display-name">Display name</label><input id="display-name" maxlength="40" @bind="displayName" autocomplete="nickname" /></div>
+                <CitySearch InputId="home-city" Label="Home city · only you see this" @bind-Selected="homeCity" />
+            </div>
+            @if (string.IsNullOrWhiteSpace(profile.DisplayName))
             {
-                @* D150: optional. The browser asks for one reading; Swoovr keeps only whether it matched, never where you are. *@
-                <p class="field-help"><button type="button" class="link-button" disabled="@busy" @onclick="HomeCheckAsync" data-home-check>Check my location matches</button>
-                    <span data-home-check-result="@homeCheck">@(homeCheck is null ? "" : MemberText.HomeCheck(homeCheck))</span></p>
+                <p class="field-help" data-needs-name>Add a display name so people can find you.</p>
             }
-            <p class="field-help"><a class="link" href="/me/photos" data-photos-link>Your photos</a>: choose an independent main and gallery for each mode.</p>
-            <div class="field"><label for="about">About me</label><textarea id="about" maxlength="500" rows="4" @bind="about"></textarea></div>
-            <button type="submit" class="button" disabled="@busy">Save profile</button>
-            <p role="status" aria-live="polite" class="field-help" data-core-status="@coreStatus">@coreMessage</p>
+            <div class="field"><label for="about">About me <span class="rd-count" data-about-length>· @(about?.Length ?? 0)/500</span></label>
+                <textarea id="about" class="rd-large" maxlength="500" rows="6" @bind="about" @bind:event="oninput"
+                          placeholder="A few words about you, what you enjoy and what you're looking for."></textarea></div>
+            <div class="rd-row">
+                <p class="field-help">Home city decides who counts as local when people visit (Travel).
+                    @if (profile.HomeCity is not null)
+                    {
+                        @* D150: optional. The browser asks for one reading; Swoovr keeps only whether it matched, never where you are. *@
+                        <button type="button" class="link-button" disabled="@busy" @onclick="HomeCheckAsync" data-home-check>Check my location matches</button>
+                        <span data-home-check-result="@homeCheck">@(homeCheck is null ? "" : MemberText.HomeCheck(homeCheck))</span>
+                    }
+                    · <a class="link" href="/me/photos" data-photos-link>Your photos</a></p>
+                <div class="rd-actions">
+                    <p role="status" aria-live="polite" class="field-help rd-status" data-core-status="@coreStatus">@coreMessage</p>
+                    <button type="submit" class="button" disabled="@busy">Save profile</button>
+                </div>
+            </div>
         </form>
-        @if (string.IsNullOrWhiteSpace(profile.DisplayName))
-        {
-            <p class="field-help" data-needs-name>Add a display name so people can find you.</p>
-        }
     </section>
 
     @* D382 (Q181.5 A), PR 392 review: the text picture from onboarding stays editable and removable here. *@
-    <section class="card account-section" aria-labelledby="picture-text-heading" data-picture-text-settings>
-        <h2 id="picture-text-heading">Text picture</h2>
-        <p class="field-help">Your own words, shown on your tile when there's no photo to show. Swoovr draws them as a simple text picture: it doesn't use AI or make up an image. Your words are checked like the rest of your profile.</p>
-        <form class="stack" @onsubmit="SavePictureTextAsync" data-picture-text-form>
-            <div class="field"><label for="picture-text">What would you like your picture to say? <span class="field-help">(optional)</span></label>
-                <input id="picture-text" maxlength="100" @bind="pictureText" @bind:event="oninput" />
-                <span class="field-help" aria-live="polite" data-picture-text-count>@(pictureText?.Length ?? 0)/100</span></div>
-            <p class="field-help">Don't include phone numbers, email addresses, social handles or other contact or sensitive personal details.</p>
-            <button type="submit" class="button" disabled="@(busy || string.IsNullOrWhiteSpace(pictureText) || pictureText.Trim() == profile.PictureText)" data-picture-text-save>Save text picture</button>
-            @if (profile.PictureText is not null)
-            {
-                <button type="button" class="link-button" disabled="@busy" @onclick="RemovePictureTextAsync" data-picture-text-remove>Remove text picture</button>
-            }
-            <p role="status" aria-live="polite" class="field-help" data-picture-text-status="@pictureTextStatus">@pictureTextMessage</p>
+    <section class="rd-card" aria-labelledby="picture-text-heading" data-picture-text-settings>
+        <div class="rd-row rd-row-baseline">
+            <h2 id="picture-text-heading">Text picture</h2>
+            <p class="field-help">Shown on your tile when there's no photo. Swoovr draws your words as a simple text picture, without AI.</p>
+        </div>
+        <form @onsubmit="SavePictureTextAsync" data-picture-text-form>
+            <div class="rd-row">
+                <div class="field rd-grow"><label for="picture-text">What would you like your picture to say? <span class="rd-count" data-picture-text-count>· @(pictureText?.Length ?? 0)/100</span></label>
+                    <input id="picture-text" maxlength="100" placeholder="Optional" @bind="pictureText" @bind:event="oninput" /></div>
+                <div class="rd-actions">
+                    @if (profile.PictureText is not null)
+                    {
+                        <button type="button" class="link-button" disabled="@busy" @onclick="RemovePictureTextAsync" data-picture-text-remove>Remove</button>
+                    }
+                    <button type="submit" class="button button-secondary" disabled="@(busy || string.IsNullOrWhiteSpace(pictureText) || pictureText.Trim() == profile.PictureText)" data-picture-text-save>Save text picture</button>
+                </div>
+            </div>
+            <p class="field-help">No phone numbers, email addresses, social handles or other contact details. Your words are checked like the rest of your profile.</p>
+            <p role="status" aria-live="polite" class="field-help rd-status" data-picture-text-status="@pictureTextStatus">@pictureTextMessage</p>
         </form>
     </section>
 
-    <section aria-labelledby="modes-heading" class="mode-settings">
-        <h2 id="modes-heading">Connection modes</h2>
-        <p class="field-help">Turn on any combination. Each mode keeps its own settings.</p>
+    @* Issue 422: one folding row per mode. Closed, a mode shows only "Viewable" when it's on and people can see it
+       (owner: no On/Off and no counts; the switch already says it's on). Changes save as they're made. *@
+    <section class="rd-card" aria-labelledby="modes-heading">
+        <div class="rd-row rd-row-baseline">
+            <h2 id="modes-heading">Connection modes</h2>
+            <p class="field-help">Turn on any combination. Each mode keeps its own settings.</p>
+        </div>
         @foreach (var mode in modes)
         {
             var setting = profile.Modes.FirstOrDefault(m => m.Id == mode.Id) ?? new MyModeView(mode.Id, false, false, []);
-            <article class="card account-section" data-mode-card="@mode.Id" data-mode-enabled="@(setting.Enabled ? "true" : "false")" data-mode-visible="@(setting.Visible ? "true" : "false")">
-                <h3>@mode.Label</h3>
-                <label class="check"><input type="checkbox" checked="@setting.Enabled" disabled="@busy" @onchange="e => SaveModeAsync(mode.Id, e.Value is true, setting.Visible || e.Value is true, setting.Intentions, setting.About)" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Use @mode.Label</label>
-                <label class="check"><input type="checkbox" checked="@setting.Visible" disabled="@(busy || !setting.Enabled)" @onchange="e => SaveModeAsync(mode.Id, setting.Enabled, e.Value is true, setting.Intentions, setting.About)" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my profile in @mode.Label</label>
-                @if (mode.Intentions.Count > 0)
-                {
-                    var picked = setting.Intentions.Count(id => mode.Intentions.Any(i => i.Id == id));
-                    <div class="chip-picker" data-chip-picker="@mode.Id">
-                        <p class="field-help" id="@($"chips-{mode.Id}")"><span>What you're here for</span> <span data-chip-count="@picked">@picked of @mode.MaxIntentions</span></p>
-                        <ul class="chip-row" aria-labelledby="@($"chips-{mode.Id}")">
-                            @foreach (var intention in mode.Intentions)
-                            {
-                                var on = setting.Intentions.Contains(intention.Id);
-                                <li><button type="button" class="chip @(on ? "is-on" : null)" aria-pressed="@(on ? "true" : "false")" data-chip="@intention.Id"
-                                            disabled="@(busy || !on && picked >= mode.MaxIntentions)"
-                                            @onclick="() => SaveModeAsync(mode.Id, setting.Enabled, setting.Visible, Toggle(setting.Intentions, intention.Id), setting.About)">@intention.Label</button></li>
-                            }
-                        </ul>
+            var open = expanded.Contains(mode.Id);
+            <article class="rd-mode" data-mode-card="@mode.Id" data-mode-enabled="@(setting.Enabled ? "true" : "false")" data-mode-visible="@(setting.Visible ? "true" : "false")" data-mode-open="@(open ? "true" : "false")">
+                <div class="rd-mode-head">
+                    <div class="rd-mode-name"><strong>@mode.Label</strong>
+                        @if (!open && setting.Enabled && setting.Visible) { <span class="field-help" data-mode-summary>Viewable</span> }</div>
+                    <label class="rd-switch"><input type="checkbox" class="ph-switch" checked="@setting.Enabled" disabled="@busy" @onchange="e => UseModeAsync(mode.Id, e.Value is true, setting)" /><span>Use @mode.Label</span></label>
+                    @if (open && setting.Enabled)
+                    {
+                        <label class="rd-switch"><input type="checkbox" class="ph-switch" checked="@setting.Visible" disabled="@busy" @onchange="e => SaveModeAsync(mode.Id, setting.Enabled, e.Value is true, setting.Intentions, setting.About)" /><span>Show my profile<span class="visually-hidden"> in @mode.Label</span></span></label>
+                    }
+                    <button type="button" class="button button-secondary button-xs" aria-expanded="@(open ? "true" : "false")" aria-controls="@($"mode-body-{mode.Id}")" @onclick="() => Fold(mode.Id)" data-mode-toggle="@mode.Id">@(open ? "Close" : "Edit")<span class="visually-hidden"> @mode.Label</span></button>
+                </div>
+                <div class="rd-mode-body" id="@($"mode-body-{mode.Id}")" hidden="@(!open)">
+                    @if (mode.Intentions.Count > 0)
+                    {
+                        var picked = setting.Intentions.Count(id => mode.Intentions.Any(i => i.Id == id));
+                        <div class="chip-picker" data-chip-picker="@mode.Id">
+                            <p class="field-help" id="@($"chips-{mode.Id}")"><span>What you're here for</span> <span data-chip-count="@picked">@picked of @mode.MaxIntentions</span></p>
+                            <ul class="chip-row" aria-labelledby="@($"chips-{mode.Id}")">
+                                @foreach (var intention in mode.Intentions)
+                                {
+                                    var on = setting.Intentions.Contains(intention.Id);
+                                    <li><button type="button" class="chip @(on ? "is-on" : null)" aria-pressed="@(on ? "true" : "false")" data-chip="@intention.Id"
+                                                disabled="@(busy || !on && picked >= mode.MaxIntentions)"
+                                                @onclick="() => SaveModeAsync(mode.Id, setting.Enabled, setting.Visible, Toggle(setting.Intentions, intention.Id), setting.About)">@intention.Label</button></li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    <div class="field" data-mode-name="@mode.Id">
+                        <label for="@($"name-{mode.Id}")">Name in @mode.Label <span class="field-help">(optional)</span></label>
+                        <input id="@($"name-{mode.Id}")" maxlength="40" autocomplete="nickname" value="@setting.DisplayName" placeholder="@profile.DisplayName" disabled="@busy"
+                               @onchange="e => SaveModeAsync(mode.Id, setting.Enabled, setting.Visible, setting.Intentions, setting.About, displayName: e.Value as string ?? string.Empty)" />
+                        <p class="field-help">Blank uses your display name. Your registered name is never used here.</p>
                     </div>
-                }
-                <div class="field" data-mode-name="@mode.Id">
-                    <label for="@($"name-{mode.Id}")">Display name in @mode.Label <span class="field-help">(optional)</span></label>
-                    <input id="@($"name-{mode.Id}")" maxlength="40" autocomplete="nickname" value="@setting.DisplayName" placeholder="@profile.DisplayName" disabled="@busy"
-                           @onchange="e => SaveModeAsync(mode.Id, setting.Enabled, setting.Visible, setting.Intentions, setting.About, displayName: e.Value as string ?? string.Empty)" />
-                    <p class="field-help">Leave blank to use your main public display name. Your registered name is never used here.</p>
+                    @* D175: an about for this mode only; people in other modes never see it. #91: the main about shows here only if you say so.
+                       Issue 422: a large box, since people write a lot here. *@
+                    <div class="field" data-mode-about="@mode.Id">
+                        <label for="@($"about-{mode.Id}")">About me in @mode.Label <span class="field-help">(optional, only shown in @mode.Label)</span></label>
+                        <textarea id="@($"about-{mode.Id}")" class="rd-large" maxlength="500" rows="7" disabled="@busy" placeholder="@(setting.ShareCoreAbout ? "Uses your main about" : "Empty: no about shows in " + mode.Label)"
+                                  @onchange="e => SaveModeAsync(mode.Id, setting.Enabled, setting.Visible, setting.Intentions, e.Value as string)">@setting.About</textarea>
+                    </div>
+                    <div class="rd-row">
+                        <label class="rd-switch"><input type="checkbox" class="ph-switch" data-share-core="@mode.Id" checked="@setting.ShareCoreAbout" disabled="@busy"
+                            @onchange="e => SaveModeAsync(mode.Id, setting.Enabled, setting.Visible, setting.Intentions, setting.About, e.Value is true)" /><span>Show my main about when this is empty</span></label>
+                        @if (modeSaved == mode.Id) { <p role="status" class="field-help" data-mode-saved="@mode.Id">@modeMessage</p> }
+                    </div>
                 </div>
-                @* D175: an about for this mode only; people in other modes never see it. #91: the main about shows here only if you say so. *@
-                <div class="field" data-mode-about="@mode.Id">
-                    <label for="@($"about-{mode.Id}")">About me in @mode.Label <span class="field-help">(optional, only shown in @mode.Label)</span></label>
-                    <textarea id="@($"about-{mode.Id}")" maxlength="500" rows="3" disabled="@busy" placeholder="@(setting.ShareCoreAbout ? "Uses your main about" : "Empty: no about shows in " + mode.Label)"
-                              @onchange="e => SaveModeAsync(mode.Id, setting.Enabled, setting.Visible, setting.Intentions, e.Value as string)">@setting.About</textarea>
-                </div>
-                    <label class="check"><input type="checkbox" data-share-core="@mode.Id" checked="@setting.ShareCoreAbout" disabled="@busy"
-                        @onchange="e => SaveModeAsync(mode.Id, setting.Enabled, setting.Visible, setting.Intentions, setting.About, e.Value is true)" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Show my main about in @mode.Label when this is empty</label>
             </article>
         }
-        <p role="status" aria-live="polite" class="field-help" data-mode-status>@modeMessage</p>
+        <p role="status" aria-live="polite" class="visually-hidden" data-mode-status>@modeMessage</p>
     </section>
 }
+</div>
 @code {
     private bool loaded, busy;
     private string? refused, displayName, about, coreMessage, coreStatus, modeMessage, pictureText, pictureTextMessage, pictureTextStatus;
     private PlaceView? homeCity;
-    private string? homeCheck;
+    private string? homeCheck, modeSaved;
+    // Issue 422: which mode rows are open. The first mode that's on opens on load; turning a mode on opens it.
+    private readonly HashSet<string> expanded = [];
+    private void Fold(string modeId) { if (!expanded.Remove(modeId)) expanded.Add(modeId); }
+    private Task UseModeAsync(string modeId, bool enabled, MyModeView setting)
+    {
+        if (enabled) expanded.Add(modeId);
+        return SaveModeAsync(modeId, enabled, setting.Visible || enabled, setting.Intentions, setting.About);
+    }
 
     private async Task HomeCheckAsync()
     {
@@ -126,7 +167,11 @@
             var catalogue = await Members.ModesAsync();
             var own = await Members.ProfileAsync();
             if (catalogue.Value is null || own.Value is null) refused = catalogue.Code ?? own.Code ?? "unavailable";
-            else { modes = catalogue.Value; Show(own.Value); }
+            else
+            {
+                modes = catalogue.Value; Show(own.Value);
+                if (modes.FirstOrDefault(m => own.Value.Modes.Any(x => x.Id == m.Id && x.Enabled)) is { } first) expanded.Add(first.Id);
+            }
         }
         catch (HttpRequestException) { refused = "unavailable"; }
         loaded = true;
@@ -166,7 +211,8 @@
         busy = true;
         var result = await Members.SaveModeAsync(modeId, new ModeUpdate(enabled, visible, intentions, about, shareCoreAbout, displayName));
         busy = false;
-        if (result.Value is { } saved) { profile = saved; modeMessage = "Mode settings saved."; }
+        modeSaved = modeId;
+        if (result.Value is { } saved) { profile = saved; modeMessage = $"{modes.FirstOrDefault(m => m.Id == modeId)?.Label ?? "Mode"} settings saved."; }
         else modeMessage = result.Code == ProblemCodes.TooManyIntentions ? "You can pick up to five in each mode." : "That change wasn't saved. Try again.";
     }
 
