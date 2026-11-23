@@ -27,10 +27,13 @@ async function mailLink(to, after) {
   }
   throw Error('Expected email was not caught by the mail sink');
 }
-async function mailCode(to, after) {
+// The simulated SMS sender addresses each code to sms-<E.164 digits>@simulated.swoovr.invalid (VerificationSenders.Address),
+// so only this phone's messages count, even when other local checks are sending codes at the same time.
+async function mailCode(phone, after) {
+  const to = `sms-${phone.replace(/^\+/, '')}@simulated.swoovr.invalid`;
   for (let i = 0; i < 40; i++) {
     const list = await (await fetch(mailSink + '/api/v1/messages')).json();
-    for (const m of list.messages.filter(m => Date.parse(m.Created) >= after - 1000)) {
+    for (const m of list.messages.filter(m => Date.parse(m.Created) >= after - 1000 && m.To.some(t => t.Address.toLowerCase() === to))) {
       const text = (await (await fetch(`${mailSink}/api/v1/message/${m.ID}`)).json()).Text;
       const code = /Your Swoovr code is (\d{6})/.exec(text)?.[1]; if (code) return code;
     }
@@ -134,14 +137,14 @@ async function mailCount(to) {
     await page.waitForSelector('[data-onboarding-step=names]',{state:'detached'});pass();
     // Issue 134: walk the current set-up steps (D342, D382) in whatever order they come: date of birth, mobile number and its
     // code, then the profile steps. Only the steps this suite needs are filled; the rest have their own suite.
-    const seen = [];
+    const seen = [], phone = '+61491570006';
     for (let i = 0; i < 15 && new URL(page.url()).pathname === '/welcome'; i++) {
       const at = await page.waitForSelector('[data-onboarding-step]', { timeout: 20000 }).then(el => el.getAttribute('data-onboarding-step')).catch(() => null);
       if (!at) break;
       seen.push(at);
       if (at === 'dob') { await page.fill('#onboarding-dob', '1990-05-01'); await page.check('[data-onboarding-dob-confirm]'); }
-      else if (at === 'mobile') { started = Date.now(); await page.fill('#onboarding-mobile', '0491 570 006'); }
-      else if (at === 'code') await page.fill('#onboarding-code', await mailCode(email, started));
+      else if (at === 'mobile') { started = Date.now(); await page.fill('#onboarding-mobile', '0491 570 006'); } // Australia: +61491570006
+      else if (at === 'code') await page.fill('#onboarding-code', await mailCode(phone, started));
       else if (at === 'profile') { if (!await page.locator('[data-city-picked]').count()) { await page.fill('#onboarding-home-city', 'Adelaide'); await page.locator('[data-city]').first().click(); } }
       else if (at === 'photos') { await page.click('[data-onboarding-words-instead]'); continue; }
       else if (at === 'picture-text') await page.fill('#onboarding-picture-text', 'Coffee first, then mountains.');
