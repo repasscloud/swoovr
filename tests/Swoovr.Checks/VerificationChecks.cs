@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 using Swoovr.Domain;
 using Swoovr.Infrastructure.Verification;
 
@@ -112,6 +113,15 @@ static class VerificationChecks
         // Key order and whitespace don't matter to V2; values do.
         var reordered = """{ "timestamp": 1793000000, "event_id": "6f1c2c1e-0000-4000-8000-000000000001", "decision": null, "metadata": {"big": 1e16, "e": 1e-05, "a": [3, 1.5, "été ☃ \"q\" /\\\\ \\n"], "z": 1}, "session_id": "11111111-2222-4333-8444-555555555555", "status": "Approved", "vendor_data": "acc", "webhook_type": "status.updated" }""";
         Expect(DiditSignature.SignV2(reordered, secret) == python, "re-ordered keys and spacing sign the same");
+
+        // Issue 438: the web return address is never guessed; an unset value means no session is started.
+        Microsoft.Extensions.Configuration.IConfiguration Config(params (string, string?)[] pairs) =>
+            new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(pairs.Select(p => new KeyValuePair<string, string?>(p.Item1, p.Item2))).Build();
+        Expect(Swoovr.Api.Verification.VerificationEndpoints.WebCallback("web", Config()) is null, "no web callback configured: no localhost fallback");
+        Expect(Swoovr.Api.Verification.VerificationEndpoints.WebCallback("web", Config(("Didit:Callbacks:Web", " "))) is null, "a blank web callback counts as missing");
+        Expect(Swoovr.Api.Verification.VerificationEndpoints.WebCallback("web", Config(("Didit:Callbacks:Web", "https://uat.swoovr.app/me/verification/return"))) == "https://uat.swoovr.app/me/verification/return", "the configured web callback is used");
+        Expect(Swoovr.Api.Verification.VerificationEndpoints.WebCallback("app", Config()) == "com.swoovr.app:/verification", "the app keeps its custom-scheme default");
+        Expect(Swoovr.Api.Verification.VerificationEndpoints.WebCallback("other", Config(("Didit:Callbacks:Web", "https://uat.swoovr.app/x"))) is null, "an unknown client gets no callback");
 
         Console.WriteLine($"PASS: {checks} Verification cases (Didit status mapping forward only, one self-service attempt, age gate and inheritance, adult from a decision without keeping the date, founder eligibility and the 1,000 limit, webhook V2/raw signatures, forgeries, tampering, stale timestamps).");
     }

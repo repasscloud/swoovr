@@ -15,6 +15,8 @@ services:
       Didit__ApiKey: ${SWOOVR_DIDIT_API_KEY:-}
       Didit__WorkflowId: ${SWOOVR_DIDIT_WORKFLOW_ID:-}
       Didit__WebhookSecret: ${SWOOVR_DIDIT_WEBHOOK_SECRET:-}
+      # Issue 438: where Didit returns the member (UAT sets its own address in deploy/vultr-uat/compose.yaml).
+      Didit__Callbacks__Web: http://localhost:5081/me/verification/return
       # D136: fictional local password support/admin users (Development only; hosted staff use Entra SSO).
       Staff__LocalPasswords: "true"
       # D135, D159: urgent-report escalation contacts, from .local/docker.env only (Mailpit catches them locally).

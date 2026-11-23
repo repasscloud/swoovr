@@ -76,6 +76,8 @@ public static class HostingPolicy
         if(!SecureUrl(Read("Media:Screening:BaseUrl"))&&!PrivateServiceUrl(Read("Media:Screening:BaseUrl")))errors.Add("unsafe-url:Media:Screening:BaseUrl");
         if(Encoding.UTF8.GetByteCount(Read("Media:Screening:ApiKey")??"")<32)errors.Add("invalid-key:Media:Screening:ApiKey");
         foreach(var key in new[]{"ApiKey","WorkflowId","WebhookSecret"})Require("Didit:"+key);Url("Didit:BaseUrl",false);
+        // Issue 438: where Didit sends the member back. Without it UAT members were returned to localhost.
+        Url("Didit:Callbacks:Web");
         foreach(var key in new[]{"Moderation:EscalationEmail","Moderation:EscalationBackupEmail"})Require(key);
         // D336 (#221): production always scans support attachments before they can be downloaded; never switched off.
         if(!Flag("Attachments:Scanning:Enabled",true))errors.Add("required-enabled:Attachments:Scanning:Enabled");
