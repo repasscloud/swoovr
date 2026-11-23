@@ -2328,6 +2328,8 @@ Historical implementation progress before this delivery: [PR #154](https://githu
 
 ### Q107 — Redesign Profile and Modes page for responsive layouts, clearer controls and improved profile management
 
+Status 23 November 2026: closed by the owner-approved redesign of #422 (Your profile, D390). It covers the layout, controls and save acceptance above. Matching semantics, mode independence, custom names and about consent are unchanged.
+
 Current status checked 2 November 2026: [PR #154](https://github.com/repasscloud/wanderconnect/pull/154) is merged into main; issue remains OPEN. Initial registered-name mapping is now Q117/#162; independent mode names are Q118/#163 and conflict with D175.
 
 Implementation progress (2 November 2026): [PR #154](https://github.com/repasscloud/wanderconnect/pull/154). Partial implementation merged: responsive profile/mode workspace, non-overlapping city labels, compact controls and scoped saves. Custom names and explicit about sharing preserved; visibility off/reload passed. Automatic initial-name mapping remains an unapproved product/data-mapping follow-up. Validation and remaining acceptance: [member evidence](ISSUE-MEMBER-FIXES.md). PR #154 is merged; the issue remains open for remaining acceptance or deferred scope.
@@ -2361,6 +2363,8 @@ Historical implementation progress before this delivery: [PR #154](https://githu
 <a id="q109"></a>
 
 ### Q109 — Redesign "Who I'd Like to Meet" with responsive layouts, clearer discovery preferences and improved filtering controls
+
+Status 23 November 2026: closed by the owner-approved redesign of #418 (Who I'd like to meet, D390). It covers the layout, controls and save acceptance above. Matching semantics, mode independence, custom names and about consent are unchanged.
 
 Current status checked 2 November 2026: [PR #154](https://github.com/repasscloud/wanderconnect/pull/154) is merged into main; issue remains OPEN. Remaining acceptance and scope boundaries below still apply; merge is not production or device acceptance.
 

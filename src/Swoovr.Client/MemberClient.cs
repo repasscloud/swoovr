@@ -89,6 +89,10 @@ public sealed partial class MemberClient(HttpClient transport)
     public Task<ApiResult<NotificationSettingsView>> NotificationSettingsAsync(CancellationToken cancellationToken = default) =>
         SendAsync<NotificationSettingsView>(new HttpRequestMessage(HttpMethod.Get, "api/me/notification-settings"), cancellationToken);
 
+    /// <summary>#415 (D390): only the chat settings; every other notification setting stays as stored.</summary>
+    public Task<ApiResult<NotificationSettingsView>> SaveChatSettingsAsync(ChatSettingsUpdate update, CancellationToken cancellationToken = default) =>
+        SendAsync<NotificationSettingsView>(new HttpRequestMessage(HttpMethod.Put, "api/me/chat-settings") { Content = JsonContent.Create(update) }, cancellationToken);
+
     public Task<ApiResult<NotificationSettingsView>> SaveNotificationSettingsAsync(NotificationSettingsUpdate update, CancellationToken cancellationToken = default) =>
         SendAsync<NotificationSettingsView>(new HttpRequestMessage(HttpMethod.Put, "api/me/notification-settings") { Content = JsonContent.Create(update) }, cancellationToken);
 

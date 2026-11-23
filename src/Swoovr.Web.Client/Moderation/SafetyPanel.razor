@@ -1,6 +1,6 @@
 @* Me → Privacy & safety (issue 217; earlier Me → Safety, D190/D204). Emergency assistance first for the member's
    country; then the serious-incident entry with the three people they dealt with most recently (the full list and the
-   report itself are their own pages), safety resources, "I'm meeting someone" and the privacy controls.
+   report itself are their own pages), safety resources, "I'm meeting someone", the privacy controls and the chat boundaries (issue 415).
    Country: a choice the member made (kept on this device) wins, then their Home City's country, then the host's
    default. Choosing a country never changes the profile, Home City, Travel or Explore. *@
 @inject MemberClient Members
@@ -72,6 +72,7 @@
                 <li class="me-item"><div class="me-item-main"><p class="me-item-title">Privacy Notice</p></div><a class="button button-secondary me-pill-button me-item-action" href="/privacy">Read</a></li>
             </ul>
         </section>
+        <ChatSettingsCard />
 </div>
 <ExplicitMediaCard />
 @code {

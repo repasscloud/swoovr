@@ -2,6 +2,7 @@
    restriction or deletion removes an item at once. Lock screens and emails stay private by default; this page is the
    signed-in member's own view. Settings stop pushes and emails, never the centre. *@
 @inject MemberClient Members
+<div class="rd-page">
 <div class="page-heading" data-notifications="@(loaded ? "ready" : "loading")">
     <p class="breadcrumb"><a href="/account">Me</a> / @NotificationText.Title</p>
     <h1>@NotificationText.Title</h1>
@@ -10,78 +11,81 @@
 </div>
 @if (loaded)
 {
-    <section class="card account-section" aria-labelledby="centre-heading">
-        <h2 id="centre-heading">Recent <span class="field-help" data-unread="@centre.Unread">@NotificationText.Unread(centre.Unread)</span></h2>
+    @* Issue 415: the centre is one compact list; each item has a kind icon, a muted kind and time line, and a dot while unread. *@
+    <section class="rd-card" aria-labelledby="centre-heading">
+        <div class="rd-row">
+            <h2 id="centre-heading">Recent <span class="rd-count" data-unread="@centre.Unread">· @NotificationText.Unread(centre.Unread)</span></h2>
+            @if (centre.Unread > 0) { <button type="button" class="button button-secondary button-xs" @onclick="ReadAllAsync" data-read-all>Mark all as read</button> }
+        </div>
         @if (centre.Items.Count == 0) { <p class="field-help" data-notification-list="none">@NotificationText.Empty</p> }
         else
         {
-            <ul class="request-list" data-notification-list="@centre.Items.Count">
+            <ul class="rd-notes" data-notification-list="@centre.Items.Count">
                 @foreach (var n in centre.Items)
                 {
                     <li data-notification="@n.Id" data-notification-kind="@n.Kind" data-notification-read="@(n.Read ? "yes" : "no")">
-                        <a href="@n.Link" @onclick="() => ReadAsync(n)">@(n.Read ? "" : "• ")@n.Title</a>
-                        <span class="field-help">@n.At.ToLocalTime().ToString("d MMM, HH:mm")</span>
+                        <a class="rd-note" href="@n.Link" data-read="@(n.Read ? "yes" : "no")" @onclick="() => ReadAsync(n)">
+                            <span class="rd-note-ico" aria-hidden="true"><Icon Name="@KindIcon(n.Kind)" Size="18" /></span>
+                            <span class="rd-note-text"><span class="rd-note-title">@n.Title</span>
+                                <span class="field-help">@NotificationText.KindLabel(n.Kind) · @n.At.ToLocalTime().ToString("d MMM, HH:mm")</span></span>
+                            @if (!n.Read) { <span class="rd-dot" role="img" aria-label="Unread"></span> }
+                        </a>
                     </li>
                 }
             </ul>
-            @if (centre.Unread > 0) { <button type="button" class="button button-secondary" @onclick="ReadAllAsync" data-read-all>Mark all as read</button> }
         }
     </section>
     @if (settings is not null)
     {
-        <section class="card account-section" aria-labelledby="settings-heading">
-            <h2 id="settings-heading">Settings</h2>
-            <p class="field-help" data-notification-privacy>@NotificationText.PrivacyNote</p>
-            <form class="stack" @onsubmit="SaveAsync" data-notification-settings>
-                <fieldset class="stack">
-                    <legend>Tell me about</legend>
-                    <label class="check"><input type="checkbox" @bind="form.Messages" data-setting="messages" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Messages</label>
-                    <label class="check"><input type="checkbox" @bind="form.Requests" data-setting="requests" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Connection requests</label>
-                    <label class="check"><input type="checkbox" @bind="form.Connections" data-setting="connections" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> New connections</label>
-                    <label class="check"><input type="checkbox" @bind="form.Travel" data-setting="travel" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Travel reminders</label>
-                </fieldset>
-                <fieldset class="stack">
-                    <legend>How</legend>
-                    <label class="check"><input type="checkbox" @bind="form.Push" data-setting="push" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Push notifications on my phone</label>
-                    <label class="check"><input type="checkbox" @bind="form.Email" data-setting="email" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Email</label>
-                    <p class="field-help">@NotificationText.EmailHelp</p>
-                    <label class="check"><input type="checkbox" @bind="form.PrivatePreviews" data-setting="private-previews" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Private previews</label>
-                    <p class="field-help">@NotificationText.PreviewsHelp</p>
-                </fieldset>
-                <fieldset class="stack">
-                    <legend>Quiet hours</legend>
-                    <p class="field-help">@NotificationText.QuietHelp</p>
-                    <div class="field"><label for="quiet-from">From</label><input id="quiet-from" type="time" @bind="form.QuietFrom" data-setting="quiet-from" /></div>
-                    <div class="field"><label for="quiet-until">Until</label><input id="quiet-until" type="time" @bind="form.QuietUntil" data-setting="quiet-until" /></div>
-                    <div class="field"><label for="time-zone">Time zone</label><input id="time-zone" maxlength="64" @bind="form.TimeZone" data-setting="time-zone" /></div>
-                </fieldset>
-                <fieldset class="stack">
-                    <legend>Muted modes</legend>
-                    <p class="field-help">@NotificationText.MutedHelp</p>
-                    @foreach (var m in modes)
-                    {
-                        <label class="check"><input type="checkbox" checked="@form.Muted.Contains(m.Id)" @onchange="e => Mute(m.Id, e)" data-mute="@m.Id" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> @m.Label</label>
-                    }
-                </fieldset>
-                <fieldset class="stack">
-                    <legend>Chat</legend>
-                    <label class="check"><input type="checkbox" @bind="form.ChatPhotos" data-setting="chat-photos" /><span class="box"><Icon Name="check" Size="15" Stroke="2.5" /></span> Accept photos in chat</label>
-                    <p class="field-help">@NotificationText.PhotosHelp</p>
-                    @* Issue 300 (D380): the recipient's own boundary; Off by default; never shown to the people it applies to. *@
-                    <div class="field">
-                        <label for="unanswered-limit">@MessageText.LimitLabel</label>
-                        <select id="unanswered-limit" @bind="form.UnansweredLimit" data-setting="unanswered-limit">
-                            @foreach (var (value, label) in MessageText.LimitChoices) { <option value="@value">@label</option> }
-                        </select>
+        <p class="field-help" data-notification-privacy>@NotificationText.PrivacyNote</p>
+        <form class="rd-page" @onsubmit="SaveAsync" data-notification-settings>
+            <div class="rd-grid rd-grid-wide">
+                <section class="rd-card rd-compact" aria-labelledby="kinds-heading">
+                                        <h2 id="kinds-heading">Tell me about</h2>
+                    <div>
+                        <label class="rd-set"><span>Messages</span><input type="checkbox" class="ph-switch" @bind="form.Messages" data-setting="messages" /></label>
+                        <label class="rd-set"><span>Connection requests</span><input type="checkbox" class="ph-switch" @bind="form.Requests" data-setting="requests" /></label>
+                        <label class="rd-set"><span>New connections</span><input type="checkbox" class="ph-switch" @bind="form.Connections" data-setting="connections" /></label>
+                        <label class="rd-set"><span>Travel reminders</span><input type="checkbox" class="ph-switch" @bind="form.Travel" data-setting="travel" /></label>
                     </div>
-                    <p class="field-help">@MessageText.LimitHelp</p>
-                </fieldset>
-                <button type="submit" class="button" disabled="@busy" data-save-settings>Save</button>
-                <p role="status" aria-live="polite" class="field-help" data-settings-status="@status">@message</p>
-            </form>
-        </section>
+                </section>
+                <section class="rd-card rd-compact" aria-labelledby="how-heading">
+                                        <h2 id="how-heading">How</h2>
+                    <div>
+                        <label class="rd-set"><span>Push notifications on my phone</span><input type="checkbox" class="ph-switch" @bind="form.Push" data-setting="push" /></label>
+                        <label class="rd-set"><span>Email<span class="field-help">@NotificationText.EmailHelp</span></span><input type="checkbox" class="ph-switch" @bind="form.Email" data-setting="email" /></label>
+                        <label class="rd-set"><span>Private previews<span class="field-help">@NotificationText.PreviewsHelp</span></span><input type="checkbox" class="ph-switch" @bind="form.PrivatePreviews" data-setting="private-previews" /></label>
+                    </div>
+                </section>
+                <section class="rd-card rd-compact" aria-labelledby="quiet-heading">
+                                        <div><h2 id="quiet-heading">Quiet hours</h2><p class="field-help">@NotificationText.QuietHelp</p></div>
+                    <div class="rd-age">
+                        <div class="field rd-fill"><label for="quiet-from">From</label><input id="quiet-from" type="time" @bind="form.QuietFrom" data-setting="quiet-from" /></div>
+                        <span class="field-help">to</span>
+                        <div class="field rd-fill"><label for="quiet-until">Until</label><input id="quiet-until" type="time" @bind="form.QuietUntil" data-setting="quiet-until" /></div>
+                    </div>
+                    <div class="field"><label for="time-zone">Time zone</label><input id="time-zone" maxlength="64" @bind="form.TimeZone" data-setting="time-zone" /></div>
+                </section>
+                <section class="rd-card rd-compact" aria-labelledby="muted-heading">
+                                        <div><h2 id="muted-heading">Muted modes</h2><p class="field-help">@NotificationText.MutedHelp</p></div>
+                    <div class="rd-chips">
+                        @foreach (var m in modes)
+                        {
+                            <label class="rd-chip"><input type="checkbox" checked="@form.Muted.Contains(m.Id)" @onchange="e => Mute(m.Id, e)" data-mute="@m.Id" />@m.Label</label>
+                        }
+                    </div>
+                </section>
+            </div>
+            @* Issue 415 (D390): photos in chat and the unanswered-message limit live on Privacy & safety now. This save
+               omits them, so the API keeps whatever is stored (PR 434 review). *@
+            <div class="rd-actions">
+                <p role="status" aria-live="polite" class="field-help rd-status" data-settings-status="@status">@message</p>
+                <button type="submit" class="button" disabled="@busy" data-save-settings>Save settings</button>
+            </div>
+        </form>
     }
 }
+</div>
 @code {
     private bool loaded, busy, barred;
     private NotificationCentre centre = new([], 0);
@@ -99,8 +103,6 @@
         public bool Push { get; set; } = true;
         public bool Email { get; set; } = true;
         public bool PrivatePreviews { get; set; } = true;
-        public bool ChatPhotos { get; set; } = true;
-        public int UnansweredLimit { get; set; }
         public TimeOnly? QuietFrom { get; set; }
         public TimeOnly? QuietUntil { get; set; }
         public string TimeZone { get; set; } = "";
@@ -121,11 +123,20 @@
     private void Show(NotificationSettingsView s)
     {
         settings = s;
-        (form.Messages, form.Requests, form.Connections, form.Travel, form.Push, form.Email, form.PrivatePreviews, form.ChatPhotos) =
-            (s.Messages, s.Requests, s.Connections, s.Travel, s.Push, s.Email, s.PrivatePreviews, s.ChatPhotos);
+        (form.Messages, form.Requests, form.Connections, form.Travel, form.Push, form.Email, form.PrivatePreviews) =
+            (s.Messages, s.Requests, s.Connections, s.Travel, s.Push, s.Email, s.PrivatePreviews);
         (form.QuietFrom, form.QuietUntil, form.TimeZone, form.Muted) = (Parse(s.QuietFrom), Parse(s.QuietUntil), s.TimeZone, [.. s.MutedModes]);
-        form.UnansweredLimit = s.UnansweredLimit;
     }
+
+    private static string KindIcon(string kind) => kind switch
+    {
+        "message" or "conversationEnded" => "chat",
+        "request" => "user",
+        "connection" => "users",
+        "travel" => "calendar",
+        "policyChange" => "book",
+        _ => "bell",
+    };
 
     private static TimeOnly? Parse(string? time) => TimeOnly.TryParse(time, System.Globalization.CultureInfo.InvariantCulture, out var t) ? t : null;
     private static string? Text(TimeOnly? time) => time?.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
@@ -140,7 +151,7 @@
     {
         busy = true;
         var result = await Members.SaveNotificationSettingsAsync(new(form.Messages, form.Requests, form.Connections, form.Travel, form.Push, form.Email,
-            form.PrivatePreviews, Text(form.QuietFrom), Text(form.QuietUntil), form.TimeZone, [.. form.Muted], form.ChatPhotos, form.UnansweredLimit));
+            form.PrivatePreviews, Text(form.QuietFrom), Text(form.QuietUntil), form.TimeZone, [.. form.Muted], ChatPhotos: null, UnansweredLimit: null));
         busy = false;
         if (result.Value is { } s) { Show(s); (status, message) = ("saved", "Saved."); }
         else (status, message) = (result.Code ?? "failed", result.Code == ProblemCodes.InvalidSettings

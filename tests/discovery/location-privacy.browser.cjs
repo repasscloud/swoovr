@@ -131,7 +131,7 @@ const ADELAIDE = 2078025;
     await Promise.all([page.waitForURL(web+'/explore'),page.click('#kc-login')]);await page.goto(web+'/account');
     await page.goto(web + '/me/profile');
     const box = page.locator('[data-share-core="friends"]');
-    await box.waitFor({ timeout: 20000 });
+    await box.waitFor({ state: 'attached', timeout: 20000 }); // Issue 422: it may be in a folded mode row
     assert.equal(await box.isChecked(), false, 'never assumed'); pass();
     await box.evaluate(b => b.click());
     await page.waitForFunction(() => document.querySelector('[data-share-core="friends"]')?.checked === true);

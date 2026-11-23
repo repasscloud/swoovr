@@ -68,7 +68,7 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     { assert.equal((await call(sup, path)).status, 403, path); pass(); }
     let r = await call(tokens.ana, '/api/me/notification-settings');
     assert.deepEqual(r.body, { messages: true, requests: true, connections: true, travel: true, push: true, email: true, privatePreviews: true,
-      quietFrom: null, quietUntil: null, timeZone: 'Australia/Adelaide', mutedModes: [], chatPhotos: true, devices: 0 }); pass();
+      quietFrom: null, quietUntil: null, timeZone: 'Australia/Adelaide', mutedModes: [], chatPhotos: true, devices: 0, unansweredLimit: 0 }); pass(); // D380: the limit is Off by default
     assert.deepEqual(await centre('ana'), { items: [], unread: 0 }); pass();
 
     // ---- Settings validation and tampered bodies.
@@ -79,6 +79,22 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     r = await settings('ana', { accountId: ids.bob, email: true, mutedModes: [] });
     assert.equal(r.status, 200); pass();
     assert.equal(await sql(`SELECT count(*) FROM notification_settings WHERE account_id = '${ids.bob}'`), '0'); pass(); // only the caller's own row
+
+    // ---- #415 (D390, PR 434 review): chat settings save on their own; neither save puts back the other's older values.
+    const chatSettings = (who, body) => call(tokens[who], '/api/me/chat-settings', { method: 'PUT', body });
+    assert.equal((await call(null, '/api/me/chat-settings', { method: 'PUT', body: { chatPhotos: false } })).status, 401); pass();
+    assert.equal((await call(sup, '/api/me/chat-settings', { method: 'PUT', body: { chatPhotos: false } })).status, 403); pass();
+    assert.deepEqual(code(await chatSettings('ana', { unansweredLimit: 4 })), [400, 'invalid-settings']); pass();
+    assert.equal((await settings('ana', { email: false, mutedModes: ['business'], quietFrom: '22:00', quietUntil: '07:00', timeZone: 'Australia/Adelaide' })).status, 200);
+    r = await chatSettings('ana', { chatPhotos: false, unansweredLimit: 5 });
+    assert.equal(r.status, 200);
+    assert.deepEqual([r.body.chatPhotos, r.body.unansweredLimit, r.body.email, r.body.mutedModes, r.body.quietFrom], [false, 5, false, ['business'], '22:00']); pass();
+    r = await chatSettings('ana', { unansweredLimit: 10 });
+    assert.deepEqual([r.body.chatPhotos, r.body.unansweredLimit], [false, 10], 'omitted chat photos keeps the current choice'); pass();
+    r = await settings('ana', { email: true, mutedModes: [], timeZone: 'Australia/Adelaide' });
+    assert.deepEqual([r.body.chatPhotos, r.body.unansweredLimit, r.body.email, r.body.quietFrom], [false, 10, true, null], 'notification save keeps the chat settings'); pass();
+    r = await chatSettings('ana', { chatPhotos: true, unansweredLimit: 0 });
+    assert.deepEqual([r.body.chatPhotos, r.body.unansweredLimit, r.body.email], [true, 0, true]); pass();
 
     // ---- Devices: platform and token checks, one device per token across accounts, the limit, others' ids.
     for (const bad of [{ platform: 'web', token: 'simulated-a' }, { platform: 'ios' }, { platform: 'ios', token: 'has space' }, { platform: 'ios', token: 'x'.repeat(513) }])

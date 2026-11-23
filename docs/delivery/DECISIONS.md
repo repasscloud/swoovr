@@ -1371,3 +1371,34 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
 - **Checked again on every view.** A member link to an explicit photo is issued only after the gate passes again. Opt-out, an ID Verified lapse, a block or the end of the conversation stops delivered photos loading (182.4 A). The recipient sees them blurred with Show (182.6 A).
 - **Never bypassed.** Malware, Arachnid and the nudity/NSFW check run on every new upload. No opt-in or verification skips them. D338's "direct-chat moderation bypass" means no more than "an approved album photo isn't screened again".
 - **Elsewhere.** Push, notification and list previews never carry an image. The recipient's export lists "photo (explicit)" without the image (182.7 A). Reports keep explicit photos as evidence (D209). A rating overturn goes through the D338 appeals queue to a different admin. Photos found explicit after passing are counted for threshold calibration (Q81). Public policy text is unchanged (D310). Mobile (Flutter) explicit features wait for an owner decision on store rules (#54).
+
+### D390 — Member redesigns: Your profile, Who I'd like to meet, Notifications; chat settings on Privacy & safety (23 November 2026)
+
+**CONFIRMED** by the owner, who approved the mockups and commented on issues #422, #418 and #415 (22–23 November 2026):
+- **Your profile (#422).** Built from the approved mockup. **About me in {mode}** is a large box, because members write a lot there. A folded mode row shows **"Viewable"** when the mode is on and visible, and no word at all otherwise: no On/Off and no "n of 5", since the switch already shows the mode is on.
+- **Who I'd like to meet (#418).** Built from the approved mockup. No full-width buttons. The age range sits on one line as two dropdowns.
+- **Notifications (#415).** Built from the approved mockup. No full-width buttons. The **Chat** settings (Accept photos in chat, and the D380 unanswered-message limit) move to **Privacy & safety**.
+
+**DEFAULT** (implementation):
+- **Your profile.**
+  - Display name and Home city sit side by side. About me is full width with a live count. Save profile is natural width on the right.
+  - Text picture is one row, with the field, Remove and Save.
+  - Each mode is a folding row: Use {mode}, then (while open and on) Show my profile, then Edit/Close.
+  - The first mode that's on opens when the page loads, and turning a mode on opens it. Changes still save as they're made, so there is no separate "Save {mode}" button. Each mode shows its own "saved" line.
+  - The mockup's "Preview my profile" link is left out because Swoovr has no self-preview page.
+- **Who I'd like to meet.**
+  - Gender, Pronouns and Orientation sit in one row. "On my profile" and "In Dating, show me" are chips (real checkboxes).
+  - The filter mode is a segmented control. Age is From/To dropdowns (18–120, the API's range), and an age above the other end can't be picked.
+  - ID Verified people only is a switch. Must have (Any/All) and Not for me are chips, with the same 5/10 limits and the rule that an intention can't be in both.
+  - Matching semantics are unchanged (Q109).
+  - "Photo Verified people only" waits for #417.
+- **Notifications.**
+  - Recent is a compact list: a kind icon, the title, a muted "kind · time" line, and a dot while unread.
+  - The settings are four cards: Tell me about, How, Quiet hours and Muted modes. Each uses switches or chips, and one Save settings button sits at the bottom.
+  - There is no "Show older" link because the API has no paging.
+- **Chat card on Privacy & safety.**
+  - It has the same two controls and its own Save.
+  - The values are still stored with the notification settings. The card saves through **`PUT /api/me/chat-settings`**, which changes only these two values.
+  - `PUT /api/me/notification-settings` now keeps the stored chat values when they're omitted, as it already did for the limit. The Notifications page omits them.
+  - So a page left open in another tab can't restore older values for settings it doesn't show (PR 434 review).
+  - A restricted member doesn't see the card, because their settings answer 403.
