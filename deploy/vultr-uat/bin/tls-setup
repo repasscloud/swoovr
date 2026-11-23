@@ -7,6 +7,10 @@
 #  4. Runs bin/origin-cert-check on the owner-provisioned /etc/caddy/certs/uat-origin.{pem,key} (outside the bundle).
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
+# bin/host-setup installs curl, openssl and Docker; on a fresh host without it this script would stop half-way (#394).
+for cmd in curl openssl docker; do
+  command -v "$cmd" > /dev/null || { echo "FAIL $cmd is not installed: run bin/host-setup first." >&2; exit 1; }
+done
 tls="$here/tls"
 umask 077
 mkdir -p "$tls/postgres" "$tls/trust"
