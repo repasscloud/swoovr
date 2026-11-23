@@ -1398,6 +1398,7 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
   - There is no "Show older" link because the API has no paging.
 - **Chat card on Privacy & safety.**
   - It has the same two controls and its own Save.
-  - Both pages keep storing these values in the notification settings, so the API is unchanged.
-  - Each page sends back the other page's values exactly as it loaded them.
+  - The values are still stored with the notification settings. The card saves through **`PUT /api/me/chat-settings`**, which changes only these two values.
+  - `PUT /api/me/notification-settings` now keeps the stored chat values when they're omitted, as it already did for the limit. The Notifications page omits them.
+  - So a page left open in another tab can't restore older values for settings it doesn't show (PR 434 review).
   - A restricted member doesn't see the card, because their settings answer 403.

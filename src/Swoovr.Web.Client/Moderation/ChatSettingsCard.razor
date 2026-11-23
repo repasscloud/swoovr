@@ -1,7 +1,7 @@
 @* Issue 415 (D390, owner 22 November 2026): the chat boundaries moved here from Notifications. Accept photos in chat and
-   the unanswered-message limit (issue 300, D380: Off by default, never shown to the people it applies to). Both are
-   stored with the notification settings, so a save sends back every other setting exactly as it was loaded. A
-   restricted member's settings answer 403, so the card doesn't show for them. *@
+   the unanswered-message limit (issue 300, D380: Off by default, never shown to the people it applies to). They save
+   through PUT /api/me/chat-settings, which changes only these two, so an older tab can't restore other notification
+   settings (PR 434 review). A restricted member's settings answer 403, so the card doesn't show for them. *@
 @inject MemberClient Members
 @if (settings is not null)
 {
@@ -45,7 +45,7 @@
     {
         if (settings is null || busy) return;
         busy = true;
-        var result = await Members.SaveNotificationSettingsAsync(NotificationText.Update(settings) with { ChatPhotos = chatPhotos, UnansweredLimit = unansweredLimit });
+        var result = await Members.SaveChatSettingsAsync(new ChatSettingsUpdate(chatPhotos, unansweredLimit));
         busy = false;
         if (result.Value is { } s) { Show(s); (status, message) = ("saved", "Saved."); }
         else (status, message) = (result.Code ?? "failed", "Those settings couldn't be saved.");

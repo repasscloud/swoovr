@@ -111,7 +111,7 @@ public static class NotificationEndpoints
             settings.Push = update.Push ?? true;
             settings.Email = update.Email ?? true;
             settings.PrivatePreviews = update.PrivatePreviews ?? true;
-            settings.ChatPhotos = update.ChatPhotos ?? true;
+            settings.ChatPhotos = update.ChatPhotos ?? settings.ChatPhotos; // D390: omitted keeps the current choice
             var limitBefore = settings.UnansweredLimit;
             MessagingPolicy.TryChooseUnansweredLimit(settings.UnansweredLimit, update.UnansweredLimit, out var limit);
             settings.UnansweredLimit = limit;
@@ -121,6 +121,27 @@ public static class NotificationEndpoints
             Audit.Record(db, now, account, "account", "notifications.settings", "account", account.ToString());
             await db.SaveChangesAsync(cancellationToken);
             // #300 (D380): a looser limit takes effect at once in chats already open on the other members' screens.
+            await MessagingEndpoints.PushReleasedAsync(hub, await MessagingEndpoints.ReleasedByAsync(db, account, limitBefore, limit, cancellationToken), cancellationToken);
+            return Results.Ok(await SettingsViewAsync(db, account, cancellationToken));
+        });
+
+        // #415 (D390): the chat settings on their own, so saving them never touches (or restores) any other notification setting.
+        me.MapPut("/chat-settings", async (ChatSettingsUpdate update, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock,
+            IHubContext<MessagesHub> hub, CancellationToken cancellationToken) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
+            if (denied is not null) return denied;
+            if (!MessagingPolicy.TryChooseUnansweredLimit(null, update.UnansweredLimit, out _))
+                return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidSettings, "Choose Off, 3, 5 or 10 unanswered messages.");
+            var (db, account, now) = (accounts.Db!, current!.Account!.Id, clock.GetUtcNow());
+            var settings = await db.NotificationSettings.SingleOrDefaultAsync(s => s.AccountId == account, cancellationToken);
+            if (settings is null) db.NotificationSettings.Add(settings = new NotificationSettings { AccountId = account });
+            settings.ChatPhotos = update.ChatPhotos ?? settings.ChatPhotos;
+            var limitBefore = settings.UnansweredLimit;
+            MessagingPolicy.TryChooseUnansweredLimit(settings.UnansweredLimit, update.UnansweredLimit, out var limit);
+            (settings.UnansweredLimit, settings.UpdatedAt) = (limit, now);
+            Audit.Record(db, now, account, "account", "notifications.chat-settings", "account", account.ToString());
+            await db.SaveChangesAsync(cancellationToken);
             await MessagingEndpoints.PushReleasedAsync(hub, await MessagingEndpoints.ReleasedByAsync(db, account, limitBefore, limit, cancellationToken), cancellationToken);
             return Results.Ok(await SettingsViewAsync(db, account, cancellationToken));
         });

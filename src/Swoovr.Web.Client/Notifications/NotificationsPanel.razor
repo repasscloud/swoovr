@@ -77,7 +77,7 @@
                 </section>
             </div>
             @* Issue 415 (D390): photos in chat and the unanswered-message limit live on Privacy & safety now. This save
-               sends back the values it loaded for them, unchanged. *@
+               omits them, so the API keeps whatever is stored (PR 434 review). *@
             <div class="rd-actions">
                 <p role="status" aria-live="polite" class="field-help rd-status" data-settings-status="@status">@message</p>
                 <button type="submit" class="button" disabled="@busy" data-save-settings>Save settings</button>
@@ -151,7 +151,7 @@
     {
         busy = true;
         var result = await Members.SaveNotificationSettingsAsync(new(form.Messages, form.Requests, form.Connections, form.Travel, form.Push, form.Email,
-            form.PrivatePreviews, Text(form.QuietFrom), Text(form.QuietUntil), form.TimeZone, [.. form.Muted], settings?.ChatPhotos ?? true, settings?.UnansweredLimit));
+            form.PrivatePreviews, Text(form.QuietFrom), Text(form.QuietUntil), form.TimeZone, [.. form.Muted], ChatPhotos: null, UnansweredLimit: null));
         busy = false;
         if (result.Value is { } s) { Show(s); (status, message) = ("saved", "Saved."); }
         else (status, message) = (result.Code ?? "failed", result.Code == ProblemCodes.InvalidSettings
