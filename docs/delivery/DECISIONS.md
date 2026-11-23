@@ -1405,7 +1405,7 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
 
 ### D391 — UAT moves to a dedicated server that keeps the hostname `uat-01` (23 November 2026)
 
-**CONFIRMED** by the owner on [#394](https://github.com/repasscloud/swoovr/issues/394), 23 November 2026: the new dedicated server (Debian 13, root, one IPv4) replaces the Vultr VM of D361, and "this server will stay as `uat-01`". This supersedes D361's hosting choice. The bundle, workflow and `swoovr` command are unchanged.
+**CONFIRMED** by the owner on [#394](https://github.com/repasscloud/swoovr/issues/394), 23 November 2026: the new dedicated server (Debian 13, root, one IPv4) replaces the Vultr VM of D361, and "this server will stay as `uat-01`". This supersedes D361's hosting choice. The bundle, workflow and `swoovr` command are unchanged. The owner confirmed the same day that the Vultr VM is **decommissioned** (there's no rollback host) and that the R2 bucket `swoovr-uat` stays in use ("it's OK because it's UAT"). The v1.3.1 refresh onto the new host passed every public check through Cloudflare (run 45108276013, attempt 4).
 
 **DEFAULT** (builder):
 - `UAT_EXPECTED_HOSTNAME` stays `uat-01`. With both hosts named `uat-01`, the guard against deploying to the wrong box is the pinned `UAT_SSH_HOST_KEY` plus `UAT_SSH_HOST`, not the hostname.
