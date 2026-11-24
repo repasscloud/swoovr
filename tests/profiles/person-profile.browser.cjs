@@ -84,7 +84,39 @@ let checks = 0; const pass = () => checks++;
    await page.setViewportSize({ width: 390, height: 844 }); await page.click('[data-safety-menu]');
    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'menu open at 390 does not overflow'); pass();
    if (output) await page.screenshot({ path: `${output}/person-safety-menu-390.png`, fullPage: true });
-   console.log(`PASS: person profile actions (issue 446), ${checks} checks: one primary Connect, Report or block menu, dialogs write nothing on open, focus in/out, Escape, request unchanged, no overflow at 390/1280.`);
+   // ---- Issue 447: the layout and the details the viewer may see.
+   const catalogue = (await call(a, '/api/modes')).body, chips = mode => catalogue.find(m => m.id === mode).intentions.slice(0, 2);
+   for (const mode of ['dating', 'friends'])
+    assert.equal((await call(a, '/api/me/modes/' + mode, { method: 'PUT', body: { enabled: true, visible: true, intentions: chips(mode).map(c => c.id) } })).status, 200);
+   const identity = show => call(a, '/api/me/identity', { method: 'PUT', body: { gender: 'woman', showGender: true, pronounId: 'self', pronouns: 'xe/xem', showPronouns: true,
+    orientation: 'straight', showOrientation: show, showAge: true, datingShowMe: ['man', 'woman', 'non-binary', 'another'] } });
+   assert.equal((await identity(true)).status, 200); pass();
+   // D175: orientation is Dating only, never another mode, and only when switched on.
+   const apiFriends = (await call(b, `/api/profiles/${id}?mode=friends`)).body, apiDating = (await call(b, `/api/profiles/${id}?mode=dating`)).body;
+   assert.ok(apiFriends.modes.every(m => m.orientation == null) && !JSON.stringify(apiFriends).includes('Straight'), 'no orientation outside Dating'); pass();
+   assert.equal(apiDating.modes.find(m => m.id === 'dating').orientation, 'Straight (heterosexual)'); pass();
+   assert.ok(!JSON.stringify(apiDating).includes('1990'), 'never a date of birth'); pass();
+   for (const [mode, width] of [['friends', 390], ['friends', 1280], ['dating', 390], ['dating', 1280]]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(`${web}/people/${id}?mode=${mode}`); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
+    const facts = await page.locator('[data-person-facts]').innerText();
+    assert.ok(facts.includes('Woman') && facts.includes('xe/xem') && /\b3\d\b/.test(facts), facts); pass();
+    assert.deepEqual(await page.locator(`[data-person-details] [data-person-mode=${mode}] .chip.is-on`).allInnerTexts(), chips(mode).map(c => c.label)); pass();
+    assert.equal(await page.locator('[data-person-orientation]').count(), mode === 'dating' ? 1 : 0); pass();
+    // The pending Friends request keeps Friends (and its photos) on the Dating view too (D175); Dating never shows on Friends.
+    assert.equal(await page.locator('[data-person-photos]').getAttribute('data-person-photos'), '2'); pass();
+    assert.equal(await page.locator('[data-shared-modes]').getAttribute('data-shared-modes'), mode === 'friends' ? 'friends' : 'dating friends'); pass();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `no horizontal overflow (${mode} ${width})`); pass();
+    if (mode === 'friends') {
+     const [lead, other] = await page.locator('[data-person-photos] img').evaluateAll(images => images.map(i => i.getBoundingClientRect().width));
+     assert.ok(lead > other * 2, 'the lead photo leads the gallery'); pass();
+    }
+    if (width === 1280) { const [gallery, details] = await page.evaluate(() => ['[data-person-layout] > :first-child', '[data-person-details]'].map(q => document.querySelector(q).getBoundingClientRect())); assert.ok(details.left >= gallery.right, 'details sit beside the gallery on desktop'); pass(); }
+    if (output) await page.screenshot({ path: `${output}/layout-${mode}-${width}.png`, fullPage: true });
+   }
+   assert.equal((await identity(false)).status, 200);
+   assert.equal((await call(b, `/api/profiles/${id}?mode=dating`)).body.modes.find(m => m.id === 'dating').orientation, null, 'switched off: not shown'); pass();
+   console.log(`PASS: person profile actions (issue 446), ${checks} checks: one primary Connect, Report or block menu, dialogs write nothing on open, focus in/out, Escape, request unchanged, no overflow at 390/1280; layout (issue 447): key facts, details per mode, Dating-only orientation under its switch, lead photo, side-by-side on desktop.`);
   } finally { await context.close(); }
  } finally { await edge.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
