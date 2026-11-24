@@ -819,4 +819,34 @@ body:has(.public-layout) { padding-bottom: 0; }
 .person-mode-name, .person-mode-fact { margin: 0 0 8px; }
 @media (min-width: 760px) {
   .person-layout-447 { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; }
+/* Issue 442 (owner-approved demo): Explore's header. The mode switcher shares the heading row and wraps under it on a
+   phone; one toolbar row holds the market, About, Review filters and Travel; the grid uses the full width. */
+.explore-title-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
+.explore-title-row h1 { margin: 0; }
+.explore-heading .explore-modes { flex: 0 1 30rem; min-width: min(100%, 20rem); margin: 0; }
+.explore-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 14px; }
+.explore-market { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; max-width: none; color: var(--muted); font: var(--type-body); }
+.explore-market .link-button { color: var(--text); }
+.explore-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.explore-actions .explore-action { width: auto; min-height: 44px; padding: 0 18px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.explore-notice { display: flex; align-items: flex-start; gap: 8px; margin-top: 14px; padding: 12px 6px 12px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--soft); color: var(--softText); }
+.explore-notice p { flex: 1 1 auto; margin: 0; max-width: none; font: var(--type-body); }
+.explore-notice-close { flex: 0 0 auto; display: grid; place-items: center; width: 44px; height: 44px; margin: -10px 0 -10px 0; border: 0; border-radius: 22px; background: none; color: inherit; cursor: pointer; }
+.explore-notice-close:focus-visible { outline: 3px solid var(--text); outline-offset: -3px; }
+.explore-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); justify-content: stretch; }
+.member-dialog:has(form[data-filter-form]) { max-width: 720px; }
+@media (max-width: 559px) {
+  .explore-heading .explore-modes { flex-basis: 100%; }
+  .explore-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .explore-actions .explore-action { justify-content: center; padding: 0 8px; }
+  .explore-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Issue 442: Explore's header uses the page width (browse pages cap .page-heading at 420px). */
+.browse-page > .explore-heading { max-width: none; }
+.browse-page .explore-heading .explore-modes { max-width: 30rem; }
+.explore-heading { margin-bottom: 16px; }
+@media (max-width: 559px) {
+  /* As in the approved phone demo: the four modes on one row. */
+  .explore-heading .explore-modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .explore-heading .explore-modes .segment { padding: 6px 2px; font-size: .75rem; }
 }

@@ -1411,3 +1411,13 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
 - `UAT_EXPECTED_HOSTNAME` stays `uat-01`. With both hosts named `uat-01`, the guard against deploying to the wrong box is the pinned `UAT_SSH_HOST_KEY` plus `UAT_SSH_HOST`, not the hostname.
 - `bin/tls-setup` and `bin/cloudflare-ips` now refuse to run before `bin/host-setup`: they print `run bin/host-setup first` instead of stopping half-way on a missing `curl`, `iptables` or `DOCKER-USER` chain (seen on the new host).
 - The `deploy/vultr-uat/` path and `VULTR-VM.md` keep their names until after cutover (the bundle layout doesn't change mid-migration). Renaming them is a follow-up on #394.
+
+### D392 — Explore header: mode switcher on the heading row, filters in a dialog, a dismissible notice (24 November 2026)
+
+**CONFIRMED** by the owner on [#442](https://github.com/repasscloud/swoovr/issues/442), 24 November 2026, after reviewing the demo page (approved with comments):
+- The Dating / Friends / Activities / Business switcher sits on the Explore heading row (four across on a phone).
+- The market line names the market only ("People in Adelaide", or "Visiting {city}: people in {market}"); the selected mode is shown by the switcher, not repeated.
+- **Review filters** opens the selected mode's filters in a dialog on Explore (the same form as Who I'd like to meet, `ModeFilters`); saving reloads the results. The full page stays linked from the dialog.
+- The explanation becomes a compact first-visit notice with ×. Dismissal is remembered **in this browser only** (`localStorage`), never synced; ⓘ About Explore brings it back.
+- **✈️ Travel** is a button next to Review filters.
+- Who appears on Explore is unchanged (D125, D352): this is layout only. Card design is #443.

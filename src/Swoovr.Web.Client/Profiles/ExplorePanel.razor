@@ -6,22 +6,49 @@
    not a mode and has its own screen. *@
 @inject MemberClient Members
 @inject NavigationManager Navigation
-<div class="page-heading" data-explore="@(loaded ? "ready" : "loading")">
-    <h1>Explore</h1>
-    @if (market is not null) { <p class="field-help" data-explore-market data-explore-visiting="@(visitingCity is null ? "false" : "true")">@(visitingCity is { } city ? $"Visiting {city}: people in {market}" : $"People in {market}")</p> }
-    <p class="field-help"><a class="link" href="/travel" data-travel-link>Travel</a>: plan trips and see who's visiting.</p>
+@inject IJSRuntime JS
+@* Issue 442 (owner-approved demo, 24 November 2026): the mode switcher on the heading row, one market line, filters in a
+   dialog without leaving Explore, a dismissible first-visit notice and a Travel button. Who appears is unchanged. *@
+<div class="page-heading explore-heading" data-explore="@(loaded ? "ready" : "loading")">
+    <div class="explore-title-row">
+        <h1>Explore</h1>
+        @if (loaded && refused is null)
+        {
+            <nav class="segmented explore-modes" aria-label="Connection mode" data-modes="@string.Join(" ", modes.Select(m => m.Id))">
+                @foreach (var mode in modes)
+                {
+                    <button type="button" class="segment" aria-pressed="@(mode.Id == selected ? "true" : "false")" aria-current="@(mode.Id == selected ? "page" : null)"
+                            data-mode="@mode.Id" @onclick="() => SelectAsync(mode.Id)">@mode.Label</button>
+                }
+            </nav>
+        }
+    </div>
     @if (!loaded) { <p role="status">Loading…</p> }
     else if (refused is not null) { <p role="status" data-explore-refused="@refused">@RefusedText</p> }
+    else
+    {
+        <div class="explore-toolbar">
+            @* Owner (issue 442): the market only; the selected mode is already shown by the switcher. *@
+            <p class="explore-market">
+                @if (market is not null) { <span data-explore-market data-explore-visiting="@(visitingCity is null ? "false" : "true")">@(visitingCity is { } city ? $"Visiting {city}: people in {market}" : $"People in {market}")</span> }
+                <button type="button" class="link-button" @onclick="ShowNoticeAsync" data-explore-about>ⓘ About Explore</button>
+            </p>
+            <div class="explore-actions">
+                <button type="button" class="button button-secondary explore-action" @ref="filtersButton" @onclick="() => filtersOpen = true" disabled="@(selected.Length == 0)" data-discovery-filters>Review filters</button>
+                <a class="button explore-action" href="/travel" data-travel-link>✈️ Travel</a>
+            </div>
+        </div>
+        @if (noticeOpen)
+        {
+            <section class="explore-notice" aria-label="About Explore" data-discovery-guidance>
+                <p>@DiscoveryText.Context</p>
+                <button type="button" class="explore-notice-close" aria-label="Dismiss" @onclick="DismissNoticeAsync" data-explore-notice-close><Icon Name="x" Size="18" /></button>
+            </section>
+        }
+    }
 </div>
 @if (loaded && refused is null)
 {
-    <nav class="segmented explore-modes" aria-label="Connection mode" data-modes="@string.Join(" ", modes.Select(m => m.Id))">
-        @foreach (var mode in modes)
-        {
-            <button type="button" class="segment" aria-pressed="@(mode.Id == selected ? "true" : "false")" aria-current="@(mode.Id == selected ? "page" : null)"
-                    data-mode="@mode.Id" @onclick="() => SelectAsync(mode.Id)">@mode.Label</button>
-        }
-    </nav>
     <section class="explore-results" aria-live="polite" data-explore-mode="@selected" data-explore-state="@state">
         @if (state == "off")
         {
@@ -74,15 +101,16 @@
         }
         else
         {
-            <section class="card notice" data-discovery-guidance>
-                @if (people.Count == 0) { <p data-explore-empty>@DiscoveryText.Empty</p> }
-                <p class="field-help">@DiscoveryText.Context</p>
-                <p class="field-help">@DiscoveryText.Choices</p>
-                <p><a href="/me/matching" data-discovery-filters>Review filters</a> · <a href="/travel" data-discovery-travel>Travel</a></p>
-            </section>
+            @if (people.Count == 0)
+            {
+                <section class="card notice" data-explore-empty-state>
+                    <p data-explore-empty>@DiscoveryText.Empty</p>
+                    <p class="field-help">@DiscoveryText.Choices</p>
+                </section>
+            }
             @if (people.Count > 0)
             {
-            <div class="people-grid">
+            <div class="people-grid explore-grid">
                 @foreach (var person in people)
                 {
                     @* D348: a band only when both members show their distance; never a distance. *@
@@ -95,9 +123,16 @@
             }
         }
     </section>
+    <MemberDialog Kind="filters" Title="@($"{Label(selected)} filters")" Open="filtersOpen" Closed="() => filtersOpen = false" ReturnFocus="filtersButton">
+        <p class="field-help">Changes apply to @Label(selected) when you save. <a class="link" href="/me/matching">All filters and your details</a></p>
+        <ModeFilters ModeId="@selected" Modes="modes" Saved="FiltersSavedAsync" />
+    </MemberDialog>
 }
 @code {
-    private bool loaded;
+    private bool loaded, filtersOpen, noticeOpen;
+    private ElementReference filtersButton;
+    /// <summary>Issue 442 DEFAULT (owner-confirmed): the notice is dismissed per browser, never synced; ⓘ brings it back.</summary>
+    private const string NoticeKey = "swoovr.explore.notice-dismissed";
     private string? refused;
     private string? market, visitingCity;
     private bool interested, busy;
@@ -135,6 +170,11 @@
         }
         catch (HttpRequestException) { refused = "unavailable"; }
         loaded = true;
+        if (refused is null)
+        {
+            try { noticeOpen = await JS.InvokeAsync<string?>("localStorage.getItem", NoticeKey) is null; }
+            catch (Exception error) when (error is JSException or InvalidOperationException) { noticeOpen = true; }
+        }
         if (refused is null && selected.Length > 0) await SelectAsync(selected);
     }
 
@@ -161,6 +201,23 @@
         // D352: while a checked-in trip is active, Explore is that destination's market.
         visitingCity = result.Ok ? result.Value?.Visiting : null;
     }
+
+    private async Task DismissNoticeAsync()
+    {
+        noticeOpen = false;
+        try { await JS.InvokeVoidAsync("localStorage.setItem", NoticeKey, "1"); }
+        catch (Exception error) when (error is JSException or InvalidOperationException) { }
+    }
+
+    private async Task ShowNoticeAsync()
+    {
+        noticeOpen = true;
+        try { await JS.InvokeVoidAsync("localStorage.removeItem", NoticeKey); }
+        catch (Exception error) when (error is JSException or InvalidOperationException) { }
+    }
+
+    // Saved filters change who's shown: reload this mode's results behind the dialog.
+    private Task FiltersSavedAsync(FilterView _) => SelectAsync(selected);
 
     private async Task InterestAsync(bool on)
     {

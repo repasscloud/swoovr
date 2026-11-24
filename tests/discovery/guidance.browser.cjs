@@ -34,19 +34,37 @@ const { web, createMember, memberToken, cli, call, matchReady } = require('../au
     await page.goto(web + '/explore'); await page.waitForSelector('[data-explore-empty]');
     assert.ok(intercepted > 0, 'Synthetic Explore interception must run'); checks++;
     assert.equal(await page.textContent('[data-explore-empty]'), 'No profiles match this view right now.'); checks++;
-    assert.equal(await page.getAttribute('[data-discovery-filters]', 'href'), '/me/matching'); checks++;
-    assert.equal(await page.getAttribute('[data-discovery-travel]', 'href'), '/travel'); checks++;
+    // Issue 442: the mode switcher shares the heading row; the market line names no mode (the switcher shows it).
+    const selectedMode = await page.locator('[data-modes] [aria-pressed=true]').innerText();
+    const marketLine = await page.locator('.explore-market').innerText();
+    assert.ok(!marketLine.includes(selectedMode), marketLine); checks++;
+    const [title, switcher] = await page.evaluate(() => ['.explore-title-row h1', '[data-modes]'].map(q => document.querySelector(q).getBoundingClientRect().top));
+    assert.ok(Math.abs(title - switcher) < 30, 'switcher on the heading row at desktop width'); checks++;
+    assert.equal(await page.getAttribute('[data-travel-link]', 'href'), '/travel'); checks++;
+    assert.ok((await page.textContent('[data-travel-link]')).includes('✈️')); checks++;
     assert.match(await page.textContent('[data-discovery-guidance]'), /both members' preferences applied/); checks++;
+    // Review filters opens this mode's filters in a dialog, without leaving Explore and without saving anything.
+    await page.click('[data-discovery-filters]');
+    const mode = await page.locator('[data-modes] [aria-pressed=true]').getAttribute('data-mode');
+    await page.waitForSelector(`[data-member-dialog=filters] [data-filter-form=${mode}]`); checks++;
+    assert.equal(new URL(page.url()).pathname, '/explore'); checks++;
+    await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=filters]', { state: 'detached' });
     assert.equal(methods.filter(method => method !== 'GET').length, 0, 'Guidance must not write filters/modes/travel'); checks++;
+    // The notice is dismissed for this browser and comes back from About Explore.
+    await page.click('[data-explore-notice-close]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 0); checks++;
+    await page.reload(); await page.waitForSelector('[data-explore-empty]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 0, 'dismissal remembered'); checks++;
+    await page.click('[data-explore-about]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 1); checks++;
+    if (process.env.SWOOVR_SCREENSHOTS) { await page.setViewportSize({ width: 1280, height: 900 }); await page.screenshot({ path: require('node:path').join(process.env.SWOOVR_SCREENSHOTS, 'explore-1280.png'), fullPage: true });
+      await page.click('[data-discovery-filters]'); await page.waitForSelector('[data-member-dialog=filters] [data-filter-form]'); await page.screenshot({ path: require('node:path').join(process.env.SWOOVR_SCREENSHOTS, 'explore-filters-1280.png') }); await page.keyboard.press('Escape'); }
     state = 'short'; await page.reload(); await page.waitForSelector('.people-grid'); assert.equal(await page.locator('[data-discovery-guidance]').count(),1); checks++;
     assert.equal(await page.locator('[data-explore-empty]').count(),0); checks++;
     await page.setViewportSize({width:390,height:844});
-    if(process.env.SWOOVR_SCREENSHOTS) { const fs=require('node:fs/promises'); await fs.mkdir(process.env.SWOOVR_SCREENSHOTS,{recursive:true}); await page.screenshot({path:require('node:path').join(process.env.SWOOVR_SCREENSHOTS,'discovery-guidance.png'),fullPage:true}); }
+    if(process.env.SWOOVR_SCREENSHOTS) { const fs=require('node:fs/promises'); await fs.mkdir(process.env.SWOOVR_SCREENSHOTS,{recursive:true}); await page.screenshot({path:require('node:path').join(process.env.SWOOVR_SCREENSHOTS,'explore-390.png'),fullPage:true}); }
     const previousInterceptions = intercepted;
     state = 'failure'; await page.reload(); await page.waitForSelector('[data-explore-unavailable]');
-    assert.equal(await page.locator('[data-explore-empty], [data-discovery-guidance]').count(), 0); checks++;
+    assert.equal(await page.locator('[data-explore-empty]').count(), 0); checks++;
     assert.ok(intercepted > previousInterceptions); checks++;
-    for (const failure of ['limited', 'transport']) { state = failure; await page.reload(); await page.waitForSelector('[data-explore-unavailable]'); assert.equal(await page.locator('[data-explore-empty], [data-discovery-guidance]').count(), 0); checks++; }
+    for (const failure of ['limited', 'transport']) { state = failure; await page.reload(); await page.waitForSelector('[data-explore-unavailable]'); assert.equal(await page.locator('[data-explore-empty]').count(), 0); checks++; }
     console.log(`PASS discovery guidance: ${checks} synthetic projection checks; no activity/density/provider claims.`);
   } finally { await edge.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
