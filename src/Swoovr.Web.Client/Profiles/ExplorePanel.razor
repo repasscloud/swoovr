@@ -238,7 +238,8 @@
     // Photo-free tiles show a short quote (UI-STYLE.md); photos are not part of profiles yet.
     private static string Quote(string? about) => about is null ? "No about yet." : about.Length <= 90 ? about : about[..89].TrimEnd() + "…";
 
-    // D203: an approved photo through its short-lived link.
+    // D203: an approved photo through its short-lived link. Issue 467 (owner): right-click and drag are blocked, which
+    // only stops casual saving.
     private static RenderFragment TilePhoto(PhotoView photo, string name) => builder =>
     {
         builder.OpenElement(0, "img");
@@ -246,6 +247,10 @@
         builder.AddAttribute(2, "alt", $"{name}'s photo");
         builder.AddAttribute(3, "loading", "lazy");
         builder.AddAttribute(4, "data-tile-photo", photo.Id.ToString());
+        builder.AddAttribute(5, "draggable", "false");
+        builder.AddAttribute(6, "data-photo-guard", true);
+        builder.AddEventPreventDefaultAttribute(7, "oncontextmenu", true);
+        builder.AddEventPreventDefaultAttribute(8, "ondragstart", true);
         builder.CloseElement();
     };
 }

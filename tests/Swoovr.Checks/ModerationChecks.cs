@@ -111,7 +111,7 @@ static class ModerationChecks
 
         // Reports (D131).
         Expect(ReportPolicy.Supported(ReportSubject.Profile) && ReportPolicy.Supported(ReportSubject.Request) && ReportPolicy.Supported(ReportSubject.Bot), "subjects today");
-        Expect(ReportPolicy.Supported(ReportSubject.Message) && !ReportPolicy.Supported(ReportSubject.Photo), "messages since slice U; photos wait for their feature");
+        Expect(ReportPolicy.Supported(ReportSubject.Message) && ReportPolicy.Supported(ReportSubject.Photo) && !ReportPolicy.Supported(ReportSubject.Album), "messages since slice U; profile photos since issue 467; albums wait for their feature");
         Expect(ReportPolicy.ReporterStatus(CaseStatus.Open) == "submitted" && ReportPolicy.ReporterStatus(CaseStatus.Reviewed) == "reviewed", "reporter statuses");
         Expect(ReportPolicy.RateLimited(ReportPriority.Normal, 10) && !ReportPolicy.RateLimited(ReportPriority.Normal, 9), "burst limit");
         Expect(!ReportPolicy.RateLimited(ReportPriority.Urgent, 1000), "urgent reports always accepted");

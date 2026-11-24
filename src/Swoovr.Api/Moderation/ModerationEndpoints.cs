@@ -195,6 +195,23 @@ public static class ModerationEndpoints
                 snapshot = new { found.ModeId, Status = found.Status.ToString(), found.CreatedAt, FromReporter = found.FromAccountId == me };
             }
         }
+        else if (subjectType == ReportSubject.Photo && Guid.TryParse(request.SubjectId, out var photoId))
+        {
+            // Issue 467: a photo shown on another member's profile. Only an approved photo still placed on its owner's
+            // profile (main or a mode, never album-only) can be reported, and only by someone who may report that member.
+            // Like a chat photo (#41) it is kept by its media id and SHA-256; the object itself stays in the store.
+            var photo = await db.MediaItems.AsNoTracking().SingleOrDefaultAsync(i => i.Id == photoId && i.Status == MediaStatus.Passed && i.RemovedAt == null && !i.AlbumOnly, cancellationToken);
+            if (photo is not null && await db.MediaPlacements.AnyAsync(p => p.MediaId == photo.Id && p.AccountId == photo.AccountId, cancellationToken))
+            {
+                subject = await db.MemberProfiles.SingleOrDefaultAsync(p => p.AccountId == photo.AccountId, cancellationToken);
+                if (subject is not null && (subject.Bot || !await MayReportAsync(db, configuration, me, subject, cancellationToken))) subject = null;
+                if (subject is not null)
+                {
+                    retainedMedia.Add(photo.Id);
+                    snapshot = new { subject.DisplayName, Photo = photo.Id, PhotoSha256 = Convert.ToHexStringLower(photo.Sha256) };
+                }
+            }
+        }
         else if (subjectType is ReportSubject.Message or ReportSubject.Conversation && Guid.TryParse(request.SubjectId, out var itemId))
         {
             // D143 rules 10, 18–21: the member's own conversation (even after a block, a disconnect or the other's

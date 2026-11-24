@@ -277,6 +277,9 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 500;
     await benPage.goto(web + `/chats/${ab}`);
     await benPage.waitForSelector(`[data-chat-photo="${firstMedia}"]`, { timeout: 20000 }); pass();
     assert.ok(await benPage.$eval(`[data-chat-photo="${firstMedia}"]`, img => img.complete && img.naturalWidth > 0)); pass();
+    // Issue 467 (owner): right-click and drag are blocked on chat photos (only stops casual saving).
+    assert.ok(await benPage.$eval(`[data-chat-photo="${firstMedia}"]`, img => { const menu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }), drag = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+      img.dispatchEvent(menu); img.dispatchEvent(drag); return menu.defaultPrevented && drag.defaultPrevented && img.draggable === false && getComputedStyle(img).userSelect === 'none'; })); pass();
     if (output) await benPage.screenshot({ path: output + '/web-chat-photo.png', fullPage: true });
     await context.close();
     const anaContext = await browser.newContext({ viewport: { width: 390, height: 844 } });

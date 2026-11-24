@@ -71,7 +71,8 @@ const ADELAIDE = 2078025, MELBOURNE = 2158177;
     assert.deepEqual(code(await report('far', 'profile', pid.rep)), [404, 'not-available']); pass(); // another market, no relationship
     assert.deepEqual(code(await report('rep', 'bot', pid.sub)), [404, 'not-available']); pass(); // not a bot
     assert.deepEqual(code(await report('rep', 'profile', pid.sub, 'nonsense')), [400, 'unknown-category']); pass();
-    assert.deepEqual(code(await report('rep', 'photo', crypto.randomUUID())), [400, 'unsupported-subject']); pass(); // photos come later
+    assert.deepEqual(code(await report('rep', 'photo', crypto.randomUUID())), [404, 'not-available']); pass(); // issue 467: profile photos; unknown id
+    assert.deepEqual(code(await report('rep', 'album', crypto.randomUUID())), [400, 'unsupported-subject']); pass(); // albums come later
     assert.deepEqual(code(await report('rep', 'message', crypto.randomUUID())), [404, 'not-available']); pass(); // messages since slice U
     assert.deepEqual(code(await report('rep', '999', pid.sub)), [400, 'invalid-report']); pass();
     assert.deepEqual(code(await report('rep', 'profile', pid.sub, 'harassment', { text: 'x'.repeat(2001) })), [400, 'invalid-report']); pass();

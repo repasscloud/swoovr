@@ -1437,3 +1437,14 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
 **OPEN** (on #466): whether **Who I'd like to meet** (`/me/matching`) takes the same restyle. Until decided, only the Explore dialog uses it (`ModeFilters Layout="dialog"`); the page keeps its layout. Also **OPEN**: whether **All filters and your details** opens in a new tab or warns about unsaved changes. It is a plain link today.
 
 Behaviour is unchanged from PR #465: drafts per mode, one save at a time per mode, stale-save guards, the same fields, rules and data attributes.
+
+### D394 — Profile photos open in a viewer with Report photo; a save deterrent on member photos (24 November 2026)
+
+**CONFIRMED** by the owner on [#467](https://github.com/repasscloud/swoovr/issues/467), 24 November 2026:
+- On another member's profile, clicking (or Enter/Space on) the lead photo or any thumbnail opens it large in a dialog labelled "{Name}'s photo, 2 of 4". ←/→, the on-screen buttons or a swipe step through the gallery in its displayed order; Escape or Close returns focus to the photo that opened it; Tab stays in the dialog. It shows exactly the gallery's photos (D203 modes, approved only, #445 dedup) and no owner actions (`PersonPhotoViewer`, built on the issue 231 viewer's layout).
+- The viewer has **Report photo**, using the existing report flow. A report's subject is now `photo` with the photo's id: the API accepts only an approved photo still placed on its owner's profile, from someone who may report that member (as for a profile), and keeps it as evidence by media id and SHA-256 like a chat photo (#41). Albums still can't be reported.
+- Right-click and drag are blocked on profile gallery and viewer photos, chat photos (including explicit media once revealed, #431, which renders through the same element) and Explore card photos.
+
+**DEFAULT:** the same photos also get `user-select: none` and `-webkit-touch-callout: none`, so a long-press on iOS doesn't offer "Save image". This only stops casual saving: screenshots and developer tools still work, and the short-lived signed links (D203) remain the real protection. It is never described as copy protection.
+
+Note: there is one stored image per photo (the `member` link), so the viewer and the thumbnails load the same image at different sizes; no new size variant was added.

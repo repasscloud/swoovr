@@ -135,9 +135,78 @@ let checks = 0; const pass = () => checks++;
     if (width === 1280) { const [gallery, details] = await page.evaluate(() => ['[data-person-layout] > :first-child', '[data-person-details]'].map(q => document.querySelector(q).getBoundingClientRect())); assert.ok(details.left >= gallery.right, 'details sit beside the gallery on desktop'); pass(); }
     if (output) await page.screenshot({ path: `${output}/layout-${mode}-${width}.png`, fullPage: true });
    }
+   // ---- Issue 467: the photo viewer (open, step, keyboard, swipe, focus), Report photo and the save deterrent.
+   await page.setViewportSize({ width: 1280, height: 900 });
+   await page.goto(`${web}/people/${id}?mode=friends`); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
+   const guarded = selector => page.$$eval(selector, images => images.length > 0 && images.every(img => {
+    const menu = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }), drag = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+    img.dispatchEvent(menu); img.dispatchEvent(drag);
+    return menu.defaultPrevented && drag.defaultPrevented && img.draggable === false && getComputedStyle(img).userSelect === 'none';
+   }));
+   const title = () => page.locator('[data-person-viewer-title]').innerText();
+   const focused = () => page.evaluate(() => ({ id: document.activeElement?.id, open: document.activeElement?.getAttribute('data-person-photo-open'), inViewer: !!document.activeElement?.closest('[data-person-photo-viewer]') }));
+   assert.equal(await page.locator('[data-person-photo-open]').count(), 2); pass();
+   assert.ok(await guarded('[data-person-photos] img'), 'gallery photos: no context menu, no drag, no selection'); pass();
+   const gallerySources = await page.locator('[data-person-photos] img').evaluateAll(images => images.map(i => i.getAttribute('src')));
+   await page.click('[data-person-photo-open="0"]');
+   await page.waitForSelector('[data-person-photo-viewer] [role=dialog][aria-modal=true][aria-labelledby=person-viewer-title]');
+   assert.equal(await title(), "Fictional Sam's photo, 1 of 2"); pass();
+   assert.equal((await focused()).id, 'person-viewer-title'); pass();
+   assert.equal(await page.getAttribute('[data-person-viewer-image]', 'src'), gallerySources[0]); pass();
+   assert.ok(await guarded('[data-person-viewer-image]'), 'viewer photo guarded'); pass();
+   assert.equal(await page.locator('[data-person-photo-viewer] button').evaluateAll(b => b.map(x => x.innerText.trim()).filter(Boolean).join('|')), '‹|›|×|Report photo', 'no owner actions'); pass();
+   if (output) await page.screenshot({ path: `${output}/person-photo-viewer-1280.png` });
+   await page.keyboard.press('ArrowRight'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
+   assert.equal(await page.getAttribute('[data-person-viewer-image]', 'src'), gallerySources[1]); pass();
+   assert.ok(await page.isDisabled('[data-person-viewer-next]')); pass();
+   await page.keyboard.press('ArrowRight'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2", 'stays on the last photo'); pass();
+   await page.keyboard.press('ArrowLeft'); assert.equal(await title(), "Fictional Sam's photo, 1 of 2"); pass();
+   await page.click('[data-person-viewer-next]'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
+   await page.click('[data-person-viewer-prev]'); assert.equal(await title(), "Fictional Sam's photo, 1 of 2"); pass();
+   // A left swipe steps forward, a right swipe back.
+   const swipe = dx => page.$eval('[data-person-viewer-stage]', (stage, dx) => {
+    const touch = x => new Touch({ identifier: 1, target: stage, clientX: x, clientY: 200 });
+    stage.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [touch(300)], changedTouches: [touch(300)] }));
+    stage.dispatchEvent(new TouchEvent('touchend', { bubbles: true, touches: [], changedTouches: [touch(300 + dx)] }));
+   }, dx);
+   await swipe(-120); await page.waitForFunction(() => document.querySelector('[data-person-viewer-title]')?.innerText.endsWith('2 of 2')); pass();
+   await swipe(120); await page.waitForFunction(() => document.querySelector('[data-person-viewer-title]')?.innerText.endsWith('1 of 2')); pass();
+   for (let i = 0; i < 6; i++) { await page.keyboard.press('Tab'); assert.ok((await focused()).inViewer, 'Tab stays in the viewer'); } pass();
+   await page.keyboard.press('Escape'); await page.waitForSelector('[data-person-photo-viewer]', { state: 'detached' });
+   await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '0'); pass(); // focus back on the photo
+   // Keyboard: Enter and Space on a thumbnail open that photo; Escape returns focus to it.
+   await page.focus('[data-person-photo-open="1"]'); await page.keyboard.press('Enter');
+   await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
+   await page.keyboard.press('Escape'); await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '1'); pass();
+   await page.keyboard.press(' '); await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
+   await page.click('[data-person-viewer-close]'); await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '1'); pass();
+   // CONFIRMED: Report photo uses the existing report flow and records which photo it was.
+   await page.click('[data-person-photo-open="1"]'); await page.waitForSelector('[data-person-photo-viewer]');
+   assert.equal(await page.getAttribute('[data-report-photo]', 'data-report-photo'), ids[1]); pass();
+   await page.focus('[data-report-photo]'); await page.keyboard.press('Enter');
+   await page.waitForSelector('[data-member-dialog=report-photo] #report-category'); assert.equal(await page.locator('[data-person-photo-viewer]').count(), 0); pass();
+   assert.equal(await page.locator('#report-photo-dialog-heading').innerText(), "Report Fictional Sam's photo"); pass();
+   if (output) await page.screenshot({ path: `${output}/person-report-photo-1280.png` });
+   await page.selectOption('#report-category', { index: 1 }); await page.click('[data-report-form] button[type=submit]');
+   await page.waitForSelector('[data-member-dialog=report-photo] [data-report=sent]'); pass();
+   assert.equal(await sql(`SELECT subject_type || ':' || subject_ref FROM reports WHERE subject_ref = '${ids[1]}'`), `Photo:${ids[1]}`); pass();
+   assert.equal(await sql(`SELECT count(*) FROM case_evidence e JOIN reports r ON r.case_id = e.case_id WHERE r.subject_ref = '${ids[1]}' AND '${ids[1]}' = ANY(e.media_ids)`), '1'); pass();
+   await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=report-photo]', { state: 'detached' });
+   await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '1'); pass();
+   // Another member's photo id that isn't on a profile they may see is refused like any unavailable subject.
+   const refused = await call(b, '/api/reports', { method: 'POST', body: { subjectType: 'photo', subjectId: crypto.randomUUID(), category: 'harassment', text: null, block: false } });
+   assert.equal(refused.status, 404); pass();
+   // Phone width: the viewer fills the screen without horizontal overflow.
+   await page.setViewportSize({ width: 390, height: 844 }); await page.click('[data-person-photo-open="0"]'); await page.waitForSelector('[data-person-photo-viewer]');
+   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'viewer at 390 does not overflow'); pass();
+   if (output) await page.screenshot({ path: `${output}/person-photo-viewer-390.png` });
+   await page.keyboard.press('Escape'); await page.setViewportSize({ width: 1280, height: 900 });
+   // Explore cards carry the same guard.
+   await page.goto(`${web}/explore?mode=friends`); await page.waitForSelector('[data-tile-photo]', { timeout: 20000 });
+   assert.ok(await guarded('[data-tile-photo]'), 'Explore card photos guarded'); pass();
    assert.equal((await identity(false)).status, 200);
    assert.equal((await call(b, `/api/profiles/${id}?mode=dating`)).body.modes.find(m => m.id === 'dating').orientation, null, 'switched off: not shown'); pass();
-   console.log(`PASS: person profile actions (issue 446), ${checks} checks: one primary Connect, Report or block menu, dialogs write nothing on open, focus in/out, Escape, request unchanged, no overflow at 390/1280; layout (issue 447): key facts, details per mode, Dating-only orientation under its switch, lead photo, side-by-side on desktop.`);
+   console.log(`PASS: person profile actions (issue 446), ${checks} checks: one primary Connect, Report or block menu, dialogs write nothing on open, focus in/out, Escape, request unchanged, no overflow at 390/1280; layout (issue 447): key facts, details per mode, Dating-only orientation under its switch, lead photo, side-by-side on desktop; photo viewer (issue 467): open, ←/→, buttons, swipe, Tab trap, focus return, Enter/Space, Report photo recorded, save deterrent on gallery, viewer and Explore cards.`);
   } finally { await context.close(); }
  } finally { await edge.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

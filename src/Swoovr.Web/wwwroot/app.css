@@ -819,6 +819,17 @@ body:has(.public-layout) { padding-bottom: 0; }
 .person-gallery .person-photo { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; }
 .person-gallery .person-photo-lead { grid-column: 1 / -1; aspect-ratio: 4 / 5; border-radius: 14px; }
 .person-gallery .person-text-picture { grid-column: 1 / -1; }
+/* Issue 467: each gallery photo is a button that opens the photo viewer; the lead one spans the gallery. */
+.person-photo-open { display: block; width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 10px; background: none; cursor: zoom-in; }
+.person-photo-open.is-lead { grid-column: 1 / -1; border-radius: 14px; }
+.person-photo-open:focus-visible { outline: 3px solid var(--text); outline-offset: 2px; }
+.person-viewer .ph-viewer-stage { min-height: min(60vh, 520px); }
+.person-viewer-photo { display: block; max-width: 100%; max-height: min(76vh, 760px); object-fit: contain; }
+.person-viewer .ph-viewer-actions .button { justify-content: center; gap: 8px; }
+@media (max-width: 899px) { .person-viewer-photo { max-height: 60vh; } .person-viewer .ph-viewer-stage { min-height: 40vh; } }
+/* Issue 467 (owner): profile, viewer, chat and Explore photos can't be dragged, selected or long-pressed to save. This only
+   stops casual saving; screenshots still work and the short-lived signed links (D203) remain the real protection. */
+[data-photo-guard] { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-user-drag: none; }
 .person-card { margin: 0; }
 .person-card h2 { margin-top: 0; }
 .person-subhead { margin: 14px 0 6px; color: var(--muted); font: 600 .8125rem/1.3 var(--font); text-transform: uppercase; letter-spacing: .04em; }
