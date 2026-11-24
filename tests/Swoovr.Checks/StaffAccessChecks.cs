@@ -22,6 +22,10 @@ static class StaffAccessChecks
         Expect(StaffAccessPolicy.CheckRequest(StaffAccessPolicy.AccountReinstatement,"Fictional reviewed reinstatement",adminRole)==AccessRefusal.None,"admins may request separate reinstatement permission");
         Expect(StaffAccessPolicy.CheckRequest(StaffAccessPolicy.IdentifierRelease,"Fictional",support)==AccessRefusal.NotPermitted,"support cannot release identifiers");
         Expect(StaffAccessPolicy.CheckRequest(StaffAccessPolicy.AccountReinstatement,"Fictional",legal)==AccessRefusal.NotPermitted,"legal evidence role cannot reinstate accounts");
+        // Issue 456 (D403).
+        Expect(StaffAccessPolicy.CheckRequest("didit-decision-open","Fictional date review",adminRole)==AccessRefusal.None&&StaffAccessPolicy.CheckRequest("didit-decision-open"," ",adminRole)==AccessRefusal.PurposeRequired,"admins may open a Didit result, with a purpose");
+        Expect(StaffAccessPolicy.CheckRequest("didit-decision-open","x",support)==AccessRefusal.NotPermitted&&StaffAccessPolicy.CheckRequest("didit-decision-open","x",legal)==AccessRefusal.NotPermitted,"nobody else opens a Didit result");
+        Expect(StaffAccessPolicy.Classify("POST",$"/api/admin/accounts/{member}/didit-decision",200)==("identity",member.ToString(),"view"),"a Didit result is an identity view in the access log");
         Expect(StaffAccessPolicy.CheckRequest("identity-open", "Fictional police request REF-1", legal) == AccessRefusal.None, "legal opens identities");
         Expect(StaffAccessPolicy.CheckRequest("evidence-export", "Fictional disclosure", legal) == AccessRefusal.None, "legal exports evidence");
         Expect(StaffAccessPolicy.CheckRequest("termination", "Fictional serious breach", adminRole) == AccessRefusal.None, "admins terminate");

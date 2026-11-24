@@ -59,6 +59,12 @@ public enum IdStartRefusal { None, AlreadyVerified, AttemptUsed, InProgress, Not
 public sealed record ProviderSession(string SessionId, string Status, string? VendorData, string? WorkflowId, bool? Adult, string? Url = null, DateOnly? DateOfBirth = null,
     VerifiedIdentityFields? Identity = null);
 
+/// <summary>Issue 456: one document check as Didit reports it, whatever its status. Shown to staff and dropped; never stored.</summary>
+public sealed record ProviderDocument(string Status, string? DocumentType, string? IssuingState, DateOnly? DateOfBirth, string? FirstName, string? LastName);
+/// <summary>Gone: the provider no longer has the session (Didit keeps it 30 days, D147). Unavailable: it couldn't be read now.</summary>
+public enum ProviderReadResult { Available, Gone, Unavailable }
+public sealed record ProviderDecision(ProviderReadResult Result, string? Status = null, string? VendorData = null, IReadOnlyList<ProviderDocument>? Documents = null);
+
 /// <summary>
 /// The provider boundary for ID verification (D126): Infrastructure implements it for Didit; tests use a fake.
 /// Credentials stay inside the implementation.
@@ -71,6 +77,8 @@ public interface IIdVerificationProvider
     Task<ProviderSession?> CreateSessionAsync(Guid accountId, string callbackUrl, CancellationToken cancellationToken);
     /// <summary>Reads the current decision for one session. Null when the provider failed or doesn't know it.</summary>
     Task<ProviderSession?> GetDecisionAsync(string sessionId, CancellationToken cancellationToken);
+    /// <summary>Issue 456: the decision with its document checks, for staff to look at once.</summary>
+    Task<ProviderDecision> InspectDecisionAsync(string sessionId, CancellationToken cancellationToken);
     /// <summary>Deletes a session and its data at the provider (account deletion, D173). True once it is gone (or was never known).</summary>
     Task<bool> DeleteSessionAsync(string sessionId, CancellationToken cancellationToken);
 }

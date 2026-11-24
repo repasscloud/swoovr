@@ -67,6 +67,13 @@ static class VerificationChecks
         // Q53 (D158): the document's date of birth is compared with the profile's; only an exact match verifies it.
         Expect(DiditClient.DateOfBirth(Decision("""{"id_verifications":[{"status":"Declined","date_of_birth":"1990-01-01"},{"status":"Approved","date_of_birth":"1991-02-03"}]}""")) == new DateOnly(1991, 2, 3), "date from the approved document");
         Expect(DiditClient.DateOfBirth(Decision("""{"id_verifications":[{"status":"Approved","date_of_birth":"03/02/1991"}]}""")) is null, "only ISO dates");
+        // Issue 456 (D403): what staff see of a decision, whatever the check's status, and nothing else.
+        var sid = Guid.NewGuid();
+        var inspected = DiditClient.Inspect(Decision($$"""{"session_id":"{{sid}}","status":"APPROVED","vendor_data":"v","id_verifications":[{"status":"In Review","document_type":"Passport","issuing_state":"AUS","date_of_birth":"1991-02-03","first_name":"A","last_name":"B","document_number":"X1"},7]}"""), sid);
+        Expect(inspected is { Result: ProviderReadResult.Available, Status: "APPROVED", VendorData: "v", Documents.Count: 1 }
+            && inspected.Documents[0] == new ProviderDocument("In Review", "Passport", "AUS", new DateOnly(1991, 2, 3), "A", "B"), "the fields staff need");
+        Expect(DiditClient.Inspect(Decision($$"""{"session_id":"{{Guid.NewGuid()}}","status":"Approved"}"""), sid).Result == ProviderReadResult.Unavailable, "another session is never shown");
+        Expect(DiditClient.Inspect(Decision($$"""{"session_id":"{{sid}}","status":"Declined"}"""), sid) is { Result: ProviderReadResult.Available, Documents.Count: 0 }, "no document checks");
         // Issue 440: an approval that arrives without the date (a V2-pinned webhook has a singular id_verification; some
         // deliveries carry no decision at all) is completed from Didit's own decision before anyone opens a review.
         var bare = DiditClient.Read(Decision("""{"session_id":"s","status":"Approved","vendor_data":"v","workflow_id":"w"}"""))!;

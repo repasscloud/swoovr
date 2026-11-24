@@ -108,6 +108,12 @@ public sealed record VerifiedIdentityView(Guid AccountId, string? FirstName, str
 /// <summary>D166: a manual date-of-birth review in the admin queue. Never either date: the admin reads the document's in Didit's console.</summary>
 public sealed record DobReviewView(Guid Id, Guid AccountId, string? DisplayName, string Reason, DateTimeOffset CreatedAt, DateTimeOffset? ResolvedAt, string? Outcome,
     string? FirstName = null, string? LastName = null, string? DiditSessionId = null, string? ResolutionNote = null, string? ResolvedByName = null);
+/// <summary>Issue 456 (D403): Admin with live "didit-decision-open" access and a recorded purpose. ReviewId picks that review's session; otherwise the newest.</summary>
+public sealed record DiditDecisionRequest(string? Purpose, Guid? ReviewId = null);
+/// <summary>Result: available, gone (Didit no longer has it) or unavailable. Read live and never stored.</summary>
+public sealed record StaffDiditDecision(string Result, string? Status, IReadOnlyList<StaffDiditDocument> Documents);
+/// <summary>NameMatches and SameDate compare with the member's registered name and saved date; null when either side is missing.</summary>
+public sealed record StaffDiditDocument(string Status, string? DocumentType, string? IssuingCountry, DateOnly? DateOfBirth, bool? NameMatches, bool? SameDate);
 /// <summary>"verified" (the date on file matches the ID) or "notVerified", with a reason (audited, never shown publicly).</summary>
 public sealed record DobReviewDecision(string? Outcome, string? Reason);
 /// <summary>Q125 A (D317): an ID-verified member's registered name change waiting for staff. The current confirmed name is

@@ -64,6 +64,46 @@ public sealed class DiditClient(HttpClient http, DiditOptions options, ILogger<D
         }
     }
 
+    public async Task<ProviderDecision> InspectDecisionAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        if (!Configured) return new(ProviderReadResult.Unavailable);
+        if (!Guid.TryParse(sessionId, out var id)) return new(ProviderReadResult.Gone);
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(options.BaseUrl, $"v3/session/{id}/decision/"));
+        request.Headers.Add("x-api-key", options.ApiKey);
+        try
+        {
+            using var response = await http.SendAsync(request, cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return new(ProviderReadResult.Gone);
+            if (!response.IsSuccessStatusCode)
+            {
+                log.LogWarning("Didit {What} returned {Status}.", "inspect", (int)response.StatusCode);
+                return new(ProviderReadResult.Unavailable);
+            }
+            using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            return Inspect(body.RootElement, id);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            log.LogWarning("Didit {What} failed: {Kind}.", "inspect", exception.GetType().Name);
+            return new(ProviderReadResult.Unavailable);
+        }
+    }
+
+    /// <summary>Only the fields staff need to decide (issue 456): never document numbers, addresses, images or scores.</summary>
+    public static ProviderDecision Inspect(JsonElement root, Guid session)
+    {
+        if (Read(root) is not { } read || !Guid.TryParse(read.SessionId, out var id) || id != session) return new(ProviderReadResult.Unavailable);
+        var decision = root.TryGetProperty("decision", out var d) ? d : root;
+        var documents = decision.ValueKind == JsonValueKind.Object && decision.TryGetProperty("id_verifications", out var checks) && checks.ValueKind == JsonValueKind.Array
+            ? checks.EnumerateArray().Where(c => c.ValueKind == JsonValueKind.Object).Take(10).Select(c => new ProviderDocument(Short(c, "status", 40) ?? "", Short(c, "document_type", 40), Short(c, "issuing_state", 8),
+                Text(c, "date_of_birth") is { } dob && DateOnly.TryParseExact(dob, "yyyy-MM-dd", out var born) ? born : null, Short(c, "first_name", 100), Short(c, "last_name", 100))).ToList()
+            : [];
+        return new(ProviderReadResult.Available, read.Status, read.VendorData, documents);
+    }
+
+    private static string? Short(JsonElement root, string name, int max) => Text(root, name)?.Trim() is { Length: > 0 } value ? value[..Math.Min(value.Length, max)] : null;
+
     private async Task<ProviderSession?> SendAsync(HttpRequestMessage request, string what, CancellationToken cancellationToken)
     {
         request.Headers.Add("x-api-key", options.ApiKey);
@@ -130,7 +170,7 @@ public sealed class DiditClient(HttpClient http, DiditOptions options, ILogger<D
     }
 
     private static string? Text(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        root.ValueKind == JsonValueKind.Object && root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     /// <summary>
     /// Adult or not from an approved document check: Didit's `age`, or failing that the date of birth (used here and

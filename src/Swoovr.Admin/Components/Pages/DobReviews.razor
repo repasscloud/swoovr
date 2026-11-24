@@ -89,6 +89,8 @@ else
                 <a class="ui-icon-button" href="@Url(null)" data-photo-close aria-label="Close review">@Chevron("M6 6l12 12M18 6L6 18")</a>
             </nav>
         </header>
+        <div class="dob-scroll">
+        <DiditDecision AccountId="selected.AccountId" ReviewId="selected.Id" />
         <form method="post" @formname="@($"resolve-{selected.Id}")" @onsubmit="() => ResolveAsync(selected.Id)" class="media-side dob-form" data-enhance="true" data-dob-form>
             <AntiforgeryToken />
             <dl class="media-meta">
@@ -114,6 +116,7 @@ else
                 <span class="dob-save"><kbd>⌘ Enter</kbd><button type="submit" data-dob-save>Save and next</button></span>
             </div>
         </form>
+        </div>
     </dialog>
 }
 @code {

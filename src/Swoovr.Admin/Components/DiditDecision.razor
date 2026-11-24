@@ -1,0 +1,67 @@
+@inject AdminClient Admin
+@* Issue 456 (D403): the member's Didit result, read live and never stored, after a recorded purpose. It also takes the
+   60-minute "didit-decision-open" access in the same step, as opening a date of birth does (issue 190). *@
+<section class="didit-decision" data-didit-decision="@(decision?.Result ?? "closed")" aria-label="Didit result">
+    @if (decision is { Result: "available" } d)
+    {
+        <dl class="media-meta">
+            <dt>Session</dt><dd><span class="ui-pill" data-tone="@Tone(d.Status)">@(string.IsNullOrWhiteSpace(d.Status) ? "Unknown" : d.Status)</span></dd>
+            @foreach (var doc in d.Documents)
+            {
+                <dt>Document check</dt><dd><span class="ui-pill" data-tone="@Tone(doc.Status)" data-didit-document="@doc.Status">@(doc.Status.Length == 0 ? "Unknown" : doc.Status)</span></dd>
+                <dt>Document</dt><dd>@(doc.DocumentType ?? "—")@(doc.IssuingCountry is { } country ? $" · {country}" : "")</dd>
+                <dt>Date of birth</dt><dd data-didit-dob>@(doc.DateOfBirth?.ToString("d MMMM yyyy") ?? "Not reported") @if (doc.SameDate is { } same) { <span class="ui-sub">@(same ? "Same as the member's saved date" : "Different from the member's saved date")</span> }</dd>
+                <dt>Registered name</dt><dd>@(doc.NameMatches switch { true => "Matches the ID", false => "Doesn't match the ID", _ => "Can't be compared" })</dd>
+            }
+        </dl>
+        @if (d.Documents.Count == 0) { <p class="ui-help">Didit has no document check for this session.</p> }
+        <p class="ui-help">Read from Didit just now. Swoovr doesn't store it.</p>
+    }
+    else
+    {
+        @if (decision is { Result: "gone" }) { <p class="ui-help" role="status">No longer available from Didit.</p> }
+        else if (decision is not null) { <p class="ui-help" role="status">Didit can't be reached right now. Try again shortly.</p> }
+        @if (message is not null) { <p class="media-error" role="status" data-didit-result="@resultCode">@message</p> }
+        <details open="@(message is not null)">
+            <summary>Show Didit's result</summary>
+            <form method="post" @formname="@FormName" @onsubmit="OpenAsync" class="didit-form">
+                <AntiforgeryToken />
+                <label class="ui-field"><span>Purpose</span><select name="purpose" required>@foreach (var p in Purposes) { <option>@p</option> }</select></label>
+                <label class="ui-field"><span>Details</span><textarea name="detail" rows="2" maxlength="300" required placeholder="No dates"></textarea></label>
+                <p class="ui-help">Access lasts 60 minutes and is recorded against your name.</p>
+                <div><button type="submit" class="ui-button-ghost" data-didit-show>Show result</button></div>
+            </form>
+        </details>
+    }
+</section>
+@code {
+    [Parameter, EditorRequired] public Guid AccountId { get; set; }
+    [Parameter] public Guid? ReviewId { get; set; }
+    [CascadingParameter] private HttpContext? Context { get; set; }
+    private const string Capability = "didit-decision-open";
+    private static readonly string[] Purposes = ["Date of birth review", "Age or identity review", "Member support request", "Investigate a report"];
+    private StaffDiditDecision? decision;
+    private string? message, resultCode;
+    private string FormName => $"didit-{ReviewId ?? AccountId}";
+    private static string Tone(string? status) => string.Equals(status, "approved", StringComparison.OrdinalIgnoreCase) ? "approve" : "quiet";
+    private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
+
+    private async Task OpenAsync()
+    {
+        if (Context is not null && !Context.Response.HasStarted) Context.Response.Headers.CacheControl = "no-store";
+        var detail = Field("detail").Trim();
+        if (detail.Length == 0) { Refuse(400, "purpose-required"); return; }
+        var purpose = $"{Field("purpose")}: {detail}";
+        var grants = (await Admin.GrantsAsync()).Value ?? [];
+        if (!grants.Any(g => g.Active && g.Capability == Capability))
+        {
+            var grant = await Admin.RequestGrantAsync(new AccessGrantRequest(Capability, purpose));
+            if (!grant.Ok) { Refuse(grant.Status, grant.Code); return; }
+        }
+        var result = await Admin.DiditDecisionAsync(AccountId, purpose, ReviewId);
+        decision = result.Value;
+        if (!result.Ok) Refuse(result.Status, result.Code);
+    }
+    private void Refuse(int status, string? why) => (resultCode, message) = (why ?? status.ToString(),
+        why == "purpose-required" ? "Add the details of why you need this." : status == 404 ? "There's no Didit check for this account." : AdminText.Refusal(status, why));
+}

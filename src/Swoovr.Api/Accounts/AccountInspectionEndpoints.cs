@@ -14,7 +14,7 @@ public static class AccountInspectionEndpoints
 {
     public static readonly string[] HistoryActions=["age.updated","profile.updated","home-market.override","staff.affiliated","staff.revoked","moderation.warn","moderation.restrict","moderation.suspend","moderation.terminate","entitlement.granted","dob.correction-granted","dob.correction-revoked","dob.correction-used",
         // #190 (D323): account detail actions.
-        "entitlement.revoked","profile-dob.opened","account.locked","account.unlocked","sessions.revoked",
+        "entitlement.revoked","profile-dob.opened","didit-decision.opened","account.locked","account.unlocked","sessions.revoked",
         "verification.photoVerified.applied","verification.photoVerified.revoked","verification.idVerified.applied","verification.idVerified.revoked",
         // Issue 454: a support request staff opened for the member.
         "helpdesk.ticket.created"];
@@ -40,6 +40,32 @@ public static class AccountInspectionEndpoints
             db.IdentityAccesses.Add(new IdentityAccess{AccountId=id,ActorAccountId=current.Account.Id,Purpose=request.Purpose.Trim(),At=now});
             Audit.Record(db,now,current.Account.Id,"account","profile-dob.opened","account",id.ToString());
             await db.SaveChangesAsync(token);return Results.Ok(new StaffDateOfBirth(profile.DateOfBirth,profile.DateOfBirthVerified));
+        });
+        // Issue 456 (D403, amends D166): the Didit decision, read live and never stored. The access is recorded before Didit is asked.
+        group.MapPost("/didit-decision",async(Guid id,DiditDecisionRequest request,ClaimsPrincipal user,AccountResolver accounts,IIdVerificationProvider provider,TimeProvider clock,CancellationToken token)=>
+        {
+            var(current,denied)=await StaffAsync(user,accounts,id,false,token);if(denied is not null)return denied;
+            if(!current!.Allows(AccountRole.Admin))return Results.Forbid();
+            if(string.IsNullOrWhiteSpace(request.Purpose)||request.Purpose.Trim().Length>500)return Problem(400,ProblemCodes.PurposeRequired,"Record a purpose (up to 500 characters).");
+            var db=accounts.Db!;var now=clock.GetUtcNow();
+            if(await StaffAccessEndpoints.GrantAsync(db,current.Account!.Id,StaffAccessPolicy.DiditDecisionOpen,now,token)is null)return StaffAccessEndpoints.NeedsGrant(StaffAccessPolicy.DiditDecisionOpen);
+            var attempts=db.IdVerificationAttempts.AsNoTracking().Where(a=>a.AccountId==id);
+            if(request.ReviewId is{}review)attempts=attempts.Where(a=>db.DobReviews.Any(r=>r.Id==review&&r.AccountId==id&&r.AttemptId==a.Id));
+            var session=await attempts.OrderByDescending(a=>a.CreatedAt).Select(a=>a.SessionId).FirstOrDefaultAsync(token);
+            if(string.IsNullOrEmpty(session))return Problem(404,ProblemCodes.NotAvailable,"There's no Didit check for this account.");
+            db.IdentityAccesses.Add(new IdentityAccess{AccountId=id,ActorAccountId=current.Account.Id,Purpose=request.Purpose.Trim(),At=now});
+            Audit.Record(db,now,current.Account.Id,"account","didit-decision.opened","account",id.ToString());
+            await db.SaveChangesAsync(token);
+            var decision=await provider.InspectDecisionAsync(session,token);
+            // Another account's session is never shown, whatever the provider answers.
+            if(decision.Result==ProviderReadResult.Available&&decision.VendorData!=id.ToString())decision=new(ProviderReadResult.Unavailable);
+            if(decision.Result!=ProviderReadResult.Available)return Results.Ok(new StaffDiditDecision(Wire(decision.Result),null,[]));
+            var account=await db.Accounts.AsNoTracking().SingleAsync(a=>a.Id==id,token);
+            var born=await db.MemberProfiles.Where(p=>p.AccountId==id).Select(p=>p.DateOfBirth).SingleOrDefaultAsync(token);
+            var names=RegisteredNamePolicy.Complete(account)?new RegisteredNames(account.RegisteredFirstName!,account.RegisteredLastName,account.RegisteredMononym):null;
+            return Results.Ok(new StaffDiditDecision("available",decision.Status,(decision.Documents??[]).Select(d=>new StaffDiditDocument(d.Status,d.DocumentType,d.IssuingState,d.DateOfBirth,
+                names is null||d.FirstName is null?null:RegisteredNamePolicy.Matches(names,d.FirstName,d.LastName),
+                born is null||d.DateOfBirth is null?null:born==d.DateOfBirth)).ToList()));
         });
         group.MapGet("/profile-preview",async(Guid id,ClaimsPrincipal user,AccountResolver accounts,TimeProvider clock,CancellationToken token)=>
         {

@@ -378,16 +378,59 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
         people[role].token = await staffToken(browser, people[role]); await call(people[role].token, '/api/session');
       }
       assert.equal((await call(people.support.token, '/api/admin/workspace')).body.dobReviewsWaiting ?? null, null); pass();
+      // Issue 456 (D403): the Didit decision, read live for an admin with live access and a purpose, never stored.
+      const didit = (token, who, body) => call(token, `/api/admin/accounts/${ids[who]}/didit-decision`, { method: 'POST', body });
+      const why = { purpose: 'Fictional date review' }, adm = people.admin.token;
+      assert.equal((await didit(null, 'bare', why)).status, 401); pass();
+      assert.equal((await didit(tokens.ana, 'bare', why)).status, 403); pass();
+      assert.equal((await didit(people.support.token, 'bare', why)).status, 403); pass(); // Support has no date of birth queue
+      assert.deepEqual(code(await didit(adm, 'bare', why)), [403, 'elevated-access-required']); pass();
+      assert.equal((await call(people.support.token, '/api/admin/access/grants', { method: 'POST', body: { capability: 'didit-decision-open', purpose: 'x' } })).status, 403); pass();
+      assert.equal((await call(adm, '/api/admin/access/grants', { method: 'POST', body: { capability: 'didit-decision-open', purpose: 'Fictional date review' } })).status, 201); pass();
+      assert.deepEqual(code(await didit(adm, 'bare', { purpose: ' ' })), [400, 'purpose-required']); pass();
+      r = await didit(adm, 'bare', why);
+      assert.deepEqual([r.status, r.body.result, r.body.status], [200, 'available', 'Approved']); pass();
+      assert.deepEqual([r.body.documents.length, r.body.documents[0].dateOfBirth, r.body.documents[0].sameDate], [1, '1971-01-01', false]); pass();
+      assert.equal((await didit(adm, 'none', why)).body.result, 'gone'); pass(); // the stand-in has no such session
+      assert.equal((await didit(adm, 'bare', { ...why, reviewId: crypto.randomUUID() })).status, 404); pass();
+      const bareSession = await sql(`SELECT session_id FROM id_verification_attempts WHERE account_id = '${ids.bare}'`);
+      await decided(bareSession, ids.legacy, [{ status: 'Approved', date_of_birth: '1971-01-01' }]);
+      r = await didit(adm, 'bare', why);
+      assert.deepEqual([r.body.result, r.body.documents], ['unavailable', []], 'another account\'s session is never shown'); pass();
+      await decided(bareSession, ids.bare, [{ status: 'Approved', age: 55, document_type: 'Passport', issuing_state: 'AUS', date_of_birth: '1971-01-01' }]);
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'didit-decision.opened' AND target_id = '${ids.bare}' AND detail IS NULL`), '2'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action LIKE 'didit-decision%' AND detail IS NOT NULL`), '0'); pass();
+      const adminId = await sql(`SELECT id FROM accounts WHERE subject = '${claims(adm).sub}'`);
+      await call(adm, '/api/admin/access/exclusions', { method: 'POST', body: { subjectAccountId: ids.legacy, reason: 'Fictional conflict' } });
+      if (await sql(`SELECT count(*) FROM staff_exclusions WHERE staff_account_id = '${adminId}' AND subject_account_id = '${ids.legacy}'`) === '0') await sql(`INSERT INTO staff_exclusions (staff_account_id, subject_account_id, reason, created_by, created_at) VALUES ('${adminId}', '${ids.legacy}', 'Fictional conflict', '${adminId}', now())`);
+      assert.deepEqual(code(await didit(adm, 'legacy', why)), [403, 'conflict-of-interest']); pass();
+      // A review for a member whose session the stand-in knows, to see the panel in the dialog.
+      const bareAttempt = await sql(`SELECT id FROM id_verification_attempts WHERE account_id = '${ids.bare}'`), bareReview = crypto.randomUUID();
+      await sql(`INSERT INTO dob_reviews (id, account_id, attempt_id, reason, created_at) VALUES ('${bareReview}', '${ids.bare}', '${bareAttempt}', 'still-different', now())`);
+      const queue = Number(await sql('SELECT count(*) FROM dob_reviews WHERE resolved_at IS NULL'));
       for (const role of ['admin', 'support']) {
         const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage();
         await page.goto(admin + '/');
         await page.fill('#username', people[role].email); await page.fill('#password', people[role].password); await page.click('#kc-login');
         await fillStaffOtp(page, people[role]);
         await page.waitForSelector('[data-dashboard]', { timeout: 20000 });
-        assert.equal(await page.locator('.admin-sidebar [data-nav-dob-count]').first().getAttribute('data-nav-dob-count', { timeout: 2000 }).catch(() => null), role === 'admin' ? String(waiting) : null, role); pass();
+        assert.equal(await page.locator('.admin-sidebar [data-nav-dob-count]').first().getAttribute('data-nav-dob-count', { timeout: 2000 }).catch(() => null), role === 'admin' ? String(queue) : null, role); pass();
         assert.equal(await page.locator('[data-dob-reviews-waiting]').count(), role === 'admin' ? 1 : 0, role); pass();
         if (output) await page.screenshot({ path: `${output}/admin-overview-${role}-1280.png` });
         if (role === 'admin') {
+          for (const [name, url, size] of [['dob-dialog-1280', `/dob-reviews?review=${bareReview}`, { width: 1280, height: 900 }], ['dob-dialog-390', `/dob-reviews?review=${bareReview}`, { width: 390, height: 844 }], ['account-verification-1280', `/accounts/${ids.bare}/verification`, { width: 1280, height: 900 }]]) {
+            await page.setViewportSize(size);
+            await page.goto(admin + url);
+            await page.click('[data-didit-decision=closed] summary');
+            if (output) await page.screenshot({ path: `${output}/${name}-closed.png` });
+            await page.selectOption('[data-didit-decision] select[name=purpose]', 'Date of birth review');
+            await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check');
+            await page.click('[data-didit-show]');
+            await page.waitForSelector('[data-didit-decision=available]', { timeout: 20000 }); pass();
+            assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
+            if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
+          }
+          await page.setViewportSize({ width: 1280, height: 900 }); await page.goto(admin + '/');
           await page.setViewportSize({ width: 390, height: 844 }); await page.reload(); await page.waitForSelector('[data-dashboard]');
           if (output) await page.screenshot({ path: output + '/admin-overview-admin-390.png' });
           await sql(`UPDATE dob_reviews SET resolved_at = now() WHERE resolved_at IS NULL`);

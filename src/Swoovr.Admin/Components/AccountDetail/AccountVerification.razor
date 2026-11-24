@@ -26,6 +26,10 @@
         }
     </ul>
 }
+@if (Permissions?.Verify == true && attempts is { Attempts.Count: > 0 })
+{
+    <div class="ui-card ad-gap"><div class="ui-card-head"><h2>Didit result</h2></div><DiditDecision AccountId="Account.Id" /></div>
+}
 <div class="acct-grid ad-gap">
     <div class="ui-card">
         <div class="ui-card-head"><h2>Age assurance</h2><span class="ui-pill" data-tone="quiet" data-age-status="@Account.AgeStatus">@AccountLabels.Age(Account.AgeStatus)</span></div>
