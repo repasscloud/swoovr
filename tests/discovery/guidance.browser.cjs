@@ -107,6 +107,20 @@ const { web, createMember, memberToken, cli, call, matchReady } = require('../au
     await page.check('[data-filter-mode=dating]'); await page.waitForSelector('[data-filter-form=dating]');
     assert.equal(await page.inputValue('#min-age'), '27', 'the newer unsaved edit is kept'); checks++;
     assert.equal(await page.locator('[data-filter-form] .rd-status').getAttribute('data-filter-status'), 'draft'); checks++;
+    // Codex (PR 465): one save at a time per mode. Returning to Dating while its save is pending can't start another one.
+    await page.click('[data-filter-form=dating] button[type=submit]'); await page.waitForSelector('[data-filter-status=saved]'); // save 27 first
+    await page.selectOption('#min-age', '28');
+    await page.route('**/api/me/modes/dating/filters', async route => { if (route.request().method() === 'PUT') await new Promise(r => setTimeout(r, 2500)); await route.continue(); });
+    await page.click('[data-filter-form=dating] button[type=submit]');
+    await page.check('[data-filter-mode=friends]'); await page.waitForSelector('[data-filter-form=friends]');
+    await page.check('[data-filter-mode=dating]'); await page.waitForSelector('[data-filter-form=dating]');
+    assert.equal(await page.locator('[data-filter-save]').getAttribute('data-filter-save'), 'pending'); checks++;
+    assert.equal(await page.locator('[data-filter-save]').isDisabled(), true, 'no second Dating save while the first is pending'); checks++;
+    await page.waitForSelector('[data-filter-save=ready]', { timeout: 10000 });
+    await page.unroute('**/api/me/modes/dating/filters');
+    assert.equal(await page.inputValue('#min-age'), '28', 'the form shows what was saved'); checks++;
+    assert.equal((await call(token, '/api/me/modes/dating/filters')).body.minAge, 28, 'and the server holds it'); checks++;
+    assert.equal(await page.locator('[data-filter-form] .rd-status').getAttribute('data-filter-status'), 'saved', 'says saved, not unsaved changes'); checks++;
     console.log(`PASS discovery guidance: ${checks} synthetic projection checks; no activity/density/provider claims.`);
   } finally { await edge.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

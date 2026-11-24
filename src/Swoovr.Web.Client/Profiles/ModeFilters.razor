@@ -52,7 +52,8 @@
             </fieldset>
             <div class="rd-actions">
                 <p role="status" aria-live="polite" class="field-help rd-status" data-filter-status="@filterStatus">@filterMessage</p>
-                <button type="submit" class="button" disabled="@busy">Save filters</button>
+                @* Codex (PR 465): one save at a time per mode, even across mode switches, so an older save can't land last. *@
+                <button type="submit" class="button" disabled="@(busy || saving.Contains(modeId))" data-filter-save="@(saving.Contains(modeId) ? "pending" : "ready")">@(saving.Contains(modeId) ? "Saving…" : "Save filters")</button>
             </div>
         </div>
         @if (!filter.PlusAvailable) { <p class="field-help" data-distance-help>Distances over @(LocationLimits.FreeMaxKm) km and Most in common first are part of Plus.</p> }
@@ -119,8 +120,7 @@ else
         if (requested != modeId) return;
         filter = loaded;
         if (filter is null) return;
-        (minAge, maxAge, required, match, excluded, idVerifiedOnly, visitors, distance, sort) = (filter.MinAge, filter.MaxAge, filter.RequiredChips.ToHashSet(),
-            filter.RequiredMatch, filter.ExcludedChips.ToHashSet(), filter.IdVerifiedOnly, filter.Visitors, filter.MaxDistanceKm, filter.Sort);
+        Apply(filter);
         (filterStatus, filterMessage) = (null, null);
         if (drafts.TryGetValue(modeId, out var draft))
         {
@@ -129,17 +129,36 @@ else
         }
     }
 
+    private void Apply(FilterView view) => (minAge, maxAge, required, match, excluded, idVerifiedOnly, visitors, distance, sort) = (view.MinAge, view.MaxAge,
+        view.RequiredChips.ToHashSet(), view.RequiredMatch, view.ExcludedChips.ToHashSet(), view.IdVerifiedOnly, view.Visitors, view.MaxDistanceKm, view.Sort);
+
+    /// <summary>Modes with a save in flight. Tracked apart from loading, so returning to a mode can't start a second save.</summary>
+    private readonly HashSet<string> saving = [];
+
     private async Task SaveFiltersAsync()
     {
-        if (busy) return;
-        busy = true;
+        if (busy || !saving.Add(modeId)) return;
+        try { await SaveOnceAsync(); }
+        finally { saving.Remove(saveMode!); saveMode = null; StateHasChanged(); }
+    }
+    private string? saveMode;
+
+    private async Task SaveOnceAsync()
+    {
+        busy = true; saveMode = modeId;
         // Codex (PR 465): the member may switch modes while this saves. The save belongs to the mode it was made in:
         // it clears that mode's draft, and changes this form (values, status, busy) only if that mode is still loaded.
         var savedMode = modeId; var generation = loading; var submitted = Capture();
         var result = await Members.SaveFiltersAsync(savedMode, new FilterUpdate(minAge, maxAge, required.ToList(), match, excluded.ToList(), idVerifiedOnly, visitors, distance, sort));
         // Codex (PR 465): clear the draft only if it still holds what was submitted; edits made since stay.
         if (result.Ok && drafts.TryGetValue(savedMode, out var pending) && Same(pending, submitted)) drafts.Remove(savedMode);
-        if (savedMode != modeId || generation != loading) return;
+        if (savedMode != modeId) return;
+        if (generation != loading)
+        {
+            // Back on this mode after a reload: show what was saved, unless the member has changed something since.
+            if (result.Ok && result.Value is { } later && filter is not null && (!Dirty || Same(Capture(), submitted))) { filter = later; Apply(later); (filterStatus, filterMessage) = ("saved", "Filters saved."); }
+            return;
+        }
         busy = false;
         if (result.Ok && result.Value is { } saved) { filter = saved; await Saved.InvokeAsync(saved); }
         (filterStatus, filterMessage) = result.Ok ? ("saved", "Filters saved.") : (result.Code ?? "failed", result.Code == ProblemCodes.PlusRequired
