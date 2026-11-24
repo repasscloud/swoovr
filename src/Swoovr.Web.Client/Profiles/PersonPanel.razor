@@ -48,6 +48,7 @@
                 }
             </div>
         </div>
+        <p role="status" aria-live="polite" class="field-help person-message-status" data-message-status="@messageStatus">@messageError</p>
         @if (ConnectSummary is { Length: > 0 } summary) { <p class="field-help person-connect-summary" data-connect-summary>@summary</p> }
     }
 </div>
@@ -174,9 +175,9 @@
             </p>
         </div>
     </MemberDialog>
-    <MemberDialog Kind="report" Title="@($"Report {person.DisplayName}")" Open="@(dialog == Dialogs.Report)" Closed="Close" ReturnFocus="safetyButton">
+    <MemberDialog Kind="report" Title="@($"Report {person.DisplayName}")" Open="@(dialog == Dialogs.Report)" Closed="Close" ReturnFocus="safetyButton" FocusRequest="reportFocus">
         <ReportForm InDialog="true" SubjectType="@(person.Badges.Any(b => b.Badge == "bot") ? "bot" : "profile")" SubjectId="@Id.ToString()" Name="@person.DisplayName"
-                    Submitted="() => reportSent=true" Blocked="() => { person = null; blockedNow = true; dialog = null; }" />
+                    Submitted="() => { reportSent = true; reportFocus++; }" Blocked="() => { person = null; blockedNow = true; dialog = null; }" />
     </MemberDialog>
 }
 @if (blockedNow)
@@ -193,7 +194,8 @@
     private bool loaded, busy, blockedNow, reportSent, safetyOpen;
     private enum Dialogs { Connect, Block, Report }
     private Dialogs? dialog;
-    private int connectFocus;
+    private int connectFocus, reportFocus;
+    private string? messageStatus, messageError;
     private ElementReference connectButton, safetyButton;
 
     private void Open(Dialogs which) => (dialog, safetyOpen) = (which, false);
@@ -258,8 +260,12 @@
         var selected = person?.Modes.FirstOrDefault(m => m.Id == Mode && m.Connection == "connected") ?? person?.Modes.FirstOrDefault(m => m.Connection == "connected");
         var result = selected is null ? await Members.StartConversationAsync(Id) : await Members.StartConversationInModeAsync(Id, selected.Id);
         busy = false;
-        if (result.Value is { } conversation) Navigation.NavigateTo($"/chats/{conversation.Id}");
-        else (connectStatus, connectMessage) = ("failed", "You can message people you're connected with.");
+        if (result.Value is { } conversation) { (messageStatus, messageError) = (null, null); Navigation.NavigateTo($"/chats/{conversation.Id}"); }
+        else
+        {
+            (messageStatus, messageError) = ("failed", "You can message people you're connected with.");
+            await ReloadAsync(); // the connection may have ended since the page loaded; the buttons follow
+        }
     }
 
     private async Task BlockAsync()

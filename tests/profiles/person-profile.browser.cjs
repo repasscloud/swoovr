@@ -79,8 +79,21 @@ let checks = 0; const pass = () => checks++;
    await page.waitForSelector('[data-connect-mode=friends][data-connection=sent]'); pass();
    assert.equal(await page.locator('[data-connect-status]').innerText(), 'Request sent.'); pass();
    assert.ok(writes.some(w => w.endsWith('/api/requests')), writes.join(',')); pass();
-   await page.keyboard.press('Escape');
+   // Codex (PR 463): a click on the dimmed page behind keeps Escape working.
+   await page.mouse.click(5, 5);
+   assert.equal(await page.locator('[data-member-dialog=connect]').count(), 1, 'a backdrop click does not close or act'); pass();
+   await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' }); pass();
    assert.ok((await page.locator('[data-connect-summary]').innerText()).includes('Friends: request sent')); pass();
+   // Codex (PR 463): when Message fails (the connection ended meanwhile), the reason shows beside the button.
+   const received = (await call(a, '/api/requests?box=received')).body.items.find(r => r.mode === 'friends');
+   assert.equal((await call(a, `/api/requests/${received.id}/accept`, { method: 'POST' })).status, 200);
+   await page.reload(); await page.waitForSelector('[data-person=ready] [data-message-person]', { timeout: 20000 });
+   await page.route('**/api/conversations', route => route.request().method() === 'POST' ? route.fulfill({ status: 404, contentType: 'application/problem+json', body: '{"status":404,"code":"not-found"}' }) : route.continue());
+   await page.click('[data-message-person]');
+   await page.waitForSelector('[data-message-status=failed]');
+   assert.equal(await page.locator('[data-message-status]').innerText(), "You can message people you're connected with."); pass();
+   assert.equal(await page.locator('[data-member-dialog]').count(), 0, 'shown on the page, not in a closed dialog'); pass();
+   await page.unroute('**/api/conversations');
    await page.setViewportSize({ width: 390, height: 844 }); await page.click('[data-safety-menu]');
    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'menu open at 390 does not overflow'); pass();
    if (output) await page.screenshot({ path: `${output}/person-safety-menu-390.png`, fullPage: true });

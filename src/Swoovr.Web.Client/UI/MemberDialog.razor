@@ -3,7 +3,8 @@
    button that opened it when it closes; Escape and the close button close it. *@
 @if (Open)
 {
-    <div class="dialog-backdrop" data-member-dialog="@Kind" @onkeydown="KeyAsync">
+    @* tabindex=-1: a click on the dimmed page focuses the backdrop (not <body>), so Escape still closes the dialog. *@
+    <div class="dialog-backdrop" tabindex="-1" data-member-dialog="@Kind" @onkeydown="KeyAsync">
         @* Focus sentinels keep Tab inside the dialog: leaving either end lands back on its close button or heading. *@
         <span tabindex="0" class="visually-hidden" data-focus-sentinel @onfocus="FocusCloseAsync"></span>
         <section class="card dialog member-dialog" role="dialog" aria-modal="true" aria-labelledby="@($"{Kind}-dialog-heading")">
