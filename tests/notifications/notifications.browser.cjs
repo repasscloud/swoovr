@@ -289,21 +289,24 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     await page.goto(web + '/account/sign-in?intro=done');
     await page.fill('#username', members.bob.email); await page.fill('#password', members.bob.password);
     await Promise.all([page.waitForURL(web+'/explore'),page.click('#kc-login')]);await page.goto(web+'/account');
-    assert.ok(await page.isVisible('[data-notifications-link]')); pass();
+    assert.equal(await page.locator('[data-settings-link="notifications"]').count(), 1); pass(); // issue 180: Notifications is in the Me menu
     // Issue 472 (D397): the Me tab and the Notifications menu item show the same unread count, and reading drops both at once.
     const bobUnread = (await centre('bob')).unread;
     assert.ok(bobUnread > 0, 'bob has unread notifications'); pass();
     await page.waitForSelector(`[data-unread-badge="tab"][data-unread-count="${bobUnread}"]`, { timeout: 20000 }); pass();
+    if (output) await page.screenshot({ path: output + '/unread-badge-tab-390.png' });
     await page.goto(web + '/me/notifications');
     await page.waitForSelector('[data-notifications="ready"]', { timeout: 20000 });
-    await page.waitForSelector(`[data-unread-badge="menu"][data-unread-count="${bobUnread}"]`, { timeout: 20000 }); pass();
+    // At 390 px the Me menu is a closed popover, so its badge is in the page but not visible.
+    await page.waitForSelector(`[data-unread-badge="menu"][data-unread-count="${bobUnread}"]`, { state: 'attached', timeout: 20000 }); pass();
     assert.equal(await page.textContent('[data-unread-badge="tab"] [aria-hidden]'), String(bobUnread)); pass();
     await page.$eval('[data-read-all]', el => el.click());
     await page.waitForFunction(() => !document.querySelector('[data-unread-badge]'), null, { timeout: 10000 }); pass();
+    if (output) await page.screenshot({ path: output + '/unread-cleared-390.png' });
     // A new notification shows up without reloading (polling, 30 seconds).
     assert.ok((await request('dee', 'bob', 'dating')).status < 300, 'a new request for bob'); pass();
     await page.waitForSelector('[data-unread-badge="tab"][data-unread-count="1"]', { timeout: 45000 }); pass();
-    await page.waitForSelector('[data-unread-badge="menu"][data-unread-count="1"]', { timeout: 5000 }); pass();
+    await page.waitForSelector('[data-unread-badge="menu"][data-unread-count="1"]', { state: 'attached', timeout: 5000 }); pass();
     assert.ok((await page.textContent('[data-notification-list]')).includes('Fictional Ntf ana accepted your Dating request')); pass();
     assert.ok((await page.textContent('[data-notification-privacy]')).includes('never show names')); pass();
     await page.$eval('[data-setting="email"]', el => el.click());
