@@ -985,8 +985,9 @@ body:has(.public-layout) { padding-bottom: 0; }
 .mc-overlays > :last-child:not(:first-child) { align-self: flex-end; }
 .mc-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--text); font: 600 .6875rem/1.3 var(--font); }
 .mc-body { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
-.mc-name { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.mc-name h2 { display: flex; min-width: 0; margin: 0; font: var(--type-tile-name); }
+/* The name keeps at least ~7 characters; when badges don't fit beside it they wrap to the next line. */
+.mc-name { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; min-width: 0; }
+.mc-name h2 { display: flex; flex: 0 1 auto; min-width: min(100%, 7em); margin: 0; font: var(--type-tile-name); }
 .mc-name h2 a { display: flex; min-width: 0; text-decoration: none; color: inherit; white-space: nowrap; }
 .mc-name h2 a::after { content: ""; position: absolute; inset: 0; border-radius: 16px; }
 .mc-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
