@@ -100,7 +100,7 @@ else
                         @if (me.DobCheck != "none")
                         {
                             <div class="settings-row"><div class="settings-row-text"><p class="settings-row-label">Date of birth</p>
-                                <p class="settings-row-help" data-dob-locked="@me.DobCheck">@(me.DobCheck == "correctionNeeded" ? "Set your date of birth in the prompt above to finish ID verification." : "Swoovr is checking your date of birth, so it can't be changed for now.")</p></div></div>
+                                <p class="settings-row-help" data-dob-locked="@me.DobCheck">@(me.DobCheck == "correctionNeeded" ? AccountText.DobLockedCorrection : AccountText.DobLockedReview)</p></div></div>
                         }
                         else if (me.DateOfBirth is not null && !(me.DateOfBirthCorrectionUntil > DateTimeOffset.UtcNow))
                         {
@@ -213,5 +213,5 @@ else
     private async Task NamesChangedAsync() => Show(await Members.MeAsync());
 
     private void Corrected(MemberAccount updated) => (me, dateOfBirth, ageMessage) = (updated, updated.DateOfBirth,
-        updated.DateOfBirthVerified ? "Thanks. Your date of birth now matches your ID." : "Thanks. It still differs from your ID, so Swoovr's team will check it.");
+        AccountText.DobCorrected(updated.DateOfBirthVerified));
 }

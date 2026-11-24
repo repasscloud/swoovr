@@ -347,6 +347,8 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 .account-sign-out .quiet-button { width: 100%; }
 .badge-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .badge-list li { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+/* Issue 439: the badge name is bold; when it was checked is ordinary text. */
+.badge-list .badge-checked { font-weight: 400; color: var(--muted); white-space: nowrap; }
 .card.settings-list { margin-top: 26px; padding: 0; }
 .settings-list a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 0 20px; text-decoration: none; font-weight: 600; }
 .settings-list a .icon { transform: rotate(180deg); color: var(--muted); }
