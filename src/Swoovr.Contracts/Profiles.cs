@@ -65,8 +65,9 @@ public sealed record ExploreResult(string Mode, IReadOnlyList<ProfileCard> Peopl
 /// <param name="ArrivalRequired">The viewer is a traveller browsing this person's market (D142) and may request here once arrival is confirmed (D149).</param>
 /// <param name="About">The person's about in this mode (their mode about, else their core about if they agreed to show it here, #91).</param>
 /// <param name="ConnectionId">The accepted connection in this mode, for disconnecting (D176); null otherwise.</param>
+/// <param name="Orientation">Issue 447, D175: Dating only, and only when the person chose to show it; null everywhere else.</param>
 public sealed record SharedModeView(string Id, string Label, IReadOnlyList<string> Intentions, string Connection, Guid? RequestId, bool CanRequest = true,
-    bool ArrivalRequired = false, string? About = null, Guid? ConnectionId = null, IReadOnlyList<PhotoView>? Photos = null, string? DisplayName = null, PhotoView? MainPhoto = null);
+    bool ArrivalRequired = false, string? About = null, Guid? ConnectionId = null, IReadOnlyList<PhotoView>? Photos = null, string? DisplayName = null, PhotoView? MainPhoto = null, string? Orientation = null);
 
 /// <summary>#91: one captured version of what others could see (Mode "core" or a mode id), as JSON.</summary>
 public sealed record ProfileVersionView(string Mode, DateTimeOffset CapturedAt, string ContentJson, string Sha256);

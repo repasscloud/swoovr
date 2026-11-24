@@ -230,8 +230,11 @@ public static class ProfileEndpoints
             if (!MarketAccess.ProfileOpens(reach.SameMarket, between.Count > 0, reach.VisitingModes.Count > 0, travel.SearchModes.Count > 0))
                 return Problem(StatusCodes.Status404NotFound, ProblemCodes.UnknownMode, "That profile isn't available.");
             var chips = await IntentionLabelsAsync(db, [person.Profile.AccountId], null, cancellationToken);
-            var shownAs = Public((await IdentitiesAsync(db, [person.Profile.AccountId], cancellationToken)).GetValueOrDefault(person.Profile.AccountId),
+            var identity = (await IdentitiesAsync(db, [person.Profile.AccountId], cancellationToken)).GetValueOrDefault(person.Profile.AccountId);
+            var shownAs = Public(identity,
                 person.Profile.DateOfBirth is { } dob ? AgePolicy.YearsOn(dob, DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime)) : null, await GenderLabelsAsync(db, cancellationToken));
+            var orientations = identity is { ShowOrientation: true, OrientationId: not null }
+                ? await db.ProfileOptions.Where(o => o.Kind == "orientation").ToDictionaryAsync(o => o.Id, o => o.Label, cancellationToken) : [];
             var abouts = await db.MemberModes.Where(m => m.AccountId == person.Profile.AccountId && shownIds.Contains(m.ModeId))
                 .ToDictionaryAsync(m => m.ModeId, m => new { m.About, m.ShareCoreAbout, m.DisplayName }, cancellationToken);
             string? AboutIn(string modeId) => abouts.GetValueOrDefault(modeId) is { } a ? ModePrivacy.About(a.About, person.Profile.About, a.ShareCoreAbout) : null;
@@ -247,7 +250,8 @@ public static class ProfileEndpoints
                         { ArrivalRequired = !may && travel.SearchModes.Contains(m.Id), About = AboutIn(m.Id), DisplayName = ModePrivacy.DisplayName(abouts.GetValueOrDefault(m.Id)?.DisplayName, person.Profile.DisplayName),
                           ConnectionId = between.FirstOrDefault(r => r.ModeId == m.Id && r.Status == ConnectionRequestStatus.Accepted)?.Id,
                           MainPhoto = photos.Main.GetValueOrDefault((person.Profile.AccountId, m.Id)),
-                          Photos = photos.Modes.GetValueOrDefault((person.Profile.AccountId, m.Id)) ?? [] };
+                          Photos = photos.Modes.GetValueOrDefault((person.Profile.AccountId, m.Id)) ?? [],
+                          Orientation = OrientationIn(m.Id, identity, orientations) };
                 }).ToList(),
                 Badges(person.Profile, await BadgeOrderAsync(db, cancellationToken)), shownAs.Age, shownAs.Gender, shownAs.Pronouns,
                 photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])),
@@ -441,6 +445,13 @@ public static class ProfileEndpoints
     }
 
     /// <summary>What a person allows others to see (D138, D139): age unless hidden, gender and pronouns unless hidden.</summary>
+    /// <summary>
+    /// Issue 447, D175 (CONFIRMED): orientation is a Dating-only detail, shown only when the person switched it on. Every
+    /// other mode, a hidden choice or an unknown option gives nothing.
+    /// </summary>
+    public static string? OrientationIn(string modeId, MemberIdentity? identity, IReadOnlyDictionary<string, string> labels) =>
+        modeId == "dating" && identity is { ShowOrientation: true, OrientationId: { } id } ? labels.GetValueOrDefault(id) : null;
+
     internal static (int? Age, string? Gender, string? Pronouns) Public(MemberIdentity? identity, int? age, IReadOnlyDictionary<string, string> genders)
     {
         if (identity is null) return (age, null, null);

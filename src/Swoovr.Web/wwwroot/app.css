@@ -807,3 +807,24 @@ body:has(.public-layout) { padding-bottom: 0; }
 .member-dialog-close:focus-visible { outline: 3px solid var(--text); outline-offset: -3px; }
 .member-dialog .request-list { margin-top: 12px; }
 .report-in-dialog { margin: 0; }
+
+/* Issue 447: the member profile layout. One column on a phone; gallery beside the details from 760px. The lead photo
+   spans the gallery and the rest sit three to a row, so nothing scrolls sideways. */
+.person-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 6px 0 0; color: var(--muted); font: var(--type-body); }
+.person-facts-distance { display: inline-flex; align-items: center; gap: 3px; }
+.person-layout-447 { display: grid; gap: 24px; align-items: start; }
+.person-gallery-col, .person-details-col { min-width: 0; }
+.person-details-col { display: flex; flex-direction: column; gap: 16px; }
+.person-gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.person-gallery .person-photo { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; }
+.person-gallery .person-photo-lead { grid-column: 1 / -1; aspect-ratio: 4 / 5; border-radius: 14px; }
+.person-gallery .person-text-picture { grid-column: 1 / -1; }
+.person-card { margin: 0; }
+.person-card h2 { margin-top: 0; }
+.person-subhead { margin: 14px 0 6px; color: var(--muted); font: 600 .8125rem/1.3 var(--font); text-transform: uppercase; letter-spacing: .04em; }
+.person-card h2 + .person-subhead, .person-card h2 + .person-mode .person-subhead { margin-top: 4px; }
+.person-mode + .person-mode { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.person-mode-name, .person-mode-fact { margin: 0 0 8px; }
+@media (min-width: 760px) {
+  .person-layout-447 { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; }
+}
