@@ -1,6 +1,6 @@
 # How questions and decisions work
 
-Current UAT hosts/certificates: [D355](D355-UAT-HOSTNAMES-2026-11-10.md) supersedes D291’s nested names and paid edge certificate requirement. UAT provider is OPEN, including Vultr; production remains Azure. Historical rows retain their original wording.
+Current UAT hosts/certificates: [D355](D355-UAT-HOSTNAMES-2026-11-10.md) supersedes D291’s nested names and paid edge certificate requirement. UAT runs only on its dedicated host, never Azure ([D391](#d391--uat-moves-to-a-dedicated-server-that-keeps-the-hostname-uat-01-23-november-2026), D400); production remains Azure. Historical rows retain their original wording.
 
 Keep owner attention on decisions that change the product. Before asking, read the brief and decision register, inspect existing evidence, and check whether a confirmed requirement already answers it.
 
@@ -1405,7 +1405,7 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
 
 ### D391 — UAT moves to a dedicated server that keeps the hostname `uat-01` (23 November 2026)
 
-**CONFIRMED** by the owner on [#394](https://github.com/repasscloud/swoovr/issues/394), 23 November 2026: the new dedicated server (Debian 13, root, one IPv4) replaces the Vultr VM of D361, and "this server will stay as `uat-01`". This supersedes D361's hosting choice. The bundle, workflow and `swoovr` command are unchanged.
+**CONFIRMED** by the owner on [#394](https://github.com/repasscloud/swoovr/issues/394), 23 November 2026: the new dedicated server (Debian 13, root, one IPv4) replaces the Vultr VM of D361, and "this server will stay as `uat-01`". This supersedes D361's hosting choice. The bundle, workflow and `swoovr` command are unchanged. The owner confirmed the same day that the Vultr VM is **decommissioned** (there's no rollback host) and that the R2 bucket `swoovr-uat` stays in use ("it's OK because it's UAT"). The v1.3.1 refresh onto the new host passed every public check through Cloudflare (run 45108276013, attempt 4).
 
 **DEFAULT** (builder):
 - `UAT_EXPECTED_HOSTNAME` stays `uat-01`. With both hosts named `uat-01`, the guard against deploying to the wrong box is the pinned `UAT_SSH_HOST_KEY` plus `UAT_SSH_HOST`, not the hostname.
@@ -1490,3 +1490,11 @@ From [#443](https://github.com/repasscloud/swoovr/issues/443) (owner's brief); b
 - "In Dating" is replaced by **"Uploaded: {date}"** (date only, the viewer's local date) on every photo, including the main photo, which showed nothing before. The member's own album viewer already shows "Uploaded".
 - `PhotoView` gains optional `UploadedAt` (set on profile photos from the media item) and `PhotoVerifiedAt`. No schema change.
 - **Reserved for photo verification ([#372](https://github.com/repasscloud/swoovr/issues/372)):** when an admin verifies a member's photos, each **public** photo on the profile at that moment gets the Photo verified badge and the date (no time), shown in the viewer as "Photo verified: {date}". Photos uploaded later never get it, and approved explicit (album-only) photos never do. The badge on the member's profile is separate. `PhotoVerifiedAt` is always null until #372 is built; the viewer shows the line only when it is set.
+
+### D400 — UAT never runs on Azure (Q90, 23 November 2026)
+
+**CONFIRMED** by the owner on [#124](https://github.com/repasscloud/swoovr/issues/124), 23 November 2026: "UAT will never be run from Azure, it will always be run from it's dedicated host." Recorded 25 November 2026. This answers Q90 and supersedes D221's and D291's Azure topology **for UAT**; the host is D391's. It says nothing about production, where D291's Azure direction is unchanged.
+
+### D401 — Explore card information is built as an epic of seven slices (#476, 25 November 2026)
+
+**CONFIRMED** by the owner approving the batch plan, 25 November 2026: [#476](https://github.com/repasscloud/swoovr/issues/476) is an epic with seven sub-issues: (1) badges, (2) identity line per mode, (3) photo count and travel overlays, (4) connection status, (5) new member indicator, (6) online status, (7) per-mode profile facts. Slices 1, 3, 4 and 5 are built first. Slice 6 waits on Q183 ([#478](https://github.com/repasscloud/swoovr/issues/478), still OPEN) and slice 7 on [#448](https://github.com/repasscloud/swoovr/issues/448). Every slice keeps privacy server-side, adds no per-card request or N+1 query, and never affects ordering. **DEFAULT:** a member is "new" for 14 days, configurable (slice 5).
