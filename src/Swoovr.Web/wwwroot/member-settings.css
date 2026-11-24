@@ -548,6 +548,10 @@
 .rd-compact { padding: 20px 24px; gap: 12px; }
 .rd-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
 .rd-row-baseline { align-items: baseline; }
+/* Issue 437: the save row has only its actions now; keep them on the right. */
+.rd-row-end { justify-content: flex-end; }
+.rd-home-city { display: grid; gap: 6px; min-width: 0; }
+.rd-home-check { margin: 0; }
 .rd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
 .rd-grid-3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
 .rd-grid-wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: stretch; }

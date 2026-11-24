@@ -79,6 +79,11 @@ const signIn=async(context,member)=>{const page=await context.newPage();await pa
    await page.check('[data-onboarding-show-me=man] input');
    await Promise.all([page.waitForURL(web+'/explore?mode=dating'),page.click('[data-onboarding-step=datingShowMe] button[type=submit]')]);pass();
    await page.goto(web+'/me/profile');assert.equal(new URL(page.url()).pathname,'/me/profile','onboarding no longer redirects');pass();
+   // Issue 437: under About me there's no Travel explanation and no photos link; the location check sits with Home city.
+   await page.waitForSelector('[data-profile-editor=ready]');
+   assert.equal(await page.locator('[data-photos-link]').count(),0);assert.ok(!(await page.locator('body').innerText()).includes('Home city decides'));
+   assert.equal(await page.locator('.rd-home-city [data-home-check]').count(),1,'Check my location matches stays reachable');pass();
+   if(process.env.SWOOVR_SCREENSHOTS){await page.screenshot({path:process.env.SWOOVR_SCREENSHOTS+'/437-profile-390.png',fullPage:true});await page.setViewportSize({width:1280,height:900});await page.screenshot({path:process.env.SWOOVR_SCREENSHOTS+'/437-profile-1280.png',fullPage:true});}
   }finally{await second.close();}
 
   me=await call(token,'/api/me');assert.equal(me.body.setupStep,null);
