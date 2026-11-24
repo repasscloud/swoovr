@@ -14,7 +14,7 @@
         @Tab("Connections", "users", "/connections", Path.StartsWith("/connections"))
         @Tab("Chats", "chat", "/chats", Path.StartsWith("/chats") || Path.StartsWith("/prototype/conversation"))
         @* Issue 472: the Me tab carries the unread notification count. *@
-        <a class="tab" href="/account" data-tab="Me" aria-current="@(MeActive ? "page" : null)"><span class="tab-icon"><Icon Name="user" /><Swoovr.Web.Client.Notifications.UnreadBadge Where="tab" @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" /></span><span>Me</span></a>
+        @Tab("Me", "user", "/account", MeActive, MeBadge)
     </nav>
     @* issue 217: Me / settings pages put their menu button here (SettingsShell). *@
     <Microsoft.AspNetCore.Components.Sections.SectionOutlet SectionName="@SettingsShell.HeaderActions" />
@@ -36,7 +36,12 @@
     private bool MeActive => Path.StartsWith("/account") || Path.StartsWith("/settings") || Path.StartsWith("/me/");
     private string Path => "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0];
 
-    private static RenderFragment Tab(string label, string icon, string? href, bool active) => href is null
+    private static RenderFragment Tab(string label, string icon, string? href, bool active, RenderFragment? badge = null) => href is null
         ? @<span class="tab is-unbuilt" data-tab="@label"><Icon Name="@icon" /><span>@label</span><span class="visually-hidden"> (not built yet)</span></span>
-        : @<a class="tab" href="@href" data-tab="@label" aria-current="@(active ? "page" : null)"><Icon Name="@icon" /><span>@label</span></a>;
+        : badge is null
+            ? @<a class="tab" href="@href" data-tab="@label" aria-current="@(active ? "page" : null)"><Icon Name="@icon" /><span>@label</span></a>
+            : @<a class="tab" href="@href" data-tab="@label" aria-current="@(active ? "page" : null)"><span class="tab-icon"><Icon Name="@icon" />@badge</span><span>@label</span></a>;
+
+    // Issue 472: the unread count on the Me tab (a WebAssembly island; the layout itself stays static).
+    private static readonly RenderFragment MeBadge = @<Swoovr.Web.Client.Notifications.UnreadBadge Where="tab" @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />;
 }
