@@ -288,7 +288,7 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     assert.equal((await bff('api/webhooks/didit', { method: 'POST', data: {} })).status(), 404); pass();
     assert.equal((await bff(`api/admin/accounts/${ids.web}/verification`)).status(), 404); pass();
     assert.equal((await bff('api/me/verification')).status(), 200); pass();
-    await page.click('a[href="/me/verification"]');
+    await page.goto(web + '/me/verification'); // the account page no longer links here at phone width
     await page.waitForSelector('[data-verification=ready]', { timeout: 20000 });
     assert.equal(await page.locator('[data-verification-mode]').count(), 0); pass(); // no environment notice on any host (D321)
     assert.equal(await page.locator('[data-id-status]').getAttribute('data-id-status'), 'notStarted'); pass();
@@ -321,6 +321,13 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     await page.waitForFunction(() => document.querySelector('[data-dob-review=open]') || document.querySelector('[data-dob-correction-status]:not([data-dob-correction-status=""])'), null, { timeout: 20000 });
     assert.equal(await page.locator('[data-dob-review=open]').count(), 1, 'correction status ' + await page.locator('[data-dob-correction-status]').getAttribute('data-dob-correction-status').catch(() => 'none')); pass();
     assert.equal(await page.locator('[data-dob-correction=open]').count(), 0); pass();
+    // Issue 439: plain words, no date and no "still differs"; the badge's checked date is ordinary weight.
+    const reviewText = await page.locator('[data-dob-review=open]').innerText();
+    assert.ok(reviewText.includes('Your ID is verified.') && !/\d/.test(reviewText) && !/differs/i.test(reviewText), reviewText); pass();
+    if (await page.locator('[data-badge-checked]').count() > 0)
+      assert.equal(await page.locator('[data-badge-checked]').first().evaluate(e => getComputedStyle(e).fontWeight), '400');
+    pass();
+    if (output) await page.screenshot({ path: output + '/dob-review-390.png', fullPage: true });
     assert.equal((await call(root, '/api/admin/dob-reviews')).body.filter(x => x.accountId === ids.web).length, 1); pass();
     await page.goto(web + '/account');
     await page.waitForSelector('[data-dob-locked=manualReview]', { timeout: 20000 }); pass();

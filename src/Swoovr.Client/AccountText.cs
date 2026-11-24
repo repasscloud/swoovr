@@ -7,6 +7,14 @@ namespace Swoovr.Client;
 /// </summary>
 public static class AccountText
 {
+    // Issue 439: the date of birth follow-up after an ID check, in plain words. Neither date is ever shown (D166).
+    public const string DobReviewTitle = "Your ID is verified.";
+    public const string DobReview = "Someone from Swoovr will check that the date of birth on your account matches your ID. You don't need to do anything, and we'll contact you if we need more.";
+    public const string DobLockedCorrection = "Use the prompt above to set your date of birth to the one on your ID.";
+    public const string DobLockedReview = "Swoovr is checking this against your ID, so you can't change it for now.";
+    public static string DobCorrected(bool matches) => matches
+        ? "Thanks. Your date of birth now matches your ID."
+        : "Thanks. Someone from Swoovr will check it against your ID. Your ID Verified badge stays.";
     public const string BetaUrl = "https://swoovr.com/beta/";
     public const string EmailChangeHeading = "Your email change needs attention";
     public const string EmailChangeHelp = "Your previously accepted email remains on this account. Your account standing and existing access stay the same. Contact Support for help, or sign in again after correcting the email on your sign-in account.";

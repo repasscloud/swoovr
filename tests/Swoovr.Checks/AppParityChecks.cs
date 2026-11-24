@@ -17,6 +17,13 @@ static class AppParityChecks
         var root = Root();
         string Read(string path) => File.ReadAllText(Path.Combine(root, path));
 
+        // Issue 439: the date of birth follow-up is plain words and never carries a date.
+        foreach (var text in new[] { AccountText.DobReviewTitle, AccountText.DobReview, AccountText.DobLockedCorrection, AccountText.DobLockedReview, AccountText.DobCorrected(true), AccountText.DobCorrected(false) })
+            Expect(!text.Any(char.IsDigit) && !text.Contains("differs", StringComparison.OrdinalIgnoreCase), "date of birth follow-up has no date and no jargon: " + text);
+        Expect(Read("src/Swoovr.Web.Client/Account/DobCorrectionPrompt.razor").Contains("AccountText.DobReview", StringComparison.Ordinal)
+            && Read("src/Swoovr.Web.Client/Account/VerificationPanel.razor").Contains("class=\"badge-checked\"", StringComparison.Ordinal)
+            && Read("src/Swoovr.Web/wwwroot/app.css").Contains(".badge-list .badge-checked { font-weight: 400", StringComparison.Ordinal), "review notice uses the shared copy; the checked date is not bold");
+
         // Badge artwork: every badge the API can return has a shape, a label and a fixed colour token.
         using var brand = JsonDocument.Parse(Read("docs/design/brand-colours.json"));
         var badges = brand.RootElement.GetProperty("badges");
