@@ -84,7 +84,7 @@ const widths = [375, 768, 1024, 1440];
     await page.fill('#username', viewer.email); await page.fill('#password', viewer.password);
     await Promise.all([page.waitForURL(web + '/explore'), page.click('#kc-login')]);
     const routes = [
-      ['/explore', '.people-grid', 'explore'], ['/people/' + peer.id + '?mode=friends', '[data-connect-modes]', 'profile'],
+      ['/explore', '.people-grid', 'explore'], ['/people/' + peer.id + '?mode=friends', '[data-person-actions]', 'profile'],
       ['/connections', '[data-connections="ready"]', 'connections'], ['/chats', '[data-chat-list]', 'chats'],
       ['/chats/' + chatId, '[data-conversation="ready"]', 'chat'], ['/account', '[data-account-panel="ready"]', 'account'],
       ['/me/profile', '[data-profile-editor="ready"]', 'editor'], ['/me/photos', '[data-photos-panel="ready"]', 'photos'],

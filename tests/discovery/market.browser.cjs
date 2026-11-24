@@ -282,6 +282,7 @@ const plus = days => { const d = new Date(todayIn('Australia/Adelaide') + 'T00:0
     r = await send('gle', 'trv', 'friends'); assert.equal(r.status, 201); pass(); // gle writes to the visitor
     await page.goto(web + `/people/${pid.gle}?mode=dating`); // D175: opened from Dating, plus the pending Friends request
     await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
+    await page.click('[data-open-connect]'); // issue 446: the per-mode requests are in the Connect dialog
     assert.equal(await page.locator('[data-connect-mode=friends]').getAttribute('data-connection'), 'received'); pass();
     assert.equal(await page.locator('[data-connect-mode=dating] [data-request-unavailable]').count(), 1); pass();
     assert.equal(await page.locator('[data-connect-mode=dating] button').count(), 0); pass();

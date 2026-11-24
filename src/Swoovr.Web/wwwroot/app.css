@@ -780,3 +780,30 @@ body:has(.public-layout) { padding-bottom: 0; }
 .mode-toggle button[aria-pressed="true"] { background: var(--primary); color: var(--onPrimary); }
 .mode-toggle .icon { width: 18px; height: 18px; }
 @media (forced-colors: active) { .mode-toggle button[aria-pressed="true"] { outline: 2px solid CanvasText; } .policy-num { border: 1px solid CanvasText; } }
+
+/* Issue 446: the member profile's actions. One primary action and a compact safety menu; each opens a dialog. */
+.person-action-bar { position: relative; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin: 14px 0 20px; }
+.person-action-bar .person-action { width: auto; min-height: 44px; padding: 0 18px; }
+.person-action-bar .icon { vertical-align: -3px; margin-right: 4px; }
+.safety-menu { position: relative; }
+.safety-menu-list { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; min-width: 260px; margin: 0; padding: 6px; list-style: none; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.safety-menu-item { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: none; color: var(--text); font: 500 .9375rem/1.2 var(--font); text-align: left; text-decoration: none; cursor: pointer; }
+.safety-menu-item:hover, .safety-menu-item:focus-visible { background: var(--soft); }
+.safety-menu-item:focus-visible { outline: 3px solid var(--text); outline-offset: -3px; }
+.person-connect-summary { margin: -12px 0 20px; }
+.person-message-status { margin: -12px 0 16px; }
+.person-message-status:empty { display: none; }
+.dialog-backdrop[data-member-dialog]:focus { outline: none; }
+/* On a phone the menu spans the action bar, wherever the button wrapped to, so it never runs off the screen. */
+@media (max-width: 559px) {
+  .safety-menu { position: static; }
+  .safety-menu-list { left: 0; right: 0; min-width: 0; }
+}
+.member-dialog { max-width: 480px; }
+.member-dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.member-dialog-head h2 { margin: 0; }
+.member-dialog-head h2:focus { outline: none; }
+.member-dialog-close { flex: 0 0 auto; display: grid; place-items: center; width: 44px; height: 44px; margin: -10px -10px 0 0; border: 0; border-radius: 22px; background: none; color: var(--text); cursor: pointer; }
+.member-dialog-close:focus-visible { outline: 3px solid var(--text); outline-offset: -3px; }
+.member-dialog .request-list { margin-top: 12px; }
+.report-in-dialog { margin: 0; }

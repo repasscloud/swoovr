@@ -206,6 +206,7 @@ const waitFor = async (predicate, ms = 5000) => { for (let i = 0; i < ms / 100 &
     const withRep = await connect('web', 'rep');
     await send('rep', withRep.conversation, 'Fictional message Web will report');
     await page.goto(web + `/people/${pid.rep}?mode=friends`);
+    await page.waitForSelector('[data-safety-menu]', { timeout: 20000 }); await page.click('[data-safety-menu]'); // issue 446: in the Report or block menu
     await page.waitForSelector('[data-serious-link]', { timeout: 20000 }); pass();
     await page.goto(web + `/chats/${withRep.conversation}`);
     await page.waitForSelector('[data-serious-link]', { timeout: 20000 });

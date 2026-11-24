@@ -2,8 +2,8 @@
    characters) and an optional block in the same step. The member sees only that it was submitted and, later, its
    review status and broad general outcome; never action details. Reporting and blocking are independent. *@
 @inject MemberClient Members
-<section class="card account-section" aria-labelledby="report-heading" data-report="@(done ? "sent" : open ? "open" : "idle")">
-    <h2 id="report-heading">Report</h2>
+<section class="@(InDialog ? "report-in-dialog" : "card account-section")" aria-labelledby="@(InDialog ? null : "report-heading")" data-report="@(done ? "sent" : open ? "open" : "idle")">
+    @if (!InDialog) { <h2 id="report-heading">Report</h2> }
     @if (done)
     {
         <p role="status" data-report-done>@ReportFollowUpText.Confirmation</p>
@@ -37,6 +37,10 @@
     /// <summary>Called after a report that also blocked, so the page can show the block.</summary>
     [Parameter] public EventCallback Blocked { get; set; }
     [Parameter] public EventCallback Submitted { get; set; }
+    /// <summary>Issue 446: inside a dialog that already has its heading, the form shows straight away (still nothing is sent until Send report).</summary>
+    [Parameter] public bool InDialog { get; set; }
+
+    protected override async Task OnInitializedAsync() { if (InDialog) await OpenAsync(); }
     private bool open, busy, done, block;
     private string? category, text, status, message;
     private List<ReportCategoryView> categories = [];
