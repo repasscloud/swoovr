@@ -1526,3 +1526,7 @@ From [#443](https://github.com/repasscloud/swoovr/issues/443) (owner's brief); b
 - **Resolve:** an admin who didn't raise it, on the new **Escalations** page, or by deciding the escalated review (which closes both). An admin who escalated a review can't decide it; with a single admin, the root admin can.
 - **Where it shows:** `/dob-reviews` (pill and filter), the review dialog (who, when, why), the account page, and a red count on **Escalations** in the Admin menu. Full dates in either text are refused by the API. Staff with a conflict of interest can't see, raise or resolve one.
 - The migration adds the table only.
+
+### D405 — Staff MFA resets record how identity was verified (#374, 25 November 2026)
+
+Builds D373 step 3 (**CONFIRMED**, Q140), replacing its ticket-only DEFAULT. Clearing a **staff** member's MFA needs one of two methods: *live video call + trusted channel* or *live video call + staff records*. A video call alone isn't offered, and the API refuses a staff reset without a method. The method is stored in both reset audit events next to the case reference; no identity documents are collected. The staff account's Activity list now includes MFA resets, with the method. **DEFAULT:** member resets are unchanged and record no method, because D373 is for staff only.

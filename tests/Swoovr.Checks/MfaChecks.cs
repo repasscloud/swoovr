@@ -35,6 +35,8 @@ static class MfaChecks
         Check(Swoovr.Api.Accounts.MfaPrivilegedMiddleware.Requires("POST","/api/admin/accounts/{id:guid}/identity"),"actual identity route requires elevation");
         Check(Swoovr.Api.Accounts.MfaPrivilegedMiddleware.Requires("POST","/api/admin/media/{id:guid}/case-view"),"actual private media issuance requires elevation");
         Check(Swoovr.Api.Accounts.MfaPrivilegedMiddleware.Requires("POST","/api/admin/media/{id:guid}/view"),"actual review media issuance requires elevation");
+        Check(MfaRecovery.Valid("video-staff-records")&&MfaRecovery.Valid("video-trusted-channel")&&!MfaRecovery.Valid(null)&&!MfaRecovery.Valid("video"),"staff recovery methods (D373)");
+        Check(MfaRecovery.From("swoovr-api;confirmed;trace:none;case:1;method:video-staff-records")=="video-staff-records"&&MfaRecovery.From("swoovr-api;confirmed;trace:none;case:1") is null&&MfaRecovery.From(null) is null,"the method reads back from the audit");
         Check(StaffAccessPolicy.Classify("POST","/api/admin/mfa/"+actor+"/reset",403) is { Resource: "mfa", Action: "refused" },"MFA refusals enter the sensitive audit chain");
         var facts=new ValidatedSessionFacts(AccountRealm.Staff,"fictional-root",true,["pwd","recovery-code"],null,now,null);
         var root=new Swoovr.Api.Accounts.CurrentAccount(facts,new(SignInMethod.EmailPassword,true,true),null,new Account{Id=actor,Realm=AccountRealm.Staff,IsRootAdmin=true,Status=AccountStatus.Active},[],null,BetaAccess.NotRequired);

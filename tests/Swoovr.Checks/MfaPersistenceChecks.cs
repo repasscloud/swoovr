@@ -69,8 +69,11 @@ static class MfaPersistenceChecks
         check("requirement change cuts off sessions and requests independent notification",member.SessionsRevokedAt>now&&mail.Count==1);
         member.MfaRequirementRole=AccountRole.Admin;await db.SaveChangesAsync();
         check("Support cannot remove Admin-imposed policy",Status(await MfaEndpoints.RequireAsync(memberId,new(false,"security-review",true),supportUser,resolver,provider,TimeProvider.System,CancellationToken.None))==403);
-        var reset=await MfaEndpoints.ResetAsync(staffId,new("case:1234",true,true),adminUser,resolver,provider,provider,TimeProvider.System,new TicketingStaffSignal(),CancellationToken.None);
+        // Issue 374 (D405): a staff reset names how identity was verified (D373); a video call alone isn't a choice.
+        foreach(var bad in new[]{null,"","video-call","Video-Trusted-Channel"})check("staff reset refuses method "+(bad??"none"),Status(await MfaEndpoints.ResetAsync(staffId,new("case:1234",true,true,bad),adminUser,resolver,provider,provider,TimeProvider.System,new TicketingStaffSignal(),CancellationToken.None))==400&&!staff.MfaResetPending);
+        var reset=await MfaEndpoints.ResetAsync(staffId,new("case:1234",true,true,"video-trusted-channel"),adminUser,resolver,provider,provider,TimeProvider.System,new TicketingStaffSignal(),CancellationToken.None);
         check("independent Admin reset keeps staff enrolment required",Status(reset)==200&&provider.ClearRequirements.Last()&&staff.MfaLastResetAt is not null&&!staff.MfaResetPending);
+        check("both staff reset events record the method and the case",await db.AuditEntries.CountAsync(a=>a.TargetId==staffId.ToString()&&(a.Action=="mfa.reset-requested"||a.Action=="mfa.credentials-cleared")&&a.Detail!.EndsWith(";case:1234;method:video-trusted-channel"))==2);
         check("self MFA reset refused",Status(await MfaEndpoints.ResetAsync(adminId,new("case:1234",true,true),adminUser,resolver,provider,provider,TimeProvider.System,new TicketingStaffSignal(),CancellationToken.None))==403);
         check("recovery needs verified identity attestation and case",Status(await MfaEndpoints.ResetAsync(staffId,new("case:1234",false,true),adminUser,resolver,provider,provider,TimeProvider.System,new TicketingStaffSignal(),CancellationToken.None))==400);
         provider.FailClear=true;

@@ -19,6 +19,12 @@ public static class AccountLabels
         return letters.Length > 0 ? letters : "?";
     }
     /// <summary>Readable staff audit actions; the raw action stays in a data attribute (#347).</summary>
+    public static readonly string[] RecoveryMethods = ["video-trusted-channel", "video-staff-records"];
+    /// <summary>Issue 374: how a staff member's identity was verified before an MFA reset (D373).</summary>
+    public static string RecoveryMethod(string method) => method switch
+    {
+        "video-trusted-channel" => "Live video call + trusted channel", "video-staff-records" => "Live video call + staff records", _ => method,
+    };
     public static string StaffAction(string action) => action switch
     {
         "staff.created" => "Account created",
@@ -33,6 +39,8 @@ public static class AccountLabels
         "staff.roles-synced" => "Roles updated from Microsoft Entra",
         "staff.revoked" => "Access revoked",
         "staff.affiliated" => "Member link updated",
+        "mfa.reset-requested" => "MFA reset requested",
+        "mfa.credentials-cleared" => "MFA reset finished",
         _ => Title(action.StartsWith("staff.", StringComparison.Ordinal) ? action[6..].Replace('-', ' ') : action),
     };
     /// <summary>Where a staff session signed in (#347): Admin is the staff realm's web client.</summary>

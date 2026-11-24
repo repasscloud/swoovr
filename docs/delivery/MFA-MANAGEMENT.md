@@ -18,12 +18,12 @@ Approved by the owner on [#243](https://github.com/repasscloud/wanderconnect/iss
 
 1. **Request.** The employee who lost their authenticator opens a support ticket, or contacts another administrator, who opens one for them. The ticket reference is the case reference.
 2. **Verify.** An independent elevated Admin (never the employee themselves, never for Root) verifies identity on a **live video call** and **also** through an independently trusted channel (for example a phone number or manager already on record) or established staff records. A video call alone is not enough. If either check fails or is uncertain, stop; don't reset.
-3. **Record.** In the ticket, record the verification method used, the time and the approving administrator.
-4. **Reset.** In Swoovr Admin, open the staff account, choose the MFA reset, enter the ticket reference, confirm identity was verified under this runbook, and confirm. Native OTP and recovery credentials are cleared; the password and other credentials are kept.
+3. **Record.** Choose the verification method on the reset itself (step 4); it is stored with the time and the approving administrator (D405). Note anything else in the ticket.
+4. **Reset.** In Swoovr Admin, open the staff account, choose the MFA reset, enter the ticket reference, choose how identity was verified, confirm identity was verified under this runbook, and confirm. Native OTP and recovery credentials are cleared; the password and other credentials are kept.
 5. **Re-enrol.** The employee signs in and enrols a new authenticator. Mandatory staff MFA still applies, so they can't use Admin until they do.
 6. **Audit.** Swoovr records the reset (case reference, acting Admin, time, outcome) in the MFA audit log and revokes the employee's existing sessions automatically.
 
-DEFAULT: the reset form doesn't record the verification method yet, so step 3 lives in the ticket; [#374](https://github.com/repasscloud/wanderconnect/issues/374) adds it to the reset and its audit event.
+Resets before D405 (25 November 2026) have the method in their ticket only.
 
 ## Provider configuration and acceptance
 

@@ -120,6 +120,7 @@ else
                         <form method="post" @formname="staff-mfa-reset" @onsubmit="ResetMfaAsync" class="ui-form">
                             <AntiforgeryToken />
                             <label class="ui-field"><span>Recovery case reference</span><input name="case" required maxlength="23" placeholder="case:1234" pattern="case:[0-9]{1,18}" autocomplete="off" /></label>
+                            <label class="ui-field"><span>How identity was verified</span><select name="method" required><option value="">Choose</option>@foreach (var m in AccountLabels.RecoveryMethods) { <option value="@m">@AccountLabels.RecoveryMethod(m)</option> }</select></label>
                             <label class="beta-check"><input type="checkbox" name="identityVerified" value="yes" required />I independently verified this recovery request using the approved identity verification procedure.</label>
                             <label class="beta-check"><input type="checkbox" name="confirm" value="yes" required />I confirm clearing their credentials and ending their sessions.</label>
                             <div class="staff-form-actions"><button type="submit" class="ui-button-primary">Clear MFA credentials</button></div>
@@ -146,11 +147,11 @@ else
                 @if (d.History.Count == 0) { <p class="ui-help staff-empty">No staff actions recorded yet.</p> }
                 else
                 {
-                    <ul class="staff-timeline">@foreach (var entry in d.History.Take(8)) { <li data-staff-history="@entry.Action"><strong>@AccountLabels.StaffAction(entry.Action)</strong><span class="ui-sub">@AccountLabels.When(entry.At)</span></li> }</ul>
+                    <ul class="staff-timeline">@foreach (var entry in d.History.Take(8)) { <li data-staff-history="@entry.Action"><strong>@AccountLabels.StaffAction(entry.Action)</strong>@if (entry.VerificationMethod is { } method) { <span class="ui-sub" data-recovery-method="@method">@AccountLabels.RecoveryMethod(method)</span> }<span class="ui-sub">@AccountLabels.When(entry.At)</span></li> }</ul>
                     @if (d.History.Count > 8)
                     {
                         <details class="staff-more"><summary>Show @(d.History.Count - 8) older</summary>
-                            <ul class="staff-timeline">@foreach (var entry in d.History.Skip(8)) { <li data-staff-history="@entry.Action"><strong>@AccountLabels.StaffAction(entry.Action)</strong><span class="ui-sub">@AccountLabels.When(entry.At)</span></li> }</ul>
+                            <ul class="staff-timeline">@foreach (var entry in d.History.Skip(8)) { <li data-staff-history="@entry.Action"><strong>@AccountLabels.StaffAction(entry.Action)</strong>@if (entry.VerificationMethod is { } method) { <span class="ui-sub" data-recovery-method="@method">@AccountLabels.RecoveryMethod(method)</span> }<span class="ui-sub">@AccountLabels.When(entry.At)</span></li> }</ul>
                         </details>
                     }
                 }
@@ -201,7 +202,7 @@ else
     }
     private async Task ResetMfaAsync()
     {
-        var r = await Admin.ResetMfaAsync(Id, new(Field("case"), Field("identityVerified") == "yes", Field("confirm") == "yes"));
+        var r = await Admin.ResetMfaAsync(Id, new(Field("case"), Field("identityVerified") == "yes", Field("confirm") == "yes", Field("method")));
         if (r.Ok) message = "MFA credentials cleared and sessions ended. They must enrol an authenticator again."; else Refused(r.Status, r.Code);
         await ReloadAsync();
     }
