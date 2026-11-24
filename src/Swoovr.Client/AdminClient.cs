@@ -190,6 +190,16 @@ public sealed partial class AdminClient(HttpClient transport)
     public Task<ApiResult<SupportLookupView>> SupportLookupAsync(string reference, CancellationToken cancellationToken = default) =>
         SendAsync<SupportLookupView>(HttpMethod.Get, $"api/admin/support/{Uri.EscapeDataString(reference)}", null, cancellationToken);
 
+    /// <summary>Issue 455 (D404): the account's open escalation; raising one (Support and above); the admin queue; resolving.</summary>
+    public Task<ApiResult<EscalationState>> EscalationAsync(Guid accountId, CancellationToken cancellationToken = default) =>
+        SendAsync<EscalationState>(HttpMethod.Get, $"api/admin/accounts/{accountId}/escalation", null, cancellationToken);
+    public Task<ApiResult<EscalationView>> EscalateAsync(Guid accountId, string reason, CancellationToken cancellationToken = default) =>
+        SendAsync<EscalationView>(HttpMethod.Post, $"api/admin/accounts/{accountId}/escalation", new EscalationRequest(reason), cancellationToken);
+    public Task<ApiResult<List<EscalationView>>> EscalationsAsync(bool open = true, CancellationToken cancellationToken = default) =>
+        SendAsync<List<EscalationView>>(HttpMethod.Get, open ? "api/admin/escalations" : "api/admin/escalations?open=false", null, cancellationToken);
+    public Task<ApiResult<EscalationView>> ResolveEscalationAsync(Guid id, string note, CancellationToken cancellationToken = default) =>
+        SendAsync<EscalationView>(HttpMethod.Post, $"api/admin/escalations/{id}/resolve", new EscalationResolution(note), cancellationToken);
+
     /// <summary>Issue 456 (D403): the member's Didit decision, read live with a recorded purpose (Admin with didit-decision-open access).</summary>
     public Task<ApiResult<StaffDiditDecision>> DiditDecisionAsync(Guid accountId, string? purpose, Guid? reviewId = null, CancellationToken cancellationToken = default) =>
         SendAsync<StaffDiditDecision>(HttpMethod.Post, $"api/admin/accounts/{accountId}/didit-decision", new DiditDecisionRequest(purpose, reviewId), cancellationToken);

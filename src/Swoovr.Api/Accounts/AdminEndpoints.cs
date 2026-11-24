@@ -28,8 +28,9 @@ public static class AdminEndpoints
             var legal = current.Allows(AccountRole.Legal);
             // Issue 440: the waiting date of birth reviews, for the navigation and overview of those who may open the queue.
             var dobReviews = administration ? await accounts.Db!.DobReviews.CountAsync(r => r.ResolvedAt == null, token) : (int?)null;
+            var escalations = administration ? await EscalationEndpoints.VisibleTo(accounts.Db!, current.Account.Id).CountAsync(e => e.ResolvedAt == null, token) : (int?)null;
             return business || administration || support || legal
-                ? Results.Ok(new StaffWorkspace(business, administration || support, administration, legal, current.IsRootAdmin, current.Account.Id, dobReviews)) : Results.Forbid();
+                ? Results.Ok(new StaffWorkspace(business, administration || support, administration, legal, current.IsRootAdmin, current.Account.Id, dobReviews, escalations)) : Results.Forbid();
         });
 
         admin.MapPost("/invitations", async (InvitationRequest request, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>

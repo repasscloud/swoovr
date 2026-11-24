@@ -1,0 +1,63 @@
+@page "/escalations"
+@inject AdminClient Admin
+@* Issue 455 (D404): accounts staff escalated to an admin. Internal only; resolved by an admin who didn't raise it. *@
+<PageTitle>Escalations — Swoovr admin</PageTitle>
+<header class="ui-page-head">
+    <h1>Escalations</h1>
+    <p>Accounts staff asked an admin to look at.</p>
+</header>
+<nav class="ui-tabs" aria-label="Escalation sections">
+    <a href="/escalations" aria-current="@(Resolved ? null : "page")">Waiting <span class="ui-tab-count">@waiting.Count</span></a>
+    <a href="/escalations?view=resolved" aria-current="@(Resolved ? "page" : null)">Resolved <span class="ui-tab-count">@resolved.Count</span></a>
+</nav>
+@if (message is not null) { <p class="notice" role="status" data-result="@resultCode">@message</p> }
+@if (Rows.Count == 0) { <div class="ui-empty" data-escalations="none"><strong>@(Resolved ? "No resolved escalations" : "Nothing waiting")</strong>@(Resolved ? "Decisions appear here." : "Accounts staff escalate appear here.")</div> }
+else
+{
+    <ul class="escalation-list" data-escalations="@Rows.Count">
+        @foreach (var e in Rows)
+        {
+            <li class="ui-card" data-escalation="@e.Id">
+                <p><strong>@(e.DisplayName ?? "Member")</strong> <span class="ui-sub"><a href="/accounts/@e.AccountId">Account</a>@if (e.DobReviewId is { } review && !Resolved) { <text> · <a href="/dob-reviews?review=@review">Date of birth review</a></text> }</span></p>
+                <p>@e.Reason</p>
+                <p class="ui-help">@e.RaisedBy · @e.CreatedAt.ToUniversalTime().ToString("d MMM yyyy HH:mm") UTC</p>
+                @if (e.ResolvedAt is { } at) { <p>@e.ResolutionNote</p><p class="ui-help">Resolved by @e.ResolvedBy · @at.ToUniversalTime().ToString("d MMM yyyy HH:mm") UTC</p> }
+                else if (!e.CanResolve) { <p class="ui-help">You raised this, so another admin resolves it.</p> }
+                else
+                {
+                    <details open="@(failed == e.Id)"><summary>Resolve</summary>
+                        <form method="post" @formname="@($"resolve-{e.Id}")" @onsubmit="() => ResolveAsync(e.Id)" class="didit-form">
+                            <AntiforgeryToken />
+                            <label class="ui-field"><span>What was decided</span><textarea name="note" rows="2" maxlength="1000" required placeholder="No dates or document details"></textarea></label>
+                            <div><button type="submit" class="ui-button-ghost" data-escalation-resolve>Resolve</button></div>
+                        </form>
+                    </details>
+                }
+            </li>
+        }
+    </ul>
+}
+@code {
+    [CascadingParameter] private HttpContext? Context { get; set; }
+    [SupplyParameterFromQuery(Name = "view")] public string? View { get; set; }
+    private bool Resolved => View == "resolved";
+    private List<EscalationView> waiting = [], resolved = [];
+    private List<EscalationView> Rows => Resolved ? resolved : waiting;
+    private string? message, resultCode;
+    private Guid? failed;
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private async Task LoadAsync()
+    {
+        var open = await Admin.EscalationsAsync();
+        (waiting, resolved) = (open.Value ?? [], (await Admin.EscalationsAsync(open: false)).Value ?? []);
+        if (!open.Ok) (resultCode, message) = (open.Code ?? open.Status.ToString(), AdminText.Refusal(open.Status, open.Code));
+    }
+    private async Task ResolveAsync(Guid id)
+    {
+        var result = await Admin.ResolveEscalationAsync(id, Context?.Request.Form["note"].ToString() ?? "");
+        resultCode = result.Ok ? "ok" : result.Code ?? result.Status.ToString();
+        message = result.Ok ? "Escalation resolved." : result.Status == 400 ? "Say what was decided, without dates or document details." : AdminText.Refusal(result.Status, result.Code);
+        failed = result.Ok ? null : id;
+        await LoadAsync();
+    }
+}

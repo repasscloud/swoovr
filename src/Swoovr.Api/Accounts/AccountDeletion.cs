@@ -270,6 +270,7 @@ public sealed class AccountDeletion(IServiceProvider services, IIdentityAdmin id
         await db.Itineraries.Where(i => i.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.HomeCityDays.Where(d => d.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.HomeCityChecks.Where(c => c.AccountId == id).ExecuteDeleteAsync(cancellationToken);
+        await db.AccountEscalations.Where(e => e.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.DobReviews.Where(r => r.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.Entitlements.Where(e => e.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.MemberNotices.Where(n => n.AccountId == id).ExecuteDeleteAsync(cancellationToken);

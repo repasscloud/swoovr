@@ -420,8 +420,15 @@ tr[data-row-link]:hover td { background: color-mix(in srgb, var(--soft) 60%, tra
 /* ---- Date of birth reviews ---- */
 .dob-dialog { width: min(640px, calc(100vw - 48px)); }
 .dob-scroll { overflow: auto; max-height: calc(100dvh - 130px); }
+.escalation-list { display: grid; gap: 16px; padding: 0; margin: 0; list-style: none; }
+.escalation-list .ui-card { display: grid; gap: 8px; }
+.escalation-list p { margin: 0; }
+.escalation-list summary { cursor: pointer; font-size: .875rem; font-weight: 600; }
 .didit-decision { display: grid; gap: 12px; }
 .didit-decision > * { margin: 0; }
+.didit-decision > p { font-size: .875rem; }
+.notice-link { margin-left: 8px; }
+[data-dob-escalated] { margin-left: 6px; }
 .didit-decision summary { cursor: pointer; font-size: .875rem; font-weight: 600; }
 .didit-form { display: grid; gap: 14px; margin-top: 14px; }
 .didit-form .ui-help { margin: 0; }

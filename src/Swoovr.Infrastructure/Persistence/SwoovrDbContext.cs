@@ -59,6 +59,7 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
     public DbSet<HomeCityCheck> HomeCityChecks => Set<HomeCityCheck>();
     public DbSet<MemberLocation> MemberLocations => Set<MemberLocation>();
     public DbSet<DobReview> DobReviews => Set<DobReview>();
+    public DbSet<AccountEscalation> AccountEscalations => Set<AccountEscalation>();
     public DbSet<NameChangeReview> NameChangeReviews => Set<NameChangeReview>();
     public DbSet<DobChangeGrant> DobChangeGrants => Set<DobChangeGrant>();
     public DbSet<DobChangeHistory> DobChangeHistories => Set<DobChangeHistory>();
@@ -820,6 +821,16 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             review.Property(r => r.ResolutionNote).HasMaxLength(1000);
             review.HasIndex(r => r.AccountId, "ix_dob_reviews_one_open").IsUnique().HasFilter("resolved_at IS NULL");
             review.HasIndex(r => r.CreatedAt);
+        });
+        // Issue 455 (D404): one open escalation per account. Staff ids aren't foreign keys, as in the audit.
+        model.Entity<AccountEscalation>(escalation =>
+        {
+            escalation.HasOne<Account>().WithMany().HasForeignKey(e => e.AccountId).OnDelete(DeleteBehavior.Cascade);
+            escalation.HasOne<DobReview>().WithMany().HasForeignKey(e => e.DobReviewId).OnDelete(DeleteBehavior.SetNull);
+            escalation.Property(e => e.Reason).HasMaxLength(EscalationPolicy.TextMax);
+            escalation.Property(e => e.ResolutionNote).HasMaxLength(EscalationPolicy.TextMax);
+            escalation.HasIndex(e => e.AccountId, "ix_account_escalations_one_open").IsUnique().HasFilter("resolved_at IS NULL");
+            escalation.HasIndex(e => e.CreatedAt);
         });
         // Q125 A (D317): staff review of an ID-verified member's registered name change; one open review per account.
         model.Entity<NameChangeReview>(review =>

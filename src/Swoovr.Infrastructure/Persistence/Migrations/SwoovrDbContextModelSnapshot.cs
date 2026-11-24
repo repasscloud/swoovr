@@ -237,6 +237,65 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                     b.ToTable("accounts");
                 });
 
+            modelBuilder.Entity("Swoovr.Domain.AccountEscalation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid?>("DobReviewId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("dob_review_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("resolution_note");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<Guid?>("ResolvedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resolved_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_account_escalations");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_account_escalations_created_at");
+
+                    b.HasIndex("DobReviewId")
+                        .HasDatabaseName("ix_account_escalations_dob_review_id");
+
+                    b.HasIndex(new[] { "AccountId" }, "ix_account_escalations_one_open")
+                        .IsUnique()
+                        .HasDatabaseName("ix_account_escalations_one_open")
+                        .HasFilter("resolved_at IS NULL");
+
+                    b.ToTable("account_escalations");
+                });
+
             modelBuilder.Entity("Swoovr.Domain.AccountLock", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9128,6 +9187,22 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_verified_identities_retain_until");
 
                     b.ToTable("verified_identities", "restricted");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.AccountEscalation", b =>
+                {
+                    b.HasOne("Swoovr.Domain.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_account_escalations_accounts_account_id");
+
+                    b.HasOne("Swoovr.Domain.DobReview", null)
+                        .WithMany()
+                        .HasForeignKey("DobReviewId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_account_escalations_dob_reviews_dob_review_id");
                 });
 
             modelBuilder.Entity("Swoovr.Domain.AccountLock", b =>

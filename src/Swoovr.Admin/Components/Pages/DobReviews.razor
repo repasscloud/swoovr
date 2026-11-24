@@ -24,6 +24,7 @@
         <form method="get" action="/dob-reviews" class="media-filters" data-enhance="false">
             <label class="ui-field beta-search"><span>Search</span><input name="q" type="search" value="@Query" maxlength="254" placeholder="Search text…" title="Member name or reference" /></label>
             <label class="ui-field"><span>Why</span><select name="why"><option value="">All</option>@foreach (var (value, label) in Whys){<option value="@value" selected="@(Why == value)">@label</option>}</select></label>
+            <label class="ui-field"><span>Escalated</span><select name="escalated"><option value="">All</option><option value="yes" selected="@(Escalated == "yes")">Escalated</option><option value="no" selected="@(Escalated == "no")">Not escalated</option></select></label>
             <div class="beta-filter-actions"><a class="ui-button-ghost" href="/dob-reviews">Clear</a><button type="submit">Apply filters</button></div>
         </form>
     </section>
@@ -37,7 +38,7 @@
         {
             <tr data-dob-review="@r.Id" data-row-link>
                 <td><strong>@Name(r)</strong><span class="ui-sub"><a href="/accounts/@r.AccountId">Account</a> · <span class="beta-ref dob-inline-ref"><code>@r.AccountId.ToString()[..8]</code><CopyButton Value="@r.AccountId.ToString()" /></span></span></td>
-                <td><span class="ui-pill" data-tone="quiet">@WhyLabel(r.Reason)</span></td>
+                <td><span class="ui-pill" data-tone="quiet">@WhyLabel(r.Reason)</span>@if (r.Escalation is not null) { <span class="ui-pill" data-tone="escalate" data-dob-escalated="@r.Id">Escalated</span> }</td>
                 <td>@r.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC<span class="ui-sub">@Ago(r.CreatedAt) ago</span></td>
                 <td>@DiditLink(r)</td>
                 <td class="ui-right"><a class="ui-button-ghost" href="@Url(r.Id)" data-review-open="@r.Id">Review</a></td>
@@ -90,6 +91,25 @@ else
             </nav>
         </header>
         <div class="dob-scroll">
+        <section class="didit-decision" aria-label="Escalation" data-dob-escalation="@(selected.Escalation is null ? "none" : "open")">
+            @if (selected.Escalation is { } raised)
+            {
+                <p><strong>Escalated</strong> by @raised.RaisedBy, @raised.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC</p>
+                <p class="ui-help">@raised.Reason</p>
+                @if (!raised.CanResolve) { <p class="ui-help">You escalated this, so another admin decides it.</p> }
+            }
+            else
+            {
+                @if (escalateMessage is not null) { <p class="media-error" role="status">@escalateMessage</p> }
+                <details open="@(escalateMessage is not null)"><summary>Escalate to another admin</summary>
+                    <form method="post" @formname="@($"escalate-{selected.Id}")" @onsubmit="() => EscalateAsync(selected)" class="didit-form">
+                        <AntiforgeryToken />
+                        <label class="ui-field"><span>Reason</span><textarea name="escalationReason" rows="2" maxlength="1000" required placeholder="No dates or document details"></textarea></label>
+                        <div><button type="submit" class="ui-button-ghost" data-dob-escalate>Escalate</button></div>
+                    </form>
+                </details>
+            }
+        </section>
         <DiditDecision AccountId="selected.AccountId" ReviewId="selected.Id" />
         <form method="post" @formname="@($"resolve-{selected.Id}")" @onsubmit="() => ResolveAsync(selected.Id)" class="media-side dob-form" data-enhance="true" data-dob-form>
             <AntiforgeryToken />
@@ -124,6 +144,8 @@ else
     [SupplyParameterFromQuery(Name = "view")] public string? View { get; set; }
     [SupplyParameterFromQuery(Name = "q")] public string? Query { get; set; }
     [SupplyParameterFromQuery(Name = "why")] public string? Why { get; set; }
+    [SupplyParameterFromQuery(Name = "escalated")] public string? Escalated { get; set; }
+    private string? escalateMessage;
     [SupplyParameterFromQuery(Name = "outcome")] public string? Outcome { get; set; }
     [SupplyParameterFromQuery(Name = "review")] public Guid? Focus { get; set; }
     private List<DobReviewView> waiting = [], resolved = [];
@@ -133,7 +155,7 @@ else
     private static string WhyLabel(string reason) => reason == "no-document-date" ? "No date from Didit" : "Still different after correction";
     private static readonly Regex DatePattern = new(@"\b\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}\b|\b(19|20)\d{2}-\d{1,2}-\d{1,2}\b", RegexOptions.Compiled);
 
-    private List<DobReviewView> Filtered => waiting.Where(r => (string.IsNullOrEmpty(Why) || r.Reason == Why) && Matches(r)).ToList();
+    private List<DobReviewView> Filtered => waiting.Where(r => (string.IsNullOrEmpty(Why) || r.Reason == Why) && (Escalated is not ("yes" or "no") || r.Escalation is not null == (Escalated == "yes")) && Matches(r)).ToList();
     private List<DobReviewView> ResolvedFiltered => resolved.Where(r => string.IsNullOrEmpty(Outcome) || r.Outcome == Outcome).OrderByDescending(r => r.ResolvedAt).ToList();
     private DobReviewView? Selected => Resolved ? null : Filtered.FirstOrDefault(r => r.Id == Focus);
     private bool Matches(DobReviewView r)
@@ -148,7 +170,7 @@ else
         return name.Length > 0 ? name : r.DisplayName ?? "Member";
     }
     private static string Ago(DateTimeOffset at) { var h = Math.Max(0, (DateTimeOffset.UtcNow - at).TotalHours); return h < 1 ? $"{(int)(h * 60)} min" : h < 48 ? $"{(int)h} h" : $"{(int)(h / 24)} days"; }
-    private string Url(Guid? focus) => "/dob-reviews" + Qs(("q", Query), ("why", Why), ("review", focus?.ToString()));
+    private string Url(Guid? focus) => "/dob-reviews" + Qs(("q", Query), ("why", Why), ("escalated", Escalated), ("review", focus?.ToString()));
     private static string Qs(params (string Key, string? Value)[] parts) { var q = string.Join("&", parts.Where(p => !string.IsNullOrEmpty(p.Value)).Select(p => p.Key + "=" + Uri.EscapeDataString(p.Value!))); return q.Length == 0 ? "" : "?" + q; }
     /// <summary>Optional `Didit:SessionUrl` template with `{0}` for the session id; without it the id is shown for copying.</summary>
     private string? SessionUrl(string session) => Configuration["Didit:SessionUrl"] is { Length: > 0 } template && template.Contains("{0}") ? string.Format(template, Uri.EscapeDataString(session)) : null;
@@ -171,6 +193,13 @@ else
     }
 
     private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
+
+    private async Task EscalateAsync(DobReviewView review)
+    {
+        var result = await Admin.EscalateAsync(review.AccountId, Field("escalationReason"));
+        if (!result.Ok) escalateMessage = result.Status switch { 400 => "Write a reason without dates or document details.", 409 => "This account is already escalated.", _ => AdminText.Refusal(result.Status, result.Code) };
+        await LoadAsync();
+    }
 
     private async Task ResolveAsync(Guid id)
     {

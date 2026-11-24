@@ -407,6 +407,35 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       // A review for a member whose session the stand-in knows, to see the panel in the dialog.
       const bareAttempt = await sql(`SELECT id FROM id_verification_attempts WHERE account_id = '${ids.bare}'`), bareReview = crypto.randomUUID();
       await sql(`INSERT INTO dob_reviews (id, account_id, attempt_id, reason, created_at) VALUES ('${bareReview}', '${ids.bare}', '${bareAttempt}', 'still-different', now())`);
+      // Issue 455 (D404): Support raises, an admin who didn't raise it resolves; nothing about it reaches the member.
+      const raise = (token, who, reason) => call(token, `/api/admin/accounts/${ids[who]}/escalation`, { method: 'POST', body: { reason } });
+      const sup = people.support.token;
+      assert.equal((await raise(tokens.ana, 'bare', 'Fictional')).status, 403); pass();
+      assert.equal((await raise(sup, 'bare', 'Born 1 January 1971')).status, 400); pass();
+      assert.equal((await raise(sup, 'bare', 'Fictional: the document looks altered')).status, 200); pass();
+      assert.equal((await raise(adm, 'bare', 'Fictional again')).status, 409); pass();
+      assert.equal((await raise(adm, 'legacy', 'Fictional')).body.code, 'conflict-of-interest'); pass();
+      assert.equal((await call(sup, '/api/admin/escalations')).status, 403); pass();
+      assert.equal((await call(sup, `/api/admin/accounts/${ids.bare}/escalation`)).body.open.canResolve, false); pass();
+      const raisedCase = (await call(adm, '/api/admin/dob-reviews')).body.find(x => x.id === bareReview).escalation;
+      assert.deepEqual([raisedCase.reason, raisedCase.dobReviewId, raisedCase.canResolve], ['Fictional: the document looks altered', bareReview, true]); pass();
+      assert.equal((await call(sup, `/api/admin/escalations/${raisedCase.id}/resolve`, { method: 'POST', body: { note: 'Fictional' } })).status, 403); pass();
+      assert.equal((await raise(adm, 'web', 'Fictional: raised by an admin')).status, 200); pass();
+      const own = (await call(adm, '/api/admin/escalations')).body.find(x => x.accountId === ids.web);
+      assert.deepEqual(code(await call(adm, `/api/admin/escalations/${own.id}/resolve`, { method: 'POST', body: { note: 'Fictional' } })), [403, 'moderation-not-permitted']); pass();
+      assert.equal((await call(root, `/api/admin/escalations/${own.id}/resolve`, { method: 'POST', body: { note: 'On 01/01/1971' } })).status, 400); pass();
+      assert.equal((await call(root, `/api/admin/escalations/${own.id}/resolve`, { method: 'POST', body: { note: 'Fictional: looked at' } })).body.resolutionNote, 'Fictional: looked at'); pass();
+      assert.equal((await call(root, `/api/admin/escalations/${own.id}/resolve`, { method: 'POST', body: { note: 'Fictional' } })).status, 409); pass();
+      assert.equal(await sql(`SELECT string_agg(action, ',' ORDER BY id) FROM audit_entries WHERE action LIKE 'account.escalat%' AND target_id = '${ids.web}'`), 'account.escalated,account.escalation-resolved'); pass();
+      // Deciding an escalated review: not by the person who escalated it; another admin closes both.
+      const legacyAttempt = await sql(`SELECT id FROM id_verification_attempts WHERE account_id = '${ids.none}'`);
+      const noneReview = await sql(`SELECT id FROM dob_reviews WHERE account_id = '${ids.none}' AND resolved_at IS NULL`); assert.ok(legacyAttempt && noneReview);
+      assert.equal((await raise(adm, 'none', 'Fictional: second opinion')).status, 200); pass();
+      const decide = (token, id) => call(token, `/api/admin/dob-reviews/${id}/resolve`, { method: 'POST', body: { outcome: 'notVerified', reason: 'Fictional decision' } });
+      assert.deepEqual(code(await decide(adm, noneReview)), [403, 'moderation-not-permitted']); pass();
+      assert.equal((await decide(root, noneReview)).status, 200); pass();
+      assert.equal(await sql(`SELECT count(*) FROM account_escalations WHERE dob_review_id = '${noneReview}' AND resolved_at IS NULL`), '0'); pass();
+      for (const path of ['/api/me/notifications', '/api/me/notices', '/api/me/standing']) assert.ok(!JSON.stringify((await call(tokens.bare, path)).body).includes('altered'), path); pass();
       const queue = Number(await sql('SELECT count(*) FROM dob_reviews WHERE resolved_at IS NULL'));
       for (const role of ['admin', 'support']) {
         const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage();
@@ -430,7 +459,19 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
             if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
           }
-          await page.setViewportSize({ width: 1280, height: 900 }); await page.goto(admin + '/');
+          await page.setViewportSize({ width: 1280, height: 900 });
+          for (const [name, url] of [['escalations', '/escalations'], ['dob-escalated-filter', '/dob-reviews?escalated=yes'], ['account-escalated', `/accounts/${ids.bare}`], ['account-escalate', `/accounts/${ids.web}`]]) {
+            await page.goto(admin + url); if (output) await page.screenshot({ path: `${output}/${name}-1280.png` });
+          }
+          await page.click('[data-escalate]'); await page.fill('[name=escalationReason]', 'Fictional: from the account page'); await page.click('[data-confirm=escalate]');
+          await page.waitForSelector('[data-escalated]'); pass();
+          await page.goto(admin + '/dob-reviews?escalated=yes'); assert.equal(await page.locator('[data-dob-review]').count(), await page.locator('[data-dob-escalated]').count()); pass();
+          assert.ok(await page.locator('[data-dob-escalated]').count() > 0); pass();
+          await page.goto(admin + '/escalations'); await page.click(`[data-escalation="${raisedCase.id}"] summary`);
+          await page.fill(`[data-escalation="${raisedCase.id}"] textarea`, 'Fictional: reviewed'); await page.click(`[data-escalation="${raisedCase.id}"] [data-escalation-resolve]`);
+          await page.waitForSelector('[data-result=ok]'); pass();
+          assert.equal(await page.locator(`[data-escalation="${raisedCase.id}"]`).count(), 0); pass();
+          await page.goto(admin + '/');
           await page.setViewportSize({ width: 390, height: 844 }); await page.reload(); await page.waitForSelector('[data-dashboard]');
           if (output) await page.screenshot({ path: output + '/admin-overview-admin-390.png' });
           await sql(`UPDATE dob_reviews SET resolved_at = now() WHERE resolved_at IS NULL`);

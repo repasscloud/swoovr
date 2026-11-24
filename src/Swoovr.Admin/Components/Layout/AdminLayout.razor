@@ -42,7 +42,7 @@ protected override async Task OnInitializedAsync() { if (Context.HttpContext?.Us
 // Phones show a shorter label where the full one doesn't fit (owner, 6 November 2026); screen readers keep the full one.
 private string? ShortSection => Section == "Reporting & resources" ? "Rep & Res" : null;
 private string Section => Path.Split('/').ElementAtOrDefault(1) switch {
-"cases" or "appeals" or "media" or "dob-reviews" or "name-reviews" => "Moderation",
+"cases" or "appeals" or "media" or "dob-reviews" or "escalations" or "name-reviews" => "Moderation",
 "registration" or "accounts" or "beta" or "support" or "tickets" or "contact-history" or "registry" => "Members",
 "staff" or "holds" or "law-enforcement" or "disclosures" or "access" or "security" => "Governance",
 "safety" or "beta-scorecard" or "code-reports" => "Reporting & resources",
