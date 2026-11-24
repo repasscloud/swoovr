@@ -807,6 +807,8 @@ body:has(.public-layout) { padding-bottom: 0; }
 .member-dialog-close:focus-visible { outline: 3px solid var(--text); outline-offset: -3px; }
 .member-dialog .request-list { margin-top: 12px; }
 .report-in-dialog { margin: 0; }
+/* PR 471 review: the report form in a dialog spaces its fields like the page form (they touched: .stack is only a grid in .account-section). */
+.report-in-dialog .stack { display: grid; gap: 12px; margin-top: 8px; }
 
 /* Issue 447: the member profile layout. One column on a phone; gallery beside the details from 760px. The lead photo
    spans the gallery and the rest sit three to a row, so nothing scrolls sideways. */

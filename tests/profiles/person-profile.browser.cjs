@@ -4,7 +4,7 @@
 // request flow unchanged through the dialog, and no horizontal overflow at phone and desktop widths.
 const assert = require('node:assert/strict'), crypto = require('node:crypto'), fs = require('node:fs/promises'), path = require('node:path'), os = require('node:os');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
-const { createMember, memberToken, cli, call, matchReady, sql, claims, web } = require('../auth/local-tokens.cjs');
+const { createMember, memberToken, elevatedRootToken, cli, call, matchReady, sql, claims, web, api } = require('../auth/local-tokens.cjs');
 const { synthetic } = require('../media/synthetic-images.cjs');
 if (!process.env.SWOOVR_TEST_API_BASE || !process.env.SWOOVR_TEST_APP_DATABASE || process.env.Media__Store !== 'local' || !process.env.Media__Local__Path?.startsWith(os.tmpdir())) throw Error('Person profile checks require the owned local media/database runner');
 const output = process.env.SWOOVR_SCREENSHOTS;
@@ -187,10 +187,20 @@ let checks = 0; const pass = () => checks++;
    await page.waitForSelector('[data-member-dialog=report-photo] #report-category'); assert.equal(await page.locator('[data-person-photo-viewer]').count(), 0); pass();
    assert.equal(await page.locator('#report-photo-dialog-heading').innerText(), "Report Fictional Sam's photo"); pass();
    if (output) await page.screenshot({ path: `${output}/person-report-photo-1280.png` });
+   // PR 471 review: the report form's fields don't touch in the dialog.
+   const [select, textarea] = await page.evaluate(() => ['#report-category', '#report-text'].map(q => document.querySelector(q).getBoundingClientRect().toJSON()));
+   assert.ok(textarea.top - select.bottom >= 8, 'space between Reason and the note'); pass();
    await page.selectOption('#report-category', { index: 1 }); await page.click('[data-report-form] button[type=submit]');
    await page.waitForSelector('[data-member-dialog=report-photo] [data-report=sent]'); pass();
    assert.equal(await sql(`SELECT subject_type || ':' || subject_ref FROM reports WHERE subject_ref = '${ids[1]}'`), `Photo:${ids[1]}`); pass();
    assert.equal(await sql(`SELECT count(*) FROM case_evidence e JOIN reports r ON r.case_id = e.case_id WHERE r.subject_ref = '${ids[1]}' AND '${ids[1]}' = ANY(e.media_ids)`), '1'); pass();
+   // PR 471 (Codex): an admin working the case can open the reported profile photo, with a recorded purpose.
+   const photoCase = await sql(`SELECT case_id FROM reports WHERE subject_ref = '${ids[1]}'`), root = await elevatedRootToken(edge.browser);
+   const caseView = (media, body) => call(root, `/api/admin/media/${media}/case-view`, { method: 'POST', body });
+   assert.equal((await caseView(ids[0], { caseId: photoCase, purpose: 'Fictional check' })).status, 404, 'a photo the case does not name'); pass();
+   const viewed = await caseView(ids[1], { caseId: photoCase, purpose: 'Fictional check of a reported profile photo' });
+   assert.equal(viewed.status, 200, JSON.stringify(viewed.body)); assert.equal((await fetch(`${api}/${viewed.body.link}`, { headers: { authorization: `Bearer ${root}` } })).status, 200, "the case link serves the photo to the admin"); pass();
+   assert.equal(await sql(`SELECT count(*) FROM media_review_views WHERE media_id = '${ids[1]}'`), '1'); pass();
    await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=report-photo]', { state: 'detached' });
    await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '1'); pass();
    // Another member's photo id that isn't on a profile they may see is refused like any unavailable subject.
