@@ -191,6 +191,8 @@ button.segment:focus-visible { outline: 3px solid var(--text); outline-offset: 1
 .city-results button { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; color: var(--text); font: inherit; cursor: pointer; border-radius: 8px; }
 .city-results button:hover, .city-results button:focus-visible { background: var(--border); }
 .geonames-credit { font-size: .75rem; }
+/* Issue 430: no visible label, so the text sits in the middle of the field. */
+.city-search-bare input { padding: 16px; }
 .trip-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .trip-list li { display: grid; gap: 6px; }
 .visiting { font-weight: 700; }
