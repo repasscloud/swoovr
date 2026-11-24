@@ -68,10 +68,11 @@
                 </section>
                 <section class="rd-card rd-compact" aria-labelledby="muted-heading">
                                         <div><h2 id="muted-heading">Muted modes</h2><p class="field-help">@NotificationText.MutedHelp</p></div>
-                    <div class="rd-chips">
+                    @* Issue 473: the same on/off switches as the other cards; on = that mode is muted. *@
+                    <div>
                         @foreach (var m in modes)
                         {
-                            <label class="rd-chip"><input type="checkbox" checked="@form.Muted.Contains(m.Id)" @onchange="e => Mute(m.Id, e)" data-mute="@m.Id" />@m.Label</label>
+                            <label class="rd-set"><span>@m.Label</span><input type="checkbox" class="ph-switch" checked="@form.Muted.Contains(m.Id)" @onchange="e => Mute(m.Id, e)" data-mute="@m.Id" /></label>
                         }
                     </div>
                 </section>
