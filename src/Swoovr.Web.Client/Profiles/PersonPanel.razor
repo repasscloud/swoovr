@@ -217,7 +217,8 @@
 
     /// <summary>Where the two stand, per mode, so the state shows without opening the dialog.</summary>
     private string? ConnectSummary => person is null ? null : string.Join(" · ", person.Modes.Where(m => m.Connection != "none")
-        .Select(m => $"{m.Label}: " + m.Connection switch { "connected" => "connected", "sent" => "request sent", "received" => "wants to connect", _ => m.Connection }));
+        // Bracketed for the reader (Codex, PR 465): C# already binds the switch before +, but this can't be misread.
+        .Select(m => $"{m.Label}: " + (m.Connection switch { "connected" => "connected", "sent" => "request sent", "received" => "wants to connect", _ => m.Connection })));
     private string? connectStatus, connectMessage;
     private PersonProfile? person;
 

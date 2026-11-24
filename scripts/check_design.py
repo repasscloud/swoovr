@@ -132,6 +132,12 @@ for relative in ['src/Swoovr.Web/wwwroot/app.css', 'src/Swoovr.Admin/wwwroot/adm
     # Nunito is for the wordmark only; everything else stays on the one Swoovr type family.
     code = re.sub(r'/\*.*?\*/', '', text, flags=re.S)
     assert all(line.lstrip().startswith(('@font-face { font-family: \'Swoovr Nunito\'', '.wordmark {')) for line in code.splitlines() if 'Nunito' in line), f'Nunito outside the wordmark in {relative}'
+    # PR 465 (Codex): an unclosed block silently nests every later rule (a media query swallowed the Explore styles).
+    depth = 0
+    for number, char in enumerate(code):
+        depth += (char == '{') - (char == '}')
+        assert depth >= 0, f'{relative}: a closing brace has no opening block'
+    assert depth == 0, f'{relative}: {depth} block(s) left open, so later rules are nested inside them'
 assert not any('logo.svg' in p.read_text() for p in [*root.glob('src/Swoovr.Web/**/*.razor'), *root.glob('src/Swoovr.Admin/**/*.razor')]), 'In-app pages use the Nunito wordmark, not the logo'
 
 # One type family (docs/design/reference/UI-STYLE.md): no Inter, system-ui, Segoe, Roboto, Open Sans or
