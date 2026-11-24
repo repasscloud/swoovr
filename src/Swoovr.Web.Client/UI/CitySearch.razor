@@ -1,8 +1,8 @@
 @* City autocomplete over Swoovr's own GeoNames copy (D111): type two letters, pick "City, Region, Country". The API
    ranks by population and never returns coordinates. Every screen with this search shows the GeoNames credit. *@
 @inject MemberClient Members
-<div class="field city-search" data-city-search="@InputId">
-    <label for="@InputId">@Label</label>
+<div class="@(HideLabel ? "field city-search city-search-bare" : "field city-search")" data-city-search="@InputId">
+    <label for="@InputId" class="@(HideLabel ? "visually-hidden" : null)">@Label</label>
     @if (Selected is not null)
     {
         <p class="city-picked" data-city-picked="@Selected.Id"><span>@Selected.Label</span>
@@ -29,6 +29,9 @@
     [Parameter, EditorRequired] public string InputId { get; set; } = "";
     [Parameter, EditorRequired] public string Label { get; set; } = "";
     [Parameter] public PlaceView? Selected { get; set; }
+    /// <summary>Issue 430: keeps the label for screen readers only, for screens whose heading already names the field
+    /// (the floating label otherwise sits over the typed text and the picked city).</summary>
+    [Parameter] public bool HideLabel { get; set; }
     [Parameter] public EventCallback<PlaceView?> SelectedChanged { get; set; }
 
     private string query = "";

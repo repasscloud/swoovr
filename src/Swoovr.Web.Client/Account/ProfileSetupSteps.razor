@@ -41,7 +41,7 @@
                 <div class="field"><label for="onboarding-display-name">Display name</label>
                     <input id="onboarding-display-name" maxlength="40" autocomplete="nickname" required @bind="displayName" @bind:event="oninput" /></div>
                 <p class="onboarding-note">This is how you appear to other people on Swoovr. You can set a different name for each mode later. We've started with your first name; change it to anything you like.</p>
-                <CitySearch InputId="onboarding-home-city" Label="Home city" @bind-Selected="homeCity" />
+                <CitySearch InputId="onboarding-home-city" Label="Home city" HideLabel="true" @bind-Selected="homeCity" />
                 <p class="onboarding-note" data-home-city-help>Your home city sets your default area in Swoovr. Choose your home or work suburb, the city centre, or a large regional town nearby. Only you can see it. If you move it to a different region, you can't move it again for 30 days.</p>
                 <div class="onboarding-actions"><button type="submit" class="button" disabled="@(busy || string.IsNullOrWhiteSpace(displayName) || homeCity is null)">Continue</button></div>
                 <p role="status" aria-live="polite" class="settings-status" data-onboarding-result="@result">@message</p>
