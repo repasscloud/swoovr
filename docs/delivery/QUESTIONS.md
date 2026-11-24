@@ -2716,12 +2716,12 @@ Owner answer recorded 3 November 2026 — **CONFIRMED D308** ([source](https://g
 
 ### Q138 — ClamAV image vulnerabilities, UnRAR and signatures
 
-- Issue: [#227](https://github.com/repasscloud/wanderconnect/issues/227). Status: OPEN, raised 6 November 2026 from #221 §8 (D336); reports in `supply-chain/clamav-c21aa18cc0a3/`.
+- Issue: [#227](https://github.com/repasscloud/wanderconnect/issues/227). Status: ANSWERED, owner 6 November 2026 (recorded 24 November 2026) → **D395**: replace the image with the custom Alpine build (Alpine 3.24.4, ClamAV 1.5.4); the build is tracked in [#230](https://github.com/repasscloud/swoovr/issues/230). Raised 6 November 2026 from #221 §8 (D336); reports in `supply-chain/clamav-c21aa18cc0a3/`.
 - 9 Critical (libcurl, libxml2; Debian wont-fix) and 101 High base-package matches; the UnRAR library under its own licence; publisher signatures not verified (no cosign here). A (recommended): accept for UAT with compensating controls, then review a newer digest before production. B: pick a new digest now. C: accept, but drop RAR scanning (needs an attachment-type change).
 
 ### Q139 — Does a not-approved photo use a library spot while it can be appealed?
 
-- Issue: [#233](https://github.com/repasscloud/wanderconnect/issues/233). Status: OPEN, raised 7 November 2026 while building #231 (D338).
+- Issue: [#233](https://github.com/repasscloud/wanderconnect/issues/233). Status: ANSWERED **A**, owner (recorded 24 November 2026) → **D396** (current behaviour kept). Raised 7 November 2026 while building #231 (D338).
 - A refused photo stays in the member's library, blurred, for the 30-day appeal window. A (recommended, current behaviour): it uses a library spot until deleted or the window closes. B: it doesn't count, so a refusal never blocks uploads, but the library can hold more than 60 items.
 
 ### Q140 — Operational identity review for MFA recovery
