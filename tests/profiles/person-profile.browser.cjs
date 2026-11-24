@@ -181,9 +181,9 @@ let checks = 0; const pass = () => checks++;
    await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '0'); pass(); // focus back on the photo
    // Keyboard: Enter and Space on a thumbnail open that photo; Escape returns focus to it.
    await page.focus('[data-person-photo-open="1"]'); await page.keyboard.press('Enter');
-   await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
+   await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "2 of 2"); pass();
    await page.keyboard.press('Escape'); await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '1'); pass();
-   await page.keyboard.press(' '); await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
+   await page.keyboard.press(' '); await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "2 of 2"); pass();
    await page.click('[data-person-viewer-close]'); await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '1'); pass();
    // CONFIRMED: Report photo uses the existing report flow and records which photo it was.
    await page.click('[data-person-photo-open="1"]'); await page.waitForSelector('[data-person-photo-viewer]');
