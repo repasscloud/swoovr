@@ -10,4 +10,6 @@ builder.Services.AddScoped(services => new MemberClient(new HttpClient(new BffHa
 {
     BaseAddress = new Uri(new Uri(builder.HostEnvironment.BaseAddress), "bff/"),
 }));
+// Issue 472: one unread count for every badge on the page (WebAssembly scoped = one per browser tab).
+builder.Services.AddScoped<Swoovr.Web.Client.Notifications.UnreadNotifications>();
 await builder.Build().RunAsync();

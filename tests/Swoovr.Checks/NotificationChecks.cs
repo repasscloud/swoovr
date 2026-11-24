@@ -75,6 +75,9 @@ static class NotificationChecks
             && !NotificationPolicy.ValidToken(new string('a', 513)) && !NotificationPolicy.ValidToken("tok\u0000"), "tokens are printable and bounded");
 
         // Shared wording.
+        // Issue 472 (D397): the unread badge is hidden at 0 and before the count is known, and caps at "99+".
+        Expect(NotificationText.Badge(null) is null && NotificationText.Badge(0) is null && NotificationText.Badge(-1) is null, "no badge at 0");
+        Expect(NotificationText.Badge(1) == "1" && NotificationText.Badge(99) == "99" && NotificationText.Badge(100) == "99+" && NotificationText.Badge(4321) == "99+", "badge counts cap at 99+");
         var view = new NotificationSettingsView(true, true, true, true, true, true, true, "22:00", "07:00", "Australia/Adelaide", ["dating"], true, 1);
         Expect(NotificationText.Summary(view) == "Quiet 22:00–07:00 · 1 mode muted", "the settings summary");
         Expect(NotificationText.Update(view) is { QuietFrom: "22:00", MutedModes: ["dating"] }, "an update that keeps the settings");

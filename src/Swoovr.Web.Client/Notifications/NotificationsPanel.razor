@@ -2,6 +2,7 @@
    restriction or deletion removes an item at once. Lock screens and emails stay private by default; this page is the
    signed-in member's own view. Settings stop pushes and emails, never the centre. *@
 @inject MemberClient Members
+@inject UnreadNotifications Unread
 <div class="rd-page">
 <div class="page-heading" data-notifications="@(loaded ? "ready" : "loading")">
     <p class="breadcrumb"><a href="/account">Me</a> / @NotificationText.Title</p>
@@ -112,7 +113,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        centre = (await Members.NotificationsAsync()).Value ?? new([], 0);
+        if (await Unread.LoadAsync()) centre = Unread.Centre ?? centre;
         var saved = await Members.NotificationSettingsAsync();
         // A restricted member reads their account notices here; the settings answer 403 for them.
         barred = saved.Code is ProblemCodes.AccountRestricted or ProblemCodes.AccountSuspended;
@@ -161,12 +162,18 @@
 
     private async Task ReadAsync(NotificationView n)
     {
-        if (!n.Read) await Members.ReadNotificationAsync(n.Id);
+        if (n.Read) return;
+        // A refused read (an HTTP error is a status here, not an exception) changes nothing: the item is still unread.
+        if (await Members.ReadNotificationAsync(n.Id) is < 200 or > 299) return;
+        // Issue 472: the badges take the server's count, not this page's older snapshot (more may have arrived since). The
+        // item itself shows as read even if that answer fails; the next refresh then corrects the count.
+        centre = centre with { Items = [.. centre.Items.Select(i => i.Id == n.Id ? i with { Read = true } : i)], Unread = Math.Max(0, centre.Unread - 1) };
+        if (await Unread.LoadAsync()) centre = Unread.Centre ?? centre;
     }
 
     private async Task ReadAllAsync()
     {
         await Members.ReadAllNotificationsAsync();
-        centre = (await Members.NotificationsAsync()).Value ?? centre;
+        if (await Unread.LoadAsync()) centre = Unread.Centre ?? centre;
     }
 }

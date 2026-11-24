@@ -16,6 +16,9 @@ public static class NotificationText
     /// <summary>The app's install id, kept in its preferences, which stands in for a push token until APNs and FCM exist (Q83).</summary>
     public const string InstallIdKey = "swoovr.install.id";
 
+    /// <summary>Issue 472 (D397): the unread badge text: nothing at 0 (or before the count is known), "99+" above 99.</summary>
+    public static string? Badge(int? count) => count switch { null or <= 0 => null, > 99 => "99+", _ => count.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) };
+
     public static string Unread(int count) => count switch { 0 => "No unread notifications", 1 => "1 unread", _ => $"{count} unread" };
 
     public static string KindLabel(string kind) => kind switch

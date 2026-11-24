@@ -35,6 +35,10 @@
   /* Issue 420 (owner, 22 November 2026): every delete action has red text in every scheme and mode, so it isn't
      pressed by accident. Contrast at least 4.5:1 on each theme's bg, surface and soft (checked by check_design.py). */
   --destructive: #B0102A;
+  /* Issue 472 (D397): the unread notification count. Its own red, not --emergency (D315 keeps that for emergency
+     calls), with white text (5.9:1) in every scheme and mode. */
+  --unread: #C8102E;
+  --unread-text: #FFFFFF;
 }
 :root[data-theme="dark"] { --scrim: color-mix(in srgb, var(--bg) 72%, transparent);
   --destructive: #FF9494; }
@@ -279,6 +283,11 @@ a.tab:hover { color: var(--text); }
 .tab[aria-current=page] { color: var(--text); font-weight: 700; }
 .tab[aria-current=page] .icon { stroke-width: 2.25; }
 .tab.is-unbuilt { color: var(--placeholder); cursor: default; }
+/* Issue 472: unread count on the Me tab icon (top-right corner) and in the settings menu (end of the row). */
+.tab-icon { position: relative; display: inline-flex; }
+.unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--unread); color: var(--unread-text); font: 700 .6875rem/1 var(--font); font-variant-numeric: tabular-nums; letter-spacing: 0; white-space: nowrap; }
+.tab-icon .unread-badge { position: absolute; top: -7px; left: calc(100% - 9px); border: 2px solid var(--surface); height: 20px; min-width: 20px; }
+.settings-nav a .unread-badge { margin-left: auto; }
 main { max-width: 1100px; margin: 0 auto; padding: 30px var(--gutter) 56px; }
 .column { max-width: 420px; margin: 0 auto; }
 .app-footer { padding: 20px var(--gutter); border-top: 1px solid var(--border); color: var(--muted); font: var(--type-foot); text-align: center; }

@@ -16,7 +16,11 @@
         <ul>
             @foreach (var item in Items)
             {
-                <li><a href="@item.Href" aria-current="@(item.Key == Current ? "page" : null)" data-settings-link="@item.Key"><Icon Name="@item.Icon" Size="20" /><span>@item.Label</span></a></li>
+                <li><a href="@item.Href" aria-current="@(item.Key == Current ? "page" : null)" data-settings-link="@item.Key"><Icon Name="@item.Icon" Size="20" /><span>@item.Label</span>@if (item.Key == "notifications")
+                    {
+                        @* Issue 472: the same unread count as the Me tab. *@
+                        <Swoovr.Web.Client.Notifications.UnreadBadge Where="menu" @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+                    }</a></li>
             }
         </ul>
     </nav>

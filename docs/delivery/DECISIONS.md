@@ -1461,3 +1461,14 @@ The owner's scan of that build reported 0 vulnerabilities ([report](https://gith
 ### D396 — A not-approved photo keeps its library spot while it can be appealed (Q139, 24 November 2026)
 
 **CONFIRMED** by the owner on [#233](https://github.com/repasscloud/swoovr/issues/233) (Q139, option A), recorded 24 November 2026. A refused photo stays in the member's library, blurred (D338), and uses one of the 60 library spots (D293) until the member deletes it or the 30-day appeal window closes. This is the current behaviour; no code change.
+
+### D397 — Unread notification badges on the Me tab and the Notifications menu item (24 November 2026)
+
+**CONFIRMED** by the owner on [#472](https://github.com/repasscloud/swoovr/issues/472): a red count on the **Me** tab (top navigation and the phone tab bar) and on **Notifications** in the Me menu; both show the same number, are hidden at 0 and read "99+" above 99, and update without reloading the page.
+
+- The count is the notification centre's own `Unread` (`GET /api/me/notifications`), so the badge always matches what `/me/notifications` lists (blocked, restricted and deleted people's items are already left out). No new endpoint or API change.
+- Both badges read one shared WebAssembly service (`UnreadNotifications`), so they can't disagree. Reading an item or **Mark all as read** on `/me/notifications` drops them at once.
+- Review of PR 485: a read the server refuses leaves the item unread; after a read the badges and the list take the server's count (not the page's older snapshot); answers apply in the order they were asked for, so a slower, older one is dropped.
+- **DEFAULT:** new notifications show within 30 seconds: the count refreshes every 30 seconds while a badge is on screen and on each in-app navigation. The messaging hub has no notification event; adding one is a later option if 30 seconds is too slow.
+- **DEFAULT:** the badge red is its own token, `--unread` `#C8102E` with white text (5.9:1), kept separate from `--emergency` (D315) and `--destructive` (D387). `check_design.py` allows it and checks its contrast.
+- Screen readers hear "N unread notifications" after the link name; the number itself is hidden from them so it isn't read twice.
