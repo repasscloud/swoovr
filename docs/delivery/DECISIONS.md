@@ -1466,7 +1466,7 @@ The owner's scan of that build reported 0 vulnerabilities ([report](https://gith
 
 **CONFIRMED** by the owner on [#472](https://github.com/repasscloud/swoovr/issues/472): a red count on the **Me** tab (top navigation and the phone tab bar) and on **Notifications** in the Me menu; both show the same number, are hidden at 0 and read "99+" above 99, and update without reloading the page.
 
-- The count is the notification centre's own `Unread` (`GET /api/me/notifications`), so the badge always matches what `/me/notifications` lists (blocked, restricted and deleted people's items are already left out). No new endpoint or API change.
+- The count is the notification centre's own `Unread` (`GET /api/me/notifications`), so the badge always matches what `/me/notifications` lists (blocked, suspended and deleted people's items are already left out). No new endpoint or API change.
 - Both badges read one shared WebAssembly service (`UnreadNotifications`), so they can't disagree. Reading an item or **Mark all as read** on `/me/notifications` drops them at once.
 - Review of PR 485: a read the server refuses leaves the item unread; after a read the badges and the list take the server's count (not the page's older snapshot); answers apply in the order they were asked for, so a slower, older one is dropped.
 - **DEFAULT:** new notifications show within 30 seconds: the count refreshes every 30 seconds while a badge is on screen and on each in-app navigation. The messaging hub has no notification event; adding one is a later option if 30 seconds is too slow.
