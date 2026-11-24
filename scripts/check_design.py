@@ -174,6 +174,12 @@ tokens = dict(re.findall(r'--(emergency(?:-text)?):\s*(#[0-9A-Fa-f]{6})', app_cs
 assert set(tokens) == {'emergency', 'emergency-text'}, 'app.css must define --emergency and --emergency-text once'
 low, high = sorted([luminance(tokens['emergency-text']), luminance(tokens['emergency'])])
 assert (high + .05) / (low + .05) >= 4.5, 'emergency button text contrast below 4.5:1'
+# Issue 472 (owner, 24 November 2026, D397): the unread notification count is red with white text in every scheme.
+unread = re.compile(r'^\s*--unread(?:-text)?:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
+badge = dict(re.findall(r'--(unread(?:-text)?):\s*(#[0-9A-Fa-f]{6})', app_css))
+assert set(badge) == {'unread', 'unread-text'}, 'app.css must define --unread and --unread-text once'
+low, high = sorted([luminance(badge['unread-text']), luminance(badge['unread'])])
+assert (high + .05) / (low + .05) >= 4.5, 'unread badge text contrast below 4.5:1'
 red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', app_css)
 assert len(red) == 2, 'app.css must define --destructive once for light (:root) and once for dark'
 admin_red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text())
@@ -187,7 +193,7 @@ for mode, value in zip(['light', 'dark'], red):
             assert (high + .05) / (low + .05) >= 4.5, f'--destructive ({mode}) contrast below 4.5:1 on {theme["id"]} {key}'
 for path in web_styles:
     text = path.read_text()
-    if path.name == 'app.css': text = destructive.sub('', emergency.sub('', text))
+    if path.name == 'app.css': text = unread.sub('', destructive.sub('', emergency.sub('', text)))
     if path.name == 'admin.css': text = destructive.sub('', text)
     found = stray.search(re.sub(r'/\*.*?\*/', '', text, flags=re.S))
     assert not found, f'Stray colour/shadow/framework style in {path.relative_to(root)}: {found.group(0)}'

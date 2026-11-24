@@ -1,0 +1,27 @@
+@* Issue 472 (D397): the red unread count on the Me tab and the Notifications menu item. Every badge reads the one
+   shared UnreadNotifications, so they show the same number; hidden at 0, "99+" above 99. The link it sits in names
+   the page; the badge adds "N unread notifications" for screen readers. *@
+@implements IDisposable
+@inject UnreadNotifications Unread
+@if (NotificationText.Badge(Unread.Count) is { } label)
+{
+    <span class="unread-badge" data-unread-badge="@Where" data-unread-count="@Unread.Count"><span aria-hidden="true">@label</span><span class="visually-hidden">, @Unread.Count unread @(Unread.Count == 1 ? "notification" : "notifications")</span></span>
+}
+@code {
+    /// <summary>Where the badge sits ("tab" or "menu"), for tests and styling.</summary>
+    [Parameter] public string Where { get; set; } = "";
+
+    protected override void OnInitialized()
+    {
+        Unread.Changed += OnChanged;
+        Unread.Watch();
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Unread.Changed -= OnChanged;
+        Unread.Unwatch();
+    }
+}

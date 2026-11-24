@@ -2,6 +2,7 @@
    restriction or deletion removes an item at once. Lock screens and emails stay private by default; this page is the
    signed-in member's own view. Settings stop pushes and emails, never the centre. *@
 @inject MemberClient Members
+@inject UnreadNotifications Unread
 <div class="rd-page">
 <div class="page-heading" data-notifications="@(loaded ? "ready" : "loading")">
     <p class="breadcrumb"><a href="/account">Me</a> / @NotificationText.Title</p>
@@ -112,6 +113,7 @@
     protected override async Task OnInitializedAsync()
     {
         centre = (await Members.NotificationsAsync()).Value ?? new([], 0);
+        Unread.Set(centre.Unread);
         var saved = await Members.NotificationSettingsAsync();
         // A restricted member reads their account notices here; the settings answer 403 for them.
         barred = saved.Code is ProblemCodes.AccountRestricted or ProblemCodes.AccountSuspended;
@@ -160,12 +162,17 @@
 
     private async Task ReadAsync(NotificationView n)
     {
-        if (!n.Read) await Members.ReadNotificationAsync(n.Id);
+        if (n.Read) return;
+        await Members.ReadNotificationAsync(n.Id);
+        // Issue 472: the badges drop at once, before the link's page loads.
+        centre = centre with { Items = [.. centre.Items.Select(i => i.Id == n.Id ? i with { Read = true } : i)], Unread = Math.Max(0, centre.Unread - 1) };
+        Unread.Set(centre.Unread);
     }
 
     private async Task ReadAllAsync()
     {
         await Members.ReadAllNotificationsAsync();
         centre = (await Members.NotificationsAsync()).Value ?? centre;
+        Unread.Set(centre.Unread);
     }
 }
