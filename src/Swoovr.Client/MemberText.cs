@@ -133,6 +133,12 @@ public static class MemberText
     public const string Arrived = "You've arrived. You can now send requests to people here.";
     public const string BrowsingBeforeArrival = "You're looking before you arrive. You can send requests once you've confirmed you've arrived.";
 
+    /// <summary>Issue 497: the viewer's standing with someone in the mode they're browsing; nothing when there's none.</summary>
+    public static string CardStatus(ProfileCard card) => card.Connection switch
+    {
+        "connected" => "Connected", "sent" => "Request sent", "received" => "Request received", _ => "",
+    };
+
     /// <summary>
     /// D348: the text for a distance band, or null when there is nothing to show (hidden, unknown or absent). A home-city
     /// band says so, because it is never a current position.

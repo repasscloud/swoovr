@@ -430,6 +430,13 @@ public static class ProfileEndpoints
         var genders = await GenderLabelsAsync(db, cancellationToken);
         // D203: the main photo, else the first photo picked for this mode; approved photos only, as signed links.
         var photos = links is null ? default : await Media.MediaEndpoints.PhotosAsync(db, links, shownIds, [selected.Id], now, cancellationToken);
+        // Issue 497: the pending or accepted request with each person in this mode, in one query; never another mode's.
+        var me = viewer.AccountId;
+        var standing = (await db.ConnectionRequests.AsNoTracking().Where(r => r.ModeId == selected.Id
+                && (r.Status == ConnectionRequestStatus.Pending || r.Status == ConnectionRequestStatus.Accepted)
+                && (r.FromAccountId == me && shownIds.Contains(r.ToAccountId) || r.ToAccountId == me && shownIds.Contains(r.FromAccountId))).ToListAsync(cancellationToken))
+            .GroupBy(r => r.FromAccountId == me ? r.ToAccountId : r.FromAccountId)
+            .ToDictionary(g => g.Key, g => ConnectionState(g.OrderByDescending(r => r.Status == ConnectionRequestStatus.Accepted).First(), me));
         return shown.Select(c =>
         {
             var shownAs = Public(identities.GetValueOrDefault(c.Profile.AccountId), facts[c.Profile.AccountId].Age, genders);
@@ -442,7 +449,8 @@ public static class ProfileEndpoints
                 // Issue 389 (D382, Q181.5 A): the text picture only while the tile has no approved photo.
                 photos.Main?.GetValueOrDefault((c.Profile.AccountId, selected.Id)) is null ? c.Profile.PictureText : null,
                 // Issue 496: the photos others see in this mode, each once (the main photo included).
-                photos.Modes?.GetValueOrDefault((c.Profile.AccountId, selected.Id))?.Select(p => p.Id).Distinct().Count() ?? 0);
+                photos.Modes?.GetValueOrDefault((c.Profile.AccountId, selected.Id))?.Select(p => p.Id).Distinct().Count() ?? 0,
+                standing.GetValueOrDefault(c.Profile.AccountId));
         }).ToList();
     }
 
@@ -539,17 +547,16 @@ public static class ProfileEndpoints
         return new(same, modes, visiting);
     }
 
+    /// <summary>Where the viewer stands in one mode: connected, sent, received, or null for neither.</summary>
+    internal static string? ConnectionState(ConnectionRequest? request, Guid viewer) => request switch
+    {
+        null => null, { Status: ConnectionRequestStatus.Accepted } => "connected", _ when request.FromAccountId == viewer => "sent", _ => "received",
+    };
+
     private static SharedModeView ModeView(ConnectionMode mode, IReadOnlyList<string> chips, Guid viewer, List<ConnectionRequest> between, bool canRequest)
     {
         var request = between.Where(r => r.ModeId == mode.Id).OrderBy(r => r.Status).FirstOrDefault();
-        var state = request switch
-        {
-            null => "none",
-            { Status: ConnectionRequestStatus.Accepted } => "connected",
-            _ when request.FromAccountId == viewer => "sent",
-            _ => "received",
-        };
-        return new(mode.Id, mode.Label, chips, state, request is { Status: ConnectionRequestStatus.Pending } ? request.Id : null, canRequest);
+        return new(mode.Id, mode.Label, chips, ConnectionState(request, viewer) ?? "none", request is { Status: ConnectionRequestStatus.Pending } ? request.Id : null, canRequest);
     }
 
     /// <summary>The available modes in which the person is shown to the viewer (DiscoveryEligibility.ShownIn), in order.</summary>

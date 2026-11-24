@@ -1003,6 +1003,7 @@ body:has(.public-layout) { padding-bottom: 0; }
 .mc-badge-tip { position: absolute; z-index: 3; left: 8px; right: 8px; top: 8px; display: grid; gap: 4px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font: 400 .75rem/1.35 var(--font); opacity: 0; visibility: hidden; pointer-events: none; }
 .mc-badge-tip.is-open, .mc-badges:hover + .mc-badge-tip, .mc-badges:focus-visible + .mc-badge-tip { opacity: 1; visibility: visible; }
 .mc-badge-tip.is-dismissed.mc-badge-tip.is-dismissed { opacity: 0; visibility: hidden; }
+.mc-status { font: 600 .75rem/1.35 var(--font); color: var(--text); }
 .mc-meta { display: flex; align-items: center; gap: 4px; min-width: 0; font: 400 .75rem/1.35 var(--font); color: var(--muted); }
 .mc-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-meta .icon { flex: none; }

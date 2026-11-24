@@ -1542,3 +1542,7 @@ Slice 3 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §7, �
 - **Photo count:** `ProfileCard.photoCount` is the number of different photos this viewer can see on the profile in that mode: approved, not removed, not album-only, within the member's plan limit, the main photo once. It comes from the query the card already makes. The pill shows from two photos, bottom right.
 - **Travel:** a checked-in traveller's card shows "Visiting {city}" over the photo. Without a photo it stays in the detail line.
 - **"Upcoming visit" isn't on Explore cards.** Explore lists only home-market members and travellers already checked in (D352), and showing others would change eligibility. The label is on the Travel page's **Who's visiting** list, which called every traveller "Visiting": before the trip's arrival date in the destination (D137's rule) it now says "Upcoming visit". `VisitView.upcoming` adds nothing the dates didn't already show.
+
+### D408 — Explore card connection status (#497, 25 November 2026)
+
+Slice 4 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §8). `ProfileCard.connection` is `connected`, `sent` or `received` for the viewer and that person **in the mode being browsed**, or null. It never reflects another mode or other people's connections. One batched query; order and eligibility are unchanged. Shown as one line of text under the name ("Connected", "Request sent", "Request received"), with no buttons on the card.

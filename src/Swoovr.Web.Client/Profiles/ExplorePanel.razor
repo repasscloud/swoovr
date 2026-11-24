@@ -116,7 +116,7 @@
                     @* D348: a band only when both members show their distance; never a distance. *@
                     @* Issue 443 (D398): one card shape for photo and quote cards; issue 476 fills its overlay and detail slots. *@
                     <MemberCard Name="@person.DisplayName" Href="@($"/people/{person.Id}?mode={selected}")" Detail="@(person.Visiting is { } where && person.Photo is null ? $"Visiting {where}" : MemberText.Distance(person.Distance) ?? "")"
-                                Intentions="person.Intentions" Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)" Overlays="@Overlays(person)">
+                                Intentions="person.Intentions" Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)" Overlays="@Overlays(person)" Status="@MemberText.CardStatus(person)">
                         <Badges><CardBadges Badges="person.Badges" /></Badges>
                     </MemberCard>
                 }

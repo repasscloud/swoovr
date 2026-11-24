@@ -6,7 +6,7 @@ const root=path.resolve(__dirname,'../..');
 const suites=Object.freeze({'messaging-lifetime':'tests/messaging/lifetime.browser.cjs','unanswered-limit':'tests/messaging/unanswered-limit.browser.cjs',notifications:'tests/notifications/notifications.browser.cjs',members:'tests/auth/members.browser.cjs',onboarding:'tests/accounts/onboarding.browser.cjs','profile-onboarding':'tests/accounts/profile-onboarding.browser.cjs','mode-names':'tests/profiles/mode-names.browser.cjs','mode-photos':'tests/media/mode-photos.browser.cjs','person-profile':'tests/profiles/person-profile.browser.cjs','discovery-guidance':'tests/discovery/guidance.browser.cjs','review-workflows':'tests/media/review-workflows.browser.cjs',accounts:'tests/auth/accounts.browser.cjs',didit:'tests/verification/didit.browser.cjs',phone:'tests/accounts/phone.browser.cjs',deletion:'tests/accounts/deletion.browser.cjs',
  // #257 location work (D345–D352): Explore modes and badges, distance filters and bands, Travel, the Near me store and discovery.
  modes:'tests/profiles/modes.browser.cjs',badges:'tests/profiles/badges.browser.cjs',matching:'tests/discovery/matching.browser.cjs',
- 'location-privacy':'tests/discovery/location-privacy.browser.cjs','traveller-search':'tests/travel/traveller-search.browser.cjs',
+ 'location-privacy':'tests/discovery/location-privacy.browser.cjs','explore-cards':'tests/profiles/explore-cards.browser.cjs','traveller-search':'tests/travel/traveller-search.browser.cjs',
  'near-me':'tests/discovery/near-me.browser.cjs','near-me-discovery':'tests/discovery/near-me-discovery.browser.cjs',
  // #281 (D349): the scheduled Home City check; with SWOOVR_OWNED_ZAMMAD=1 also its Zammad item.
  'home-city-check':'tests/location/home-city-check.browser.cjs'});

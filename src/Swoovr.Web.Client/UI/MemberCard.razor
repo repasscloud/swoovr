@@ -24,6 +24,7 @@
     </div>
     <div class="mc-body">
         <div class="mc-name"><h2><a href="@Href"><span class="mc-name-text">@Name</span>@(Age is { } years ? $", {years}" : "")</a></h2>@Badges</div>
+        @if (!string.IsNullOrEmpty(Status)) { <p class="mc-status" data-tile-status>@Status</p> }
         @if (Meta is not null)
         {
             <div class="mc-meta">@Meta</div>
@@ -51,6 +52,8 @@
     [Parameter] public IReadOnlyList<string> Intentions { get; set; } = [];
     /// <summary>One short line under the name: the distance band or "Visiting …" (D348, D352). Left out when empty.</summary>
     [Parameter] public string Detail { get; set; } = "";
+    /// <summary>Issue 497: where the viewer stands with them, before the detail line. Left out when empty.</summary>
+    [Parameter] public string Status { get; set; } = "";
     /// <summary>The text shown when there's no photo: the member's text picture or the start of their about.</summary>
     [Parameter] public string? Quote { get; set; }
     [Parameter] public RenderFragment? Photo { get; set; }
