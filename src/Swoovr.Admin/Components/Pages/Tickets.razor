@@ -11,12 +11,12 @@
     <p>Member support conversations. Replies, notes and queues live in the helpdesk; reports, decisions and appeals stay in Swoovr.</p>
 </header>
 <p class="ui-actions"><a class="ui-button-primary" href="/tickets/new" data-ticket-new>New request for a member</a> <a class="ui-button-ghost" href="/tickets/diagnostics">Integration health</a></p>
-@if (problem is not null) { <p class="notice@(Status == 401 ? " notice-action" : "")" role="alert" data-tickets-problem="@problemCode"><span>@problem</span>@if (Status == 401) { <a href="/sign-in?reauth=true&returnUrl=/tickets" class="ui-button-primary notice-button" data-enhance-nav="false">Sign in again</a> }</p> }
+@if (problem is not null) { <p class="notice@(AdminText.NeedsSignIn(Status, problemCode) ? " notice-action" : "")" role="alert" data-tickets-problem="@problemCode"><span>@problem</span>@if (AdminText.NeedsSignIn(Status, problemCode)) { <a href="@AdminText.SignInAgain("/tickets")" class="ui-button-primary notice-button" data-enhance-nav="false" data-ticket-reauth>Sign in again</a> }</p> }
 @if (bulkResults is { Count: > 0 })
 {
     <section class="ui-card" aria-label="Bulk change results" data-bulk-results="@bulkResults.Count(r => r.Status == 200)">
         <h2 class="ui-card-title">Bulk change: @bulkResults.Count(r => r.Status == 200) of @bulkResults.Count applied</h2>
-        <ul class="list">@foreach (var r in bulkResults) { <li data-bulk-result="@r.Id" data-status="@r.Status">TK-@r.Id: @(r.Status == 200 ? "applied" : SupportTicketText.Problem(r.Status, r.Code))</li> }</ul>
+        <ul class="list">@foreach (var r in bulkResults) { <li data-bulk-result="@r.Id" data-status="@r.Status">TK-@r.Id: @(r.Status == 200 ? "applied" : SupportTicketText.Problem(r.Status, r.Code, staff: true))</li> }</ul>
     </section>
 }
 @if (caps is { } c)
@@ -99,7 +99,7 @@
     private static string? Named(IReadOnlyList<TicketOption> options, long id) => options.FirstOrDefault(o => o.Id == id)?.Name;
     private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
     private string PageLink(int number) => $"/tickets?query={Uri.EscapeDataString(Query ?? "")}&group={Group}&state={State}&priority={Priority}&owner={Owner}&sort={SortKey}&descending={Descending.ToString().ToLowerInvariant()}&page={number}";
-    private void Fail(int status, string? code) => (problem, problemCode, Status) = (SupportTicketText.Problem(status, code), code ?? status.ToString(), status);
+    private void Fail(int status, string? code) => (problem, problemCode, Status) = (SupportTicketText.Problem(status, code, staff: true), code ?? status.ToString(), status);
 
     protected override async Task OnInitializedAsync()
     {

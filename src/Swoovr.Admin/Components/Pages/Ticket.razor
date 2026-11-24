@@ -11,7 +11,7 @@
 @inject IHttpClientFactory Clients
 <PageTitle>Support request — Swoovr admin</PageTitle>
 <p class="breadcrumb"><a href="/tickets">Support requests</a> / @(detail?.Ticket.Reference ?? "Request")</p>
-@if (message is not null) { <p class="notice@(status == 401 ? " notice-action" : "")" role="@(ok ? "status" : "alert")" data-result="@resultCode"><span>@message</span>@if (status == 401) { <a href="/sign-in?reauth=true&returnUrl=/tickets/@Id" class="ui-button-primary notice-button" data-enhance-nav="false">Sign in again</a> }</p> }
+@if (message is not null) { <p class="notice@(Reauth ? " notice-action" : "")" role="@(ok ? "status" : "alert")" data-result="@resultCode"><span>@message</span>@if (Reauth) { <a href="@AdminText.SignInAgain("/tickets/" + Id)" class="ui-button-primary notice-button" data-enhance-nav="false" data-ticket-reauth>Sign in again</a> }</p> }
 @if (detail is null || caps is null)
 {
     <div class="ui-empty" data-ticket-detail="missing"><strong>Not available</strong>This request doesn't exist, or isn't available to your role and queues.</div>
@@ -213,6 +213,8 @@ else
     private static string KeptName(string reason) => reason switch { "held-account" => "Legal hold on the member", "held-case" => "Legal hold on a linked case", "open-case" => "Linked case still open", "open-appeal" => "Linked appeal undecided", _ => reason };
     private string? message, resultCode, replyBody;
     private int status;
+    // Issue 453: a refusal a fresh sign-in fixes (401, expired MFA sign-in, stale session) offers that sign-in.
+    private bool Reauth => !ok && AdminText.NeedsSignIn(status, resultCode);
     private bool ok, replyLocked, replyPrivate;
     private string changeKey = Guid.NewGuid().ToString("D"), classifyKey = Guid.NewGuid().ToString("D"), macroKey = Guid.NewGuid().ToString("D"), replyKey = Guid.NewGuid().ToString("D");
 
@@ -251,7 +253,7 @@ else
     private void Report(int code, string? problem, string? success = null)
     {
         (status, ok) = (code, success is not null);
-        (message, resultCode) = success is not null ? (success, "ok") : (SupportTicketText.Problem(code, problem), problem ?? code.ToString());
+        (message, resultCode) = success is not null ? (success, "ok") : (SupportTicketText.Problem(code, problem, staff: true), problem ?? code.ToString());
     }
 
     // An uncertain write keeps its key so the next submit is reconciled; anything else gets a fresh key.

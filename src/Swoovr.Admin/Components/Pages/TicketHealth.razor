@@ -61,7 +61,7 @@
                     <AntiforgeryToken />
                     <button type="submit" class="ui-button-ghost">Check staff access now</button>
                 </form>
-                @if (syncMessage is not null) { <p class="notice" role="status" data-ticket-staff-sync-result>@syncMessage</p> }
+                @if (syncMessage is not null) { <p class="notice@(syncReauth ? " notice-action" : "")" role="status" data-ticket-staff-sync-result><span>@syncMessage</span>@if (syncReauth) { <a href="@AdminText.SignInAgain("/tickets/diagnostics")" class="ui-button-primary notice-button" data-enhance-nav="false" data-ticket-reauth>Sign in again</a> }</p> }
             }
         </section>
     }
@@ -79,19 +79,21 @@ else { <div class="ui-empty" role="alert" data-ticket-diagnostics="unavailable">
     private Swoovr.Contracts.TicketDiagnostics? diagnostics;
     private TicketCapabilities? caps;
     private string? message, syncMessage;
+    private bool syncReauth;
     private static string When(DateTimeOffset? at) => at is { } value ? value.ToLocalTime().ToString("d MMM yyyy, HH:mm") : "never";
     private async Task SyncAsync()
     {
         var result = await Admin.TicketStaffSyncAsync();
         syncMessage = result.Ok && result.Value is { } run
             ? run.Failed > 0 ? $"Checked {run.Checked} staff. {run.Failed} couldn't be updated and will be retried." : run.Drifted > 0 ? $"Checked {run.Checked} staff. Undid helpdesk changes for {run.Drifted}." : $"Checked {run.Checked} staff. Everything matches Swoovr."
-            : SupportTicketText.Problem(result.Status, result.Code);
+            : SupportTicketText.Problem(result.Status, result.Code, staff: true);
+        syncReauth = !result.Ok && AdminText.NeedsSignIn(result.Status, result.Code);
         if ((await Admin.TicketDiagnosticsAsync()).Value is { } refreshed) diagnostics = refreshed;
     }
     protected override async Task OnInitializedAsync()
     {
         var result = await Admin.TicketDiagnosticsAsync();
-        if (result.Ok) diagnostics = result.Value; else message = SupportTicketText.Problem(result.Status, result.Code);
+        if (result.Ok) diagnostics = result.Value; else message = SupportTicketText.Problem(result.Status, result.Code, staff: true);
         caps = (await Admin.TicketCapabilitiesAsync()).Value;
     }
 }

@@ -1,3 +1,4 @@
+extern alias AdminHost;
 using System.Net;
 using Microsoft.Extensions.Configuration;
 using Swoovr.Api.Ticketing;
@@ -49,6 +50,12 @@ internal static class TicketingGuestChecks
         Check(!await new GuestBotCheck(Config("fictional-secret"), new Clients(yes)).PassesAsync(null, null, default), "configured: missing token fails");
         var down = new Fake(HttpStatusCode.BadGateway, "");
         Check(!await new GuestBotCheck(Config("fictional-secret"), new Clients(down)).PassesAsync("token", null, default), "configured: unreachable verifier fails closed");
+        // Issue 453: every ticket-route code has its own wording; none falls back to the generic 403 text.
+        const string generic = "This request isn't available.";
+        foreach (var problemCode in new[] { "mfa-elevation-required", "stale-session", "ticket-unavailable", "ticket-staff-actor-invalid", "ticket-actor-mismatch", "ticket-customer-unavailable", "ticket-customer-inactive", "ticket-customer-role-invalid" })
+            Check(SupportTicketText.Problem(403, problemCode, staff: true) != generic && SupportTicketText.Problem(403, problemCode, staff: true) != "Something went wrong. Try again.", "explicit staff wording for " + problemCode);
+        Check(SupportTicketText.Problem(403, "mfa-elevation-required", staff: true).Contains("MFA", StringComparison.Ordinal) && AdminHost::Swoovr.Admin.AdminText.NeedsSignIn(403, "mfa-elevation-required"), "expired MFA sign-in names MFA and offers Sign in again");
+        Check(SupportTicketText.Problem(404, "ticket-unavailable") == generic && !SupportTicketText.Problem(403, "ticket-staff-actor-invalid").Contains("role", StringComparison.Ordinal), "members keep their wording and never see staff detail");
         Check(SupportTicketText.ValidReference("SW-ABC234") && !SupportTicketText.ValidReference("SW-ABC23I") && SupportTicketText.NewLink("<x>") == "/me/support/new", "support links carry only valid report references");
         Console.WriteLine($"PASS: ticket guest code/grant policy, public categories and optional bot check ({n} checks; fake verifier, no Cloudflare request).");
     }

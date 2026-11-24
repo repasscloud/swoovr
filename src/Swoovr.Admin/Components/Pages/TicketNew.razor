@@ -6,7 +6,7 @@
 <PageTitle>New support request — Swoovr admin</PageTitle>
 <p class="breadcrumb"><a href="/tickets">Support requests</a> / New</p>
 <header class="ui-page-head"><h1>New request for a member</h1><p>Start a conversation the member will see in their Support page.</p></header>
-@if (message is not null) { <p class="notice" role="alert" data-result="@resultCode"><span>@message</span></p> }
+@if (message is not null) { <p class="notice@(reauth ? " notice-action" : "")" role="alert" data-result="@resultCode"><span>@message</span>@if (reauth) { <a href="@AdminText.SignInAgain("/tickets/new")" class="ui-button-primary notice-button" data-enhance-nav="false" data-ticket-reauth>Sign in again</a> }</p> }
 <section class="ui-card" aria-label="Find the member">
     <form method="post" @formname="find" @onsubmit="FindAsync" class="ui-big-search" data-enhance="false" data-ticket-customer-find>
         <AntiforgeryToken />
@@ -32,7 +32,7 @@
     [CascadingParameter] private HttpContext? Context { get; set; }
     private TicketCustomerView? customer;
     private string? message, resultCode, query, title, body;
-    private bool uncertain;
+    private bool uncertain, reauth;
     private string key = Guid.NewGuid().ToString("D");
     private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
 
@@ -40,18 +40,22 @@
     {
         query = Field("Query").Trim();
         var result = await Admin.TicketCustomerAsync(new TicketCustomerLookup(Query: query));
-        if (result.Ok) customer = result.Value; else (message, resultCode) = (SupportTicketText.Problem(result.Status, result.Code), result.Code ?? result.Status.ToString());
+        if (result.Ok) customer = result.Value; else Fail(result.Status, result.Code);
     }
 
     private async Task CreateAsync()
     {
-        if (!Guid.TryParse(Field("AccountId"), out var account) || !Guid.TryParse(Field("OpKey"), out var operation)) { (message, resultCode) = (SupportTicketText.Problem(400, "invalid-request"), "invalid-request"); return; }
+        if (!Guid.TryParse(Field("AccountId"), out var account) || !Guid.TryParse(Field("OpKey"), out var operation)) { Fail(400, "invalid-request"); return; }
         (title, body) = (Field("Title").Trim(), Field("Body").Trim());
         var result = await Admin.CreateTicketAsync(new TicketOnBehalf(account, new TicketCreate(operation, title, body)));
         if (result.Ok) { Navigation.NavigateTo("/tickets/" + result.Value!.Id); return; }
         uncertain = result.Code == "ticket-reconciliation-required" || result.Status is 0 or >= 500;
         if (uncertain) key = operation.ToString("D");
         customer = new TicketCustomerView(account, "unknown");
-        (message, resultCode) = (SupportTicketText.Problem(result.Status, result.Code), result.Code ?? result.Status.ToString());
+        Fail(result.Status, result.Code);
     }
+
+    // Issue 453: an expired MFA sign-in says so and offers the sign-in, instead of "This request isn't available."
+    private void Fail(int status, string? code) =>
+        (message, resultCode, reauth) = (SupportTicketText.Problem(status, code, staff: true), code ?? status.ToString(), AdminText.NeedsSignIn(status, code));
 }
