@@ -636,3 +636,5 @@
 .rd-group > .segmented { justify-self: start; }
 .rd-row > p.field-help { flex: 1 1 320px; }
 .rd-row > .rd-actions { margin-left: auto; }
+/* Issue 475 (D399): the reserved photo verification line in the viewer, badge then text. */
+.person-viewer-verified { display: flex; align-items: center; gap: 6px; }

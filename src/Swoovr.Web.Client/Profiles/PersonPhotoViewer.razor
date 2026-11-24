@@ -6,9 +6,9 @@
 <div class="ph-overlay ph-viewer person-viewer" @onclick="CloseAsync" @onkeydown="KeyAsync" tabindex="-1" data-person-photo-viewer="@Current.Photo.Id">
     @* Focus sentinels keep Tab inside the dialog, as in MemberDialog. *@
     <span tabindex="0" class="visually-hidden" data-focus-sentinel @onfocus="FocusReportAsync"></span>
-    <div class="ph-viewer-panel" role="dialog" aria-modal="true" aria-labelledby="person-viewer-title" @onclick:stopPropagation="true">
+    <div class="ph-viewer-panel" role="dialog" aria-modal="true" aria-label="@AccessibleLabel" @onclick:stopPropagation="true">
         <div class="ph-viewer-stage" @ontouchstart="TouchStart" @ontouchend="TouchEndAsync" data-person-viewer-stage>
-            <img src="@PhotoText.Web(Current.Photo.Link)" alt="@Label" class="person-viewer-photo" draggable="false"
+            <img src="@PhotoText.Web(Current.Photo.Link)" alt="@AccessibleLabel" class="person-viewer-photo" draggable="false"
                  @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-person-viewer-image="@Current.Photo.Id" />
             @if (Photos.Count > 1)
             {
@@ -21,7 +21,13 @@
                 <h2 id="person-viewer-title" tabindex="-1" @ref="heading" data-person-viewer-title>@Label</h2>
                 <button type="button" class="ph-close" @onclick="CloseAsync" aria-label="Close" data-person-viewer-close>×</button>
             </div>
-            @if (Current.ModeLabel is { } mode) { <p class="field-help" data-person-viewer-mode>In @mode</p> }
+            @* Issue 475 (D399): the upload date (no time) on every photo, the main one included, in place of the mode. *@
+            @if (Current.Photo.UploadedAt is { } uploaded) { <p class="field-help" data-person-viewer-uploaded>Uploaded: @PhotoText.Day(uploaded)</p> }
+            @* Reserved for photo verification (issue 372): only public photos on the profile when an admin verified the member. *@
+            @if (Current.Photo.PhotoVerifiedAt is { } verified)
+            {
+                <p class="field-help person-viewer-verified" data-person-viewer-verified><Badge Kind="photo" /> Photo verified: @PhotoText.Day(verified)</p>
+            }
             <div class="ph-viewer-actions">
                 <button type="button" class="button button-secondary" @ref="reportButton" @onclick="ReportAsync" data-report-photo="@Current.Photo.Id"><Icon Name="flag" Size="16" /> Report photo</button>
             </div>
@@ -40,8 +46,10 @@
     [Parameter] public EventCallback<Guid> OnReport { get; set; }
 
     private PhotoText.GalleryPhoto Current => Photos[Math.Clamp(Index, 0, Photos.Count - 1)];
-    /// <summary>"Sam's photo, 2 of 4" (one photo: "Sam's photo").</summary>
-    private string Label => Photos.Count > 1 ? $"{Name}'s photo, {Index + 1} of {Photos.Count}" : $"{Name}'s photo";
+    /// <summary>Issue 475: the visible title is just "2 of 4" (one photo: "Photo").</summary>
+    private string Label => Photos.Count > 1 ? $"{Index + 1} of {Photos.Count}" : "Photo";
+    /// <summary>Screen readers and the image still name the person: "Sam's photo, 2 of 4".</summary>
+    private string AccessibleLabel => Photos.Count > 1 ? $"{Name}'s photo, {Index + 1} of {Photos.Count}" : $"{Name}'s photo";
     private ElementReference heading, reportButton, prevButton, nextButton;
     private double? touchX;
     /// <summary>A step button that just became disabled (first or last photo) would drop focus to the page, so focus moves to the other one.</summary>

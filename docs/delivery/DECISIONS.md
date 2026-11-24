@@ -1481,3 +1481,11 @@ From [#443](https://github.com/repasscloud/swoovr/issues/443) (owner's brief); b
 - **Nothing made up.** A member with no text picture and no about used to show "No about yet." as a quote; the ink block now shows their initial instead. Lines with nothing to show are left out.
 - The whole card is the profile link (hover border, focus ring); same access, moderation and privacy checks, same API data (no contract change). Age stays off Explore cards until #476 decides it per mode.
 - Slots for #476: `Overlays` (corners of the media block: travel, photo count) and `Meta` (presence, distance, connection), which replaces the detail line.
+
+### D399 — Profile photo viewer: "2 of 4", the upload date, and a reserved photo verification line (24 November 2026)
+
+**CONFIRMED** by the owner on [#475](https://github.com/repasscloud/swoovr/issues/475), amending D394's viewer:
+- The title is just "2 of 4" ("Photo" when there's one); "{Name}'s photo, " is gone from what's shown. The dialog and image keep "{Name}'s photo, 2 of 4" as their accessible name.
+- "In Dating" is replaced by **"Uploaded: {date}"** (date only, the viewer's local date) on every photo, including the main photo, which showed nothing before. The member's own album viewer already shows "Uploaded".
+- `PhotoView` gains optional `UploadedAt` (set on profile photos from the media item) and `PhotoVerifiedAt`. No schema change.
+- **Reserved for photo verification ([#372](https://github.com/repasscloud/swoovr/issues/372)):** when an admin verifies a member's photos, each **public** photo on the profile at that moment gets the Photo verified badge and the date (no time), shown in the viewer as "Photo verified: {date}". Photos uploaded later never get it, and approved explicit (album-only) photos never do. The badge on the member's profile is separate. `PhotoVerifiedAt` is always null until #372 is built; the viewer shows the line only when it is set.

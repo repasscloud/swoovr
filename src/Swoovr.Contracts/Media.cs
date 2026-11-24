@@ -34,8 +34,11 @@ public sealed record ExplicitMediaUpdate(string? Mode, bool Receive);
 /// <summary>A full replacement for one mode gallery, including its optional main selection. Null clears the main.</summary>
 public sealed record PhotoPlacementUpdate(string Scope, IReadOnlyList<Guid> MediaIds, Guid? MainMediaId = null);
 
-/// <summary>Another member's approved photo as the viewer may see it: a short-lived signed link, nothing else.</summary>
-public sealed record PhotoView(Guid Id, string Link);
+/// <summary>Another member's approved photo as the viewer may see it: a short-lived signed link and, on profile photos, its dates.</summary>
+/// <param name="UploadedAt">Issue 475 (D399): when the photo was uploaded, for "Uploaded: {date}" in the photo viewer (date only). Set on profile photos.</param>
+/// <param name="PhotoVerifiedAt">Issue 475 (D399), reserved for photo verification (#372): the date an admin verified the member, only on PUBLIC
+/// photos that were on the profile at that time. Never on later uploads or approved explicit (album-only) photos. Always null until #372 is built.</param>
+public sealed record PhotoView(Guid Id, string Link, DateTimeOffset? UploadedAt = null, DateTimeOffset? PhotoVerifiedAt = null);
 
 /// <summary>An uncertain photo waiting for review (admins only). No image: viewing needs a recorded purpose.</summary>
 /// <param name="Purpose">Null for a profile photo; "attachment" for a photo sent in chat (#41).</param>
