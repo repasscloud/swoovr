@@ -29,7 +29,9 @@ public sealed record TicketLinkView(Guid CaseId,Guid? AppealId,string CaseStatus
 public sealed record TicketUpload(string Filename,string ContentType,byte[] Data);
 public sealed record TicketReply(Guid OperationId,string Body,bool Private=false,IReadOnlyList<TicketUpload>? Attachments=null);
 public sealed record TicketChange(Guid OperationId,DateTimeOffset ExpectedUpdatedAt,long? GroupId=null,long? OwnerId=null,long? StateId=null,long? PriorityId=null,IReadOnlyDictionary<string,string>? Classification=null);
-public sealed record TicketOnBehalf(Guid AccountId,TicketCreate Ticket);
+public sealed record TicketOnBehalf(Guid AccountId,TicketCreate Ticket,string? Topic=null);
+/// <summary>Issue 454: why staff opened a request from a member's screen; only <see cref="TicketTopics"/> values are kept.</summary>
+public static class TicketTopics { public const string DateOfBirth = "dob"; public static bool Known(string? topic) => topic is DateOfBirth; }
 public sealed record TicketCustomerLookup(Guid AccountId=default,bool Create=false,string? Query=null);
 public sealed record TicketCustomerView(Guid AccountId,string State);
 public sealed record TicketOption(long Id,string Name);

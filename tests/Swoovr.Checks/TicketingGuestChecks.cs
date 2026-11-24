@@ -56,6 +56,11 @@ internal static class TicketingGuestChecks
             Check(SupportTicketText.Problem(403, problemCode, staff: true) != generic && SupportTicketText.Problem(403, problemCode, staff: true) != "Something went wrong. Try again.", "explicit staff wording for " + problemCode);
         Check(SupportTicketText.Problem(403, "mfa-elevation-required", staff: true).Contains("MFA", StringComparison.Ordinal) && AdminHost::Swoovr.Admin.AdminText.NeedsSignIn(403, "mfa-elevation-required"), "expired MFA sign-in names MFA and offers Sign in again");
         Check(SupportTicketText.Problem(404, "ticket-unavailable") == generic && !SupportTicketText.Problem(403, "ticket-staff-actor-invalid").Contains("role", StringComparison.Ordinal), "members keep their wording and never see staff detail");
+        // Issue 454: the date of birth template never contains a date; Create ticket says why when it can't be used.
+        Check(!SupportTicketText.DobTicketTitle.Any(char.IsDigit) && !SupportTicketText.DobTicketBody.Any(char.IsDigit) && Swoovr.Contracts.TicketTopics.Known("dob") && !Swoovr.Contracts.TicketTopics.Known("other") && !Swoovr.Contracts.TicketTopics.Known(null), "date of birth ticket template has no dates; only known topics are kept");
+        Check(SupportTicketText.CreateUnavailable(200, ["General Support"]) is null && SupportTicketText.CreateUnavailable(200, ["Security"]) is { } queue && queue.Contains("General Support", StringComparison.Ordinal)
+            && SupportTicketText.CreateUnavailable(403, null) is not null && SupportTicketText.CreateUnavailable(503, null)!.Contains("helpdesk", StringComparison.Ordinal), "Create ticket shows a reason when the role or helpdesk can't create");
+        Check(Swoovr.Api.Accounts.AccountInspectionEndpoints.HistoryActions.Contains("helpdesk.ticket.created"), "a staff-opened request appears in the member's account history");
         Check(SupportTicketText.ValidReference("SW-ABC234") && !SupportTicketText.ValidReference("SW-ABC23I") && SupportTicketText.NewLink("<x>") == "/me/support/new", "support links carry only valid report references");
         Console.WriteLine($"PASS: ticket guest code/grant policy, public categories and optional bot check ({n} checks; fake verifier, no Cloudflare request).");
     }

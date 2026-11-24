@@ -96,6 +96,8 @@ else
                 <dt>Opened</dt><dd>@selected.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC · @Ago(selected.CreatedAt) ago</dd>
                 <dt>ID Verified</dt><dd><span class="ui-pill" data-tone="approve">Kept</span></dd>
                 <dt>Member</dt><dd><a href="/accounts/@selected.AccountId">View account</a></dd>
+                @* Issue 454: ask the member for more without leaving the review; the template never includes either date. *@
+                <dt>Contact</dt><dd>@if (createTicketBlocked is null) { <a href="/tickets/new?account=@selected.AccountId&topic=dob" data-dob-create-ticket>@SupportTicketText.CreateTicketLabel</a> } else { <span aria-disabled="true" data-dob-create-ticket="unavailable">@SupportTicketText.CreateTicketLabel</span> <small class="ui-sub" data-create-ticket-reason>@createTicketBlocked</small> }</dd>
                 @if (selected.DiditSessionId is { } session && SessionUrl(session) is null) { <dt>Didit session</dt><dd><span class="beta-ref"><code>@session</code><CopyButton Value="@session" /></span></dd> }
             </dl>
             @if (selected.DiditSessionId is { } s && SessionUrl(s) is { } url) { <a class="ui-button-ghost dob-didit" href="@url" target="_blank" rel="noopener noreferrer" data-didit-open>Compare in Didit @External<kbd>D</kbd></a> }
@@ -122,7 +124,7 @@ else
     [SupplyParameterFromQuery(Name = "outcome")] public string? Outcome { get; set; }
     [SupplyParameterFromQuery(Name = "review")] public Guid? Focus { get; set; }
     private List<DobReviewView> waiting = [], resolved = [];
-    private string? message, resultCode;
+    private string? message, resultCode, createTicketBlocked;
     private bool Resolved => View == "resolved";
     private static readonly (string, string)[] Whys = [("still-different", "Still different after correction"), ("no-document-date", "No date from Didit")];
     private static string WhyLabel(string reason) => reason == "no-document-date" ? "No date from Didit" : "Still different after correction";
@@ -161,6 +163,8 @@ else
         waiting = open.Value ?? [];
         resolved = (await Admin.DobReviewsAsync(open: false)).Value?.Where(r => r.ResolvedAt is not null).ToList() ?? [];
         if (!open.Ok) message = AdminText.Refusal(open.Status, open.Code);
+        var caps = await Admin.TicketCapabilitiesAsync();
+        createTicketBlocked = SupportTicketText.CreateUnavailable(caps.Status, caps.Value?.TransferGroups.Select(g => g.Name).ToList());
     }
 
     private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";

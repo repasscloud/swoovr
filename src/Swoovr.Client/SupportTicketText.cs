@@ -37,6 +37,19 @@ public static partial class SupportTicketText
     public const string TitleLabel = "Subject";
     public const string BodyLabel = "How can we help?";
     public const string ReplyLabel = "Your reply";
+    // Issue 454: staff open a request from the member's screen. The date of birth template never contains either date.
+    public const string CreateTicketLabel = "Create ticket";
+    public const string DobTicketTitle = "Checking the date of birth on your account";
+    public const string DobTicketBody = "Hello,\n\nWe need to check the date of birth on your Swoovr account against your ID check. Please reply to this message and we'll take it from there.\n\nPlease don't send photos of your ID here.\n\nSwoovr support";
+    /// <summary>Why the Create ticket action is unavailable, or null when the staff member can create in General Support.</summary>
+    public static string? CreateUnavailable(int status, IReadOnlyList<string>? createQueues) => status switch
+    {
+        >= 200 and < 300 when createQueues?.Contains("General Support") == true => null,
+        >= 200 and < 300 => "Your role can't create requests in General Support.",
+        401 => "Your session has ended. Sign in again to create a ticket.",
+        403 => "Your role can't create support requests.",
+        _ => "The helpdesk isn't available right now.",
+    };
 
     /// <summary>The member's new-request link, carrying only a valid report reference (never report content).</summary>
     public static string NewLink(string? reference = null) => ValidReference(reference) ? MemberPath + "/new?reference=" + reference : MemberPath + "/new";
