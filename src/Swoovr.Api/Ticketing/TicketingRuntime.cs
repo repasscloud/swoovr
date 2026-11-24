@@ -292,12 +292,19 @@ public sealed class TicketingRuntime(AccountResolver accounts,CurrentAccount cur
     /// Issue 454: a request staff open for a member is recorded on the member's account history and the member is told in
     /// the app straight away, with the event worker's dedupe key (the first article) so the helpdesk event can't notify twice.
     /// </summary>
+    public static string CreatedAuditKey(long ticket)=>"ticket:"+ticket.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    public static string CreatedAuditDetail(long ticket,string? topic)=>CreatedAuditKey(ticket)+(TicketTopics.Known(topic)?";topic:"+topic:"");
     private async Task StaffCreatedAsync(SupportTicket created,Guid member,string? topic,CancellationToken ct)
     {
         var now=clock.GetUtcNow();
-        var id=created.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        Swoovr.Api.Accounts.Audit.Record(Db,now,Me,"staff","helpdesk.ticket.created","account",member.ToString(),"ticket:"+id+(TicketTopics.Known(topic)?";topic:"+topic:""));
-        await Db.SaveChangesAsync(ct);
+        // A replayed operation returns the same ticket: record its creation once (the member's lifecycle lease is held, so
+        // the check and the insert can't race), but still fall through so a retry can recover a notice that wasn't sent.
+        var key=CreatedAuditKey(created.Id);var target=member.ToString();
+        if(!await Db.AuditEntries.AnyAsync(a=>a.Action=="helpdesk.ticket.created"&&a.TargetType=="account"&&a.TargetId==target&&(a.Detail==key||a.Detail!.StartsWith(key+";")),ct))
+        {
+            Swoovr.Api.Accounts.Audit.Record(Db,now,Me,"staff","helpdesk.ticket.created","account",target,CreatedAuditDetail(created.Id,topic));
+            await Db.SaveChangesAsync(ct);
+        }
         try
         {
             var first=(await provider.GetArticlesAsync(created.Id,ct)).Where(a=>a.TicketId==created.Id&&!a.Internal&&a.Sender=="Agent").Select(a=>(long?)a.Id).Min();
