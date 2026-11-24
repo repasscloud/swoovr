@@ -9,6 +9,9 @@ public static class PhotoText
     public static string Web(string link) => "/media/" + link[(link.LastIndexOf('/') + 1)..];
     public static string App(Uri apiBase, string link) => new Uri(apiBase, link).ToString();
 
+    /// <summary>Issue 475: a date without the time in the viewer's local zone, "24 Nov 2026".</summary>
+    public static string Day(DateTimeOffset at) => at.ToLocalTime().ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture);
+
     /// <summary>One photo in a profile gallery: the mode it was shown from (null for the main photo).</summary>
     public sealed record GalleryPhoto(Swoovr.Contracts.PhotoView Photo, string? ModeId, string? ModeLabel);
 

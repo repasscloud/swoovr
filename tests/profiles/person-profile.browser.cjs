@@ -149,20 +149,25 @@ let checks = 0; const pass = () => checks++;
    assert.ok(await guarded('[data-person-photos] img'), 'gallery photos: no context menu, no drag, no selection'); pass();
    const gallerySources = await page.locator('[data-person-photos] img').evaluateAll(images => images.map(i => i.getAttribute('src')));
    await page.click('[data-person-photo-open="0"]');
-   await page.waitForSelector('[data-person-photo-viewer] [role=dialog][aria-modal=true][aria-labelledby=person-viewer-title]');
-   assert.equal(await title(), "Fictional Sam's photo, 1 of 2"); pass();
+   await page.waitForSelector('[data-person-photo-viewer] [role=dialog][aria-modal=true]');
+   // Issue 475 (D399): the title is just "1 of 2"; the dialog still names the person for screen readers; the upload date
+   // (no time) replaces the mode on every photo, the main one included; no photo verification line before issue 372.
+   assert.equal(await title(), "1 of 2"); pass();
+   assert.equal(await page.getAttribute('[data-person-photo-viewer] [role=dialog]', 'aria-label'), "Fictional Sam's photo, 1 of 2"); pass();
+   assert.match(await page.innerText('[data-person-viewer-uploaded]'), /^Uploaded: \d{1,2} [A-Z][a-z]{2} \d{4}$/); pass();
+   assert.equal(await page.locator('[data-person-viewer-mode], [data-person-viewer-verified]').count(), 0); pass();
    assert.equal((await focused()).id, 'person-viewer-title'); pass();
    assert.equal(await page.getAttribute('[data-person-viewer-image]', 'src'), gallerySources[0]); pass();
    assert.ok(await guarded('[data-person-viewer-image]'), 'viewer photo guarded'); pass();
    assert.equal(await page.locator('[data-person-photo-viewer] button').evaluateAll(b => b.map(x => x.innerText.trim()).filter(Boolean).join('|')), '‹|›|×|Report photo', 'no owner actions'); pass();
    if (output) await page.screenshot({ path: `${output}/person-photo-viewer-1280.png` });
-   await page.keyboard.press('ArrowRight'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
+   await page.keyboard.press('ArrowRight'); assert.equal(await title(), "2 of 2"); pass();
    assert.equal(await page.getAttribute('[data-person-viewer-image]', 'src'), gallerySources[1]); pass();
    assert.ok(await page.isDisabled('[data-person-viewer-next]')); pass();
-   await page.keyboard.press('ArrowRight'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2", 'stays on the last photo'); pass();
-   await page.keyboard.press('ArrowLeft'); assert.equal(await title(), "Fictional Sam's photo, 1 of 2"); pass();
-   await page.click('[data-person-viewer-next]'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
-   await page.click('[data-person-viewer-prev]'); assert.equal(await title(), "Fictional Sam's photo, 1 of 2"); pass();
+   await page.keyboard.press('ArrowRight'); assert.equal(await title(), "2 of 2", 'stays on the last photo'); pass();
+   await page.keyboard.press('ArrowLeft'); assert.equal(await title(), "1 of 2"); pass();
+   await page.click('[data-person-viewer-next]'); assert.equal(await title(), "2 of 2"); pass();
+   await page.click('[data-person-viewer-prev]'); assert.equal(await title(), "1 of 2"); pass();
    // A left swipe steps forward, a right swipe back.
    const swipe = dx => page.$eval('[data-person-viewer-stage]', (stage, dx) => {
     const touch = x => new Touch({ identifier: 1, target: stage, clientX: x, clientY: 200 });
@@ -176,9 +181,9 @@ let checks = 0; const pass = () => checks++;
    await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '0'); pass(); // focus back on the photo
    // Keyboard: Enter and Space on a thumbnail open that photo; Escape returns focus to it.
    await page.focus('[data-person-photo-open="1"]'); await page.keyboard.press('Enter');
-   await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
+   await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "2 of 2"); pass();
    await page.keyboard.press('Escape'); await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '1'); pass();
-   await page.keyboard.press(' '); await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "Fictional Sam's photo, 2 of 2"); pass();
+   await page.keyboard.press(' '); await page.waitForSelector('[data-person-photo-viewer]'); assert.equal(await title(), "2 of 2"); pass();
    await page.click('[data-person-viewer-close]'); await page.waitForFunction(() => document.activeElement?.getAttribute('data-person-photo-open') === '1'); pass();
    // CONFIRMED: Report photo uses the existing report flow and records which photo it was.
    await page.click('[data-person-photo-open="1"]'); await page.waitForSelector('[data-person-photo-viewer]');

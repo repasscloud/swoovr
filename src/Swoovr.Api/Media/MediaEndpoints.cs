@@ -352,13 +352,14 @@ public static class MediaEndpoints
         var rows = await (from p in db.MediaPlacements join i in db.MediaItems on p.MediaId equals i.Id
                           where accounts.Contains(p.AccountId) && modes.Contains(p.Scope)
                                 && i.Status == MediaStatus.Passed && i.RemovedAt == null && !i.AlbumOnly
-                          orderby p.Position select new { p.AccountId, p.Scope, p.MediaId, p.IsMain, p.Position }).ToListAsync(cancellationToken);
+                          orderby p.Position select new { p.AccountId, p.Scope, p.MediaId, p.IsMain, p.Position, i.CreatedAt }).ToListAsync(cancellationToken);
         var limits = await LimitsAsync(db, accounts, now, cancellationToken);
         var visible = rows.GroupBy(r => (r.AccountId, r.Scope)).SelectMany(g => g.Take(limits.GetValueOrDefault(g.Key.AccountId, MediaPolicy.ModeLimit(PlanTier.Free)))).ToList();
-        PhotoView? View(Guid id) => links.For(id, "member", now) is { } link ? new PhotoView(id, link) : null;
+        // Issue 475 (D399): the upload time travels with the photo; PhotoVerifiedAt stays null until photo verification (#372).
+        PhotoView? View(Guid id, DateTimeOffset uploaded) => links.For(id, "member", now) is { } link ? new PhotoView(id, link, uploaded) : null;
         var main = visible.Where(r => r.IsMain).GroupBy(r => (r.AccountId, r.Scope))
-            .Select(g => (g.Key, Photo: View(g.First().MediaId))).Where(r => r.Photo is not null).ToDictionary(r => r.Key, r => r.Photo!);
-        var perMode = visible.GroupBy(r => (r.AccountId, r.Scope)).ToDictionary(g => g.Key, g => g.Select(r => View(r.MediaId)).OfType<PhotoView>().ToList());
+            .Select(g => (g.Key, Photo: View(g.First().MediaId, g.First().CreatedAt))).Where(r => r.Photo is not null).ToDictionary(r => r.Key, r => r.Photo!);
+        var perMode = visible.GroupBy(r => (r.AccountId, r.Scope)).ToDictionary(g => g.Key, g => g.Select(r => View(r.MediaId, r.CreatedAt)).OfType<PhotoView>().ToList());
         return (main, perMode);
     }
 
