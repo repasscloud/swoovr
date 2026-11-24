@@ -318,7 +318,7 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 250;
     await evePage.goto(web + '/account/sign-in?intro=done');
     await evePage.fill('#username', members.eve.email); await evePage.fill('#password', members.eve.password);
     await Promise.all([evePage.waitForURL(web + '/explore'), evePage.click('#kc-login')]);
-    await evePage.locator('[data-photos-link]').first().evaluate(a => a.click());
+    await evePage.goto(web + '/me/photos'); // issue 437: Your profile no longer links here; Photos has its own route
     await evePage.waitForSelector('[data-photos-panel="ready"]');
     await evePage.setInputFiles('[data-photo-input]', { name: 'synthetic.png', mimeType: 'image/png', buffer: await synthetic(canvas, { kind: 'gradient', seed: 70 }) });
     await evePage.waitForSelector('[data-photo-state="approved"]', { timeout: 45000 }); pass();

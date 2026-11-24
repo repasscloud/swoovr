@@ -19,7 +19,16 @@
         <form @onsubmit="SaveProfileAsync" data-core-form>
             <div class="rd-grid">
                 <div class="field"><label for="display-name">Display name</label><input id="display-name" maxlength="40" @bind="displayName" autocomplete="nickname" /></div>
-                <CitySearch InputId="home-city" Label="Home city · only you see this" @bind-Selected="homeCity" />
+                <div class="rd-home-city">
+                    <CitySearch InputId="home-city" Label="Home city · only you see this" @bind-Selected="homeCity" />
+                    @if (profile.HomeCity is not null)
+                    {
+                        @* D150/D349: optional. The browser asks for one reading; Swoovr keeps only whether it matched, never where you are.
+                           Issue 437: it sits with the Home city it checks; the long explanation and the photos link are gone. *@
+                        <p class="field-help rd-home-check"><button type="button" class="link-button" disabled="@busy" @onclick="HomeCheckAsync" data-home-check>Check my location matches</button>
+                            <span data-home-check-result="@homeCheck">@(homeCheck is null ? "" : MemberText.HomeCheck(homeCheck))</span></p>
+                    }
+                </div>
             </div>
             @if (string.IsNullOrWhiteSpace(profile.DisplayName))
             {
@@ -28,15 +37,7 @@
             <div class="field"><label for="about">About me <span class="rd-count" data-about-length>· @(about?.Length ?? 0)/500</span></label>
                 <textarea id="about" class="rd-large" maxlength="500" rows="6" @bind="about" @bind:event="oninput"
                           placeholder="A few words about you, what you enjoy and what you're looking for."></textarea></div>
-            <div class="rd-row">
-                <p class="field-help">Home city decides who counts as local when people visit (Travel).
-                    @if (profile.HomeCity is not null)
-                    {
-                        @* D150: optional. The browser asks for one reading; Swoovr keeps only whether it matched, never where you are. *@
-                        <button type="button" class="link-button" disabled="@busy" @onclick="HomeCheckAsync" data-home-check>Check my location matches</button>
-                        <span data-home-check-result="@homeCheck">@(homeCheck is null ? "" : MemberText.HomeCheck(homeCheck))</span>
-                    }
-                    · <a class="link" href="/me/photos" data-photos-link>Your photos</a></p>
+            <div class="rd-row rd-row-end">
                 <div class="rd-actions">
                     <p role="status" aria-live="polite" class="field-help rd-status" data-core-status="@coreStatus">@coreMessage</p>
                     <button type="submit" class="button" disabled="@busy">Save profile</button>
