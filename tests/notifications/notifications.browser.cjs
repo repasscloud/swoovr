@@ -308,6 +308,59 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     await page.waitForSelector('[data-unread-badge="tab"][data-unread-count="1"]', { timeout: 45000 }); pass();
     await page.waitForSelector('[data-unread-badge="menu"][data-unread-count="1"]', { state: 'attached', timeout: 5000 }); pass();
     assert.ok((await page.textContent('[data-notification-list]')).includes('Fictional Ntf ana accepted your Dating request')); pass();
+    // PR 485 review: a refused read changes nothing; a read takes the server's count, not the page's older snapshot; and a
+    // slower, older answer can't put the count back. Bob has one unread item (dee) after a reload.
+    await page.goto(web + '/me/notifications');
+    await page.waitForSelector('[data-notifications="ready"]', { timeout: 20000 });
+    const unreadRow = '[data-notification-list] > [data-notification-read="no"]';
+    assert.equal(await page.locator(unreadRow).count(), 1); pass();
+    // Keep the click on this page: only the read is under test, not the link's navigation.
+    const readFirstUnread = () => page.$eval(unreadRow + ' a', a => { a.addEventListener('click', e => e.preventDefault()); a.click(); });
+    const readUrl = /\/api\/me\/notifications\/[0-9a-f-]{36}\/read$/;
+    await page.route(readUrl, route => route.fulfill({ status: 503, body: '' }));
+    const refused = page.waitForResponse(r => readUrl.test(r.url()));
+    await readFirstUnread();
+    assert.equal((await refused).status(), 503);
+    await sleep(1000);
+    assert.equal(await page.locator(unreadRow).count(), 1, 'a refused read stays unread'); pass();
+    assert.equal(await page.getAttribute('[data-unread-badge="tab"]', 'data-unread-count'), '1'); pass();
+    await page.unroute(readUrl);
+    // One more arrives while the page is open, then the older item is read: one is still unread.
+    assert.ok((await request('eve', 'bob', 'dating')).status < 300, 'a second request for bob'); pass();
+    assert.equal((await centre('bob')).unread, 2);
+    // Hold the first count answer (read before the POST), so it lands after the read's own answer.
+    let release; const held = new Promise(done => { release = done; });
+    let first = true, holding;
+    const holdingStarted = new Promise(done => { holding = done; });
+    const listUrl = /\/api\/me\/notifications$/;
+    await page.route(listUrl, async route => {
+      if (!first) return route.continue();
+      first = false;
+      const response = await route.fetch();
+      holding();
+      await held;
+      await route.fulfill({ response });
+    });
+    await holdingStarted; // the 30-second poll
+    const read = page.waitForResponse(r => readUrl.test(r.url()));
+    await readFirstUnread();
+    assert.equal((await read).status(), 204);
+    await sleep(1500);
+    const tabCount = () => page.$$eval('[data-unread-badge="tab"]', all => all.map(b => b.dataset.unreadCount));
+    assert.deepEqual(await tabCount(), ['1'], 'the newer item is still counted'); pass();
+    assert.equal(await page.locator(unreadRow).count(), 1); pass(); // the list shows it too
+    assert.equal((await centre('bob')).unread, 1); pass();
+    const late = page.waitForResponse(r => listUrl.test(r.url()));
+    release(); await late; await sleep(1000);
+    assert.deepEqual(await tabCount(), ['1'], 'an older answer is dropped'); pass();
+    await page.unroute(listUrl);
+    // The read is saved but the count's answer fails: the item still shows as read.
+    await page.route(listUrl, route => route.fulfill({ status: 503, body: '' }));
+    const saved = page.waitForResponse(r => listUrl.test(r.url()));
+    await readFirstUnread();
+    await saved; await sleep(500);
+    assert.equal(await page.locator(unreadRow).count(), 0, 'a saved read shows as read'); pass();
+    await page.unroute(listUrl);
     assert.ok((await page.textContent('[data-notification-privacy]')).includes('never show names')); pass();
     await page.$eval('[data-setting="email"]', el => el.click());
     await page.$eval('[data-mute="business"]', el => el.click());
