@@ -41,8 +41,10 @@
                         var state = SupportTicketText.StateName(States, t.StateId);
                         <li class="me-item me-item-link" data-support-ticket="@t.Reference">
                             <a class="me-item-main" href="@SupportTicketText.Link(t.Id)">
-                                <span class="me-item-line"><span class="me-item-title">@t.Title</span><span class="me-tag@(state == "Closed" ? " me-tag-quiet" : "")" data-support-state>@state</span></span>
-                                <span class="me-meta">@t.Reference · Updated @When(t.UpdatedAt)</span>
+                                @* Issue 474: title on one line (ellipsis past 48 characters), then reference and update time, then the state. *@
+                                <span class="me-item-title su-ticket-title" title="@t.Title">@t.Title</span>
+                                <span class="me-meta">@t.Reference - Updated @When(t.UpdatedAt)</span>
+                                <span class="me-tag su-ticket-state@(state == "Closed" ? " me-tag-quiet" : "")" data-support-state>@state</span>
                             </a>
                             <Icon Name="arrow-right" Size="18" />
                         </li>
