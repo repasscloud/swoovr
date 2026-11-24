@@ -1448,3 +1448,16 @@ Behaviour is unchanged from PR #465: drafts per mode, one save at a time per mod
 **DEFAULT:** the same photos also get `user-select: none` and `-webkit-touch-callout: none`, so a long-press on iOS doesn't offer "Save image". This only stops casual saving: screenshots and developer tools still work, and the short-lived signed links (D203) remain the real protection. It is never described as copy protection.
 
 Note: there is one stored image per photo (the `member` link), so the viewer and the thumbnails load the same image at different sizes; no new size variant was added.
+
+### D395 — ClamAV moves to a custom Alpine build (Q138, 24 November 2026)
+
+**CONFIRMED** by the owner on [#227](https://github.com/repasscloud/swoovr/issues/227) (Q138), 6 November 2026, recorded 24 November 2026. Answers Q138 with none of the listed options: the Debian-based `clamav/clamav@sha256:c21aa18c…` image (D336) is to be replaced by a custom-built Alpine image:
+
+- `alpine_requested=3.24.4`, `alpine_resolved=alpine@sha256:93b41ef40b1677fce8fcc64ff4af09daddfacf5040afde618bc46c1e2d1cc7d4`
+- `clamav_version=1.5.4`, `clamav_tag=clamav-1.5.4`
+
+The owner's scan of that build reported 0 vulnerabilities ([report](https://github.com/repasscloud/clamav-alpine-security-review/blob/main/reports/20261106-alpine3.24.4-clamav1.5.4/vulnerability-summary.txt), linked on #230). Building and publishing the image, its supply-chain record and the switch in `compose.local.yaml` and `deploy/vultr-uat/thirdparty.env` are tracked in [#230](https://github.com/repasscloud/swoovr/issues/230) and **not done yet**: until then the D336 digest stays in use. D336's limits, fail-closed behaviour and states are unchanged. **OPEN** under #230: whether the build keeps UnRAR, and how publisher signatures are verified for our own image.
+
+### D396 — A not-approved photo keeps its library spot while it can be appealed (Q139, 24 November 2026)
+
+**CONFIRMED** by the owner on [#233](https://github.com/repasscloud/swoovr/issues/233) (Q139, option A), recorded 24 November 2026. A refused photo stays in the member's library, blurred (D338), and uses one of the 60 library spots (D293) until the member deletes it or the 30-day appeal window closes. This is the current behaviour; no code change.
