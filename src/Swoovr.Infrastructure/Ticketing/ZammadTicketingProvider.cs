@@ -70,7 +70,7 @@ public sealed partial class ZammadTicketingProvider : ITicketingWorkspaceProvide
         return ReadWrite(Ticket, await Send(HttpMethod.Post, "tickets", new { title = draft.Title, customer_id = Id(draft.CustomerId), group_id = Id(draft.GroupId),
             // D349: a system item (the scheduled Home City check) opens with an internal note from its own agent identity.
             swoovr_operation = draft.OperationReference, swoovr_source=draft.Source, article = new { body = draft.Body, type = "note", content_type = "text/plain",
-                @internal = draft.Source == TicketingPolicy.SystemSource, sender = draft.Source == TicketingPolicy.SystemSource ? "Agent" : "Customer",
+                @internal = draft.Source == TicketingPolicy.SystemSource, sender = draft.Source is TicketingPolicy.SystemSource or "staff" ? "Agent" : "Customer",
                 attachments = Uploads(files) } }, ct, slow: files.Count > 0));
     }
 

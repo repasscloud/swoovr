@@ -1,12 +1,14 @@
 @page "/tickets/new"
 @* Create a support request for a member. The member is found by an exact key (account ID, canonical helpdesk login,
-   mapped helpdesk number or exact email); a shared email is reported as ambiguous and never guessed or merged. *@
+   mapped helpdesk number or exact email); a shared email is reported as ambiguous and never guessed or merged.
+   Issue 454: opened from a member's account page or a date of birth review (?account=…&topic=dob), the member is already
+   chosen and a date of birth request starts from a template that never contains a date. *@
 @inject AdminClient Admin
 @inject NavigationManager Navigation
 <PageTitle>New support request — Swoovr admin</PageTitle>
 <p class="breadcrumb"><a href="/tickets">Support requests</a> / New</p>
 <header class="ui-page-head"><h1>New request for a member</h1><p>Start a conversation the member will see in their Support page.</p></header>
-@if (message is not null) { <p class="notice@(reauth ? " notice-action" : "")" role="alert" data-result="@resultCode"><span>@message</span>@if (reauth) { <a href="@AdminText.SignInAgain("/tickets/new")" class="ui-button-primary notice-button" data-enhance-nav="false" data-ticket-reauth>Sign in again</a> }</p> }
+@if (message is not null) { <p class="notice@(reauth ? " notice-action" : "")" role="alert" data-result="@resultCode"><span>@message</span>@if (reauth) { <a href="@AdminText.SignInAgain(ReturnPath)" class="ui-button-primary notice-button" data-enhance-nav="false" data-ticket-reauth>Sign in again</a> }</p> }
 <section class="ui-card" aria-label="Find the member">
     <form method="post" @formname="find" @onsubmit="FindAsync" class="ui-big-search" data-enhance="false" data-ticket-customer-find>
         <AntiforgeryToken />
@@ -20,7 +22,7 @@
         <p>Member <a href="/accounts/@c.AccountId"><code>@c.AccountId.ToString()[..8]</code></a> · helpdesk record: @(c.State == "applied" || c.State == "mapped" ? "ready" : "created on first request")</p>
         <form method="post" @formname="create" @onsubmit="CreateAsync" data-enhance="false" data-ticket-create>
             <AntiforgeryToken />
-            <input type="hidden" name="AccountId" value="@c.AccountId" /><input type="hidden" name="OpKey" value="@key" />
+            <input type="hidden" name="AccountId" value="@c.AccountId" /><input type="hidden" name="OpKey" value="@key" /><input type="hidden" name="Topic" value="@topic" />
             <label class="ui-field"><span>Subject</span><input name="Title" maxlength="200" required value="@title" /></label>
             <label class="ui-field"><span>Message to the member</span><textarea name="Body" rows="8" maxlength="16000" required>@body</textarea></label>
             <p class="help">Don't include case evidence or identity documents. Refer to the case or report reference instead.</p>
@@ -31,10 +33,24 @@
 @code {
     [CascadingParameter] private HttpContext? Context { get; set; }
     private TicketCustomerView? customer;
-    private string? message, resultCode, query, title, body;
+    [SupplyParameterFromQuery(Name = "account")] public Guid? Account { get; set; }
+    [SupplyParameterFromQuery(Name = "topic")] public string? Topic { get; set; }
+    private string? message, resultCode, query, title, body, topic;
+    private string ReturnPath => "/tickets/new" + (Account is { } a ? "?account=" + a + (topic is null ? "" : "&topic=" + topic) : "");
     private bool uncertain, reauth;
     private string key = Guid.NewGuid().ToString("D");
     private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
+
+    // Issue 454: arriving from a member's screen (a plain GET) picks that member; a form post keeps what was posted.
+    protected override async Task OnInitializedAsync()
+    {
+        topic = TicketTopics.Known(Topic) ? Topic : null;
+        if (Context?.Request.HasFormContentType == true || Account is not { } account || account == Guid.Empty) return;
+        var result = await Admin.TicketCustomerAsync(new TicketCustomerLookup(AccountId: account));
+        if (!result.Ok) { Fail(result.Status, result.Code); return; }
+        customer = result.Value;
+        if (topic == TicketTopics.DateOfBirth) (title, body) = (SupportTicketText.DobTicketTitle, SupportTicketText.DobTicketBody);
+    }
 
     private async Task FindAsync()
     {
@@ -47,7 +63,8 @@
     {
         if (!Guid.TryParse(Field("AccountId"), out var account) || !Guid.TryParse(Field("OpKey"), out var operation)) { Fail(400, "invalid-request"); return; }
         (title, body) = (Field("Title").Trim(), Field("Body").Trim());
-        var result = await Admin.CreateTicketAsync(new TicketOnBehalf(account, new TicketCreate(operation, title, body)));
+        topic = TicketTopics.Known(Field("Topic")) ? Field("Topic") : null;
+        var result = await Admin.CreateTicketAsync(new TicketOnBehalf(account, new TicketCreate(operation, title, body), topic));
         if (result.Ok) { Navigation.NavigateTo("/tickets/" + result.Value!.Id); return; }
         uncertain = result.Code == "ticket-reconciliation-required" || result.Status is 0 or >= 500;
         if (uncertain) key = operation.ToString("D");

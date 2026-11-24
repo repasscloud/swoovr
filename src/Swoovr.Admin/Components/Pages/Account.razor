@@ -37,6 +37,12 @@ else
         </div>
         <div class="acct-actions">
             <a class="ui-button-ghost" href="/accounts/@account.Id/standing" data-standing-link>What the member sees</a>
+            @if (account.Realm == "members")
+            {
+                @* Issue 454: open a support request without leaving the member. A conflict of interest already hides this page. *@
+                if (createTicketBlocked is null) { <a class="ui-button-ghost" href="/tickets/new?account=@account.Id" data-create-ticket>@SupportTicketText.CreateTicketLabel</a> }
+                else { <span class="ui-button-ghost" aria-disabled="true" aria-describedby="create-ticket-why" data-create-ticket="unavailable">@SupportTicketText.CreateTicketLabel</span><small id="create-ticket-why" class="ui-sub" data-create-ticket-reason>@createTicketBlocked</small> }
+            }
             <a class="ui-button-primary" href="/accounts/@account.Id/enforcement" data-take-action>Take action</a>
         </div>
     </header>
@@ -83,6 +89,7 @@ else
     ];
     private AccountAdminSummary? account;
     private AccountPermissionsView? permissions;
+    private string? createTicketBlocked;
     private AccountContactView? contact;
     private VerificationStateView? verification;
     private List<AccountLockView> locks = [];
@@ -99,6 +106,8 @@ else
         account = result.Value;
         if (!result.Ok) { loadError = AdminText.Refusal(result.Status, result.Code); return; }
         permissions = (await Admin.AccountPermissionsAsync(Id)).Value;
+        var caps = await Admin.TicketCapabilitiesAsync();
+        createTicketBlocked = SupportTicketText.CreateUnavailable(caps.Status, caps.Value?.TransferGroups.Select(g => g.Name).ToList());
         contact = (await Admin.AccountContactAsync(Id)).Value;
         if (account!.Realm == "members")
         {

@@ -45,7 +45,7 @@ public static class TicketingEndpoints
         // customer (Create=true) is a change, so it keeps the same MFA elevation as every other admin mutation.
         admin.MapPost("/customers",async(TicketCustomerLookup request,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t,IConfiguration config)=>
             request.Create&&await MfaPrivilegedMiddleware.RequireAsync(c,a,t,config) is { } elevation?elevation:await Run(c,a,f,t,true,(r,ct)=>r.CustomerAsync(request,ct)));
-        admin.MapPost("",(TicketOnBehalf request,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.CreateAsync(request.Ticket,request.AccountId,ct)));
+        admin.MapPost("",(TicketOnBehalf request,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.CreateAsync(request.Ticket,request.AccountId,ct,request.Topic)));
         admin.MapGet("/{id:long}",(long id,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.DetailAsync(id,ct)));
         admin.MapPut("/{id:long}",(long id,TicketChange request,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.ChangeAsync(id,request,ct)));
         admin.MapPost("/{id:long}/replies",(long id,TicketReply request,HttpContext c,AccountResolver a,TicketingActorFactory f,TimeProvider t)=>Run(c,a,f,t,true,(r,ct)=>r.ReplyAsync(id,request,ct)));

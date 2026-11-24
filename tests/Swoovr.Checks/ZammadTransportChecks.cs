@@ -73,6 +73,16 @@ internal static class ZammadTransportChecks
         if(TicketingEmail.Recipient([A(1,"Customer","email","first@example.test"),A(3,"Customer","email","bad\u0007@example.test")])is not null
             ||TicketingEmail.Recipient([A(1,"Customer","email","first@example.test"),A(3,"Customer","email",null)])is not null)throw new Exception("an unusable latest address never falls back to an older sender");
         if(TicketingEmail.Recipient([A(1,"Customer","email","bad\r\nBcc: x@example.test")])is not null||!TicketingEmail.StartedByEmail([A(1,"Customer","email",null)]))throw new Exception("unsafe or missing address refused");
+        // Issue 454: a request staff open for a member starts with a public message from support (Agent), so the member's
+        // Support page shows it as from Swoovr and the event worker notifies them; a member's own request stays Customer.
+        foreach (var (source, sender) in new[] { ("staff", "Agent"), ("member", "Customer") })
+        {
+            handler.Body = "{\"id\":77,\"number\":\"77\",\"title\":\"t\",\"customer_id\":42,\"group_id\":1,\"owner_id\":1,\"state_id\":1,\"priority_id\":2,\"updated_at\":\"2026-11-24T00:00:00Z\"}";
+            await provider.CreateTicketAsync(new SupportTicketDraft("t", "b", 42, 1, "cccccccc-cccc-cccc-cccc-cccccccccccc", source), default);
+            using var created = System.Text.Json.JsonDocument.Parse(handler.Sent!);
+            var article = created.RootElement.GetProperty("article");
+            if (article.GetProperty("sender").GetString() != sender || article.GetProperty("internal").GetBoolean()) throw new Exception("first article sender for " + source);
+        }
         Console.WriteLine("PASS: Zammad transport paging, denial, uncertain writes without retry and required article visibility.");
     }
 

@@ -253,7 +253,7 @@ public sealed class TicketingRuntime(AccountResolver accounts,CurrentAccount cur
             owners,
             Categories, ["ordinary","restricted"],Resolutions);
     }
-    public async Task<TicketSummary> CreateAsync(TicketCreate request,Guid customerAccount,CancellationToken ct)
+    public async Task<TicketSummary> CreateAsync(TicketCreate request,Guid customerAccount,CancellationToken ct,string? topic=null)
     {
         if(request.OperationId==Guid.Empty)throw new ArgumentException("An operation ID is required.");
         ValidateText(request.Title,200);ValidateText(request.Body,16000);
@@ -285,7 +285,36 @@ public sealed class TicketingRuntime(AccountResolver accounts,CurrentAccount cur
         if(!staff&&SupportReference.Normalise(request.Reference) is { } reference
             &&await Db.Reports.Where(r=>r.SupportReference==reference&&r.ReporterAccountId==Me).Select(r=>(Guid?)r.CaseId).FirstOrDefaultAsync(ct) is Guid caseId)
             await AddLinkAsync(created.Id,caseId,null,ct);
+        if(staff)await StaffCreatedAsync(created,customerAccount,topic,ct);
         return Summary(created);
+    }
+    /// <summary>
+    /// Issue 454: a request staff open for a member is recorded on the member's account history and the member is told in
+    /// the app straight away, with the event worker's dedupe key (the first article) so the helpdesk event can't notify twice.
+    /// </summary>
+    public static string CreatedAuditKey(long ticket)=>"ticket:"+ticket.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    public static string CreatedAuditDetail(long ticket,string? topic)=>CreatedAuditKey(ticket)+(TicketTopics.Known(topic)?";topic:"+topic:"");
+    private async Task StaffCreatedAsync(SupportTicket created,Guid member,string? topic,CancellationToken ct)
+    {
+        var now=clock.GetUtcNow();
+        // A replayed operation returns the same ticket: record its creation once (the member's lifecycle lease is held, so
+        // the check and the insert can't race), but still fall through so a retry can recover a notice that wasn't sent.
+        var key=CreatedAuditKey(created.Id);var target=member.ToString();
+        if(!await Db.AuditEntries.AnyAsync(a=>a.Action=="helpdesk.ticket.created"&&a.TargetType=="account"&&a.TargetId==target&&(a.Detail==key||a.Detail!.StartsWith(key+";")),ct))
+        {
+            Swoovr.Api.Accounts.Audit.Record(Db,now,Me,"staff","helpdesk.ticket.created","account",target,CreatedAuditDetail(created.Id,topic));
+            await Db.SaveChangesAsync(ct);
+        }
+        try
+        {
+            var first=(await provider.GetArticlesAsync(created.Id,ct)).Where(a=>a.TicketId==created.Id&&!a.Internal&&a.Sender=="Agent").Select(a=>(long?)a.Id).Min();
+            if(first is not long article)return;
+            var dedupe=SupportNotice.Dedupe(article);
+            if(await Db.Notifications.AnyAsync(n=>n.AccountId==member&&n.DedupeKey==dedupe,ct))return;
+            await accounts.Services.GetRequiredService<Swoovr.Api.Notifications.Notifier>().NotifyAsync(member,NotificationKind.Support,null,null,SupportNotice.Subject(created.Id),now,ct,dedupe:dedupe);
+        }
+        // The request exists either way; the helpdesk event or the worker's sweep sends the notice if this one couldn't.
+        catch(TicketingProviderException){}
     }
     private async Task AddLinkAsync(long ticket,Guid caseId,Guid? appeal,CancellationToken ct)
     {
