@@ -102,13 +102,19 @@ else
         if (ModeId == modeId) return;
         if (filter is not null) { if (Dirty) drafts[modeId] = Capture(); else drafts.Remove(modeId); }
         busy = true; modeId = ModeId; filter = null;
+        var load = ++loading;
         try { await LoadFilterAsync(); }
-        finally { busy = false; }
+        finally { if (load == loading) busy = false; }
     }
+    private int loading;
 
     private async Task LoadFilterAsync()
     {
-        filter = (await Members.FiltersAsync(modeId)).Value;
+        // Codex (PR 465): the member may switch modes while this loads; only the mode still selected may fill the form.
+        var requested = modeId;
+        var loaded = (await Members.FiltersAsync(requested)).Value;
+        if (requested != modeId) return;
+        filter = loaded;
         if (filter is null) return;
         (minAge, maxAge, required, match, excluded, idVerifiedOnly, visitors, distance, sort) = (filter.MinAge, filter.MaxAge, filter.RequiredChips.ToHashSet(),
             filter.RequiredMatch, filter.ExcludedChips.ToHashSet(), filter.IdVerifiedOnly, filter.Visitors, filter.MaxDistanceKm, filter.Sort);

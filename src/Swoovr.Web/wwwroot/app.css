@@ -827,6 +827,8 @@ body:has(.public-layout) { padding-bottom: 0; }
 .person-mode-name, .person-mode-fact { margin: 0 0 8px; }
 @media (min-width: 760px) {
   .person-layout-447 { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; }
+}
+
 /* Issue 442 (owner-approved demo): Explore's header. The mode switcher shares the heading row and wraps under it on a
    phone; one toolbar row holds the market, About, Review filters and Travel; the grid uses the full width. */
 .explore-title-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }

@@ -65,6 +65,20 @@ const { web, createMember, memberToken, cli, call, matchReady } = require('../au
     assert.equal(await page.locator('[data-explore-empty]').count(), 0); checks++;
     assert.ok(intercepted > previousInterceptions); checks++;
     for (const failure of ['limited', 'transport']) { state = failure; await page.reload(); await page.waitForSelector('[data-explore-unavailable]'); assert.equal(await page.locator('[data-explore-empty]').count(), 0); checks++; }
+    // Codex (PR 465): on Who I'd like to meet, a slow response for the mode left behind never fills the mode now selected.
+    for (const [mode, age] of [['friends', 30], ['business', 40]]) {
+      if (mode === 'business') await call(token, '/api/me/modes/business', { method: 'PUT', body: { enabled: true, visible: true } });
+      assert.equal((await call(token, `/api/me/modes/${mode}/filters`, { method: 'PUT', body: { minAge: age, maxAge: 60, requiredChips: [], requiredMatch: 'any', excludedChips: [], idVerifiedOnly: false, visitors: 'both', maxDistanceKm: null, sort: 'recent' } })).status, 200);
+    }
+    await page.unroute('**/api/explore**').catch(() => {});
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(web + '/me/matching'); await page.waitForSelector('[data-filter-form=dating]');
+    await page.route('**/api/me/modes/friends/filters', async route => { await new Promise(r => setTimeout(r, 1500)); await route.continue(); });
+    await page.check('[data-filter-mode=friends]'); await page.check('[data-filter-mode=business]');
+    await page.waitForSelector('[data-filter-form=business]'); await page.waitForTimeout(2000); // the slow Friends answer has arrived by now
+    assert.equal(await page.locator('[data-filter-form]').getAttribute('data-filter-form'), 'business'); checks++;
+    assert.equal(await page.inputValue('#min-age'), '40', 'Business keeps its own filters, not the late Friends ones'); checks++;
+    await page.unroute('**/api/me/modes/friends/filters');
     console.log(`PASS discovery guidance: ${checks} synthetic projection checks; no activity/density/provider claims.`);
   } finally { await edge.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
