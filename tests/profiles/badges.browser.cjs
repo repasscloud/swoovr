@@ -63,7 +63,7 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     let fayProfile = await call(tokens.vic, `/api/profiles/${pid.fay}`);
     assert.deepEqual(fayProfile.body.badges.map(b => [b.badge, b.checkedAt?.slice(0, 10) ?? null]),
       [['founder', null], ['photoVerified', '2026-10-17'], ['idVerified', '2026-10-18']]); pass();
-    assert.deepEqual(Object.keys(fayProfile.body).sort(), ['about', 'age', 'badges', 'displayName', 'distance', 'gender', 'id', 'modes', 'photo', 'pronouns']); pass(); // D203: the main photo (null without one) // age, gender and pronouns only as allowed (D138, D139)
+    assert.deepEqual(Object.keys(fayProfile.body).sort(), ['about', 'age', 'badges', 'displayName', 'distance', 'gender', 'id', 'modes', 'photo', 'pictureText', 'pronouns']); pass(); // D203: the main photo (null without one) // age, gender and pronouns only as allowed (D138, D139)
     assert.ok(!JSON.stringify(fayProfile.body).toLowerCase().includes('admin')); pass();
     await sql(`UPDATE member_profiles SET id_status = 'Expired' WHERE account_id = '${ids.fay}'`); // rule 13: an expired check shows nothing
     assert.deepEqual((await card('fay')).badges.map(b => b.badge), ['founder', 'photoVerified']); pass();
@@ -136,11 +136,11 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     await Promise.all([page.waitForURL(web+'/explore'),page.click('#kc-login')]);await page.goto(web+'/account');
     await page.goto(web + '/explore');
     await page.waitForSelector('[data-explore-state=ready]', { timeout: 20000 });
-    const tileBadges = key => page.locator(`.profile-tile:has(a[href^="/people/${pid[key]}"]) [data-badge]`).evaluateAll(els => els.map(e => e.dataset.badge));
+    const tileBadges = key => page.locator(`.member-card:has(a[href^="/people/${pid[key]}"]) [data-badge]`).evaluateAll(els => els.map(e => e.dataset.badge));
     assert.deepEqual(await tileBadges('fay'), ['founding', 'photo', 'id', 'staff']); pass();
     assert.deepEqual(await tileBadges('sam'), ['staff']); pass();
     assert.deepEqual(await tileBadges('bo'), ['bot']); pass();
-    assert.equal(await page.locator(`.profile-tile:has(a[href^="/people/${pid.bo}"]) [data-badge=bot]`).getAttribute('aria-label'), 'Swoovr guide (bot)'); pass();
+    assert.equal(await page.locator(`.member-card:has(a[href^="/people/${pid.bo}"]) [data-badge=bot]`).getAttribute('aria-label'), 'Swoovr guide (bot)'); pass();
     if (output) await page.screenshot({ path: output + '/explore-badges-390.png', fullPage: true });
     await page.goto(web + `/people/${pid.fay}`);
     await page.waitForSelector('[data-person=ready]', { timeout: 20000 });

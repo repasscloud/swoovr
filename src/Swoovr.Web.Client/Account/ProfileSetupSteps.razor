@@ -96,7 +96,7 @@
                 <p class="onboarding-note">Swoovr turns your exact words into a simple text picture for your tile. It doesn't use AI and doesn't make up an image. Your words are checked like the rest of your profile.</p>
                 <p class="onboarding-note onboarding-warning">Don't include phone numbers, email addresses, social handles or other contact or sensitive personal details.</p>
                 <div class="onboarding-preview" aria-label="Preview of your tile" data-picture-text-preview>
-                    <ProfileTile Name="@(profile?.DisplayName ?? "You")" Href="#" Quote="@(string.IsNullOrWhiteSpace(pictureText) ? "Your words appear here." : pictureText.Trim())" />
+                    <MemberCard Name="@(profile?.DisplayName ?? "You")" Href="#" Quote="@(string.IsNullOrWhiteSpace(pictureText) ? "Your words appear here." : pictureText.Trim())" />
                 </div>
                 <div class="onboarding-actions"><button type="submit" class="button" disabled="@(busy || string.IsNullOrWhiteSpace(pictureText))">Save and continue</button></div>
                 <button type="button" class="link-button onboarding-back" disabled="@busy" @onclick="() => wordsInstead = false" data-onboarding-photos-instead>@(library.Count == 0 ? "Upload photos instead" : "Back to photos")</button>

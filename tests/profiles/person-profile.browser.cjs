@@ -214,6 +214,11 @@ let checks = 0; const pass = () => checks++;
    // Explore cards carry the same guard.
    await page.goto(`${web}/explore?mode=friends`); await page.waitForSelector('[data-tile-photo]', { timeout: 20000 });
    assert.ok(await guarded('[data-tile-photo]'), 'Explore card photos guarded'); pass();
+   // Issue 443 (D398): photo and quote cards share one size; the photo is square and fills the card's width.
+   const cards = await page.locator('.member-card').evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(), m = e.querySelector('.mc-media').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), Math.round(m.width - m.height)]; }));
+   assert.ok(cards.length > 0 && cards.every(([w, h, square]) => w === cards[0][0] && h === cards[0][1] && Math.abs(square) <= 1), `equal square cards: ${JSON.stringify(cards)}`); pass();
+   assert.ok((await page.locator('.member-card .mc-chips').evaluateAll(els => els.map(e => e.children.length))).every(n => n <= 2)); pass();
+   if (output) { await page.screenshot({ path: output + '/explore-cards-1280.png' }); await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: output + '/explore-cards-390.png', fullPage: true }); await page.setViewportSize({ width: 1280, height: 900 }); }
    assert.equal((await identity(false)).status, 200);
    assert.equal((await call(b, `/api/profiles/${id}?mode=dating`)).body.modes.find(m => m.id === 'dating').orientation, null, 'switched off: not shown'); pass();
    console.log(`PASS: person profile actions (issue 446), ${checks} checks: one primary Connect, Report or block menu, dialogs write nothing on open, focus in/out, Escape, request unchanged, no overflow at 390/1280; layout (issue 447): key facts, details per mode, Dating-only orientation under its switch, lead photo, side-by-side on desktop; photo viewer (issue 467): open, ←/→, buttons, swipe, Tab trap, focus return, Enter/Space, Report photo recorded, save deterrent on gallery, viewer and Explore cards.`);

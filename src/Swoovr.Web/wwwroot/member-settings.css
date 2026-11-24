@@ -531,6 +531,8 @@
 .onboarding-warning { color: var(--text); }
 .onboarding-preview { display: flex; justify-content: center; padding: 18px; border: 1px dashed var(--border); border-radius: 16px; }
 .onboarding-preview .profile-tile { pointer-events: none; width: 170px; height: 270px; flex: 0 0 170px; }
+/* Issue 443: the preview is the Explore card at a phone column's width. */
+.onboarding-preview .member-card { pointer-events: none; width: 11rem; flex: 0 0 11rem; }
 .person-text-picture .tile-quote { font-size: 1.5rem; -webkit-line-clamp: unset; }
 
 /* ---- Issues 422, 418 and 415 (M1 redesigns): Your profile, Who I'd like to meet and Notifications, built from the
