@@ -2937,3 +2937,10 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 - **182.5 Which profile's switch counts.** A pair can be connected in several modes. **DEFAULT A:** the album must be in a mode the pair is connected in, and the recipient's switch must be on for that mode. **B:** on for every connected mode.
 - **182.6 Recipient display.** **DEFAULT A:** explicit photos open blurred with Show, even when opted in. **B:** shown normally once opted in.
 - **182.7 Recipient's data export.** **DEFAULT A:** lists "photo (explicit)" without the image. **B:** includes the image.
+
+## Explore cards with badges and per-mode info — [#476](https://github.com/repasscloud/swoovr/issues/476), 24 November 2026
+
+### Q183 — Online status on Explore cards
+
+- Issue: [#478](https://github.com/repasscloud/swoovr/issues/478) (for #476). Status: OPEN. Blocks only #476's online-status part; nothing else waits on it.
+- Swoovr has no presence feature, and /me/notifications promises "Swoovr never shows anyone when you're online, active or have read their message." **183.1** **A (recommended):** no online status; keep the promise. **B:** opt-in "Show when I'm online" (off by default, mutual), change the promise and record the policy change. **C:** opt-out. **183.2** (B or C): **DEFAULT** "online" = active in the last 5 minutes, a dot plus the word "Online", never a last-seen time.
