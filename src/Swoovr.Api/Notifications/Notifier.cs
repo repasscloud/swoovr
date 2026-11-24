@@ -10,7 +10,7 @@ namespace Swoovr.Api.Notifications;
 
 /// <summary>
 /// Delivers notifications (#49; policy §10; D135). Every call checks, at that moment, that the person who caused it is
-/// active, not restricted, suspended or terminated, and not blocked either way; that the recipient may hear about it;
+/// active, not suspended or terminated, and not blocked either way; that the recipient may hear about it;
 /// and the recipient's switches, muted modes and quiet hours. The centre row holds ids only; deliveries record what each
 /// channel did. A failure here never fails the action that caused it.
 /// </summary>

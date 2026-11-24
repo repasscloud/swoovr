@@ -117,7 +117,7 @@ public sealed class PushDevice
 
 /// <summary>What the API knows when something might notify a member.</summary>
 /// <param name="RecipientActive">The recipient's account is active (not pending deletion, deleted or locked).</param>
-/// <param name="RecipientBarred">The recipient is restricted, suspended or terminated (D160): only account notices reach them.</param>
+/// <param name="RecipientBarred">The recipient is suspended or terminated (D325): only account notices reach them.</param>
 /// <param name="HasActor">Another member caused it.</param>
 /// <param name="ActorAllowed">That member is active, not barred, and neither has blocked the other.</param>
 /// <param name="KindOn">The member's switch for this kind (account notices are always on).</param>
@@ -132,7 +132,7 @@ public sealed record NotificationDecision(bool Centre, string Push, string Email
 }
 
 /// <summary>
-/// Notification rules (#49; policy §10; D135). A blocked, restricted, suspended, terminated or deleted person never causes
+/// Notification rules (#49; policy §10; D135). A blocked, suspended, terminated or deleted person never causes
 /// a notification, and a barred recipient gets account notices only. The member's switches and muted modes stop pushes
 /// and emails; quiet hours hold them; the in-app centre always lists what happened. Messages are never emailed. Emails
 /// never carry names, message text or the mode (subject or body); lock screens don't either while private previews are

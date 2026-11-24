@@ -44,7 +44,7 @@ public static class NotificationLinks
 
 /// <summary>
 /// The member's notification centre and settings (#49; policy §10). The centre is worded when read: an item from someone
-/// now blocked (either way), restricted, suspended, terminated or deleted disappears, and a barred member sees account
+/// now blocked (either way), suspended, terminated or deleted disappears, and a barred member sees account
 /// notices and own-report updates only. Settings: kinds, push, email, private previews, quiet hours, muted modes and photos in chat. Push devices
 /// use configured APNs/FCM or explicitly labelled Development simulation (D210).
 /// </summary>

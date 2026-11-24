@@ -1,9 +1,9 @@
 // Local acceptance for slice AJ (#49; policy §10; D135): the notification centre, settings and deliveries. Lock screens
 // (the labelled simulated push sender, written to Mailpit) and emails stay private by default; a member's switches,
 // muted modes and quiet hours stop pushes and emails but never the centre; messages are never emailed; unread messages
-// from one conversation collapse; blocked, restricted, suspended and deleted people never cause a notification and drop
-// out of the centre; a restricted member sees account notices only; bots can't start anything; staff and other members
-// get nothing. Travel reminders come from `notifications sweep`. Same local stack as tests/messaging; fictional adults.
+// from one conversation collapse; blocked, suspended and deleted people never cause a notification and drop out of the
+// centre; a restriction limits only what it names, so earlier items stay (D325, issue 482); bots can't start anything;
+// staff and other members get nothing. Travel reminders come from `notifications sweep`. Same local stack as tests/messaging; fictional adults.
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
 const { api, web, sleep, createMember, createStaff, memberToken, staffToken, rootAdminToken, cli, sql, call, claims, matchReady } = require('../auth/local-tokens.cjs');
@@ -240,20 +240,28 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     assert.ok(!(await centre('ana')).items.some(i => i.title.includes('Ntf eve'))); pass();
     await call(tokens.eve, `/api/blocks/${pid.ana}`, { method: 'DELETE' });
 
-    // ---- Restrictions: a restricted person's items disappear; a restricted member sees only account notices.
+    // ---- Restrictions (D325, issue 482): a restriction limits only what it names. One that names nothing limits all four
+    // (discovery, requests, messages, photos), but what the person did before stays, and they keep their own centre.
     r = await request('res', 'ana', 'friends');
     assert.equal(r.status, 201);
     assert.ok((await centre('ana')).items.some(i => i.title.includes('Ntf res'))); pass();
     r = await call(root, `/api/admin/accounts/${ids.res}/sanctions`, { method: 'POST', body: { action: 'restrict', reason: 'Fictional restriction for the notifications suite.', days: 2 } });
     assert.ok(r.status < 300); pass();
-    assert.ok(!(await centre('ana')).items.some(i => i.title.includes('Ntf res'))); pass();
+    assert.ok((await centre('ana')).items.some(i => i.title.includes('Ntf res')), 'an earlier item stays'); pass();
     c = await centre('res');
     assert.deepEqual(c.items.map(i => [i.kind, i.title, i.link]), [['account', "There's a notice about your account", '/me/notices']]); pass();
-    assert.deepEqual(code(await call(tokens.res, '/api/me/notification-settings')), [403, 'account-restricted']); pass();
-    assert.deepEqual(code(await request('res', 'bob', 'friends')), [403, 'account-restricted']); pass();
+    assert.equal((await call(tokens.res, '/api/me/notification-settings')).status, 200); pass();
+    assert.deepEqual(code(await request('res', 'bob', 'friends')), [403, 'restricted']); pass();
     const notice = c.items[0].id;
     assert.equal((await call(tokens.res, `/api/me/notifications/${notice}/read`, { method: 'POST' })).status, 204); pass();
     assert.equal((await centre('res')).unread, 0); pass();
+
+    // ---- Suspension bars the person: their items disappear, they see only account notices, and settings are closed.
+    r = await call(root, `/api/admin/accounts/${ids.res}/sanctions`, { method: 'POST', body: { action: 'suspend', reason: 'Fictional suspension for the notifications suite.', days: 2 } });
+    assert.ok(r.status < 300, JSON.stringify(r.body)); pass();
+    assert.ok(!(await centre('ana')).items.some(i => i.title.includes('Ntf res')), 'a suspended person drops out'); pass();
+    assert.ok((await centre('res')).items.every(i => i.kind === 'account')); pass();
+    assert.deepEqual(code(await call(tokens.res, '/api/me/notification-settings')), [403, 'account-suspended']); pass();
 
     // ---- Bots can't start anything; other members' and unknown ids read as not available.
     assert.deepEqual(code(await call(tokens.bot, '/api/requests', { method: 'POST', body: { to: pid.ana, mode: 'friends' } })), [403, 'bot-cannot-initiate']); pass();
