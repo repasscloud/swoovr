@@ -42,14 +42,32 @@
     private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
 
     // Issue 454: arriving from a member's screen (a plain GET) picks that member; a form post keeps what was posted.
+    // Issue 468: Blazor dispatches a POST only to a form the page renders, so posting "create" must rebuild the member
+    // (and the posted fields) before rendering; otherwise the request is rejected with 400 before CreateAsync runs.
     protected override async Task OnInitializedAsync()
     {
         topic = TicketTopics.Known(Topic) ? Topic : null;
-        if (Context?.Request.HasFormContentType == true || Account is not { } account || account == Guid.Empty) return;
+        if (Context?.Request.HasFormContentType == true)
+        {
+            if (Field("_handler") == "create" && Guid.TryParse(Field("AccountId"), out var posted) && posted != Guid.Empty) await RestoreCreateAsync(posted);
+            return;
+        }
+        if (Account is not { } account || account == Guid.Empty) return;
         var result = await Admin.TicketCustomerAsync(new TicketCustomerLookup(AccountId: account));
         if (!result.Ok) { Fail(result.Status, result.Code); return; }
         customer = result.Value;
         if (topic == TicketTopics.DateOfBirth) (title, body) = (SupportTicketText.DobTicketTitle, SupportTicketText.DobTicketBody);
+    }
+
+    // The member is looked up again for the helpdesk record state. If that lookup fails the posted account is still used so
+    // the form exists and CreateAsync runs: the API decides whether the request is allowed and its answer is shown in-page.
+    private async Task RestoreCreateAsync(Guid account)
+    {
+        (title, body) = (Field("Title"), Field("Body"));
+        topic = TicketTopics.Known(Field("Topic")) ? Field("Topic") : null;
+        if (Guid.TryParse(Field("OpKey"), out var operation)) key = operation.ToString("D");
+        var result = await Admin.TicketCustomerAsync(new TicketCustomerLookup(AccountId: account));
+        customer = result.Ok && result.Value!.AccountId == account ? result.Value : new TicketCustomerView(account, "unknown");
     }
 
     private async Task FindAsync()
@@ -67,7 +85,7 @@
         var result = await Admin.CreateTicketAsync(new TicketOnBehalf(account, new TicketCreate(operation, title, body), topic));
         if (result.Ok) { Navigation.NavigateTo("/tickets/" + result.Value!.Id); return; }
         uncertain = result.Code == "ticket-reconciliation-required" || result.Status is 0 or >= 500;
-        if (uncertain) key = operation.ToString("D");
+        key = uncertain ? operation.ToString("D") : Guid.NewGuid().ToString("D");
         customer = new TicketCustomerView(account, "unknown");
         Fail(result.Status, result.Code);
     }

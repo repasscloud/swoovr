@@ -14,7 +14,7 @@ if(args is ["--ticketing-persistence-checks"]){await PersistenceChecks.Run(ticke
 
 if(args is ["--zammad-live", var privateDirectory]){await ZammadLiveChecks.Run(privateDirectory);return;}
 
-if(args is ["--ticketing-checks"]){TicketingRuntimeChecks.Run();await TicketingGuestChecks.Run();TicketingChecks.Run();TicketingWebhookChecks.Run();await ZammadTransportChecks.Run();return;}
+if(args is ["--ticketing-checks"]){TicketingRuntimeChecks.Run();await TicketingGuestChecks.Run();await TicketNewFormChecks.Run();TicketingChecks.Run();TicketingWebhookChecks.Run();await ZammadTransportChecks.Run();return;}
 
 if(args is ["--media-checks"]){MediaChecks.Run();ImageProcessingChecks.Run();return;}
 if(args is ["--device-client-checks"]){await DeviceClientChecks.Run();return;}
@@ -34,7 +34,7 @@ if(args is ["--contact-provider-probe"])
 
 if(args is ["--policy-checks"]){PublicPolicyChecks.Run();PolicyNoticeChecks.Run();await PersistenceChecks.Run(policiesOnly:true);return;}
 
-TicketingRuntimeChecks.Run();await TicketingGuestChecks.Run();TicketingChecks.Run();
+TicketingRuntimeChecks.Run();await TicketingGuestChecks.Run();await TicketNewFormChecks.Run();TicketingChecks.Run();
 TicketingWebhookChecks.Run();
 await ZammadTransportChecks.Run();
 HostingPolicyChecks.Run();
