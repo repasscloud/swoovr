@@ -2088,7 +2088,7 @@ From [ONLINE-DATING-CODE.md](ONLINE-DATING-CODE.md) (#55, DRAFT, not legal advic
 
 | ID | Issue | Status | Blocks | Question | Why it matters | Recommended default | Owner answer |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Q90 | [#124](https://github.com/repasscloud/wanderconnect/issues/124) | CONFIRMED D291; owner-action | Provisioning and actual UAT deployment; independent implementation continues | D291 confirms topology; code preparation only; owner provisions subscription and deploys. | Establishes residency, costs and operator ownership | D221: Australia East, Container Apps, PostgreSQL Flexible Server, Key Vault, Cloudflare proxy, MailerSend HTTP, private screening, isolated Blob backups; owner creates/selects subscription. Full proposal in issue | Owner subscription/provisioning and hosted acceptance |
+| Q90 | [#124](https://github.com/repasscloud/wanderconnect/issues/124) | ANSWERED, owner 23 November 2026 (D400): UAT always runs on its dedicated host (D391), never Azure. Earlier: CONFIRMED D291 | Nothing; UAT is deployed | D291 confirms topology; code preparation only; owner provisions subscription and deploys. | Establishes residency, costs and operator ownership | D221: Australia East, Container Apps, PostgreSQL Flexible Server, Key Vault, Cloudflare proxy, MailerSend HTTP, private screening, isolated Blob backups; owner creates/selects subscription. Full proposal in issue | Owner subscription/provisioning and hosted acceptance |
 
 ## Active contact retirement — 29 October 2026
 
