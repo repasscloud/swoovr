@@ -1,0 +1,39 @@
+@* Issue 446: one focused, accessible dialog for member actions (Connect, Block, Report). Opening it never does anything
+   by itself: every action inside still needs its own button. Focus moves to the heading when it opens and back to the
+   button that opened it when it closes; Escape and the close button close it. *@
+@if (Open)
+{
+    <div class="dialog-backdrop" data-member-dialog="@Kind" @onkeydown="KeyAsync">
+        <section class="card dialog member-dialog" role="dialog" aria-modal="true" aria-labelledby="@($"{Kind}-dialog-heading")">
+            <header class="member-dialog-head">
+                <h2 id="@($"{Kind}-dialog-heading")" tabindex="-1" @ref="heading">@Title</h2>
+                <button type="button" class="member-dialog-close" aria-label="Close" @onclick="CloseAsync" data-dialog-close><Icon Name="x" Size="20" /></button>
+            </header>
+            @ChildContent
+        </section>
+    </div>
+}
+@code {
+    [Parameter, EditorRequired] public string Kind { get; set; } = "";
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback Closed { get; set; }
+    /// <summary>The button that opened the dialog; focus returns to it on close.</summary>
+    [Parameter] public ElementReference? ReturnFocus { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    /// <summary>Raise after an action inside re-renders the dialog, so focus doesn't fall out of it (the result is announced by its status line).</summary>
+    [Parameter] public int FocusRequest { get; set; }
+    private ElementReference heading;
+    private bool wasOpen;
+    private int focused;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Open && (!wasOpen || FocusRequest != focused)) { focused = FocusRequest; try { await heading.FocusAsync(); } catch (InvalidOperationException) { } }
+        else if (!Open && wasOpen && ReturnFocus is { } back) { try { await back.FocusAsync(); } catch (InvalidOperationException) { } }
+        wasOpen = Open;
+    }
+
+    private Task CloseAsync() => Closed.InvokeAsync();
+    private Task KeyAsync(KeyboardEventArgs e) => e.Key == "Escape" ? Closed.InvokeAsync() : Task.CompletedTask;
+}

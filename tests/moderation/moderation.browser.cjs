@@ -280,6 +280,7 @@ const ADELAIDE = 2078025, MELBOURNE = 2158177;
     // Web: report from a person page.
     await page.goto(web + `/people/${pid.rep}`);
     await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
+    await page.click('[data-safety-menu]'); // issue 446: Report sits in the Report or block menu
     await page.click('[data-report-open]');
     await page.selectOption('#report-category', 'spam');
     await page.fill('#report-text', 'Fictional web report.');

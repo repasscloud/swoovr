@@ -187,11 +187,20 @@ const { web, createMember, memberToken, rootAdminToken, cli, sql, call, claims, 
     // Web: send from a profile, answer on the other member's Connections page, then block from a profile.
     await page.goto(web + `/people/${pid.hal}`);
     await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
-    assert.equal(await page.locator('[data-connect-mode=dating]').getAttribute('data-connection'), 'none'); pass();
+    // Issue 446: Connect is one primary button; the per-mode requests live in its dialog, and opening it sends nothing.
+    assert.equal(await page.locator('[data-connect-modes]').count(), 0); pass();
+    await page.click('[data-open-connect]');
+    await page.waitForSelector('[data-member-dialog=connect] [role=dialog][aria-modal=true]');
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'connect-dialog-heading', 'focus moves into the dialog'); pass();
+    assert.equal(await page.locator('[data-connect-mode=dating]').getAttribute('data-connection'), 'none', 'opening the dialog sent nothing'); pass();
     await page.click('[data-connect-mode=dating] button');
     await page.waitForSelector('[data-connect-mode=dating][data-connection=sent]'); pass();
     assert.equal(await page.locator('[data-connect-status]').innerText(), 'Request sent.'); pass();
     if (output) await page.screenshot({ path: output + '/person-request-390.png', fullPage: true });
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute('data-open-connect')), true, 'Escape closes and focus returns to Connect'); pass();
+    assert.ok((await page.locator('[data-connect-summary]').innerText()).includes('request sent')); pass();
     const halContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const halPage = await halContext.newPage();
     await signIn(halPage, members.hal);
@@ -205,9 +214,16 @@ const { web, createMember, memberToken, rootAdminToken, cli, sql, call, claims, 
     assert.equal(await halPage.locator(`[data-box=connected] a[href^="/people/${pid.ann}"]`).count(), 1); pass();
     assert.equal(await halPage.locator(`[data-box=received] a[href^="/people/${pid.ann}"]`).count(), 0); pass();
     await page.reload(); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
+    await page.click('[data-open-connect]');
     assert.equal(await page.locator('[data-connect-mode=dating]').getAttribute('data-connection'), 'connected'); pass();
+    await page.click('[data-dialog-close]');
+    // Issue 446: Block sits in the Report or block menu; opening its dialog blocks nobody.
+    await page.click('[data-safety-menu]');
+    assert.equal(await page.locator('[data-safety-menu]').getAttribute('aria-expanded'), 'true'); pass();
     await page.getByRole('button', { name: 'Block Fictional Hal' }).click();
     await page.waitForSelector('[data-block=confirm]'); pass();
+    if (output) await page.screenshot({ path: output + '/person-block-dialog-390.png', fullPage: true });
+    assert.ok(!(await call(tokens.ann, '/api/blocks')).body.map(b => b.id).includes(pid.hal), 'opening Block blocks nobody'); pass();
     await page.locator('[data-block=confirm]').getByRole('button', { name: 'Block', exact: true }).click();
     await page.waitForSelector('[data-person=blocked]'); pass();
     assert.ok(!(await explore('ann')).includes(pid.hal) && !(await explore('hal')).includes(pid.ann)); pass();
