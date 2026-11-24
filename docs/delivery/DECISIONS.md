@@ -1471,3 +1471,13 @@ The owner's scan of that build reported 0 vulnerabilities ([report](https://gith
 - **DEFAULT:** new notifications show within 30 seconds: the count refreshes every 30 seconds while a badge is on screen and on each in-app navigation. The messaging hub has no notification event; adding one is a later option if 30 seconds is too slow.
 - **DEFAULT:** the badge red is its own token, `--unread` `#C8102E` with white text (5.9:1), kept separate from `--emergency` (D315) and `--destructive` (D387). `check_design.py` allows it and checks its contrast.
 - Screen readers hear "N unread notifications" after the link name; the number itself is hidden from them so it isn't read twice.
+
+### D398 — Explore member cards: one shape for photo and quote cards (24 November 2026)
+
+From [#443](https://github.com/repasscloud/swoovr/issues/443) (owner's brief); built so [#476](https://github.com/repasscloud/swoovr/issues/476) fills the same card. Explore and the onboarding "preview of your tile" use a new `MemberCard`; `ProfileTile` (UI-STYLE.md's fixed 170 × 270 tile) is unchanged on the prototype and travel pages.
+
+- **One shape.** A square media block that scales with the grid column (photos crop with `object-fit: cover`, never stretched), then one body: name (ellipsis) and badges, one optional detail line (distance band or "Visiting …", D348/D352), and at most **two** intention chips in the API's order. Rows share one height, so every card in the grid is the same size, including with enlarged text. The large empty band under a photo card is gone.
+- **Quote cards** keep D382's ink block with the member's own words in the quote serif (clamped to 5 lines), in the same square, and the same body underneath, so photo and quote cards line up in one grid. **DEFAULT:** the name sits in the body below the ink block, not inside it as UI-STYLE.md's photo-free tile has it.
+- **Nothing made up.** A member with no text picture and no about used to show "No about yet." as a quote; the ink block now shows their initial instead. Lines with nothing to show are left out.
+- The whole card is the profile link (hover border, focus ring); same access, moderation and privacy checks, same API data (no contract change). Age stays off Explore cards until #476 decides it per mode.
+- Slots for #476: `Overlays` (corners of the media block: travel, photo count) and `Meta` (presence, distance, connection), which replaces the detail line.

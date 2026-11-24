@@ -965,3 +965,38 @@ body:has(.public-layout) { padding-bottom: 0; }
   .explore-heading .explore-modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .explore-heading .explore-modes .segment { padding: 6px 2px; font-size: .75rem; }
 }
+
+/* Issue 443 (D398): Explore member cards. Photo and quote cards share one shape: a square media block that scales with the
+   column (no stretched or squashed photos, no empty band under a short body), then one body. Rows share one height
+   (grid-auto-rows: 1fr), so every card in the grid is the same size even with enlarged text. Issue 476 adds overlays and
+   a richer detail line in the reserved slots. */
+.explore-grid { grid-auto-rows: 1fr; }
+.member-card { position: relative; display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); transition: border-color .2s; }
+.member-card:hover { border-color: var(--text); }
+.member-card:has(a:focus-visible) { outline: 3px solid var(--text); outline-offset: 2px; }
+.member-card a:focus-visible { outline: none; }
+.member-card p { margin: 0; max-width: none; }
+.mc-media { position: relative; flex: none; aspect-ratio: 1 / 1; overflow: hidden; background: var(--soft); }
+.mc-media img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
+.member-card.is-quote .mc-media { display: flex; flex-direction: column; padding: 12px 14px 14px; background: var(--primary); color: var(--onPrimary); }
+.mc-quote-mark { font: 400 2rem/.9 var(--font-quote); color: var(--on-primary-quiet); }
+.mc-quote { margin-top: 2px !important; font: 400 1.125rem/1.25 var(--font-quote); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
+.mc-overlays { position: absolute; inset: 8px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; pointer-events: none; }
+.mc-overlays > :last-child:not(:first-child) { align-self: flex-end; }
+.mc-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--text); font: 600 .6875rem/1.3 var(--font); }
+.mc-body { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }
+.mc-name { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.mc-name h2 { display: flex; min-width: 0; margin: 0; font: var(--type-tile-name); }
+.mc-name h2 a { display: flex; min-width: 0; text-decoration: none; color: inherit; white-space: nowrap; }
+.mc-name h2 a::after { content: ""; position: absolute; inset: 0; border-radius: 16px; }
+.mc-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mc-name .badge-row { flex: none; flex-wrap: nowrap; }
+.mc-meta { display: flex; align-items: center; gap: 4px; min-width: 0; font: 400 .75rem/1.35 var(--font); color: var(--muted); }
+.mc-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-meta .icon { flex: none; }
+.mc-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0; padding: 0; list-style: none; min-width: 0; }
+.mc-chips .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: .6875rem; padding: 3px 8px; }
+@media (max-width: 24rem) {
+  .mc-name h2 a { white-space: normal; }
+}
+.mc-initial { margin: auto; font: 700 3rem/1 var(--font); color: var(--on-primary-quiet); }

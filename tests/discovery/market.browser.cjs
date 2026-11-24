@@ -247,7 +247,7 @@ const plus = days => { const d = new Date(todayIn('Australia/Adelaide') + 'T00:0
     await page.goto(web + '/explore');
     await page.waitForSelector('[data-explore-mode=dating][data-explore-state=ready]', { timeout: 20000 });
     assert.equal(await page.locator('[data-explore-market]').innerText(), 'People in Adelaide'); pass();
-    const hrefs = await page.locator('.profile-tile h2 a').evaluateAll(els => els.map(e => e.getAttribute('href').split('?')[0])); // links carry ?mode= (D175)
+    const hrefs = await page.locator('.member-card h2 a').evaluateAll(els => els.map(e => e.getAttribute('href').split('?')[0])); // links carry ?mode= (D175)
     assert.ok(hrefs.includes('/people/' + pid.gle) && !hrefs.includes('/people/' + pid.mel) && !hrefs.includes('/people/' + pid.mov)); pass();
     if (output) await page.screenshot({ path: output + '/explore-market-390.png', fullPage: true });
     await page.goto(web + `/people/${pid.mel}`);

@@ -114,10 +114,11 @@
                 @foreach (var person in people)
                 {
                     @* D348: a band only when both members show their distance; never a distance. *@
-                    <ProfileTile Name="@person.DisplayName" Href="@($"/people/{person.Id}?mode={selected}")" Detail="@(person.Visiting is { } where ? $"Visiting {where}" : MemberText.Distance(person.Distance) ?? "")"
-                                 Intentions="person.Intentions" Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)">
+                    @* Issue 443 (D398): one card shape for photo and quote cards; issue 476 fills its overlay and detail slots. *@
+                    <MemberCard Name="@person.DisplayName" Href="@($"/people/{person.Id}?mode={selected}")" Detail="@(person.Visiting is { } where ? $"Visiting {where}" : MemberText.Distance(person.Distance) ?? "")"
+                                Intentions="person.Intentions" Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)">
                         <Badges><BadgeRow Badges="person.Badges" /></Badges>
-                    </ProfileTile>
+                    </MemberCard>
                 }
             </div>
             }
@@ -236,7 +237,8 @@
     private string Label(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;
 
     // Photo-free tiles show a short quote (UI-STYLE.md); photos are not part of profiles yet.
-    private static string Quote(string? about) => about is null ? "No about yet." : about.Length <= 90 ? about : about[..89].TrimEnd() + "…";
+    // Issue 443: no words and no about → no quote (the card shows the initial); never a made-up line.
+    private static string? Quote(string? about) => string.IsNullOrWhiteSpace(about) ? null : about.Length <= 90 ? about : about[..89].TrimEnd() + "…";
 
     // D203: an approved photo through its short-lived link. Issue 467 (owner): right-click and drag are blocked, which
     // only stops casual saving.

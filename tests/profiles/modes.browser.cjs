@@ -207,18 +207,18 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     assert.deepEqual(await page.locator('.explore-modes [data-mode]').evaluateAll(els => els.map(e => e.textContent)), ['Dating', 'Friends', 'Activities', 'Business']); pass();
     assert.equal(await page.locator('.explore-modes [aria-pressed=true]').getAttribute('data-mode'), 'dating'); pass();
     assert.equal(await page.locator('.explore-modes').getByText('Travel').count(), 0); pass();
-    const hrefs = await page.locator('.profile-tile h2 a').evaluateAll(els => els.map(e => e.getAttribute('href').split('?')[0])); // links carry ?mode= (D175)
+    const hrefs = await page.locator('.member-card h2 a').evaluateAll(els => els.map(e => e.getAttribute('href').split('?')[0])); // links carry ?mode= (D175)
     assert.ok(hrefs.includes('/people/' + pid.eli) && !hrefs.includes('/people/' + pid.ben) && !hrefs.includes('/people/' + pid.cai)); pass();
-    const tiles = await page.locator('.profile-tile').evaluateAll(els => els.map(e => [Math.round(e.getBoundingClientRect().width), Math.round(e.getBoundingClientRect().height)]));
+    const tiles = await page.locator('.member-card').evaluateAll(els => els.map(e => [Math.round(e.getBoundingClientRect().width), Math.round(e.getBoundingClientRect().height)]));
     assert.ok(tiles.every(([w, h]) => w === tiles[0][0] && h === tiles[0][1])); pass(); // equal tiles (UI-STYLE.md)
-    assert.equal(await page.locator(`.profile-tile:has(a[href^="/people/${pid.eli}"]) .tile-intentions`).innerText(), 'Long-term relationship · Open to exploring'); pass();
+    assert.deepEqual(await page.locator(`.member-card:has(a[href^="/people/${pid.eli}"]) .mc-chips .chip`).allInnerTexts(), ['Long-term relationship', 'Open to exploring']); pass(); // issue 443: at most two chips
     if (output) await page.screenshot({ path: output + '/explore-390.png', fullPage: true });
     await page.click('.explore-modes [data-mode=business]');
     await page.waitForSelector('[data-explore-mode=business][data-explore-state=off]'); pass();
     assert.equal(await page.locator('[data-explore-state=off] a.button.notice-action').getAttribute('href'), '/me/profile'); pass();
     await page.click('.explore-modes [data-mode=dating]');
     await page.waitForSelector('[data-explore-mode=dating][data-explore-state=ready]');
-    await page.click(`.profile-tile a[href^="/people/${pid.eli}"]`);
+    await page.click(`.member-card a[href^="/people/${pid.eli}"]`);
     await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
     assert.equal(await page.locator('h1').innerText(), 'Fictional Eli'); pass();
     assert.equal(await page.locator('[data-shared-modes]').getAttribute('data-shared-modes'), 'dating'); pass();
@@ -235,7 +235,7 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     const guest = await (await browser.newContext()).newPage();
     await guest.goto(web + '/explore');
     // Since #253/#254 a signed-out visitor sees the public page; what matters is that no Explore data loads.
-    assert.equal(await guest.locator('[data-explore], [data-tile], .profile-tile').count(), 0); pass();
+    assert.equal(await guest.locator('[data-explore], [data-tile], .member-card, .profile-tile').count(), 0); pass();
     await context.close();
     console.log(`PASS: connection modes acceptance, ${passed} checks (catalogue from data, forty intention chips with the five limit, retired chips kept and hidden, chips on tiles and profiles, own profile and text limits, several independent modes, unknown/Travel modes and made-up intentions refused, Explore both-ways visibility, public ids, account state and beta always win, unauthorised bots excluded, WebAssembly profile/Explore/person pages through /bff/ only).`);
   } finally {
