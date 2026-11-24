@@ -1,8 +1,78 @@
 @* Issue 442: one mode's discovery filters (D137–D140, D151, D347), shared by "Who I'd like to meet" and the Explore
    filters dialog. Moved unchanged from MatchingPanel: free filters for everyone, Plus distances and sorting when the
-   entitlement service says Plus, "not for me" working both ways. Nothing is saved until Save filters. *@
+   entitlement service says Plus, "not for me" working both ways. Nothing is saved until Save filters (Save in the
+   dialog layout, issue 466). *@
 @inject MemberClient Members
-@if (filter is not null)
+@if (filter is not null && Layout == "dialog")
+{
+    @* Issue 466 (owner-approved demo, 24 November 2026): the Explore dialog layout. Compact age selects beside ID Verified
+       only, slim Any/All on the Must have heading row, regular-weight chips, Distance and Travel at the bottom and a sticky
+       footer (All filters and your details, Reset, Save). Same fields, rules and data attributes as the page layout. *@
+    <form @onsubmit="SaveFiltersAsync" data-filter-form="@modeId" data-filter-layout="dialog" class="mf">
+        <fieldset disabled="@busy" class="mf-fields">
+        <div class="mf-body">
+            <section class="mf-sec mf-basics">
+                <div class="mf-age" role="group" aria-labelledby="age-label">
+                    <span class="mf-age-label" id="age-label">Age</span>
+                    <span class="mf-sel mf-sel-age"><label for="min-age" class="visually-hidden">Age from</label>
+                        <select id="min-age" @bind="minAge"><option value="">Any</option>@foreach (var n in Ages) { <option value="@n" disabled="@(maxAge is { } top && n > top)">@n</option> }</select></span>
+                    <span class="mf-to">to</span>
+                    <span class="mf-sel mf-sel-age"><label for="max-age" class="visually-hidden">Age to</label>
+                        <select id="max-age" @bind="maxAge"><option value="">Any</option>@foreach (var n in Ages) { <option value="@n" disabled="@(minAge is { } bottom && n < bottom)">@n</option> }</select></span>
+                </div>
+                <label class="mf-switch"><input type="checkbox" class="mf-toggle" @bind="idVerifiedOnly" data-id-only /><span>ID Verified only</span></label>
+            </section>
+            <section class="mf-sec" aria-labelledby="want-heading">
+                <div class="mf-sec-head">
+                    <h3 class="mf-sec-title" id="want-heading">Must have <span class="mf-count">· @required.Count of 5</span></h3>
+                    <div class="mf-seg" role="radiogroup" aria-label="Match">
+                        <label class="mf-seg-option"><input type="radio" name="match" checked="@(match == "any")" @onchange='() => match = "any"' />Any of these</label>
+                        <label class="mf-seg-option"><input type="radio" name="match" checked="@(match == "all")" @onchange='() => match = "all"' />All of these</label>
+                    </div>
+                </div>
+                <div class="mf-chips" role="group" aria-labelledby="want-heading">
+                    @foreach (var chip in Chips) { <label class="mf-chip mf-chip-want" title="@(excluded.Contains(chip.Id) ? "In Not for me" : null)"><input type="checkbox" disabled="@(busy || !required.Contains(chip.Id) && (required.Count >= 5 || excluded.Contains(chip.Id)))" checked="@required.Contains(chip.Id)" @onchange="e => Toggle(required, chip.Id, e)" data-required-chip="@chip.Id" /><Icon Name="check" Size="12" /><span>@chip.Label</span></label> }
+                </div>
+            </section>
+            <section class="mf-sec" aria-labelledby="no-heading">
+                <h3 class="mf-sec-title" id="no-heading">Not for me <span class="mf-count">· @excluded.Count of 10</span></h3>
+                <p class="mf-hint">Works both ways: people who rule you out won’t see you either.</p>
+                <div class="mf-chips" role="group" aria-labelledby="no-heading">
+                    @foreach (var chip in Chips) { <label class="mf-chip mf-chip-no" title="@(required.Contains(chip.Id) ? "In Must have" : null)"><input type="checkbox" disabled="@(busy || !excluded.Contains(chip.Id) && (excluded.Count >= 10 || required.Contains(chip.Id)))" checked="@excluded.Contains(chip.Id)" @onchange="e => Toggle(excluded, chip.Id, e)" data-excluded-chip="@chip.Id" /><Icon Name="x" Size="12" /><span>@chip.Label</span></label> }
+                </div>
+            </section>
+            <section class="mf-sec" aria-labelledby="where-heading">
+                <h3 class="mf-sec-title" id="where-heading">Distance and Travel</h3>
+                <div class="mf-pair">
+                    <div class="mf-labelled"><label for="distance">Within (km of my home city)</label>
+                        <span class="mf-sel"><select id="distance" @bind="distance" data-distance-filter>
+                            <option value="">Any distance</option>
+                            @foreach (var km in DistanceChoices) { <option value="@km" data-distance-option="@km">@DistanceLabel(km)</option> }
+                        </select></span></div>
+                    <div class="mf-labelled"><label for="visitors">Visitors in Travel</label>
+                        <span class="mf-sel"><select id="visitors" @bind="visitors"><option value="both">Here now and arriving soon</option><option value="current">Here now</option><option value="upcoming">Arriving soon</option><option value="neither">Don't show visitors</option></select></span></div>
+                </div>
+                <fieldset class="mf-plus" disabled="@(!filter.PlusAvailable)" data-plus-filters="@(filter.PlusAvailable ? "on" : "off")"><legend class="visually-hidden">Plus</legend>
+                    <label class="mf-switch"><input type="checkbox" class="mf-toggle" checked="@(sort == "compatibility")" @onchange='e => sort = e.Value is true ? "compatibility" : "recent"' /><span>Most in common first <span class="mf-tag">Plus</span></span></label>
+                </fieldset>
+                @if (!filter.PlusAvailable) { <p class="mf-hint" data-distance-help>Distances over @(LocationLimits.FreeMaxKm) km and Most in common first are part of Plus.</p> }
+            </section>
+        </div>
+        <div class="mf-foot">
+            @* OPEN (issue 466): whether this opens in a new tab or warns about unsaved changes first. Today it is a plain link. *@
+            @if (DetailsHref is { } details) { <a class="mf-details" href="@details" data-filter-details>All filters and your details</a> }
+            <div class="mf-actions">
+                <p role="status" aria-live="polite" class="mf-status" data-filter-status="@filterStatus">@ShortStatus</p>
+                @* DEFAULT (issue 466 demo): Reset goes back to this mode's last saved filters and drops its draft. *@
+                <button type="button" class="mf-button mf-button-quiet" @onclick="Reset" disabled="@(busy || saving.Contains(modeId))" data-filter-reset>Reset</button>
+                @* Codex (PR 465): one save at a time per mode, even across mode switches, so an older save can't land last. *@
+                <button type="submit" class="mf-button" disabled="@(busy || saving.Contains(modeId))" data-filter-save="@(saving.Contains(modeId) ? "pending" : "ready")">@(saving.Contains(modeId) ? "Saving…" : "Save")</button>
+            </div>
+        </div>
+        </fieldset>
+    </form>
+}
+else if (filter is not null)
 {
     <form @onsubmit="SaveFiltersAsync" data-filter-form="@modeId">
         <fieldset disabled="@busy" class="settings-fields">
@@ -69,6 +139,10 @@ else
     [Parameter, EditorRequired] public IReadOnlyList<ConnectionModeView> Modes { get; set; } = [];
     /// <summary>Called with the saved filters (issue 442: Explore reloads its results).</summary>
     [Parameter] public EventCallback<FilterView> Saved { get; set; }
+    /// <summary>"page" (Who I'd like to meet) or "dialog" (issue 466: the Explore filters dialog).</summary>
+    [Parameter] public string Layout { get; set; } = "page";
+    /// <summary>Dialog layout only: where "All filters and your details" goes (shown in the footer).</summary>
+    [Parameter] public string? DetailsHref { get; set; }
     private bool busy, idVerifiedOnly;
     private string modeId = "", match = "any", visitors = "both", sort = "recent";
     private string? filterStatus, filterMessage;
@@ -127,6 +201,17 @@ else
             Restore(draft);
             (filterStatus, filterMessage) = ("draft", "Your unsaved changes for this mode are restored. Save filters to keep them.");
         }
+    }
+
+    /// <summary>Issue 466: the dialog's footer status is one short line; problems keep their full wording.</summary>
+    private string? ShortStatus => filterStatus switch { "saved" => "Saved", "draft" => "Unsaved changes restored", "reset" => "Back to saved", _ => filterMessage };
+
+    /// <summary>DEFAULT (issue 466): back to this mode's last saved filters. Nothing is sent; the draft for this mode is dropped.</summary>
+    private void Reset()
+    {
+        if (filter is null || busy || saving.Contains(modeId)) return;
+        Apply(filter); drafts.Remove(modeId);
+        (filterStatus, filterMessage) = ("reset", "Back to your saved filters.");
     }
 
     private void Apply(FilterView view) => (minAge, maxAge, required, match, excluded, idVerifiedOnly, visitors, distance, sort) = (view.MinAge, view.MaxAge,

@@ -1421,3 +1421,19 @@ Reversible: a refresh with an earlier tag still starts with the hex key, which e
 - The explanation becomes a compact first-visit notice with ×. Dismissal is remembered **in this browser only** (`localStorage`), never synced; ⓘ About Explore brings it back.
 - **✈️ Travel** is a button next to Review filters.
 - Who appears on Explore is unchanged (D125, D352): this is layout only. Card design is #443.
+
+### D393 — Explore filters dialog rebuilt to the approved demo (24 November 2026)
+
+**CONFIRMED** by the owner on [#466](https://github.com/repasscloud/swoovr/issues/466), 24 November 2026 ("perfect"), after reviewing the demo page. The Explore filters dialog (D392) now matches it:
+- Compact 76px age selects on one line with **ID Verified only**.
+- **Must have** heading row with a slim one-line Any/All pill; chips at regular weight, 30px, filled with a check when selected.
+- **Not for me** chips at regular weight; selected chips get a soft fill and ✕ (no strikethrough); one-line "works both ways" hint.
+- **Distance and Travel** last: distance, visitors, Most in common first (Plus) and the Plus note.
+- Sticky footer: **All filters and your details** on the left; compact **Reset** and **Save** on the right, with the status ("Saved") beside Save.
+- "Changes apply to … when you save" is removed.
+
+**DEFAULT:** **Reset** goes back to this mode's last saved filters and drops its unsaved draft; nothing is sent. Drop it if it isn't wanted.
+
+**OPEN** (on #466): whether **Who I'd like to meet** (`/me/matching`) takes the same restyle. Until decided, only the Explore dialog uses it (`ModeFilters Layout="dialog"`); the page keeps its layout. Also **OPEN**: whether **All filters and your details** opens in a new tab or warns about unsaved changes. It is a plain link today.
+
+Behaviour is unchanged from PR #465: drafts per mode, one save at a time per mode, stale-save guards, the same fields, rules and data attributes.

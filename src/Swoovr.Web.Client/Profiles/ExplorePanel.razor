@@ -124,8 +124,8 @@
         }
     </section>
     <MemberDialog Kind="filters" Title="@($"{Label(selected)} filters")" Open="filtersOpen" Closed="() => filtersOpen = false" ReturnFocus="filtersButton">
-        <p class="field-help">Changes apply to @Label(selected) when you save. <a class="link" href="/me/matching">All filters and your details</a></p>
-        <ModeFilters ModeId="@selected" Modes="modes" Saved="FiltersSavedAsync" />
+        @* Issue 466: the dialog layout; "Changes apply to … when you save" is gone and the details link is in the footer. *@
+        <ModeFilters ModeId="@selected" Modes="modes" Saved="FiltersSavedAsync" Layout="dialog" DetailsHref="/me/matching" />
     </MemberDialog>
 }
 @code {

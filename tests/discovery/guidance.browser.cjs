@@ -48,6 +48,41 @@ const { web, createMember, memberToken, cli, call, matchReady } = require('../au
     const mode = await page.locator('[data-modes] [aria-pressed=true]').getAttribute('data-mode');
     await page.waitForSelector(`[data-member-dialog=filters] [data-filter-form=${mode}]`); checks++;
     assert.equal(new URL(page.url()).pathname, '/explore'); checks++;
+    // Issue 466 (owner-approved demo): the dialog layout. No "Changes apply" line; the details link sits in the footer with
+    // Reset and Save; regular-weight slim chips; Distance and Travel after both chip lists.
+    const dialog = '[data-member-dialog=filters]';
+    assert.equal(await page.locator(`${dialog} [data-filter-layout=dialog]`).count(), 1); checks++;
+    assert.ok(!(await page.textContent(dialog)).includes('Changes apply'), 'no "Changes apply to … when you save" line'); checks++;
+    assert.equal(await page.getAttribute(`${dialog} .mf-foot [data-filter-details]`, 'href'), '/me/matching'); checks++;
+    assert.equal((await page.textContent(`${dialog} [data-filter-save]`)).trim(), 'Save'); checks++;
+    const look = await page.evaluate(q => {
+      const d = document.querySelector(q), box = s => d.querySelector(s).getBoundingClientRect();
+      return { chipWeight: getComputedStyle(d.querySelector('.mf-chip')).fontWeight, chipHeight: box('.mf-chip').height, segHeight: box('.mf-seg').height,
+        ageWidth: box('#min-age').width, saveHeight: box('[data-filter-save]').height, chipsBottom: box('[data-excluded-chip]').bottom, distanceTop: box('#distance').top,
+        ageTop: box('#min-age').top, idTop: box('[data-id-only]').top, footSticky: getComputedStyle(d.querySelector('.mf-foot')).position };
+    }, dialog);
+    assert.equal(look.chipWeight, '400', 'chips at regular weight'); checks++;
+    assert.ok(look.chipHeight <= 32 && look.segHeight <= 32, 'slim chips and a one-line Any/All: ' + JSON.stringify(look)); checks++;
+    assert.ok(look.ageWidth <= 80 && Math.abs(look.ageTop - look.idTop) < 20, 'compact age selects beside ID Verified only: ' + JSON.stringify(look)); checks++;
+    assert.ok(look.saveHeight <= 38 && look.footSticky === 'sticky', 'compact Save in a sticky footer: ' + JSON.stringify(look)); checks++;
+    assert.ok(look.distanceTop > look.chipsBottom, 'Distance and Travel below the chip lists'); checks++;
+    // DEFAULT Reset: back to the saved filters, nothing sent.
+    const chip = page.locator(`${dialog} [data-required-chip]:not(:disabled)`).first();
+    const wasChecked = await chip.isChecked(); await chip.click(); assert.equal(await chip.isChecked(), !wasChecked); checks++;
+    const noId = await page.locator(`${dialog} [data-excluded-chip]:not(:disabled):not(:checked)`).last().getAttribute('data-excluded-chip');
+    const no = page.locator(`${dialog} [data-excluded-chip="${noId}"]`); await no.click(); assert.ok(await no.isChecked()); checks++;
+    assert.equal(await page.evaluate(q => getComputedStyle(document.querySelector(q).closest('.mf-chip')).textDecorationLine, `${dialog} [data-excluded-chip]:checked`), 'none', 'Not for me: no strikethrough'); checks++;
+    if (process.env.SWOOVR_SCREENSHOTS) {
+      const shot = name => page.screenshot({ path: require('node:path').join(process.env.SWOOVR_SCREENSHOTS, name) });
+      const theme = async mode => { await page.emulateMedia({ colorScheme: mode }); await page.evaluate(m => { document.documentElement.dataset.theme = m; }, mode); };
+      for (const [width, height] of [[1280, 900], [390, 844]]) {
+        await page.setViewportSize({ width, height });
+        for (const mode of ['light', 'dark']) { await theme(mode); await shot(`explore-filters-466-${width}-${mode}.png`); }
+      }
+      await theme('light'); await page.setViewportSize({ width: 1280, height: 900 });
+    }
+    await page.click(`${dialog} [data-filter-reset]`);
+    await page.waitForSelector(`${dialog} [data-filter-status=reset]`); assert.equal(await chip.isChecked(), wasChecked); assert.equal(await no.isChecked(), false); checks++;
     await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=filters]', { state: 'detached' });
     assert.equal(methods.filter(method => method !== 'GET').length, 0, 'Guidance must not write filters/modes/travel'); checks++;
     // The notice is dismissed for this browser and comes back from About Explore.
