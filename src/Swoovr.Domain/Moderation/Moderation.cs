@@ -292,8 +292,8 @@ public static class ReportPolicy
     public const int BurstLimit = 10;
     public static readonly TimeSpan BurstWindow = TimeSpan.FromMinutes(10);
 
-    /// <summary>Subjects that exist in the product today; the rest arrive with messaging (U) and photos (D132).</summary>
-    public static bool Supported(ReportSubject subject) => subject is ReportSubject.Profile or ReportSubject.Request or ReportSubject.Bot or ReportSubject.Conversation or ReportSubject.Message;
+    /// <summary>Subjects that exist in the product today. Issue 467: a photo on another member's profile; albums come later.</summary>
+    public static bool Supported(ReportSubject subject) => subject is ReportSubject.Profile or ReportSubject.Request or ReportSubject.Bot or ReportSubject.Conversation or ReportSubject.Message or ReportSubject.Photo;
 
     /// <summary>
     /// What the reporter sees (D131): Submitted, Under review, Reviewed or Closed. Since D190 a closed report also shows a

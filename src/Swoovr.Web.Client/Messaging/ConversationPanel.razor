@@ -38,7 +38,9 @@
                 @if (m.Deleted) { <p>This message was deleted</p> }
                 else if (m.Kind == "photo")
                 {
-                    @if (m.Photo is { } photo) { <img class="chat-photo" src="@PhotoText.Web(photo.Link)" alt="Photo from @(m.Mine ? "you" : conversation.Person.DisplayName)" loading="lazy" data-chat-photo="@photo.Id" /> }
+                    @* Issue 467 (owner): right-click and drag are blocked on chat photos, including explicit media once revealed
+                       (issue 431, which renders through this element); it only stops casual saving. *@
+                    @if (m.Photo is { } photo) { <img class="chat-photo" src="@PhotoText.Web(photo.Link)" alt="Photo from @(m.Mine ? "you" : conversation.Person.DisplayName)" loading="lazy" draggable="false" @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-chat-photo="@photo.Id" /> }
                     @if (m.Mine && m.PhotoState is { } state && state != "approved") { <p class="field-help" data-photo-state="@state">@PhotoText.ChatState(state)</p> }
                 }
                 else { <p>@m.Text</p> }

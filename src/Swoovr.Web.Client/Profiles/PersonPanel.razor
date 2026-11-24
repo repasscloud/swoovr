@@ -59,15 +59,25 @@
     <div class="person-gallery-col">
     @* D203: the main photo, then each shown mode's own photos (approved only, short-lived links; never another mode's).
        Issue 445: each distinct photo once; the main photo is also in its mode's list. *@
-    @if (PhotoText.Gallery(person.Photo, person.Modes.Select(m => (m.Id, m.Label, m.Photos))) is { Count: > 0 } gallery)
+    @* Issue 467: each photo is a button that opens it large (PersonPhotoViewer). Right-click and drag are blocked on the
+       images (owner): it only stops casual saving; the short-lived links (D203) stay the real protection. *@
+    @if (Gallery is { Count: > 0 } gallery)
     {
         <section class="person-gallery" aria-label="Photos" data-person-photos="@gallery.Count">
-            @foreach (var shown in gallery)
+            @for (var i = 0; i < gallery.Count; i++)
             {
-                if (shown.ModeId is null) { <img src="@PhotoText.Web(shown.Photo.Link)" alt="@($"{person.DisplayName}'s photo")" class="person-photo person-photo-lead" data-person-photo="main" /> }
-                else { <img src="@PhotoText.Web(shown.Photo.Link)" alt="@($"{person.DisplayName}'s photo in {shown.ModeLabel}")" class="person-photo@(shown == gallery[0] ? " person-photo-lead" : "")" data-person-photo="@shown.ModeId" loading="lazy" /> }
+                var at = i; var shown = gallery[at];
+                <button type="button" class="person-photo-open@(at == 0 ? " is-lead" : "")" @ref="photoButtons[at]" @onclick="() => OpenPhoto(at)"
+                        aria-label="@($"Open {person.DisplayName}'s photo, {at + 1} of {gallery.Count}")" data-person-photo-open="@at">
+                    @if (shown.ModeId is null) { <img src="@PhotoText.Web(shown.Photo.Link)" alt="@($"{person.DisplayName}'s photo")" class="person-photo person-photo-lead" draggable="false" @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-person-photo="main" /> }
+                    else { <img src="@PhotoText.Web(shown.Photo.Link)" alt="@($"{person.DisplayName}'s photo in {shown.ModeLabel}")" class="person-photo@(at == 0 ? " person-photo-lead" : "")" draggable="false" @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-person-photo="@shown.ModeId" loading="lazy" /> }
+                </button>
             }
         </section>
+        @if (viewerAt is { } open)
+        {
+            <PersonPhotoViewer Photos="gallery" Index="open" IndexChanged="i => viewerAt = i" Name="@person.DisplayName" OnClose="ClosePhoto" OnReport="ReportPhoto" />
+        }
     }
     else if (person.PictureText is { } words)
     {
@@ -175,6 +185,14 @@
             </p>
         </div>
     </MemberDialog>
+    @* Issue 467 (CONFIRMED): Report photo uses the existing report flow; the report records which photo it was. *@
+    <MemberDialog Kind="report-photo" Title="@($"Report {person.DisplayName}'s photo")" Open="@(dialog == Dialogs.ReportPhoto)" Closed="Close" ReturnFocus="PhotoOpener" FocusRequest="reportFocus">
+        @if (reportPhoto is { } photoId)
+        {
+            <ReportForm InDialog="true" SubjectType="photo" SubjectId="@photoId.ToString()" Name="@person.DisplayName"
+                        Submitted="() => { reportSent = true; reportFocus++; }" Blocked="() => { person = null; blockedNow = true; dialog = null; }" />
+        }
+    </MemberDialog>
     <MemberDialog Kind="report" Title="@($"Report {person.DisplayName}")" Open="@(dialog == Dialogs.Report)" Closed="Close" ReturnFocus="safetyButton" FocusRequest="reportFocus">
         <ReportForm InDialog="true" SubjectType="@(person.Badges.Any(b => b.Badge == "bot") ? "bot" : "profile")" SubjectId="@Id.ToString()" Name="@person.DisplayName"
                     Submitted="() => { reportSent = true; reportFocus++; }" Blocked="() => { person = null; blockedNow = true; dialog = null; }" />
@@ -192,7 +210,7 @@
     [Parameter] public string? Mode { get; set; }
     private string? confirmDisconnect;
     private bool loaded, busy, blockedNow, reportSent, safetyOpen;
-    private enum Dialogs { Connect, Block, Report }
+    private enum Dialogs { Connect, Block, Report, ReportPhoto }
     private Dialogs? dialog;
     private int connectFocus, reportFocus;
     private string? messageStatus, messageError;
@@ -200,6 +218,25 @@
 
     private void Open(Dialogs which) => (dialog, safetyOpen) = (which, false);
     private void Close() => dialog = null;
+
+    /// <summary>D203, issue 445: the main photo, then each shown mode's own approved photos, each once.</summary>
+    private IReadOnlyList<PhotoText.GalleryPhoto>? Gallery => person is null ? null : PhotoText.Gallery(person.Photo, person.Modes.Select(m => (m.Id, m.Label, m.Photos)));
+    // Issue 467: the open photo, and the gallery button that opened it (focus goes back there).
+    private int? viewerAt;
+    private int opener;
+    private Guid? reportPhoto;
+    private bool focusOpener;
+    private readonly Dictionary<int, ElementReference> photoButtons = [];
+    private ElementReference? PhotoOpener => photoButtons.TryGetValue(opener, out var button) ? button : null;
+    private void OpenPhoto(int at) => (viewerAt, opener, safetyOpen) = (at, at, false);
+    private void ClosePhoto() => (viewerAt, focusOpener) = (null, true);
+    private void ReportPhoto(Guid id) => (viewerAt, reportPhoto, dialog) = (null, id, Dialogs.ReportPhoto);
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!focusOpener) return;
+        focusOpener = false;
+        if (PhotoOpener is { } button) { try { await button.FocusAsync(); } catch (InvalidOperationException) { } }
+    }
 
     /// <summary>Issue 447: age, gender and pronouns, each only when the API returned it (the person's own switches, D175/D382).</summary>
     private List<string>? KeyFacts => person is null ? null : new[] { person.Age?.ToString(), person.Gender, person.Pronouns }.OfType<string>().Where(f => f.Length > 0).ToList();

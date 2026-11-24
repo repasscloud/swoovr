@@ -203,7 +203,7 @@ public static class MediaEndpoints
             await db.SaveChangesAsync(cancellationToken);
             return Results.Ok(link);
         });
-        // #41: a reported chat photo, for an admin working the case: only a photo the case's evidence names, never a blocked
+        // #41: a reported chat photo (issue 467: or a reported profile photo), for an admin working the case: only a photo the case's evidence names, never a blocked
         // one, with a recorded purpose (media_review_views, the audit and the sensitive-access log), conflict rules applied.
         admin.MapPost("/{id:guid}/case-view", async (Guid id, MediaCaseViewRequest request, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock,
             CancellationToken cancellationToken) =>
@@ -215,7 +215,9 @@ public static class MediaEndpoints
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.PurposeRequired, "Say which case and why you need to look at this photo.");
             await using var barrier = await Retention.PreservationLease.SharedAsync(db, cancellationToken);
             var named = (await db.CaseEvidence.Where(e => e.CaseId == caseId).Select(e => e.Snapshot).ToListAsync(cancellationToken)).Any(s => s.Contains(id.ToString()));
-            var item = named ? await db.MediaItems.SingleOrDefaultAsync(i => i.Id == id && i.Purpose == AttachmentPolicy.Purpose
+            // Issue 467 (Codex, PR 471): a profile photo (no purpose) only when this case holds a photo report naming exactly it.
+            var reportedProfilePhoto = named && await db.Reports.AnyAsync(r => r.CaseId == caseId && r.SubjectType == ReportSubject.Photo && r.SubjectRef == id.ToString(), cancellationToken);
+            var item = named ? await db.MediaItems.SingleOrDefaultAsync(i => i.Id == id && (i.Purpose == AttachmentPolicy.Purpose || reportedProfilePhoto && i.Purpose == null)
                 && i.ObjectKey != null, cancellationToken) : null;
             if (item is null || !MediaPolicy.CaseReviewable(item)) return Problem(StatusCodes.Status404NotFound, ProblemCodes.UnknownPhoto, "That photo isn't part of this case's evidence.");
             if (await StaffAccessEndpoints.ExcludedAsync(db, actor, await Retention.SafetyRetention.CaseAccountsAsync(db, caseId, cancellationToken), cancellationToken)) return StaffAccessEndpoints.Conflict();

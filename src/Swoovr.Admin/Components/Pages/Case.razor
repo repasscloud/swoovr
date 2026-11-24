@@ -57,14 +57,14 @@ else
     </ul>
     @if (ReportedPhotos.Count > 0)
     {
-        @* #41: a chat photo the evidence names, for admins, with a recorded purpose; never a blocked one. *@
+        @* #41: a chat photo (issue 467: or a reported profile photo) the evidence names, for admins, with a recorded purpose; never a blocked one. *@
         <form method="post" @formname="photo" @onsubmit="PhotoAsync" class="row" data-case-photo-form data-enhance="true">
             <AntiforgeryToken />
             <select name="PhotoForm.MediaId">@foreach (var p in ReportedPhotos) { <option value="@p">@p</option> }</select>
             <input name="PhotoForm.Purpose" placeholder="Why you need to look" maxlength="500" required />
             <button type="submit" class="secondary" data-case-photo-open>Open reported photo</button>
         </form>
-        @if (photoLink is not null) { <img src="/media/@photoLink" alt="Reported chat photo" width="320" data-case-photo /> }
+        @if (photoLink is not null) { <img src="/media/@photoLink" alt="Reported photo" width="320" data-case-photo /> }
     }
     @if (shownAtReport is { } shown)
     {

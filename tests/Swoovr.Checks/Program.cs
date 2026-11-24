@@ -73,6 +73,7 @@ VerificationChecks.Run();
 ModerationChecks.Run();
 MatchingChecks.Run();
 AppParityChecks.Run();
+PhotoGuardChecks.Run();
 ArrivalChecks.Run();
 MessagingChecks.Run();
 SessionRetirementChecks.Run();

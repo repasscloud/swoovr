@@ -4,9 +4,9 @@ namespace Swoovr.Contracts;
 public sealed record ReportCategoryView(string Id, string Label);
 
 /// <summary>
-/// A member's report (D131). SubjectType is "profile", "request" or "bot" today ("conversation", "message", "photo" and
-/// "album" arrive with those features); SubjectId is the profile's public id or the request id. Text is optional, up to
-/// 2,000 characters. Block also blocks the person in the same step.
+/// A member's report (D131). SubjectType is "profile", "request", "bot", "conversation", "message" or (issue 467) "photo"
+/// ("album" arrives with that feature); SubjectId is the profile's public id, the request, conversation or message id, or
+/// the reported profile photo's id. Text is optional, up to 2,000 characters. Block also blocks the person in the same step.
 /// </summary>
 /// Serious incidents (D190) add Police ("contacted", "will-contact" or "not-now"), an optional PoliceReference (up to 100
 /// characters, kept encrypted) and MessageIds: up to 20 messages from the reported conversation chosen as evidence.

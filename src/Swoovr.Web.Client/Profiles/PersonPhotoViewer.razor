@@ -1,0 +1,84 @@
+@* Issue 467: another member's profile photo shown large, built on the issue 231 viewer's layout (ph-viewer) without any owner
+   action. It steps through exactly the photos the gallery shows (D203 modes, issue 445 dedup, approved only: the list comes
+   from the profile the API returned), with ←/→, the on-screen buttons or a swipe. Escape or Close returns focus to the
+   photo that opened it (the caller's ReturnFocus). Report photo hands the shown photo to the existing report flow.
+   Right-click and drag are blocked on the image (owner, 24 November 2026): that only stops casual saving. *@
+<div class="ph-overlay ph-viewer person-viewer" @onclick="CloseAsync" @onkeydown="KeyAsync" tabindex="-1" data-person-photo-viewer="@Current.Photo.Id">
+    @* Focus sentinels keep Tab inside the dialog, as in MemberDialog. *@
+    <span tabindex="0" class="visually-hidden" data-focus-sentinel @onfocus="FocusReportAsync"></span>
+    <div class="ph-viewer-panel" role="dialog" aria-modal="true" aria-labelledby="person-viewer-title" @onclick:stopPropagation="true">
+        <div class="ph-viewer-stage" @ontouchstart="TouchStart" @ontouchend="TouchEndAsync" data-person-viewer-stage>
+            <img src="@PhotoText.Web(Current.Photo.Link)" alt="@Label" class="person-viewer-photo" draggable="false"
+                 @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-person-viewer-image="@Current.Photo.Id" />
+            @if (Photos.Count > 1)
+            {
+                <button type="button" class="ph-step ph-prev" disabled="@(Index <= 0)" @ref="prevButton" @onclick="() => StepAsync(-1, fromButton: true)" aria-label="Previous photo" data-person-viewer-prev>‹</button>
+                <button type="button" class="ph-step ph-next" disabled="@(Index >= Photos.Count - 1)" @ref="nextButton" @onclick="() => StepAsync(1, fromButton: true)" aria-label="Next photo" data-person-viewer-next>›</button>
+            }
+        </div>
+        <div class="ph-viewer-side">
+            <div class="ph-dialog-head">
+                <h2 id="person-viewer-title" tabindex="-1" @ref="heading" data-person-viewer-title>@Label</h2>
+                <button type="button" class="ph-close" @onclick="CloseAsync" aria-label="Close" data-person-viewer-close>×</button>
+            </div>
+            @if (Current.ModeLabel is { } mode) { <p class="field-help" data-person-viewer-mode>In @mode</p> }
+            <div class="ph-viewer-actions">
+                <button type="button" class="button button-secondary" @ref="reportButton" @onclick="ReportAsync" data-report-photo="@Current.Photo.Id"><Icon Name="flag" Size="16" /> Report photo</button>
+            </div>
+        </div>
+    </div>
+    <span tabindex="0" class="visually-hidden" data-focus-sentinel @onfocus="FocusFirstAsync"></span>
+</div>
+@code {
+    /// <summary>The gallery exactly as the profile shows it (PhotoText.Gallery).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<PhotoText.GalleryPhoto> Photos { get; set; } = [];
+    [Parameter] public int Index { get; set; }
+    [Parameter] public EventCallback<int> IndexChanged { get; set; }
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>Report photo: called with the photo shown.</summary>
+    [Parameter] public EventCallback<Guid> OnReport { get; set; }
+
+    private PhotoText.GalleryPhoto Current => Photos[Math.Clamp(Index, 0, Photos.Count - 1)];
+    /// <summary>"Sam's photo, 2 of 4" (one photo: "Sam's photo").</summary>
+    private string Label => Photos.Count > 1 ? $"{Name}'s photo, {Index + 1} of {Photos.Count}" : $"{Name}'s photo";
+    private ElementReference heading, reportButton, prevButton, nextButton;
+    private double? touchX;
+    /// <summary>A step button that just became disabled (first or last photo) would drop focus to the page, so focus moves to the other one.</summary>
+    private ElementReference? refocus;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await FocusAsync(heading);
+        else if (refocus is { } target) { refocus = null; await FocusAsync(target); }
+    }
+    private static async Task FocusAsync(ElementReference element) { try { await element.FocusAsync(); } catch (InvalidOperationException) { } }
+    private Task FocusHeadingAsync() => FocusAsync(heading);
+    private Task FocusReportAsync() => FocusAsync(reportButton);
+    /// <summary>Tab past the last control wraps to the first one in reading order: an enabled step button, else Close.</summary>
+    private Task FocusFirstAsync() => Photos.Count > 1 ? FocusAsync(Index > 0 ? prevButton : nextButton) : FocusHeadingAsync();
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+    private Task ReportAsync() => OnReport.InvokeAsync(Current.Photo.Id);
+    private async Task StepAsync(int by, bool fromButton = false)
+    {
+        var next = Index + by;
+        if (next < 0 || next >= Photos.Count) return;
+        if (fromButton && (next == 0 || next == Photos.Count - 1)) refocus = by < 0 ? nextButton : prevButton;
+        await IndexChanged.InvokeAsync(next);
+    }
+    private async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await CloseAsync();
+        else if (e.Key == "ArrowLeft") await StepAsync(-1);
+        else if (e.Key == "ArrowRight") await StepAsync(1);
+    }
+    // A horizontal swipe of 40px or more steps; a tap or a vertical scroll does nothing.
+    private void TouchStart(TouchEventArgs e) => touchX = e.Touches.Length == 1 ? e.Touches[0].ClientX : null;
+    private async Task TouchEndAsync(TouchEventArgs e)
+    {
+        if (touchX is not { } start || e.ChangedTouches.Length == 0) return;
+        var moved = e.ChangedTouches[0].ClientX - start; touchX = null;
+        if (Math.Abs(moved) >= 40) await StepAsync(moved < 0 ? 1 : -1);
+    }
+}

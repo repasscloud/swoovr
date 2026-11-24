@@ -93,7 +93,7 @@ static class MessagingChecks
 
         // A block ends connections (rule 14): Ended is its own status.
         Expect(Enum.IsDefined(ConnectionRequestStatus.Ended) && ConnectionRequestStatus.Ended != ConnectionRequestStatus.Accepted, "an ended connection isn't accepted");
-        Expect(ReportPolicy.Supported(ReportSubject.Message) && ReportPolicy.Supported(ReportSubject.Conversation) && !ReportPolicy.Supported(ReportSubject.Photo), "messages and conversations can be reported");
+        Expect(ReportPolicy.Supported(ReportSubject.Message) && ReportPolicy.Supported(ReportSubject.Conversation) && !ReportPolicy.Supported(ReportSubject.Album), "messages and conversations can be reported");
 
         Console.WriteLine($"PASS: messaging rules ({checks}).");
     }
