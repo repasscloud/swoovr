@@ -231,6 +231,9 @@
 .me-item-link { grid-template-columns: minmax(0, 1fr) auto; }
 .me-item-link > a { text-decoration: none; color: inherit; }
 .me-item-link > a:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; border-radius: 6px; }
+/* Issue 474: support ticket rows read title, reference and time, state, top to bottom. */
+.su-ticket-title { display: block; max-width: 48ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.su-ticket-state { justify-self: start; margin-top: 4px; }
 .me-item-link > .icon { color: var(--muted); }
 .me-item-link:hover > .icon { color: var(--text); }
 .me-items:not(.me-items-compact) .me-item-link { grid-template-columns: minmax(0, 1fr) auto; }
