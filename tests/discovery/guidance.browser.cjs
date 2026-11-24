@@ -94,6 +94,19 @@ const { web, createMember, memberToken, cli, call, matchReady } = require('../au
     await page.check('[data-filter-mode=dating]'); await page.waitForSelector('[data-filter-form=dating]');
     assert.equal(await page.inputValue('#min-age'), '25', 'the Dating save went through'); checks++;
     assert.notEqual(await page.locator('[data-filter-form] .rd-status').getAttribute('data-filter-status'), 'draft', 'no stale Dating draft after it saved'); checks++;
+    // Codex (PR 465): edits made after a save started survive that save finishing (Dating: save 26, then edit to 27 meanwhile).
+    await page.selectOption('#min-age', '26');
+    await page.route('**/api/me/modes/dating/filters', async route => { if (route.request().method() === 'PUT') await new Promise(r => setTimeout(r, 2500)); await route.continue(); });
+    await page.click('[data-filter-form=dating] button[type=submit]');
+    await page.check('[data-filter-mode=friends]'); await page.waitForSelector('[data-filter-form=friends]');
+    await page.check('[data-filter-mode=dating]'); await page.waitForSelector('[data-filter-form=dating]');
+    await page.selectOption('#min-age', '27');
+    await page.check('[data-filter-mode=friends]'); await page.waitForSelector('[data-filter-form=friends]');
+    await page.waitForTimeout(3000); // the slow save of 26 has finished by now
+    await page.unroute('**/api/me/modes/dating/filters');
+    await page.check('[data-filter-mode=dating]'); await page.waitForSelector('[data-filter-form=dating]');
+    assert.equal(await page.inputValue('#min-age'), '27', 'the newer unsaved edit is kept'); checks++;
+    assert.equal(await page.locator('[data-filter-form] .rd-status').getAttribute('data-filter-status'), 'draft'); checks++;
     console.log(`PASS discovery guidance: ${checks} synthetic projection checks; no activity/density/provider claims.`);
   } finally { await edge.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -91,6 +91,9 @@ else
         bool IdOnly, string Visitors, int? Distance, string Sort);
     private readonly Dictionary<string, Draft> drafts = [];
     private Draft Capture() => new(minAge, maxAge, required.ToArray(), match, excluded.ToArray(), idVerifiedOnly, visitors, distance, sort);
+    /// <summary>Same filter values (chip order doesn't matter). Records compare arrays by reference, so this compares them as sets.</summary>
+    private static bool Same(Draft a, Draft b) => a.Min == b.Min && a.Max == b.Max && a.Match == b.Match && a.IdOnly == b.IdOnly && a.Visitors == b.Visitors
+        && a.Distance == b.Distance && a.Sort == b.Sort && a.Required.ToHashSet().SetEquals(b.Required) && a.Excluded.ToHashSet().SetEquals(b.Excluded);
     private void Restore(Draft d) => (minAge, maxAge, required, match, excluded, idVerifiedOnly, visitors, distance, sort) =
         (d.Min, d.Max, d.Required.ToHashSet(), d.Match, d.Excluded.ToHashSet(), d.IdOnly, d.Visitors, d.Distance, d.Sort);
     private bool Dirty => filter is not null && (minAge != filter.MinAge || maxAge != filter.MaxAge ||
@@ -132,9 +135,10 @@ else
         busy = true;
         // Codex (PR 465): the member may switch modes while this saves. The save belongs to the mode it was made in:
         // it clears that mode's draft, and changes this form (values, status, busy) only if that mode is still loaded.
-        var savedMode = modeId; var generation = loading;
+        var savedMode = modeId; var generation = loading; var submitted = Capture();
         var result = await Members.SaveFiltersAsync(savedMode, new FilterUpdate(minAge, maxAge, required.ToList(), match, excluded.ToList(), idVerifiedOnly, visitors, distance, sort));
-        if (result.Ok) drafts.Remove(savedMode);
+        // Codex (PR 465): clear the draft only if it still holds what was submitted; edits made since stay.
+        if (result.Ok && drafts.TryGetValue(savedMode, out var pending) && Same(pending, submitted)) drafts.Remove(savedMode);
         if (savedMode != modeId || generation != loading) return;
         busy = false;
         if (result.Ok && result.Value is { } saved) { filter = saved; await Saved.InvokeAsync(saved); }
