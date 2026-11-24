@@ -994,6 +994,12 @@ body:has(.public-layout) { padding-bottom: 0; }
 .mc-name h2 a::after { content: ""; position: absolute; inset: 0; border-radius: 16px; }
 .mc-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mc-name .badge-row { flex: none; flex-wrap: nowrap; }
+/* Issue 494: the badge button is above the card's link; its explanation stays inside the card, over the photo's lower edge. */
+.mc-badges { position: relative; z-index: 2; display: inline-flex; flex: none; align-items: center; gap: 3px; min-height: 24px; min-width: 24px; margin: -4px; padding: 4px; border: 0; border-radius: 8px; background: none; color: inherit; cursor: help; }
+.mc-badges:focus-visible { outline: 2px solid var(--text); outline-offset: 0; }
+.mc-badge-tip { position: absolute; z-index: 3; left: 8px; right: 8px; top: 8px; display: grid; gap: 4px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text); font: 400 .75rem/1.35 var(--font); opacity: 0; visibility: hidden; pointer-events: none; }
+.mc-badge-tip.is-open, .mc-badges:hover + .mc-badge-tip, .mc-badges:focus-visible + .mc-badge-tip { opacity: 1; visibility: visible; }
+.mc-badge-tip.is-dismissed.mc-badge-tip.is-dismissed { opacity: 0; visibility: hidden; }
 .mc-meta { display: flex; align-items: center; gap: 4px; min-width: 0; font: 400 .75rem/1.35 var(--font); color: var(--muted); }
 .mc-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-meta .icon { flex: none; }

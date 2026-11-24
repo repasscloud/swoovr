@@ -128,7 +128,7 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'staff.revoked' AND target_id = '${ids.sam}'`), '1'); pass();
     await call(root, `/api/admin/accounts/${ids.sam}/staff-affiliation`, { method: 'PUT', body: { active: true } });
 
-    // Web: tiles and the profile page draw exactly the API's badges, in its order.
+    // Web: tiles draw the API's badges in the card's fixed order (issue 494, D406); the profile page keeps the API's order.
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     await page.goto(web + '/account/sign-in?intro=done');
@@ -137,11 +137,32 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     await page.goto(web + '/explore');
     await page.waitForSelector('[data-explore-state=ready]', { timeout: 20000 });
     const tileBadges = key => page.locator(`.member-card:has(a[href^="/people/${pid[key]}"]) [data-badge]`).evaluateAll(els => els.map(e => e.dataset.badge));
-    assert.deepEqual(await tileBadges('fay'), ['founding', 'photo', 'id', 'staff']); pass();
+    assert.deepEqual(await tileBadges('fay'), ['id', 'photo', 'founding', 'staff']); pass();
     assert.deepEqual(await tileBadges('sam'), ['staff']); pass();
     assert.deepEqual(await tileBadges('bo'), ['bot']); pass();
     assert.equal(await page.locator(`.member-card:has(a[href^="/people/${pid.bo}"]) [data-badge=bot]`).getAttribute('aria-label'), 'Swoovr guide (bot)'); pass();
     if (output) await page.screenshot({ path: output + '/explore-badges-390.png', fullPage: true });
+    // The badges explain themselves on hover, focus and tap; the rest of the card opens the profile.
+    for (const [theme, width] of [['light', 390], ['dark', 1280]]) {
+      await page.emulateMedia({ colorScheme: theme }); await page.setViewportSize({ width, height: 844 });
+      const card = page.locator(`.member-card:has(a[href^="/people/${pid.fay}"])`), button = card.locator('[data-card-badges]'), tip = card.locator('[role=tooltip]');
+      await page.mouse.move(0, 0);
+      assert.equal(await tip.isVisible(), false); pass();
+      await button.click();
+      assert.ok(page.url().endsWith('/explore'), 'reading the badges does not open the profile'); pass();
+      assert.equal(await button.getAttribute('aria-expanded'), 'true'); pass();
+      assert.equal(await tip.isVisible(), true); pass();
+      for (const text of ['ID verified', 'Photo verified', 'Founding member', 'Swoovr staff']) assert.ok((await tip.textContent()).includes(text), text);
+      assert.equal(await tip.evaluate(e => { const t = e.getBoundingClientRect(), c = e.closest('.member-card').getBoundingClientRect(); return t.bottom <= c.bottom && t.right <= c.right && t.left >= c.left; }), true, 'the explanation fits in the card'); pass();
+      assert.ok((await button.boundingBox()).height >= 24); pass();
+      if (output) await page.screenshot({ path: `${output}/explore-badges-tip-${theme}-${width}.png`, fullPage: true });
+      await page.keyboard.press('Escape');
+      assert.equal(await button.getAttribute('aria-expanded'), 'false'); pass();
+      assert.equal(await tip.isVisible(), false, 'Escape dismisses it while the button keeps focus'); pass();
+    }
+    await page.emulateMedia({ colorScheme: 'light' }); await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator(`.member-card:has(a[href^="/people/${pid.sam}"]) .mc-media`).click({ force: true });
+    await page.waitForURL(`**/people/${pid.sam}**`); pass();
     await page.goto(web + `/people/${pid.fay}`);
     await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
     assert.equal(await page.locator('.person-name .badge-row').getAttribute('data-badges'), 'founder photoVerified idVerified staff'); pass();
