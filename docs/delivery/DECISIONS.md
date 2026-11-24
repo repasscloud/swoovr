@@ -1546,3 +1546,7 @@ Slice 3 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §7, �
 ### D408 — Explore card connection status (#497, 25 November 2026)
 
 Slice 4 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §8). `ProfileCard.connection` is `connected`, `sent` or `received` for the viewer and that person **in the mode being browsed**, or null. It never reflects another mode or other people's connections. One batched query; order and eligibility are unchanged. Shown as one line of text under the name ("Connected", "Request sent", "Request received"), with no buttons on the card.
+
+### D409 — New member label on Explore cards (#498, 25 November 2026)
+
+Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10). `ProfileCard.newMember` is true while the account was created less than `Explore:NewMemberDays` days ago (**DEFAULT 14**; 0 turns it off; at most 90). Worked out after the list and its order are settled, so it can't affect either, and it ends on its own. Never for official bots. **DEFAULT:** it uses the card's status line, so "Connected" or a request takes its place.

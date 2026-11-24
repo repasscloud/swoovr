@@ -133,10 +133,10 @@ public static class MemberText
     public const string Arrived = "You've arrived. You can now send requests to people here.";
     public const string BrowsingBeforeArrival = "You're looking before you arrive. You can send requests once you've confirmed you've arrived.";
 
-    /// <summary>Issue 497: the viewer's standing with someone in the mode they're browsing; nothing when there's none.</summary>
+    /// <summary>Issue 497: the viewer's standing with someone in the mode they're browsing; otherwise, for a while, that they're new (issue 498).</summary>
     public static string CardStatus(ProfileCard card) => card.Connection switch
     {
-        "connected" => "Connected", "sent" => "Request sent", "received" => "Request received", _ => "",
+        "connected" => "Connected", "sent" => "Request sent", "received" => "Request received", _ => card.NewMember ? "New member" : "",
     };
 
     /// <summary>
