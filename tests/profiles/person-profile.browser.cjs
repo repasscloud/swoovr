@@ -94,6 +94,14 @@ let checks = 0; const pass = () => checks++;
    assert.equal(await page.locator('[data-message-status]').innerText(), "You can message people you're connected with."); pass();
    assert.equal(await page.locator('[data-member-dialog]').count(), 0, 'shown on the page, not in a closed dialog'); pass();
    await page.unroute('**/api/conversations');
+   // Codex (PR 464): a sent report replaces its form; focus returns to the dialog heading and Escape still closes it.
+   await page.click('[data-safety-menu]'); await page.click('[data-report-open]');
+   await page.waitForSelector('[data-member-dialog=report] #report-category');
+   await page.selectOption('#report-category', { index: 1 });
+   await page.focus('[data-report-form] button[type=submit]'); await page.keyboard.press('Enter');
+   await page.waitForSelector('[data-member-dialog=report] [data-report=sent]');
+   await page.waitForFunction(() => document.activeElement?.id === 'report-dialog-heading'); pass();
+   await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=report]', { state: 'detached' }); pass();
    await page.setViewportSize({ width: 390, height: 844 }); await page.click('[data-safety-menu]');
    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'menu open at 390 does not overflow'); pass();
    if (output) await page.screenshot({ path: `${output}/person-safety-menu-390.png`, fullPage: true });
