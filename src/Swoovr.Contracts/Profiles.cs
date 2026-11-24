@@ -35,7 +35,7 @@ public sealed record ModeUpdate(bool Enabled, bool Visible, IReadOnlyList<Guid>?
 /// <param name="PictureText">Issue 389 (D382): the person's text picture, only while the tile has no approved photo.</param>
 public sealed record ProfileCard(Guid Id, string DisplayName, string? About, IReadOnlyList<string> Intentions, IReadOnlyList<BadgeView> Badges,
     int? Age = null, string? Gender = null, string? Pronouns = null, DistanceView? Distance = null, PhotoView? Photo = null, string? Visiting = null,
-    string? PictureText = null);
+    string? PictureText = null, int PhotoCount = 0);
 
 /// <summary>
 /// D348: what another member may learn about distance. Band is hidden, nearby (0–2 km), within10Km, km10To20, km20To30,

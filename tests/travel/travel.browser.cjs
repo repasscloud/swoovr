@@ -128,7 +128,7 @@ const plus = (days, zone = 'Australia/Adelaide') => {
     assert.equal(feed.status, 200); assert.equal(feed.body.market, 'Adelaide'); pass();
     const card = (f, who) => f.body.people.find(p => p.id === pid[who]);
     assert.deepEqual(card(feed, 'trav').visiting, { tripId: (await call(tokens.trav, '/api/me/trips')).body.items.find(t => t.arrival === plus(-3)).id,
-      city: 'Adelaide', country: 'Australia', arrival: plus(-3), departure: plus(1) }); pass(); // earliest visible trip, one card per traveller
+      city: 'Adelaide', country: 'Australia', arrival: plus(-3), departure: plus(1), upcoming: false }); pass(); // earliest visible trip, one card per traveller
     assert.equal(feed.body.people.filter(p => p.id === pid.trav).length, 1); pass();
     assert.deepEqual(Object.keys(card(feed, 'trav')).sort(), ['badges', 'displayName', 'id', 'intentions', 'visiting']); pass(); // no area, home city or coordinates
     assert.ok(!JSON.stringify(feed.body).match(/latitude|longitude|radius|distance|homeCity|area/i)); pass();
@@ -220,7 +220,8 @@ const plus = (days, zone = 'Australia/Adelaide') => {
     await page.click('[data-travel-link]');
     await page.waitForSelector('[data-visitors=ready]', { timeout: 20000 });
     const tiaRow = page.locator(`[data-visitor="${pid.tia}"]`);
-    assert.match(await tiaRow.innerText(), /Visiting Adelaide, Australia/); pass();
+    assert.match(await tiaRow.innerText(), /Upcoming visit Adelaide, Australia/); pass(); // issue 496: not there yet
+    assert.match(await page.locator(`[data-visitor="${pid.trav}"]`).innerText(), /Visiting Adelaide, Australia/); pass();
     assert.equal(await page.locator('h2#visitors-heading').innerText(), 'Visiting Adelaide'); pass();
     assert.ok((await page.locator('.geonames-credit').first().innerText()).includes('Place data © GeoNames (CC BY 4.0)')); pass();
     if (output) await page.screenshot({ path: output + '/travel-local-390.png', fullPage: true });

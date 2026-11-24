@@ -1535,3 +1535,10 @@ Builds D373 step 3 (**CONFIRMED**, Q140), replacing its ticket-only DEFAULT. Cle
 
 Slice 1 of D401. **CONFIRMED** ([#476](https://github.com/repasscloud/swoovr/issues/476) §1, §11 and the approved split): on Explore cards badges read ID verified, Photo verified, Founding member, Swoovr staff, whatever the configured order is (Q11's configurable order still applies everywhere else). An official bot's only badge is the bot badge, and nothing hides it. Which badges show is still the API's answer (D55); the card only orders them.
 **DEFAULT:** the badges are one button above the card's link. Hover, focus or a tap explains every badge inside the card; Escape, leaving or a second tap dismisses it. The rest of the card still opens the profile. Traveller cards are unchanged.
+
+### D407 — Explore card photo count and travel labels (#496, 25 November 2026)
+
+Slice 3 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §7, §9).
+- **Photo count:** `ProfileCard.photoCount` is the number of different photos this viewer can see on the profile in that mode: approved, not removed, not album-only, within the member's plan limit, the main photo once. It comes from the query the card already makes. The pill shows from two photos, bottom right.
+- **Travel:** a checked-in traveller's card shows "Visiting {city}" over the photo. Without a photo it stays in the detail line.
+- **"Upcoming visit" isn't on Explore cards.** Explore lists only home-market members and travellers already checked in (D352), and showing others would change eligibility. The label is on the Travel page's **Who's visiting** list, which called every traveller "Visiting": before the trip's arrival date in the destination (D137's rule) it now says "Upcoming visit". `VisitView.upcoming` adds nothing the dates didn't already show.

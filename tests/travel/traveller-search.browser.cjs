@@ -152,6 +152,9 @@ const melbourne = (extra = {}) => here({ latitude: -37.8136, longitude: 144.9631
     assert.equal(ids_(r).filter(id => id === pid.tra).length, 1); pass();
     assert.equal(r.body.people.find(p => p.id === pid.tra).visiting, 'Adelaide'); pass();
     assert.ok(!ids_(r).includes(pid.trb)); pass(); // not checked in: the visitors feed only
+    // Issue 496 (D407): the feed says who is visiting and whose trip hasn't started (D137).
+    r = await call(tokens.lou, '/api/travel/visitors?mode=friends');
+    assert.deepEqual(['tra', 'trb'].map(n => r.body.people.find(p => p.id === pid[n])?.visiting.upcoming), [false, true]); pass();
 
     // After arrival: contact under the normal rules (Q41 rule 6), once, not per request.
     r = await search('tra', trips.tra.id);

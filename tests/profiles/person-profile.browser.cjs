@@ -222,6 +222,23 @@ let checks = 0; const pass = () => checks++;
    // Issue 443 (D398): photo and quote cards share one size; the photo is square and fills the card's width.
    const cards = await page.locator('.member-card').evaluateAll(els => els.map(e => { const r = e.getBoundingClientRect(), m = e.querySelector('.mc-media').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), Math.round(m.width - m.height)]; }));
    assert.ok(cards.length > 0 && cards.every(([w, h, square]) => w === cards[0][0] && h === cards[0][1] && Math.abs(square) <= 1), `equal square cards: ${JSON.stringify(cards)}`); pass();
+   // Issue 496 (D407): the photo count is the photos this viewer sees in the mode, the main photo once; shown from two.
+   const explored = (await call(b, '/api/explore?mode=friends')).body.people.find(p => p.id === id), seen = (await call(b, `/api/profiles/${id}?mode=friends`)).body.modes.find(m => m.id === 'friends');
+   assert.equal(explored.photoCount, new Set([...seen.photos.map(p => p.id)]).size); assert.ok(explored.photoCount > 1, String(explored.photoCount)); pass();
+   const countPill = page.locator(`.member-card:has(a[href^="/people/${id}"]) [data-tile-photos]`);
+   assert.equal(await countPill.getAttribute('data-tile-photos'), String(explored.photoCount)); pass();
+   assert.ok(await countPill.evaluate(e => { const p = e.getBoundingClientRect(), m = e.closest('.mc-media').getBoundingClientRect(); return p.right <= m.right && p.bottom <= m.bottom && p.left > m.left + m.width / 2 && p.top > m.top + m.height / 2; }), 'bottom right of the photo'); pass();
+   // A checked-in traveller with a photo: the pill over the photo, inside it, and no second "Visiting" line (the API answer is adjusted here).
+   await page.route(/\/api\/explore\?/, async route => { const answer = await route.fetch(), body = await answer.json(); for (const p of body.people) p.visiting = 'A Very Long Destination City Name Indeed'; await route.fulfill({ response: answer, json: body }); });
+   for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 }); await page.goto(`${web}/explore?mode=friends`);
+    const travel = page.locator('[data-tile-visiting]').first(); await travel.waitFor({ timeout: 20000 });
+    assert.ok(await travel.evaluate(e => { const p = e.getBoundingClientRect(), m = e.closest('.mc-media').getBoundingClientRect(); return p.right <= m.right && p.left >= m.left && p.bottom < m.bottom; }), 'a long city stays inside the photo'); pass();
+    assert.equal(await page.locator('.member-card:has([data-tile-visiting]) [data-tile-detail]').count(), 0); pass();
+    if (output) await page.screenshot({ path: `${output}/explore-overlays-${width}.png` });
+   }
+   await page.unroute(/\/api\/explore\?/); await page.setViewportSize({ width: 1280, height: 900 });
+   await page.goto(`${web}/explore?mode=friends`); await page.waitForSelector('[data-tile-photo]', { timeout: 20000 });
    assert.ok((await page.locator('.member-card .mc-chips').evaluateAll(els => els.map(e => e.children.length))).every(n => n <= 2)); pass();
    if (output) { await page.screenshot({ path: output + '/explore-cards-1280.png' }); await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: output + '/explore-cards-390.png', fullPage: true }); await page.setViewportSize({ width: 1280, height: 900 }); }
    assert.equal((await identity(false)).status, 200);
