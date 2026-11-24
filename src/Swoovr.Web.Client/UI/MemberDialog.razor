@@ -4,13 +4,16 @@
 @if (Open)
 {
     <div class="dialog-backdrop" data-member-dialog="@Kind" @onkeydown="KeyAsync">
+        @* Focus sentinels keep Tab inside the dialog: leaving either end lands back on its close button or heading. *@
+        <span tabindex="0" class="visually-hidden" data-focus-sentinel @onfocus="FocusCloseAsync"></span>
         <section class="card dialog member-dialog" role="dialog" aria-modal="true" aria-labelledby="@($"{Kind}-dialog-heading")">
             <header class="member-dialog-head">
                 <h2 id="@($"{Kind}-dialog-heading")" tabindex="-1" @ref="heading">@Title</h2>
-                <button type="button" class="member-dialog-close" aria-label="Close" @onclick="CloseAsync" data-dialog-close><Icon Name="x" Size="20" /></button>
+                <button type="button" class="member-dialog-close" aria-label="Close" @onclick="CloseAsync" @ref="closeButton" data-dialog-close><Icon Name="x" Size="20" /></button>
             </header>
             @ChildContent
         </section>
+        <span tabindex="0" class="visually-hidden" data-focus-sentinel @onfocus="FocusHeadingAsync"></span>
     </div>
 }
 @code {
@@ -23,7 +26,9 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
     /// <summary>Raise after an action inside re-renders the dialog, so focus doesn't fall out of it (the result is announced by its status line).</summary>
     [Parameter] public int FocusRequest { get; set; }
-    private ElementReference heading;
+    private ElementReference heading, closeButton;
+    private async Task FocusHeadingAsync() { try { await heading.FocusAsync(); } catch (InvalidOperationException) { } }
+    private async Task FocusCloseAsync() { try { await closeButton.FocusAsync(); } catch (InvalidOperationException) { } }
     private bool wasOpen;
     private int focused;
 

@@ -49,6 +49,9 @@ let checks = 0; const pass = () => checks++;
    assert.equal(await page.evaluate(() => document.activeElement?.id), 'connect-dialog-heading'); pass();
    assert.equal(await page.locator('[data-connect-mode=friends]').getAttribute('data-connection'), 'none'); pass();
    if (output) await page.screenshot({ path: `${output}/person-connect-dialog-1280.png` });
+   for (let i = 0; i < 6; i++) { await page.keyboard.press('Tab'); assert.ok(await page.evaluate(() => !!document.activeElement?.closest('[data-member-dialog]')), 'Tab stays in the dialog'); } pass();
+   await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Shift+Tab');
+   assert.ok(await page.evaluate(() => !!document.activeElement?.closest('[data-member-dialog]')), 'Shift+Tab stays in the dialog'); pass();
    await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' });
    assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute('data-open-connect')), true); pass();
 
