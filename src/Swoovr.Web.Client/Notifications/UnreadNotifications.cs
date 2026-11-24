@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Swoovr.Client;
+using Swoovr.Contracts;
 
 namespace Swoovr.Web.Client.Notifications;
 
@@ -17,18 +18,31 @@ public sealed class UnreadNotifications(MemberClient members, NavigationManager 
     private readonly SemaphoreSlim refreshing = new(1, 1);
     private CancellationTokenSource? polling;
     private int watchers;
+    private long requested, applied;
+
+    /// <summary>The newest centre the server has answered with, or null before the first answer.</summary>
+    public NotificationCentre? Centre { get; private set; }
 
     /// <summary>The last known count, or null before the first answer (badges stay hidden until then).</summary>
-    public int? Count { get; private set; }
+    public int? Count => Centre?.Unread;
 
     public event Action? Changed;
 
-    /// <summary>Sets the count from a centre this page already loaded (no extra request).</summary>
-    public void Set(int unread)
+    /// <summary>
+    /// Loads the centre and its count. Answers apply in the order they were asked for: one that started before the answer
+    /// already shown (a poll overlapping a read) is dropped, so it can't put an older count back. A failed read (signed
+    /// out, refused) keeps the last one and returns false.
+    /// </summary>
+    public async Task<bool> LoadAsync(CancellationToken cancellationToken = default)
     {
-        if (Count == unread) return;
-        Count = unread;
-        Changed?.Invoke();
+        var order = ++requested;
+        if ((await members.NotificationsAsync(cancellationToken)).Value is not { } centre) return false;
+        if (order < applied) return true; // a newer answer is already in Centre
+        applied = order;
+        var before = Count;
+        Centre = centre;
+        if (Count != before) Changed?.Invoke();
+        return true;
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
@@ -36,9 +50,7 @@ public sealed class UnreadNotifications(MemberClient members, NavigationManager 
         if (!await refreshing.WaitAsync(0, cancellationToken)) return;
         try
         {
-            var centre = await members.NotificationsAsync(cancellationToken);
-            // A failed read (offline, signed out, refused) keeps the last count rather than flashing it away.
-            if (centre.Value is { } value) Set(value.Unread);
+            await LoadAsync(cancellationToken);
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or TaskCanceledException) { }
         finally { refreshing.Release(); }
