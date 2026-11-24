@@ -67,6 +67,23 @@ static class VerificationChecks
         // Q53 (D158): the document's date of birth is compared with the profile's; only an exact match verifies it.
         Expect(DiditClient.DateOfBirth(Decision("""{"id_verifications":[{"status":"Declined","date_of_birth":"1990-01-01"},{"status":"Approved","date_of_birth":"1991-02-03"}]}""")) == new DateOnly(1991, 2, 3), "date from the approved document");
         Expect(DiditClient.DateOfBirth(Decision("""{"id_verifications":[{"status":"Approved","date_of_birth":"03/02/1991"}]}""")) is null, "only ISO dates");
+        // Issue 440: an approval that arrives without the date (a V2-pinned webhook has a singular id_verification; some
+        // deliveries carry no decision at all) is completed from Didit's own decision before anyone opens a review.
+        var bare = DiditClient.Read(Decision("""{"session_id":"s","status":"Approved","vendor_data":"v","workflow_id":"w"}"""))!;
+        var legacy = DiditClient.Read(Decision("""{"session_id":"s","status":"Approved","vendor_data":"v","workflow_id":"w","decision":{"id_verification":{"status":"Approved","date_of_birth":"1991-02-03"}}}"""))!;
+        Expect(bare.DateOfBirth is null && legacy.DateOfBirth is null, "neither shape carries a date we read");
+        Expect(IdVerificationPolicy.NeedsDecision(bare) && IdVerificationPolicy.NeedsDecision(legacy), "both need the decision read again");
+        Expect(!IdVerificationPolicy.NeedsDecision(bare with { Status = "In Review" }) && !IdVerificationPolicy.NeedsDecision(bare with { DateOfBirth = new DateOnly(1991, 2, 3) }), "only an approval without a date");
+        var full = DiditClient.Read(Decision("""{"session_id":"s","status":"Approved","vendor_data":"v","workflow_id":"w","id_verifications":[{"status":"Approved","age":35,"date_of_birth":"1991-02-03","first_name":"A"}]}"""))!;
+        var completed = IdVerificationPolicy.Complete(bare, full);
+        Expect(completed.DateOfBirth == new DateOnly(1991, 2, 3) && completed.Adult == true && completed.Identity?.FirstName == "A", "completed from the decision");
+        Expect(IdVerificationPolicy.Complete(bare with { Adult = false }, full).Adult == false, "a reported minor is never cleared");
+        Expect(IdVerificationPolicy.Complete(bare, null) == bare, "Didit unavailable: as reported");
+        Expect(IdVerificationPolicy.Complete(bare, full with { SessionId = "t" }) == bare && IdVerificationPolicy.Complete(bare, full with { VendorData = "x" }) == bare
+            && IdVerificationPolicy.Complete(bare, full with { WorkflowId = "x" }) == bare, "another session, member or workflow is ignored");
+        Expect(IdVerificationPolicy.Complete(bare, full with { Status = "Declined" }) == bare, "a decision that is no longer approved is ignored");
+        // Q184 (OPEN): a document check that isn't itself Approved never supplies the date, even in an approved session.
+        Expect(DiditClient.DateOfBirth(Decision("""{"status":"Approved","id_verifications":[{"status":"In Review","date_of_birth":"1991-02-03"}]}""")) is null, "a check still in review doesn't count");
         Expect(IdVerificationPolicy.DateOfBirthMatches(new DateOnly(1991, 2, 3), new DateOnly(1991, 2, 3)), "same date verifies");
         Expect(!IdVerificationPolicy.DateOfBirthMatches(new DateOnly(1991, 2, 3), new DateOnly(1991, 3, 2)), "a different date doesn't");
         Expect(!IdVerificationPolicy.DateOfBirthMatches(null, new DateOnly(1991, 2, 3)) && !IdVerificationPolicy.DateOfBirthMatches(new DateOnly(1991, 2, 3), null), "missing dates don't");

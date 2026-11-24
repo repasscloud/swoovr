@@ -2944,3 +2944,10 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 - Issue: [#478](https://github.com/repasscloud/swoovr/issues/478) (for #476). Status: OPEN. Blocks only #476's online-status part; nothing else waits on it.
 - Swoovr has no presence feature, and /me/notifications promises "Swoovr never shows anyone when you're online, active or have read their message." **183.1** **A (recommended):** no online status; keep the promise. **B:** opt-in "Show when I'm online" (off by default, mutual), change the promise and record the policy change. **C:** opt-out. **183.2** (B or C): **DEFAULT** "online" = active in the last 5 minutes, a dot plus the word "Online", never a last-seen time.
+
+## Date of birth from Didit — [#440](https://github.com/repasscloud/swoovr/issues/440), 25 November 2026
+
+### Q184 — A document check that isn't itself Approved
+
+- Issue: [#488](https://github.com/repasscloud/swoovr/issues/488). Status: OPEN. Blocks only closing #440; D402's fix doesn't wait on it.
+- A session can be approved while its document check keeps another status. **184.1** **A (recommended, today's rule):** the check supplies nothing and a person reviews it, with a label that doesn't say the date is missing. **B:** an approved session counts as approving its document check for the date, adult result and verified name.

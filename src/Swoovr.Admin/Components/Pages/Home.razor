@@ -40,6 +40,7 @@ else
         <li><a href="/cases"><strong data-open-cases>@open</strong> open cases</a></li>
         <li><a href="/cases"><strong data-urgent>@urgent</strong> urgent awaiting acknowledgement</a></li>
         <li><a href="/appeals"><strong data-pending-appeals>@appeals</strong> appeals waiting</a></li>
+        @if (dobReviews is { } dob) { <li><a href="/dob-reviews"><strong data-dob-reviews-waiting="@dob">@dob</strong> date of birth @(dob == 1 ? "review" : "reviews") waiting</a></li> }
     </ul>
 
 }
@@ -104,6 +105,7 @@ else
 @code {
     private bool businessOnly;
     private int open, urgent, appeals, status;
+    private int? dobReviews;
     private string? refused;
     private HoldOverview? holds;
     private PhotoWorkload? photoWorkload;
@@ -117,6 +119,7 @@ else
     {
         var workspace = (await Admin.WorkspaceAsync()).Value;
         root = workspace?.Root == true;
+        dobReviews = workspace?.DobReviewsWaiting;
         businessOnly = workspace is { Business: true, MemberOperations: false, Legal: false, Administration: false };
         if (businessOnly) return;
         // Issue 223: refused (no ticket role, or the helpdesk unavailable) simply doesn't show.

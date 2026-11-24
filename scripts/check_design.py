@@ -180,6 +180,8 @@ badge = dict(re.findall(r'--(unread(?:-text)?):\s*(#[0-9A-Fa-f]{6})', app_css))
 assert set(badge) == {'unread', 'unread-text'}, 'app.css must define --unread and --unread-text once'
 low, high = sorted([luminance(badge['unread-text']), luminance(badge['unread'])])
 assert (high + .05) / (low + .05) >= 4.5, 'unread badge text contrast below 4.5:1'
+admin_badge = dict(re.findall(r'--(unread(?:-text)?):\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text()))
+assert admin_badge == badge, 'admin.css --unread and --unread-text must equal app.css'
 red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', app_css)
 assert len(red) == 2, 'app.css must define --destructive once for light (:root) and once for dark'
 admin_red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text())
@@ -194,7 +196,7 @@ for mode, value in zip(['light', 'dark'], red):
 for path in web_styles:
     text = path.read_text()
     if path.name == 'app.css': text = unread.sub('', destructive.sub('', emergency.sub('', text)))
-    if path.name == 'admin.css': text = destructive.sub('', text)
+    if path.name == 'admin.css': text = unread.sub('', destructive.sub('', text))
     found = stray.search(re.sub(r'/\*.*?\*/', '', text, flags=re.S))
     assert not found, f'Stray colour/shadow/framework style in {path.relative_to(root)}: {found.group(0)}'
 

@@ -9,7 +9,7 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
-const { api, web, sleep, createMember, memberToken, rootAdminToken, cli, sql, call, claims, localEnv, membersRealm, matchReady } = require('../auth/local-tokens.cjs');
+const { api, web, admin, sleep, createMember, createStaff, memberToken, staffToken, fillStaffOtp, rootAdminToken, cli, sql, call, claims, localEnv, membersRealm, matchReady } = require('../auth/local-tokens.cjs');
 
 const ADELAIDE = 2078025;
 // Python's json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=False) for the integer/string/null/object
@@ -350,6 +350,54 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     assert.equal((await call(root,`/api/admin/accounts/${ids.dee}/dob-correction`,{method:'POST',body:{reason:'Fictional stored identity matching'}})).status,200);pass();
     const matched=await call(tokens.dee,'/api/me/age',{method:'PUT',body:{dateOfBirth:'1990-01-01',confirmed:true}});
     assert.equal(matched.status,200);assert.equal(matched.body.dateOfBirthVerified,true);assert.equal(matched.body.dobCheck,'none');pass();
+    // Issue 440 (D402): an approval that arrives without the date of birth is completed from Didit's decision, so a date
+    // that differs gives the member their one correction; with no date anywhere it still goes to a person.
+    if (process.env.SWOOVR_OWNED_DIDIT_URL) {
+      const decided = (session, vendor, checks) => fetch(`${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/decision/${session}`, { method: 'PUT',
+        body: JSON.stringify({ session_id: session, status: 'Approved', vendor_data: vendor, workflow_id: workflow, id_verifications: checks }) });
+      for (const [n, extra] of [['bare', {}], ['legacy', { decision: { id_verification: { status: 'Approved', date_of_birth: '1971-01-01' } } }], ['none', {}]]) {
+        members[n] = await createMember('verify-' + n); await cli('beta', 'add', members[n].email);
+        tokens[n] = await memberToken(browser, members[n]);
+        await call(tokens[n], '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional ' + n, homeCityId: ADELAIDE } });
+        await matchReady(tokens[n]);
+        ids[n] = await sql(`SELECT id FROM accounts WHERE subject = '${claims(tokens[n]).sub}'`);
+        const session = await fakeAttempt(n);
+        if (n !== 'none') await decided(session, ids[n], [{ status: 'Approved', age: 55, date_of_birth: '1971-01-01' }]);
+        assert.equal((await hook(event(session, 'Approved', ids[n], extra))).body.outcome, 'applied'); pass();
+        assert.equal(await sql(`SELECT dob_check FROM member_profiles WHERE account_id = '${ids[n]}'`), n === 'none' ? 'ManualReview' : 'CorrectionNeeded', n); pass();
+        assert.equal(await sql(`SELECT count(*) FROM dob_reviews WHERE account_id = '${ids[n]}'`), n === 'none' ? '1' : '0', n); pass();
+      }
+      // The waiting count reaches admins' navigation and overview, and nobody else.
+      const waiting = Number(await sql('SELECT count(*) FROM dob_reviews WHERE resolved_at IS NULL'));
+      assert.ok(waiting > 0);
+      assert.equal((await call(root, '/api/admin/workspace')).body.dobReviewsWaiting, waiting); pass();
+      const people = {};
+      for (const role of ['admin', 'support']) {
+        people[role] = await createStaff('dob-' + role);
+        assert.equal((await call(root, '/api/admin/invitations', { method: 'POST', body: { email: people[role].email, role } })).status, 201);
+        people[role].token = await staffToken(browser, people[role]); await call(people[role].token, '/api/session');
+      }
+      assert.equal((await call(people.support.token, '/api/admin/workspace')).body.dobReviewsWaiting ?? null, null); pass();
+      for (const role of ['admin', 'support']) {
+        const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage();
+        await page.goto(admin + '/');
+        await page.fill('#username', people[role].email); await page.fill('#password', people[role].password); await page.click('#kc-login');
+        await fillStaffOtp(page, people[role]);
+        await page.waitForSelector('[data-dashboard]', { timeout: 20000 });
+        assert.equal(await page.locator('.admin-sidebar [data-nav-dob-count]').first().getAttribute('data-nav-dob-count', { timeout: 2000 }).catch(() => null), role === 'admin' ? String(waiting) : null, role); pass();
+        assert.equal(await page.locator('[data-dob-reviews-waiting]').count(), role === 'admin' ? 1 : 0, role); pass();
+        if (output) await page.screenshot({ path: `${output}/admin-overview-${role}-1280.png` });
+        if (role === 'admin') {
+          await page.setViewportSize({ width: 390, height: 844 }); await page.reload(); await page.waitForSelector('[data-dashboard]');
+          if (output) await page.screenshot({ path: output + '/admin-overview-admin-390.png' });
+          await sql(`UPDATE dob_reviews SET resolved_at = now() WHERE resolved_at IS NULL`);
+          await page.goto(admin + '/');
+          await page.waitForSelector('[data-dob-reviews-waiting="0"]'); pass();
+          assert.equal(await page.locator('[data-nav-dob-count]').count(), 0, 'hidden at 0'); pass();
+        }
+        await context.close();
+      }
+    }
     console.log(`PASS: ${process.env.SWOOVR_OWNED_DIDIT_SIMULATED==='1'?'synthetic local Didit adapter (no live provider acceptance)':'Didit ID verification'} acceptance, ${passed} checks (test-mode label, ${process.env.SWOOVR_OWNED_DIDIT_SIMULATED==='1'?'mocked session creation bound to the account':'real Didit session creation bound to the account'}, one open session, configured return address only, webhook signature before timestamp before dedupe, forged/unsigned/simple-only/tampered/stale/oversized/replayed deliveries, wrong vendor_data, workflow and unknown sessions, forward-only states, re-read on return, outcome-only storage, one self-service attempt, unused sessions returned, under-18 lock, admin allow-again/revoke audited, age-assurance gate everywhere and across a re-registration, adult override, bots refused, founder job order/limit/no second place, BFF allow-list, web start/return/refresh in Edge).`);
   } finally {
     await browser.close();

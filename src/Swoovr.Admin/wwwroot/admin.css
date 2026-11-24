@@ -4,6 +4,9 @@
    must stand out, such as "ID Verified: No". At least 4.5:1 in every scheme (check_design.py). */
 :root {
   --destructive: #B0102A;
+  /* Issue 440: the same unread red and white as the member app (D397) for a waiting count in the navigation. */
+  --unread: #C8102E;
+  --unread-text: #FFFFFF;
 }
 :root[data-theme="dark"] {
   --destructive: #FF9494;
@@ -62,6 +65,7 @@ fieldset { border: 1px solid var(--border); border-radius: 8px; }
 .nav-group { margin: 0 0 22px; }
 .nav-heading { margin: 0 12px 7px; color: var(--muted); font-size: .6875rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .nav-link { display: flex; align-items: center; gap: 12px; padding: 9px 12px; min-height: 40px; border-radius: 7px; text-decoration: none; font-size: .8125rem; font-weight: 500; border-left: 3px solid transparent; }
+.nav-count { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: auto; border-radius: 999px; background: var(--unread); color: var(--unread-text); font: 700 .6875rem/1 var(--font); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .nav-link:hover { background: var(--soft); }
 .nav-link.active { background: var(--soft); color: var(--text); border-left-color: var(--primary); font-weight: 700; }
 svg { width: 19px; height: 19px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -887,6 +891,9 @@ a.ad-stat:hover { border-color: color-mix(in srgb, var(--muted) 55%, var(--borde
 }
 
 /* Image processing status on the Overview (Support and Admin). */
+/* Issue 440: admins have four tiles in the first row; everyone else keeps three. */
+.tiles[data-dashboard]:has(> li:nth-child(4)) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .tiles[data-dashboard]:has(> li:nth-child(4)) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .image-processing .tiles { margin: 16px 0; }
 .image-processing-services { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; margin: 16px 0 0; }
 .image-processing-services div { background: var(--soft); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
