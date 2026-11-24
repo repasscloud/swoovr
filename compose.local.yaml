@@ -109,6 +109,8 @@ services:
       Didit__ApiKey: ${SWOOVR_DIDIT_API_KEY:-}
       Didit__WorkflowId: ${SWOOVR_DIDIT_WORKFLOW_ID:-}
       Didit__WebhookSecret: ${SWOOVR_DIDIT_WEBHOOK_SECRET:-}
+      # Issue 438: where Didit returns the member (UAT sets its own address in deploy/vultr-uat/compose.yaml).
+      Didit__Callbacks__Web: http://localhost:5081/me/verification/return
       Media__Local__Path: /app/.local/media
       Media__Screening__BaseUrl: http://127.0.0.1:8080
       Media__Screening__RequireKnownContentCheck: "false"

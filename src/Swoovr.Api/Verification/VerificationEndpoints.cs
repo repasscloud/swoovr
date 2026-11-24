@@ -22,6 +22,17 @@ public static class VerificationEndpoints
     /// <summary>Webhook bodies above this are refused unread (DEFAULT; Didit decisions are a few kilobytes).</summary>
     public const int MaxWebhookBytes = 1024 * 1024;
 
+    /// <summary>
+    /// The configured return address for a client kind, or null when the web one isn't configured (issue 438). The app
+    /// keeps its fixed custom-scheme default because it can only ever open the installed app.
+    /// </summary>
+    public static string? WebCallback(string client, IConfiguration configuration) => client switch
+    {
+        "web" => string.IsNullOrWhiteSpace(configuration["Didit:Callbacks:Web"]) ? null : configuration["Didit:Callbacks:Web"],
+        "app" => string.IsNullOrWhiteSpace(configuration["Didit:Callbacks:App"]) ? "com.swoovr.app:/verification" : configuration["Didit:Callbacks:App"],
+        _ => null,
+    };
+
     public static void Map(WebApplication app)
     {
         var me = app.MapGroup("/api/me/verification").RequireAuthorization();
@@ -48,13 +59,12 @@ public static class VerificationEndpoints
             if (!provider.Configured)
                 return Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.VerificationNotConfigured, "ID verification isn't available right now.");
             // The return address comes from configuration by client kind, never from the request (no open redirect).
-            var callback = request.Client switch
-            {
-                "web" => configuration["Didit:Callbacks:Web"] ?? "http://localhost:5081/me/verification/return",
-                "app" => configuration["Didit:Callbacks:App"] ?? "com.swoovr.app:/verification",
-                _ => null,
-            };
-            if (callback is null) return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Unknown client.");
+            // Issue 438: the web return page has no built-in default. A missing value used to send UAT members back to
+            // localhost; hosted APIs now refuse to start without it (HostingPolicy) and this never guesses one.
+            if (request.Client is not ("web" or "app")) return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Unknown client.");
+            var callback = WebCallback(request.Client, configuration);
+            if (callback is null)
+                return Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.VerificationNotConfigured, "ID verification isn't available right now.");
             var attempts = await db.IdVerificationAttempts.Where(a => a.AccountId == profile.AccountId).ToListAsync(cancellationToken);
             switch (IdVerificationPolicy.CanStart(profile, attempts))
             {
