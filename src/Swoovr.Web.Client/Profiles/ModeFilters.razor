@@ -130,9 +130,14 @@ else
     {
         if (busy) return;
         busy = true;
-        var result = await Members.SaveFiltersAsync(modeId, new FilterUpdate(minAge, maxAge, required.ToList(), match, excluded.ToList(), idVerifiedOnly, visitors, distance, sort));
+        // Codex (PR 465): the member may switch modes while this saves. The save belongs to the mode it was made in:
+        // it clears that mode's draft, and changes this form (values, status, busy) only if that mode is still loaded.
+        var savedMode = modeId; var generation = loading;
+        var result = await Members.SaveFiltersAsync(savedMode, new FilterUpdate(minAge, maxAge, required.ToList(), match, excluded.ToList(), idVerifiedOnly, visitors, distance, sort));
+        if (result.Ok) drafts.Remove(savedMode);
+        if (savedMode != modeId || generation != loading) return;
         busy = false;
-        if (result.Ok && result.Value is { } saved) { filter = saved; drafts.Remove(modeId); await Saved.InvokeAsync(saved); }
+        if (result.Ok && result.Value is { } saved) { filter = saved; await Saved.InvokeAsync(saved); }
         (filterStatus, filterMessage) = result.Ok ? ("saved", "Filters saved.") : (result.Code ?? "failed", result.Code == ProblemCodes.PlusRequired
             ? "That filter is part of Plus." : "Check the filters: ages 18–120, up to 5 must-haves and 10 not-for-me, never the same intention in both.");
     }}

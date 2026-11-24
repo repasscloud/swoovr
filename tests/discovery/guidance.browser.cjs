@@ -79,6 +79,21 @@ const { web, createMember, memberToken, cli, call, matchReady } = require('../au
     assert.equal(await page.locator('[data-filter-form]').getAttribute('data-filter-form'), 'business'); checks++;
     assert.equal(await page.inputValue('#min-age'), '40', 'Business keeps its own filters, not the late Friends ones'); checks++;
     await page.unroute('**/api/me/modes/friends/filters');
+    // Codex (PR 465): a Dating save that finishes after the member switched to Friends never changes the Friends form.
+    await page.check('[data-filter-mode=dating]'); await page.waitForSelector('[data-filter-form=dating]');
+    await page.selectOption('#min-age', '25');
+    await page.route('**/api/me/modes/dating/filters', async route => { if (route.request().method() === 'PUT') await new Promise(r => setTimeout(r, 1500)); await route.continue(); });
+    await page.click('[data-filter-form=dating] button[type=submit]');
+    await page.check('[data-filter-mode=friends]'); await page.waitForSelector('[data-filter-form=friends]');
+    await page.waitForTimeout(2500); // the slow Dating save has finished by now
+    assert.equal(await page.locator('[data-filter-form]').getAttribute('data-filter-form'), 'friends'); checks++;
+    assert.equal(await page.inputValue('#min-age'), '30', 'Friends keeps its own values after the late Dating save'); checks++;
+    assert.notEqual(await page.locator('[data-filter-form] .rd-status').getAttribute('data-filter-status'), 'saved', 'no Dating status on the Friends form'); checks++;
+    assert.equal(await page.locator('[data-filter-form] fieldset').first().isDisabled(), false, 'the Friends form is usable'); checks++;
+    await page.unroute('**/api/me/modes/dating/filters');
+    await page.check('[data-filter-mode=dating]'); await page.waitForSelector('[data-filter-form=dating]');
+    assert.equal(await page.inputValue('#min-age'), '25', 'the Dating save went through'); checks++;
+    assert.notEqual(await page.locator('[data-filter-form] .rd-status').getAttribute('data-filter-status'), 'draft', 'no stale Dating draft after it saved'); checks++;
     console.log(`PASS discovery guidance: ${checks} synthetic projection checks; no activity/density/provider claims.`);
   } finally { await edge.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
