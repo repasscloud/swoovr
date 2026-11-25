@@ -34,6 +34,18 @@ public static class AccountText
         "founder" => "founding", "photoVerified" => "photo", "idVerified" => "id", "staff" => "staff", _ => "bot",
     };
 
+    /// <summary>Issue 494 (D406): Explore cards show badges in this order whatever the configured order is; a bot's only badge is the bot badge.</summary>
+    private static readonly string[] CardOrder = ["idVerified", "photoVerified", "founder", "staff", "bot"];
+    public static IReadOnlyList<Swoovr.Contracts.BadgeView> CardBadges(IReadOnlyList<Swoovr.Contracts.BadgeView> badges) =>
+        badges.OrderBy(b => Array.IndexOf(CardOrder, b.Badge) is >= 0 and var i ? i : CardOrder.Length).ToList();
+
+    /// <summary>What a badge means, for the explanation on a card.</summary>
+    public static string BadgeMeaning(string badge) => badge switch
+    {
+        "idVerified" => "Their ID document was checked.", "photoVerified" => "Their profile photos were checked against them.",
+        "founder" => "One of Swoovr's founding members.", "staff" => "Works at Swoovr.", _ => "An official Swoovr bot, not a person.",
+    };
+
     public static string BadgeLabel(string badge) => badge switch
     {
         "founder" => "Swoovr Founder", "photoVerified" => "Photo verified", "idVerified" => "ID verified",

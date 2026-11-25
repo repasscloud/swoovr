@@ -1530,3 +1530,8 @@ From [#443](https://github.com/repasscloud/swoovr/issues/443) (owner's brief); b
 ### D405 — Staff MFA resets record how identity was verified (#374, 25 November 2026)
 
 Builds D373 step 3 (**CONFIRMED**, Q140), replacing its ticket-only DEFAULT. Clearing a **staff** member's MFA needs one of two methods: *live video call + trusted channel* or *live video call + staff records*. A video call alone isn't offered, and the API refuses a staff reset without a method. The method is stored in both reset audit events next to the case reference; no identity documents are collected. The staff account's Activity list now includes MFA resets, with the method. **DEFAULT:** member resets are unchanged and record no method, because D373 is for staff only.
+
+### D406 — Explore card badges: a fixed order and an explanation (#494, 25 November 2026)
+
+Slice 1 of D401. **CONFIRMED** ([#476](https://github.com/repasscloud/swoovr/issues/476) §1, §11 and the approved split): on Explore cards badges read ID verified, Photo verified, Founding member, Swoovr staff, whatever the configured order is (Q11's configurable order still applies everywhere else). An official bot's only badge is the bot badge, and nothing hides it. Which badges show is still the API's answer (D55); the card only orders them.
+**DEFAULT:** the badges are one button above the card's link. Hover, focus or a tap explains every badge inside the card; Escape, leaving or a second tap dismisses it. The rest of the card still opens the profile. Traveller cards are unchanged.

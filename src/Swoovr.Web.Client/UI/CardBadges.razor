@@ -1,0 +1,21 @@
+@* Issue 494 (D406): the badges on an Explore card, in a fixed order, with an explanation on hover, focus or tap. The button sits
+   above the card's link, so it explains the badges and everything else on the card opens the profile. *@
+@if (shown.Count > 0)
+{
+    <button type="button" class="mc-badges" aria-expanded="@(open ? "true" : "false")" aria-describedby="@tip" aria-label="@("Badges: " + string.Join(", ", shown.Select(b => BadgeArtwork.Label(AccountText.BadgeKind(b.Badge)))))"
+            data-card-badges="@string.Join(" ", shown.Select(b => b.Badge))" @onclick="() => (open, dismissed) = (!open, open)" @onblur="Reset" @onmouseenter="() => dismissed = false" @onkeydown="Key">
+        @foreach (var badge in shown) { <Badge Kind="@AccountText.BadgeKind(badge.Badge)" /> }
+    </button>
+    <span class="mc-badge-tip@(open ? " is-open" : dismissed ? " is-dismissed" : "")" role="tooltip" id="@tip">
+        @foreach (var badge in shown) { <span><strong>@BadgeArtwork.Label(AccountText.BadgeKind(badge.Badge))</strong> @AccountText.BadgeMeaning(badge.Badge)</span> }
+    </span>
+}
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BadgeView> Badges { get; set; } = [];
+    private readonly string tip = "badges-" + Guid.NewGuid().ToString("N")[..8];
+    private IReadOnlyList<BadgeView> shown = [];
+    private bool open, dismissed;
+    protected override void OnParametersSet() => shown = AccountText.CardBadges(Badges);
+    private void Reset() => (open, dismissed) = (false, false);
+    private void Key(KeyboardEventArgs e) { if (e.Key == "Escape") (open, dismissed) = (false, true); }
+}
