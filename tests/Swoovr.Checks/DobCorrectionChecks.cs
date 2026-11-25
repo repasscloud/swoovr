@@ -23,6 +23,14 @@ static class DobCorrectionChecks
         Expect(DobCorrectionPolicy.OrdinaryChangeAllowed(DobCheck.None), "the ordinary form works with nothing open");
         Expect(!DobCorrectionPolicy.OrdinaryChangeAllowed(DobCheck.CorrectionNeeded) && !DobCorrectionPolicy.OrdinaryChangeAllowed(DobCheck.ManualReview),
             "the prompt is the only way while a correction or review is open");
+        // Issue 455 (D404): escalations hold no dates, and only another admin resolves one.
+        foreach (var date in new[] { "born 3/2/1991", "1991-02-03", "3 February 1991", "Feb 3rd, 1991", "ID says 03.02.91" }) Expect(EscalationPolicy.Text(date) is null, "refused: " + date);
+        Expect(EscalationPolicy.Text("  Passport looks altered, please check  ") == "Passport looks altered, please check" && EscalationPolicy.Text(" ") is null && EscalationPolicy.Text(new string('a', 1001)) is null && EscalationPolicy.Text("See SW-123456, 2 of 4") is not null, "a plain reason");
+        var (raiser, otherAdmin) = (Guid.NewGuid(), Guid.NewGuid());
+        var raised = new AccountEscalation { CreatedBy = raiser };
+        Expect(EscalationPolicy.MayResolve(raised, otherAdmin, true) && !EscalationPolicy.MayResolve(raised, raiser, true) && !EscalationPolicy.MayResolve(raised, otherAdmin, false), "another admin only");
+        Expect(!EscalationPolicy.MayResolve(new AccountEscalation { CreatedBy = raiser, ResolvedAt = DateTimeOffset.UtcNow }, otherAdmin, true), "once");
+        Expect(!typeof(AccountEscalation).GetProperties().Any(p => p.PropertyType == typeof(DateOnly) || p.PropertyType == typeof(DateOnly?)), "an escalation stores no date of birth");
         Expect(Enum.GetValues<DobCheck>().Length == 3 && Enum.GetValues<DobReviewOutcome>().Length == 2, "three states, two review outcomes");
         // Nothing about the document's date is held: the review has no date fields.
         Expect(!typeof(DobReview).GetProperties().Any(p => p.PropertyType == typeof(DateOnly) || p.PropertyType == typeof(DateOnly?)), "a review stores no date of birth");

@@ -1515,3 +1515,14 @@ From [#443](https://github.com/repasscloud/swoovr/issues/443) (owner's brief); b
 - **States:** "Didit can't be reached right now", and "No longer available from Didit" when Didit answers 404 (30-day retention). A session that isn't the account's is never shown. The read is limited to 6 seconds, inside the admin app's 10, and the panel shows the first state if the API itself doesn't answer (PR 490 review).
 - **DEFAULT:** Support doesn't get it, because only Admin can open the date of birth queue.
 - Also fixed: an entry in Didit's `id_verifications` that isn't an object made the parser throw, which would have failed the webhook.
+
+### D404 — Staff escalate an account or date of birth case to an admin (#455, 25 November 2026)
+
+**CONFIRMED** by the owner ([#441](https://github.com/repasscloud/swoovr/issues/441), 24 November 2026): support staff can escalate for an admin's review instead of deciding; internal, never shown to the member, no dates or document data, admin-only resolution, both audited.
+
+**DEFAULT** (builder):
+- **Model:** its own table, `account_escalations` (account, the open date of birth review if there is one, reason, who and when, resolution), deleted with the account. Not a helpdesk ticket: it has to work while the helpdesk is down and can never reach the member. Not a moderation case: those start from a report and lead to sanctions and appeals.
+- **Raise:** Support and above, from the account page (an open date of birth review is escalated with it), and Admin from the date of birth dialog, because only Admin can open that queue. One open escalation per account. A review opened after the escalation isn't attached to it.
+- **Resolve:** an admin who didn't raise it, on the new **Escalations** page, or by deciding the escalated review (which closes both). **CONFIRMED** (owner, PR #491, 25 November 2026): an admin who escalated a review can't decide it; another admin does. The root account is a backup for managing staff accounts and root-only work, so it isn't part of the normal route.
+- **Where it shows:** `/dob-reviews` (pill and filter), the review dialog (who, when, why), the account page, and a red count on **Escalations** in the Admin menu. Full dates in either text are refused by the API. Staff with a conflict of interest can't see, raise or resolve one, and can't decide any date of birth review about that member (PR 491 review).
+- The migration adds the table only.

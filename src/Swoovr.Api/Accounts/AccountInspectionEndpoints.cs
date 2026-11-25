@@ -14,7 +14,7 @@ public static class AccountInspectionEndpoints
 {
     public static readonly string[] HistoryActions=["age.updated","profile.updated","home-market.override","staff.affiliated","staff.revoked","moderation.warn","moderation.restrict","moderation.suspend","moderation.terminate","entitlement.granted","dob.correction-granted","dob.correction-revoked","dob.correction-used",
         // #190 (D323): account detail actions.
-        "entitlement.revoked","profile-dob.opened","didit-decision.opened","account.locked","account.unlocked","sessions.revoked",
+        "entitlement.revoked","profile-dob.opened","didit-decision.opened","account.escalated","account.escalation-resolved","account.locked","account.unlocked","sessions.revoked",
         "verification.photoVerified.applied","verification.photoVerified.revoked","verification.idVerified.applied","verification.idVerified.revoked",
         // Issue 454: a support request staff opened for the member.
         "helpdesk.ticket.created"];

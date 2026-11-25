@@ -27,4 +27,4 @@ public sealed record StaffRevokeResult(int RolesRemoved, int GrantsRevoked, bool
 
 /// <summary>Live application permissions for the current staff workspace. No provider roles or credentials.</summary>
 /// <summary><c>AccountId</c> is the signed-in staff account, so Admin can link to "your staff account" (#347).</summary>
-public sealed record StaffWorkspace(bool Business, bool MemberOperations, bool Administration, bool Legal, bool Root, Guid? AccountId = null, int? DobReviewsWaiting = null);
+public sealed record StaffWorkspace(bool Business, bool MemberOperations, bool Administration, bool Legal, bool Root, Guid? AccountId = null, int? DobReviewsWaiting = null, int? EscalationsWaiting = null);

@@ -107,7 +107,14 @@ public sealed record VerifiedIdentityView(Guid AccountId, string? FirstName, str
 
 /// <summary>D166: a manual date-of-birth review in the admin queue. Never either date: the admin reads the document's in Didit's console.</summary>
 public sealed record DobReviewView(Guid Id, Guid AccountId, string? DisplayName, string Reason, DateTimeOffset CreatedAt, DateTimeOffset? ResolvedAt, string? Outcome,
-    string? FirstName = null, string? LastName = null, string? DiditSessionId = null, string? ResolutionNote = null, string? ResolvedByName = null);
+    string? FirstName = null, string? LastName = null, string? DiditSessionId = null, string? ResolutionNote = null, string? ResolvedByName = null, EscalationView? Escalation = null);
+/// <summary>Issue 455 (D404): internal, never shown to the member. CanResolve: an admin who didn't raise it.</summary>
+public sealed record EscalationView(Guid Id, Guid AccountId, string? DisplayName, Guid? DobReviewId, string Reason, string RaisedBy, DateTimeOffset CreatedAt,
+    string? ResolvedBy = null, DateTimeOffset? ResolvedAt = null, string? ResolutionNote = null, bool CanResolve = false);
+public sealed record EscalationRequest(string? Reason);
+public sealed record EscalationResolution(string? Note);
+/// <summary>The account's open escalation, or none.</summary>
+public sealed record EscalationState(EscalationView? Open);
 /// <summary>Issue 456 (D403): Admin with live "didit-decision-open" access and a recorded purpose. ReviewId picks that review's session; otherwise the newest.</summary>
 public sealed record DiditDecisionRequest(string? Purpose, Guid? ReviewId = null);
 /// <summary>Result: available, gone (Didit no longer has it) or unavailable. Read live and never stored.</summary>

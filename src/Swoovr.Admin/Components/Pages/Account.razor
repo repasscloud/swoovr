@@ -43,6 +43,7 @@ else
                 if (createTicketBlocked is null) { <a class="ui-button-ghost" href="/tickets/new?account=@account.Id" data-create-ticket>@SupportTicketText.CreateTicketLabel</a> }
                 else { <span class="ui-button-ghost" aria-disabled="true" aria-describedby="create-ticket-why" data-create-ticket="unavailable">@SupportTicketText.CreateTicketLabel</span><small id="create-ticket-why" class="ui-sub" data-create-ticket-reason>@createTicketBlocked</small> }
             }
+            @if (account.Realm == "members" && escalation is { Open: null }) { <button type="button" class="ui-button-ghost" data-dialog-open="escalate" data-escalate>Escalate to admin</button> }
             <a class="ui-button-primary" href="/accounts/@account.Id/enforcement" data-take-action>Take action</a>
         </div>
     </header>
@@ -54,6 +55,10 @@ else
             <a class="ad-stat" href="/accounts/@Id/membership" data-strip="membership"><span>Membership</span><b>@AccountLabels.Plan(account.Plan)</b><small>@PlanDetail()</small></a>
             <a class="ad-stat" href="/accounts/@Id/enforcement" data-strip="enforcement"><span>Enforcement</span><b>@(activeSanction is null ? "No active sanction" : AccountLabels.Sanction(activeSanction.Kind))</b><small>@account.Sanctions.Count on record · @account.OpenCases open case@(account.OpenCases == 1 ? "" : "s")</small></a>
         </div>
+    }
+    @if (escalation?.Open is { } raised)
+    {
+        <p class="notice" data-escalated="@raised.Id"><strong>Escalated to admin</strong> by @raised.RaisedBy, @raised.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC: @raised.Reason @if (permissions?.Verify == true) { <a class="notice-link" href="/escalations">Open escalations</a> }</p>
     }
     @if (message is not null) { <p class="notice@(reauth ? " notice-action" : "")" role="status" data-result="@resultCode"><span>@message</span>@if (reauth) { <a href="@ReauthHref()" class="ui-button-primary notice-button" data-enhance-nav="false" data-reauth>Sign in again</a> }</p> }
     <nav class="ad-tabs" aria-label="Account sections">
@@ -76,8 +81,23 @@ else
             case "audit": <AccountAudit AccountId="Id" />; break;
         }
     </section>
+    @if (account.Realm == "members" && escalation is { Open: null })
+    {
+        <ConfirmDialog Id="escalate" FormName="escalate" Title="Escalate to admin" Confirm="Escalate" OnSubmit="EscalateAsync">
+            <NoteField Name="escalationReason" Label="Reason" Required="true" />
+            <p class="ui-help">Only staff see this. Leave out dates and document details. An open date of birth review is escalated with it.</p>
+        </ConfirmDialog>
+    }
 }
 @code {
+    private EscalationState? escalation;
+    private async Task EscalateAsync()
+    {
+        var result = await Admin.EscalateAsync(Id, Context?.Request.Form["escalationReason"].ToString() ?? "");
+        await ReloadAsync();
+        Report((result.Status, result.Code, "Escalated to admin."));
+        if (result.Status == 400) message = "Write a reason without dates or document details.";
+    }
     [Parameter] public Guid Id { get; set; }
     [Parameter] public string? Section { get; set; }
     private string Current => (Section ?? "overview").ToLowerInvariant();
@@ -111,6 +131,7 @@ else
         contact = (await Admin.AccountContactAsync(Id)).Value;
         if (account!.Realm == "members")
         {
+            escalation = (await Admin.EscalationAsync(Id)).Value;
             registeredName = (await Admin.RegisteredNamesAsync(Id)).Value;
             verification = (await Admin.VerificationStateAsync(Id)).Value;
             locks = (await Admin.AccountLocksAsync(Id)).Value ?? [];
