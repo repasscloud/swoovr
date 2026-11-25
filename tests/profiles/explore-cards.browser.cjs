@@ -1,4 +1,5 @@
-// Issue 476 (D401): what an Explore card says about the person: where the viewer stands with them in this mode (issue 497).
+// Issue 476 (D401): what an Explore card says about the person: where the viewer stands with them in this mode (issue 497)
+// and whether they are a new member (issue 498).
 // Owned local stack; fictional adults.
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
@@ -35,6 +36,19 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.equal((await explore('non', 'friends')).filter(p => p.connection).length, 0, "never other people's connections"); pass();
     assert.deepEqual(await order('friends'), before, 'the order does not change'); pass();
 
+    // New members: for 14 days by default, then it ends on its own; the order never changes.
+    assert.ok((await explore('viv', 'friends')).every(p => p.newMember === true)); pass();
+    const listed = await order('friends');
+    await sql(`UPDATE accounts SET created_at = now() - interval '14 days 1 minute' WHERE id = '${ids.out}'`);
+    await sql(`UPDATE accounts SET created_at = now() - interval '13 days 23 hours' WHERE id = '${ids.inn}'`);
+    const isNew = async n => (await explore('viv', 'friends')).find(p => p.id === pid[n]).newMember;
+    assert.deepEqual([await isNew('out'), await isNew('inn')], [false, true]); pass();
+    assert.deepEqual(await order('friends'), listed); pass();
+    await sql(`UPDATE member_profiles SET bot = true WHERE account_id = '${ids.non}'`);
+    const bot = (await explore('viv', 'friends')).find(p => p.id === pid.non);
+    assert.ok(!bot || bot.newMember === false, 'never for bots'); pass();
+    await sql(`UPDATE member_profiles SET bot = false WHERE account_id = '${ids.non}'`);
+
     const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
     await page.goto(web + '/account/sign-in?intro=done');
     await page.fill('#username', members.viv.email); await page.fill('#password', members.viv.password);
@@ -44,7 +58,7 @@ const output = process.env.SWOOVR_SCREENSHOTS;
       await page.goto(web + '/explore?mode=friends');
       await page.waitForSelector(`.member-card:has(a[href^="/people/${pid.con}"])`, { timeout: 20000 });
       const status = n => page.locator(`.member-card:has(a[href^="/people/${pid[n]}"]) [data-tile-status]`);
-      assert.deepEqual([await status('con').textContent(), await status('out').textContent(), await status('inn').textContent(), await status('non').count()], ['Connected', 'Request sent', 'Request received', 0]); pass();
+      assert.deepEqual([await status('con').textContent(), await status('out').textContent(), await status('inn').textContent(), await status('non').textContent()], ['Connected', 'Request sent', 'Request received', 'New member']); pass();
       const sizes = await page.locator('.member-card').evaluateAll(els => [...new Set(els.map(e => { const r = e.getBoundingClientRect(); return Math.round(r.width) + 'x' + Math.round(r.height); }))]);
       assert.equal(sizes.length, 1, 'one card size: ' + sizes); pass();
       assert.equal(await page.locator('.member-card button:not([data-card-badges])').count(), 0, 'no action buttons on cards'); pass();

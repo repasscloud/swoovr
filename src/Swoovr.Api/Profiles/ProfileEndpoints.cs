@@ -437,6 +437,9 @@ public static class ProfileEndpoints
                 && (r.FromAccountId == me && shownIds.Contains(r.ToAccountId) || r.ToAccountId == me && shownIds.Contains(r.FromAccountId))).ToListAsync(cancellationToken))
             .GroupBy(r => r.FromAccountId == me ? r.ToAccountId : r.FromAccountId)
             .ToDictionary(g => g.Key, g => ConnectionState(g.OrderByDescending(r => r.Status == ConnectionRequestStatus.Accepted).First(), me));
+        // Issue 498: informational only, after the order is settled; never for official bots.
+        var newFrom = NewMemberPolicy.From(configuration.GetValue("Explore:NewMemberDays", NewMemberPolicy.DefaultDays), now);
+        var recent = newFrom is { } from ? (await db.Accounts.Where(a => shownIds.Contains(a.Id) && a.CreatedAt > from).Select(a => a.Id).ToListAsync(cancellationToken)).ToHashSet() : [];
         return shown.Select(c =>
         {
             var shownAs = Public(identities.GetValueOrDefault(c.Profile.AccountId), facts[c.Profile.AccountId].Age, genders);
@@ -450,7 +453,7 @@ public static class ProfileEndpoints
                 photos.Main?.GetValueOrDefault((c.Profile.AccountId, selected.Id)) is null ? c.Profile.PictureText : null,
                 // Issue 496: the photos others see in this mode, each once (the main photo included).
                 photos.Modes?.GetValueOrDefault((c.Profile.AccountId, selected.Id))?.Select(p => p.Id).Distinct().Count() ?? 0,
-                standing.GetValueOrDefault(c.Profile.AccountId));
+                standing.GetValueOrDefault(c.Profile.AccountId), !c.Profile.Bot && recent.Contains(c.Profile.AccountId));
         }).ToList();
     }
 

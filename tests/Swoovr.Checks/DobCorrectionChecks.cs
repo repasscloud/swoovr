@@ -23,6 +23,9 @@ static class DobCorrectionChecks
         Expect(DobCorrectionPolicy.OrdinaryChangeAllowed(DobCheck.None), "the ordinary form works with nothing open");
         Expect(!DobCorrectionPolicy.OrdinaryChangeAllowed(DobCheck.CorrectionNeeded) && !DobCorrectionPolicy.OrdinaryChangeAllowed(DobCheck.ManualReview),
             "the prompt is the only way while a correction or review is open");
+        // Issue 498 (D409): the new member window.
+        var clock = new DateTimeOffset(2026, 11, 25, 0, 0, 0, TimeSpan.Zero);
+        Expect(NewMemberPolicy.From(14, clock) == clock.AddDays(-14) && NewMemberPolicy.From(0, clock) is null && NewMemberPolicy.From(-1, clock) is null && NewMemberPolicy.From(int.MaxValue, clock) == clock.AddDays(-90), "new member window: configurable, off at 0, at most 90 days");
         // Issue 455 (D404): escalations hold no dates, and only another admin resolves one.
         foreach (var date in new[] { "born 3/2/1991", "1991-02-03", "3 February 1991", "Feb 3rd, 1991", "ID says 03.02.91" }) Expect(EscalationPolicy.Text(date) is null, "refused: " + date);
         Expect(EscalationPolicy.Text("  Passport looks altered, please check  ") == "Passport looks altered, please check" && EscalationPolicy.Text(" ") is null && EscalationPolicy.Text(new string('a', 1001)) is null && EscalationPolicy.Text("See SW-123456, 2 of 4") is not null, "a plain reason");
