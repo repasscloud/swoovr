@@ -142,7 +142,7 @@ public static class VerificationEndpoints
             (profile.DobCheck, profile.DobCheckAt) = (result == DobCorrectionResult.Verified ? DobCheck.None : DobCheck.ManualReview, now);
             Audit.Record(db, now, profile.AccountId, "account", result == DobCorrectionResult.Verified ? "dob.verified" : "dob.review-opened", "account",
                 profile.AccountId.ToString(), "correction");
-            if (result == DobCorrectionResult.ManualReview) await OpenReviewAsync(db, profile.AccountId, attempt.Id, "still-different", now, cancellationToken);
+            if (result == DobCorrectionResult.ManualReview) await OpenReviewAsync(db, profile.AccountId, attempt.Id, DobCorrectionPolicy.CorrectionReason(decision), now, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             if(age.LocksAccount)return Problem(403,ProblemCodes.AccountLocked,"This account is locked.");
@@ -465,8 +465,8 @@ public static class VerificationEndpoints
             (profile.DateOfBirthVerified, profile.DateOfBirthVerifiedAt) = (check == DobCheck.None, check == DobCheck.None ? now : null);
             (profile.DobCheck, profile.DobCheckAt) = (check, check == DobCheck.None ? null : now);
             Audit.Record(db, now, null, "system", check switch { DobCheck.None => "dob.verified", DobCheck.CorrectionNeeded => "dob.correction-needed", _ => "dob.review-opened" },
-                "account", account.Id.ToString(), session.DateOfBirth is null ? "no-document-date" : null);
-            if (check == DobCheck.ManualReview) await OpenReviewAsync(db, profile.AccountId, attempt.Id, "no-document-date", now, cancellationToken);
+                "account", account.Id.ToString(), check == DobCheck.ManualReview ? DobCorrectionPolicy.ReviewReason(session) : null);
+            if (check == DobCheck.ManualReview) await OpenReviewAsync(db, profile.AccountId, attempt.Id, DobCorrectionPolicy.ReviewReason(session), now, cancellationToken);
             // D191: the minimum verified identity record, sealed in the restricted store.
             if (identities is not null) await identities.RecordAsync(account.Id, attempt, session, now, cancellationToken);
             if (FounderEligibility.Stamp(profile, account.Status, now))

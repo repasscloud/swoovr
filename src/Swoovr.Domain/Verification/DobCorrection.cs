@@ -18,7 +18,7 @@ public sealed class DobReview
     public Guid Id { get; set; }
     public Guid AccountId { get; set; }
     public Guid AttemptId { get; set; }
-    /// <summary>"still-different" after the member's correction, or "no-document-date" when Didit gave none.</summary>
+    /// <summary>"still-different", "no-document-date", "document-not-approved" (issue 488) or "admin-correction-mismatch" (D299).</summary>
     public string Reason { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ResolvedAt { get; set; }
@@ -46,6 +46,12 @@ public static class DobCorrectionPolicy
     /// <summary>After the member's one correction, compared with Didit's decision read again.</summary>
     public static DobCorrectionResult AfterCorrection(DateOnly corrected, DateOnly? document) =>
         IdVerificationPolicy.DateOfBirthMatches(corrected, document) ? DobCorrectionResult.Verified : DobCorrectionResult.ManualReview;
+
+    /// <summary>Issue 488 (D413): why a review opens when an approved session gave no date of birth.</summary>
+    public static string ReviewReason(ProviderSession session) => session.DocumentNotApproved ? "document-not-approved" : "no-document-date";
+
+    /// <summary>Why a review opens after the member's one correction.</summary>
+    public static string CorrectionReason(ProviderSession session) => session.DocumentNotApproved ? "document-not-approved" : "still-different";
 
     /// <summary>The ordinary date-of-birth form is closed while a correction or a review is open, so the prompt is the only way.</summary>
     public static bool OrdinaryChangeAllowed(DobCheck state) => state == DobCheck.None;

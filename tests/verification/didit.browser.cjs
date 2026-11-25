@@ -367,6 +367,19 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
         assert.equal(await sql(`SELECT dob_check FROM member_profiles WHERE account_id = '${ids[n]}'`), n === 'none' ? 'ManualReview' : 'CorrectionNeeded', n); pass();
         assert.equal(await sql(`SELECT count(*) FROM dob_reviews WHERE account_id = '${ids[n]}'`), n === 'none' ? '1' : '0', n); pass();
       }
+      // Issue 488 (D413): a document check that isn't Approved supplies nothing and the review says so; ID Verified stays, age doesn't.
+      members.pending = await createMember('verify-pending'); await cli('beta', 'add', members.pending.email);
+      tokens.pending = await memberToken(browser, members.pending);
+      await call(tokens.pending, '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional pending', homeCityId: ADELAIDE } });
+      await matchReady(tokens.pending);
+      ids.pending = await sql(`SELECT id FROM accounts WHERE subject = '${claims(tokens.pending).sub}'`);
+      const pendingSession = await fakeAttempt('pending'), pendingChecks = [{ status: 'In Review', age: 55, date_of_birth: '1971-01-01' }];
+      await decided(pendingSession, ids.pending, pendingChecks);
+      assert.equal((await hook(event(pendingSession, 'Approved', ids.pending, { decision: { id_verifications: pendingChecks } }))).body.outcome, 'applied'); pass();
+      assert.equal(await sql(`SELECT reason FROM dob_reviews WHERE account_id = '${ids.pending}'`), 'document-not-approved'); pass();
+      assert.equal(await sql(`SELECT id_status || ',' || date_of_birth_verified || ',' || (age_status = 'Verified')::text FROM member_profiles WHERE account_id = '${ids.pending}'`), 'Verified,false,false'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM restricted.verified_identities WHERE account_id = '${ids.pending}'`), '0'); pass();
+      assert.equal(await sql(`SELECT detail FROM audit_entries WHERE action = 'dob.review-opened' AND target_id = '${ids.pending}'`), 'document-not-approved'); pass();
       // The waiting count reaches admins' navigation and overview, and nobody else.
       const waiting = Number(await sql('SELECT count(*) FROM dob_reviews WHERE resolved_at IS NULL'));
       assert.ok(waiting > 0);
@@ -477,6 +490,10 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
           }
           await page.setViewportSize({ width: 1280, height: 900 });
+          await page.goto(admin + '/dob-reviews?why=document-not-approved');
+          assert.equal(await page.locator('[data-dob-review]').count(), 1); pass();
+          assert.match(await page.textContent('[data-dob-review]'), /Document check not approved in Didit/); pass();
+          if (output) await page.screenshot({ path: output + '/dob-not-approved-1280.png' });
           for (const [name, url] of [['escalations', '/escalations'], ['dob-escalated-filter', '/dob-reviews?escalated=yes'], ['account-escalated', `/accounts/${ids.bare}`], ['account-escalate', `/accounts/${ids.web}`]]) {
             await page.goto(admin + url); if (output) await page.screenshot({ path: `${output}/${name}-1280.png` });
           }

@@ -2949,5 +2949,21 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q184 — A document check that isn't itself Approved
 
-- Issue: [#488](https://github.com/repasscloud/swoovr/issues/488). Status: ANSWERED, owner 25 November 2026 (D412): A, with its own status. Not built yet; #488 stays open for it and for the cause on the owner's session.
+- Issue: [#488](https://github.com/repasscloud/swoovr/issues/488). Status: ANSWERED, owner 25 November 2026 (D412): A, with its own status. Built under D413; #488 stays open for it and for the cause on the owner's session.
 - A session can be approved while its document check keeps another status. **184.1** **A (recommended, today's rule):** the check supplies nothing and a person reviews it, with a label that doesn't say the date is missing. **B:** an approved session counts as approving its document check for the date, adult result and verified name.
+
+### Q185 — When staff can open a member's ID image
+
+- Issue: [#510](https://github.com/repasscloud/swoovr/issues/510) (for #488). Status: ANSWERED, owner 25 November 2026 (D413): A: any open date of birth review.
+
+### Q186 — What approving the ID changes when the document check isn't Approved
+
+- Issue: [#511](https://github.com/repasscloud/swoovr/issues/511) (for #488). Status: ANSWERED, owner 25 November 2026 (D413): A: date of birth verified and ID Verified kept; age, identity and Didit unchanged.
+
+### Q187 — Wording of the date of birth support request and the unlock message
+
+- Issue: [#512](https://github.com/repasscloud/swoovr/issues/512) (for #488). Status: ANSWERED, owner 25 November 2026 (D413): approved word for word in the issue.
+
+### Q188 — Privacy Notice 0.21 wording for staff viewing an ID
+
+- Issue: [#513](https://github.com/repasscloud/swoovr/issues/513) (for #488). Status: ANSWERED, owner 25 November 2026 (D413): approved word for word in the issue; published with [#283](https://github.com/repasscloud/swoovr/issues/283), effective date OPEN.

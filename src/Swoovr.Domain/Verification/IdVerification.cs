@@ -55,9 +55,10 @@ public enum IdStartRefusal { None, AlreadyVerified, AttemptUsed, InProgress, Not
 
 /// <summary>The member's side of a session, as the provider reports it.</summary>
 /// <param name="DateOfBirth">The date of birth on an approved document, for comparing with the profile (D158).</param>
+/// <param name="DocumentNotApproved">Issue 488 (D413): there are document checks and none is Approved, so they supply nothing.</param>
 /// <param name="Identity">D191: the minimum verified fields from the approved document check, kept only sealed in the identity store.</param>
 public sealed record ProviderSession(string SessionId, string Status, string? VendorData, string? WorkflowId, bool? Adult, string? Url = null, DateOnly? DateOfBirth = null,
-    VerifiedIdentityFields? Identity = null);
+    VerifiedIdentityFields? Identity = null, bool DocumentNotApproved = false);
 
 /// <summary>Issue 456: one document check as Didit reports it, whatever its status. Shown to staff and dropped; never stored.</summary>
 public sealed record ProviderDocument(string Status, string? DocumentType, string? IssuingState, DateOnly? DateOfBirth, string? FirstName, string? LastName);
@@ -140,6 +141,7 @@ public static class IdVerificationPolicy
             {
                 Adult = reported.Adult == false ? false : decision.Adult ?? reported.Adult,
                 DateOfBirth = decision.DateOfBirth, Identity = decision.Identity ?? reported.Identity,
+                DocumentNotApproved = decision.DocumentNotApproved,
             };
 
     /// <summary>Whether this member may start a self-service check now (D128, D129).</summary>

@@ -93,6 +93,18 @@ static class VerificationChecks
         Expect(!IdVerificationPolicy.NeedsDecision(bare with { Status = "In Review" }) && !IdVerificationPolicy.NeedsDecision(bare with { DateOfBirth = new DateOnly(1991, 2, 3) }), "only an approval without a date");
         var full = DiditClient.Read(Decision("""{"session_id":"s","status":"Approved","vendor_data":"v","workflow_id":"w","id_verifications":[{"status":"Approved","age":35,"date_of_birth":"1991-02-03","first_name":"A"}]}"""))!;
         var completed = IdVerificationPolicy.Complete(bare, full);
+        // Issue 488 (D412, D413): a document check that isn't Approved supplies no date, and says so with its own status.
+        var pending = DiditClient.Read(Decision("""{"session_id":"s","status":"Approved","vendor_data":"v","workflow_id":"w","id_verifications":[{"status":"In Review","age":35,"date_of_birth":"1991-02-03"}]}"""))!;
+        Expect(pending is { DateOfBirth: null, Adult: null, Identity: null, DocumentNotApproved: true }, "an unapproved document check supplies nothing");
+        Expect(DobCorrectionPolicy.ReviewReason(pending) == "document-not-approved" && DobCorrectionPolicy.ReviewReason(bare) == "no-document-date", "its own status");
+        var dateless = DiditClient.Read(Decision("""{"session_id":"s","status":"Approved","vendor_data":"v","workflow_id":"w","id_verifications":[{"status":"In Review"},{"status":"approved"}]}"""))!;
+        Expect(!dateless.DocumentNotApproved && DobCorrectionPolicy.ReviewReason(dateless) == "no-document-date", "an approved check without a date");
+        Expect(!DiditClient.Read(Decision("""{"session_id":"s","status":"Approved","id_verifications":[]}"""))!.DocumentNotApproved && !full.DocumentNotApproved, "no document check at all isn't an unapproved one");
+        Expect(IdVerificationPolicy.Complete(bare, pending).DocumentNotApproved, "the decision read again carries it");
+        Expect(!IdVerificationPolicy.Complete(pending, full).DocumentNotApproved && IdVerificationPolicy.Complete(pending, full).DateOfBirth is not null, "approved by the time it is read again");
+        Expect(IdVerificationPolicy.Complete(pending, null).DocumentNotApproved, "Didit unavailable: as reported");
+        Expect(DobCorrectionPolicy.CorrectionReason(pending) == "document-not-approved" && DobCorrectionPolicy.CorrectionReason(full) == "still-different"
+            && DobCorrectionPolicy.CorrectionReason(bare) == "still-different", "after the member's correction");
         Expect(completed.DateOfBirth == new DateOnly(1991, 2, 3) && completed.Adult == true && completed.Identity?.FirstName == "A", "completed from the decision");
         Expect(IdVerificationPolicy.Complete(bare with { Adult = false }, full).Adult == false, "a reported minor is never cleared");
         Expect(IdVerificationPolicy.Complete(bare, null) == bare, "Didit unavailable: as reported");
