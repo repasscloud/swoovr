@@ -433,6 +433,10 @@ tr[data-row-link]:hover td { background: color-mix(in srgb, var(--soft) 60%, tra
 .didit-form { display: grid; gap: 14px; margin-top: 14px; }
 .didit-form .ui-help { margin: 0; }
 .dob-scroll > .didit-decision { margin: 20px 20px 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
+.id-document-images { display: grid; gap: 16px; }
+.id-document-images figure { margin: 0; }
+.id-document-images img { display: block; width: 100%; height: auto; max-height: 60dvh; object-fit: contain; border: 1px solid var(--border); border-radius: 10px; background: var(--soft); }
+.id-document-images figcaption { margin-bottom: 6px; font-size: .8125rem; font-weight: 600; }
 .dob-inline-ref { display: inline-flex !important; margin: 0; vertical-align: middle; }
 .dob-didit { align-self: flex-start; gap: 8px; height: 36px; }
 .dob-decide { grid-template-columns: 1fr 1fr; }

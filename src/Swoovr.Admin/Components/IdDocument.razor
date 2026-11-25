@@ -1,0 +1,67 @@
+@inject AdminClient Admin
+@* Issue 488 (D413): the member's ID document, proxied live for this open review after a recorded purpose. It is part of this
+   no-store response only: no address to reopen, and closing the dialog removes it. *@
+<section class="didit-decision" data-id-image="@(read?.Result ?? "closed")" aria-label="ID document">
+    @if (read is { Result: "available" } shown)
+    {
+        <div class="id-document-images">
+            @foreach (var image in shown.Images)
+            {
+                <figure><figcaption>@image.Side of the ID</figcaption><img src="data:@image.ContentType;base64,@Convert.ToBase64String(image.Data)" alt="@image.Side of the member's ID" /></figure>
+            }
+        </div>
+        <p class="ui-help">Shown from Didit. Swoovr doesn't store it.</p>
+    }
+    else
+    {
+        @if (read is not null)
+        {
+            <p class="ui-help" role="status">@(read.Result switch { "gone" => "No longer available from Didit.", "none" => "Didit has no document image for this check.", "refused" => "The document image can't be shown.", _ => "Didit can't be reached right now. Try again shortly." })</p>
+        }
+        @if (message is not null) { <p class="media-error" role="status" data-id-image-result="@resultCode">@message</p> }
+        <details open="@(message is not null)">
+            <summary>Open the ID document</summary>
+            <form method="post" @formname="@FormName" @onsubmit="OpenAsync" class="didit-form">
+                <AntiforgeryToken />
+                <label class="ui-field"><span>Why you need to see it</span><textarea name="idPurpose" rows="2" maxlength="450" required placeholder="No dates"></textarea></label>
+                <p class="ui-help">Access lasts 60 minutes and is recorded against your name.</p>
+                <div><button type="submit" class="ui-button-ghost" data-id-image-show>Open ID document</button></div>
+            </form>
+        </details>
+    }
+</section>
+@code {
+    [Parameter, EditorRequired] public Guid AccountId { get; set; }
+    [Parameter, EditorRequired] public Guid ReviewId { get; set; }
+    [CascadingParameter] private HttpContext? Context { get; set; }
+    private const string Capability = "id-image-open";
+    private StaffIdImages? read;
+    private string? message, resultCode;
+    private string FormName => $"id-image-{ReviewId}";
+
+    private async Task OpenAsync()
+    {
+        if (Context is not null && !Context.Response.HasStarted) Context.Response.Headers.CacheControl = "no-store";
+        var detail = Context?.Request.HasFormContentType == true ? Context.Request.Form["idPurpose"].ToString().Trim() : "";
+        if (detail.Length == 0) { Refuse(400, "purpose-required"); return; }
+        var purpose = "Date of birth review: " + detail;
+        try
+        {
+            var grants = (await Admin.GrantsAsync()).Value ?? [];
+            if (!grants.Any(g => g.Active && g.Capability == Capability))
+            {
+                var grant = await Admin.RequestGrantAsync(new AccessGrantRequest(Capability, purpose));
+                if (!grant.Ok) { Refuse(grant.Status, grant.Code); return; }
+            }
+            var result = await Admin.IdImagesAsync(AccountId, ReviewId, purpose);
+            read = result.Value;
+            if (!result.Ok) Refuse(result.Status, result.Code);
+        }
+        catch (Exception exception) when ((exception is HttpRequestException or TaskCanceledException) && Context?.RequestAborted.IsCancellationRequested != true)
+        {
+            read = new StaffIdImages("unavailable", []);
+        }
+    }
+    private void Refuse(int status, string? why) => (resultCode, message) = (why ?? status.ToString(),
+        why == "purpose-required" ? "Add why you need to see it." : status == 404 ? "This review isn't open any more." : AdminText.Refusal(status, why));
+}

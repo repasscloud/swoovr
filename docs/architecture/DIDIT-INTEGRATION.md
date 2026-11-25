@@ -167,3 +167,12 @@ Slice P read <https://docs.didit.me/llms.txt>, the [webhooks guide](https://docs
 
 CONFIRMED D211: the receiver is now `POST /api/webhooks/didit`, with the pinned missing-header policy in [API versioning](API-VERSIONING.md). This repository change does not update the Didit console or the owner's tunnel. Before switching hosted/local traffic permanently, the operator must configure the destination for the stable path and verify a real signed delivery. No console change or live webhook acceptance is claimed by this migration; the return re-read remains available. Historical owner decisions and validation records retain their original URLs.
 - Return address (issue 438, 24 November 2026): `Didit:Callbacks:Web` is where Didit sends the member back. It has no built-in default. Localhost sets `http://localhost:5081/me/verification/return` (`appsettings.Development.json`, `compose.yaml`, `compose.local.yaml`); UAT sets `https://uat.swoovr.app/me/verification/return` in `deploy/vultr-uat/compose.yaml`. A hosted API refuses to start without a public HTTPS value (`HostingPolicy`), and a session is never started without one (503 `verification-not-configured`). Before this, UAT had no value and the API fell back to localhost. The app keeps `com.swoovr.app:/verification` unless `Didit:Callbacks:App` is set.
+
+## ID images for staff — 25 November 2026 (#488, D412, D413)
+
+Read [data models](https://docs.didit.me/reference/data-models#id-verification), [retrieve session](https://docs.didit.me/sessions-api/retrieve-session), [API keys](https://docs.didit.me/console/api-keys) and [data retention](https://docs.didit.me/console/data-retention).
+
+- Each `id_verifications[]` entry has nullable `front_image` and `back_image` (also `full_*`, `portrait_image` and others, which Swoovr never reads). They are short-lived signed links. Didit documents neither their lifetime nor their host.
+- A key without *Media read* gets every image link as null.
+- Retention is the console's setting (30 days, owner). The session is then deleted; the docs don't say how a decision read answers, and Swoovr treats 404 as no longer available.
+- `Didit:IdImages:Enabled` (default false) and `Didit:IdImages:Hosts` (comma-separated exact hosts; empty refuses all). Hosted APIs refuse to start with it on before notice 0.21 is in force (`PrivacyNoticeVersion`). To learn the host, look for `Didit image host not allowed: {name}` in the API log; the owner approves the name.

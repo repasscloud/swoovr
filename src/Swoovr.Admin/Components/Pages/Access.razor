@@ -103,7 +103,7 @@
 }
 @code {
     [CascadingParameter] private HttpContext? Context { get; set; }
-    private static readonly (string Value, string Label, string Role)[] Capabilities = [("profile-dob-open", "Open profile date of birth", "staff"), ("didit-decision-open", "Open a member's Didit result", "admin"), ("identity-open", "Open a verified identity", "legal"),
+    private static readonly (string Value, string Label, string Role)[] Capabilities = [("profile-dob-open", "Open profile date of birth", "staff"), ("didit-decision-open", "Open a member's Didit result", "admin"), ("id-image-open", "Open a member's ID document", "admin"), ("identity-open", "Open a verified identity", "legal"),
         ("evidence-export", "Export evidence", "legal"), ("termination", "Terminate an account", "admin"), ("identifier-release", "Review or release an identifier", "admin"), ("account-reinstatement", "Reinstate an account", "admin")];
     private static string CapabilityLabel(string value) => Capabilities.FirstOrDefault(c => c.Value == value).Label ?? value;
     [SupplyParameterFromQuery(Name = "log")] public string? Log { get; set; }

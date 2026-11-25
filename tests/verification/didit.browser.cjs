@@ -466,6 +466,57 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       assert.equal(await sql(`SELECT resolution_note FROM account_escalations WHERE id = '${raceCase}'`), 'Fictional: first'); pass();
       assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'account.escalation-resolved' AND detail = '${raceCase}'`), '0', 'the decision records no second resolution'); pass();
       for (const path of ['/api/me/notifications', '/api/me/notices', '/api/me/standing']) assert.ok(!JSON.stringify((await call(tokens.bare, path)).body).includes('altered'), path); pass();
+      // Issue 488 (D413): the ID document, proxied live for an open review. Synthetic pictures only.
+      const picture = name => `${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/image/${name}?signature=synthetic-signature`;
+      const idChecks = (front, back) => [{ status: 'Approved', age: 55, date_of_birth: '1971-01-01', front_image: front && picture(front), back_image: back && picture(back), portrait_image: picture('portrait.png') }];
+      const idImage = (token, who, reviewId, purpose = 'Fictional ID check') => call(token, `/api/admin/accounts/${ids[who]}/id-image`, { method: 'POST', body: { purpose, reviewId } });
+      const grantId = token => call(token, '/api/admin/access/grants', { method: 'POST', body: { capability: 'id-image-open', purpose: 'Fictional ID check' } });
+      await decided(bareSession, ids.bare, idChecks('front.png', 'back.png'));
+      assert.equal((await idImage(null, 'bare', bareReview)).status, 401); pass();
+      assert.equal((await idImage(tokens.ana, 'bare', bareReview)).status, 403); pass();
+      assert.equal((await idImage(sup, 'bare', bareReview)).status, 403); pass();
+      assert.equal((await grantId(sup)).status, 403); pass();
+      assert.deepEqual(code(await idImage(adm, 'bare', bareReview)), [403, 'elevated-access-required'], 'the Didit result access is not enough'); pass();
+      assert.equal((await grantId(adm)).status, 201); pass();
+      assert.deepEqual(code(await idImage(adm, 'bare', bareReview, ' ')), [400, 'purpose-required']); pass();
+      r = await idImage(adm, 'bare', bareReview);
+      assert.deepEqual([r.status, r.body.result, r.body.images.map(i => i.side + ' ' + i.contentType)], [200, 'available', ['Front image/png', 'Back image/png']]); pass();
+      assert.equal(Buffer.from(r.body.images[0].data, 'base64').subarray(1, 4).toString(), 'PNG'); pass();
+      assert.ok(!JSON.stringify(r.body).includes('/owned/'), 'no provider address reaches the browser'); pass();
+      const raw = await fetch(`${api}/api/admin/accounts/${ids.bare}/id-image`, { method: 'POST', headers: { Authorization: 'Bearer ' + adm, 'Content-Type': 'application/json', 'Swoovr-Version': '2026-10-28' }, body: JSON.stringify({ purpose: 'Fictional ID check', reviewId: bareReview }) });
+      assert.deepEqual([raw.status, raw.headers.get('cache-control')], [200, 'no-store']); pass();
+      assert.deepEqual(code(await idImage(adm, 'legacy', conflictReview)), [403, 'conflict-of-interest']); pass(); // declared, and linked accounts use the same rule
+      await sql(`INSERT INTO staff_member_links (staff_account_id, member_account_id, linked_at, linked_by) VALUES ('${adminId}', '${ids.eve}', now(), '${adminId}')`);
+      assert.deepEqual(code(await idImage(adm, 'eve', bareReview)), [403, 'conflict-of-interest'], 'their own linked account'); pass();
+      await sql(`DELETE FROM staff_member_links WHERE staff_account_id = '${adminId}'`);
+      assert.equal((await idImage(adm, 'web', bareReview)).status, 404, 'another member\'s review'); pass();
+      assert.equal((await idImage(adm, 'bare', crypto.randomUUID())).status, 404); pass();
+      assert.equal((await idImage(adm, 'none', noneReview)).status, 404, 'a decided review'); pass();
+      const said = async (expected, vendor, checks, stall) => { await decided(bareSession, vendor, checks, stall); assert.deepEqual([(r = await idImage(adm, 'bare', bareReview)).body.result, r.body.images], [expected, []], expected); pass(); };
+      await said('unavailable', ids.legacy, idChecks('front.png'));
+      await said('refused', ids.bare, idChecks('front.bad'));
+      await said('refused', ids.bare, idChecks('front.png', 'back.big'));
+      await said('refused', ids.bare, [{ status: 'Approved', front_image: 'https://media.example.test/front.png' }]);
+      await said('none', ids.bare, [{ status: 'Approved', front_image: null }]);
+      await said('unavailable', ids.bare, [], { owned_status: 503 });
+      await said('gone', ids.bare, [], { owned_status: 404 });
+      const slow = Date.now(); await said('unavailable', ids.bare, [], { owned_delay_ms: 20000 }); assert.ok(Date.now() - slow < 10000); pass();
+      await decided(bareSession, ids.bare, idChecks('front.png', 'back.png'));
+      // An expired access no longer opens it.
+      await sql(`UPDATE restricted.access_grants SET expires_at = now() - interval '1 minute' WHERE account_id = '${adminId}' AND capability = 'id-image-open'`).catch(() => sql(`UPDATE access_grants SET expires_at = now() - interval '1 minute' WHERE account_id = '${adminId}' AND capability = 'id-image-open'`));
+      assert.deepEqual(code(await idImage(adm, 'bare', bareReview)), [403, 'elevated-access-required']); pass();
+      // An unapproved check's document opens too (Q185 A).
+      assert.equal((await grantId(adm)).status, 201);
+      const pendingReview = await sql(`SELECT id FROM dob_reviews WHERE account_id = '${ids.pending}'`);
+      await decided(pendingSession, ids.pending, [{ ...idChecks('front.png')[0], status: 'In Review' }]);
+      assert.equal((await idImage(adm, 'pending', pendingReview)).body.result, 'available'); pass();
+      // Audited with ids only, in the sensitive-access log, and nowhere else.
+      assert.equal(await sql(`SELECT string_agg(DISTINCT detail, ',') FROM audit_entries WHERE action = 'id-image.opened' AND target_id = '${ids.bare}'`), bareReview); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'id-image.opened' AND target_id = '${ids.bare}'`), '10'); pass();
+      assert.equal((await call(sup, `/api/admin/dob-reviews`)).status, 403); pass();
+      if (process.env.SWOOVR_MEETING_OWNED_LOGS) for (const name of ['api.log', 'admin.log', 'web.log'])
+        assert.ok(!/owned\/image|synthetic-signature/.test(require('node:fs').readFileSync(`${process.env.SWOOVR_MEETING_OWNED_LOGS}/${name}`, 'utf8')), name + ' holds no image link');
+      pass();
       const queue = Number(await sql('SELECT count(*) FROM dob_reviews WHERE resolved_at IS NULL'));
       for (const role of ['admin', 'support']) {
         const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage();
@@ -489,6 +540,27 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
             if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
           }
+          for (const theme of ['light', 'dark']) for (const width of [1280, 390]) {
+            await page.emulateMedia({ colorScheme: theme });
+            await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+            await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
+            await page.evaluate(t => { try { localStorage.setItem('swoovr.admin.theme', t); } catch { } }, theme); await page.reload();
+            assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme); pass();
+            await page.click('[data-id-image=closed] summary'); await page.fill('[data-id-image] textarea', 'Fictional look');
+            const answered = page.waitForResponse(x => x.request().method() === 'POST' && x.url().includes('/dob-reviews'));
+            await page.click('[data-id-image-show]');
+            assert.equal((await answered).headers()['cache-control'].includes('no-store'), true); pass();
+            await page.waitForSelector('[data-id-image=available] img', { timeout: 20000 });
+            assert.deepEqual(await page.locator('[data-id-image] img').evaluateAll(all => all.map(i => [i.naturalWidth, i.src.startsWith('data:image/png;base64,')])), [[320, true], [320, true]]); pass();
+            assert.ok(!(await page.content()).includes('/owned/image')); pass();
+            assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll'); pass();
+            await page.locator('[data-id-image]').scrollIntoViewIfNeeded();
+            if (output) await page.screenshot({ path: `${output}/id-image-${theme}-${width}.png` });
+            await page.click('[data-photo-close]'); await page.waitForSelector('[data-review-dialog]', { state: 'detached' });
+            assert.equal(await page.locator('[data-id-image] img').count(), 0, 'closed with the dialog'); pass();
+            await page.goBack(); assert.equal(await page.locator('[data-id-image] img').count(), 0, 'going back does not bring it up'); pass();
+          }
+          await page.evaluate(() => { try { localStorage.removeItem('swoovr.admin.theme'); } catch { } }); await page.emulateMedia({ colorScheme: 'light' });
           await page.setViewportSize({ width: 1280, height: 900 });
           await page.goto(admin + '/dob-reviews?why=document-not-approved');
           assert.equal(await page.locator('[data-dob-review]').count(), 1); pass();

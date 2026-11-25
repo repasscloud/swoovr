@@ -42,6 +42,7 @@ await HostingProxyChecks.Run();
 await SmsSelectionChecks.Run();
 await SmsTransportChecks.Run();
 await DeviceClientChecks.Run();
+await IdImageChecks.Run();
 PublicPolicyChecks.Run();
 AppVersionChecks.Run();
 PolicyNoticeChecks.Run();

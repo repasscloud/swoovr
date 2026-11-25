@@ -79,11 +79,13 @@ public static class StaffAccessPolicy
     public const string ProfileDobOpen="profile-dob-open";
     /// <summary>Issue 456: an admin looks at a member's Didit decision, read live and never stored.</summary>
     public const string DiditDecisionOpen = "didit-decision-open";
+    /// <summary>Issue 488 (D413): an admin looks at a member's ID document for an open date of birth review.</summary>
+    public const string IdImageOpen = "id-image-open";
     public const string EvidenceExport = "evidence-export";
     public const string Termination = "termination";
     public const string IdentifierRelease = "identifier-release";
     public const string AccountReinstatement = "account-reinstatement";
-    public static readonly IReadOnlyList<string> Capabilities = [IdentityOpen, EvidenceExport, Termination, IdentifierRelease, AccountReinstatement,ProfileDobOpen,DiditDecisionOpen,TicketLegal,TicketRestricted,TicketSecurity,TicketPrivacy];
+    public static readonly IReadOnlyList<string> Capabilities = [IdentityOpen, EvidenceExport, Termination, IdentifierRelease, AccountReinstatement,ProfileDobOpen,DiditDecisionOpen,IdImageOpen,TicketLegal,TicketRestricted,TicketSecurity,TicketPrivacy];
     /// <summary>DEFAULT (owner, 27 October 2026): 60 minutes, renewable.</summary>
     public static readonly TimeSpan Duration = TimeSpan.FromMinutes(60);
     /// <summary>At most eight renewals: a working day, then ask again.</summary>
@@ -101,7 +103,7 @@ public static class StaffAccessPolicy
         TicketLegal => AccountRole.Legal,
         TicketRestricted => AccountRole.TrustSafety,
         IdentityOpen or EvidenceExport => AccountRole.Legal,
-        Termination or IdentifierRelease or AccountReinstatement or DiditDecisionOpen => AccountRole.Admin,
+        Termination or IdentifierRelease or AccountReinstatement or DiditDecisionOpen or IdImageOpen => AccountRole.Admin,
         _ => AccountRole.Unknown,
     };
 
@@ -187,7 +189,7 @@ public static class StaffAccessPolicy
             "staff" => ("staff", Id(3), false),
             "mfa" => ("mfa", Id(3), false),
             "accounts" when parts.Length > 4 && parts[4] == "identity" => ("identity", Id(3), false),
-            "accounts" when parts.Length > 4 && parts[4] is "date-of-birth" or "dob-history" or "didit-decision" => ("identity", Id(3), false),
+            "accounts" when parts.Length > 4 && parts[4] is "date-of-birth" or "dob-history" or "didit-decision" or "id-image" => ("identity", Id(3), false),
             "accounts" when parts.Length > 4 && parts[4] is "profile-preview" or "profile-photos" or "action-history" or "assurance" or "dob-correction" => ("account-inspection", Id(3), false),
             "media" => ("media", Id(3), false),
             _ => null,

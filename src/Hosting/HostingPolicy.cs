@@ -6,7 +6,7 @@ public enum HostKind { Api,Web,Admin }
 /// <summary>Server-only linked source: fixed diagnostics contain names/codes, never configured values. Provider factories remain authoritative.</summary>
 public static class HostingPolicy
 {
-    public static IReadOnlyList<string> Validate(HostKind host,string environment,IReadOnlyDictionary<string,string?> configuration,bool serving=true)
+    public static IReadOnlyList<string> Validate(HostKind host,string environment,IReadOnlyDictionary<string,string?> configuration,bool serving=true,string? notice=null,DateOnly? today=null)
     {
         if(string.Equals(environment,"Development",StringComparison.OrdinalIgnoreCase))return [];
         var errors=new List<string>();string? Read(string key)=>configuration.GetValueOrDefault(key);bool Has(string key)=>!string.IsNullOrWhiteSpace(Read(key));
@@ -78,6 +78,14 @@ public static class HostingPolicy
         foreach(var key in new[]{"ApiKey","WorkflowId","WebhookSecret"})Require("Didit:"+key);Url("Didit:BaseUrl",false);
         // Issue 438: where Didit sends the member back. Without it UAT members were returned to localhost.
         Url("Didit:Callbacks:Web");
+        // Issue 488 (D413): staff open members' ID documents only once the notice that says so is in force, and only from named hosts.
+        if(Flag("Didit:IdImages:Enabled"))
+        {
+            if(!Swoovr.Contracts.PrivacyNoticeVersion.CoversIdReview(notice??Swoovr.Contracts.PrivacyNoticeVersion.Current,today??DateOnly.FromDateTime(DateTime.UtcNow)))errors.Add("notice-required:Didit:IdImages:Enabled");
+            Require("Didit:IdImages:Hosts");
+            foreach(var name in (Read("Didit:IdImages:Hosts")??"").Split(',',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries))
+                if(Uri.CheckHostName(name)!=UriHostNameType.Dns||!name.Contains('.')||name.EndsWith(".localhost",StringComparison.OrdinalIgnoreCase))errors.Add("unsafe-host:Didit:IdImages:Hosts");
+        }
         foreach(var key in new[]{"Moderation:EscalationEmail","Moderation:EscalationBackupEmail"})Require(key);
         // D336 (#221): production always scans support attachments before they can be downloaded; never switched off.
         if(!Flag("Attachments:Scanning:Enabled",true))errors.Add("required-enabled:Attachments:Scanning:Enabled");
