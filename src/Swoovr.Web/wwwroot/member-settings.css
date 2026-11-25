@@ -232,6 +232,13 @@
 .me-item-link > a { text-decoration: none; color: inherit; }
 .me-item-link > a:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; border-radius: 6px; }
 /* Issue 474: support ticket rows read title, reference and time, state, top to bottom. */
+/* Issue 404: a closed request's note, then the way to start again on its own row (never full width). */
+.su-closed { display: flex; align-items: flex-start; gap: 14px; margin: 16px 0 0; padding: 18px 20px; border-radius: 14px; background: var(--soft); color: var(--softText); }
+.su-closed .icon { flex: none; margin-top: 1px; }
+.su-closed h2 { margin: 0; font: 700 1rem/1.4 var(--font); }
+.su-closed p { margin: 4px 0 8px; font: 400 .9375rem/1.5 var(--font); }
+.su-again { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px 16px; margin: 20px 0 0; }
+.su-again p { margin: 0; color: var(--muted); font: 400 .9375rem/1.5 var(--font); }
 .su-ticket-title { display: block; max-width: 48ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .su-ticket-state { justify-self: start; margin-top: 4px; }
 .me-item-link > .icon { color: var(--muted); }

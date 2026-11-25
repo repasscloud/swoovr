@@ -33,6 +33,7 @@ public static partial class SupportTicketText
         $"Up to {SupportAttachmentPolicy.MaxAttachmentsPerMessage} files (photos, PDF, Word, Excel, text, video or audio), {SupportAttachmentPolicy.MaxTotalMessageBytes / (1024 * 1024)} MB in all. Don't add identity documents or case evidence; link the case instead.";
     public const string CloseLabel = "Close request";
     public const string CloseConfirm = "Close this request? It can't be reopened. Start a new request if you need help again.";
+    public const string AgainPrompt = "Still need help?";
     public const string Closed = "This request is closed.";
     public const string TitleLabel = "Subject";
     public const string BodyLabel = "How can we help?";

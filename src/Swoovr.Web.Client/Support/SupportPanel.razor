@@ -139,10 +139,19 @@ else if (detail is { } d)
     }
     else
     {
-        <section class="me-card" data-support-closed>
-            <p class="me-empty">@SupportTicketText.Closed @SupportTicketText.OutcomeHelp</p>
-            <div class="me-report-buttons"><a class="button me-pill-button" href="@SupportTicketText.NewLink()">Start a new request</a></div>
+        @* Issue 404: the closed note is a status panel; starting again is its own row, outside the note. *@
+        <section class="su-closed" aria-labelledby="closed-heading" data-support-closed>
+            <Icon Name="lock" Size="20" />
+            <div>
+                <h2 id="closed-heading">@SupportTicketText.Closed</h2>
+                <p>@SupportTicketText.OutcomeHelp</p>
+                <a class="link" href="/me/standing">Account standing</a>
+            </div>
         </section>
+        <div class="su-again">
+            <p>@SupportTicketText.AgainPrompt</p>
+            <a class="button me-pill-button" href="@SupportTicketText.NewLink()" data-support-again>Start a new request</a>
+        </div>
     }
     @if (!d.CanReply && !Closed && !confirmClose)
     {
