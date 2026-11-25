@@ -159,6 +159,15 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
       await page.keyboard.press('Escape');
       assert.equal(await button.getAttribute('aria-expanded'), 'false'); pass();
       assert.equal(await tip.isVisible(), false, 'Escape dismisses it while the button keeps focus'); pass();
+      // PR 501 review: opened by hovering, with focus elsewhere, Escape still dismisses it; leaving and hovering again reopens it.
+      await page.evaluate(() => document.activeElement?.blur()); await page.mouse.move(0, 0);
+      await button.hover(); assert.equal(await tip.isVisible(), true, 'hover opens it'); pass();
+      assert.equal(await button.evaluate(e => e === document.activeElement), false); pass();
+      await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+      assert.equal(await tip.isVisible(), false, 'Escape dismisses a hover-opened explanation'); pass();
+      await page.mouse.move(0, 0); await button.hover();
+      assert.equal(await tip.isVisible(), true, 'hovering again reopens it'); pass();
+      await page.mouse.move(0, 0);
     }
     await page.emulateMedia({ colorScheme: 'light' }); await page.setViewportSize({ width: 390, height: 844 });
     await page.locator(`.member-card:has(a[href^="/people/${pid.sam}"]) .mc-media`).click({ force: true });
