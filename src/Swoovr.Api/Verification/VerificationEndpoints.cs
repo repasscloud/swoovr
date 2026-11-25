@@ -243,26 +243,27 @@ public static class VerificationEndpoints
                 || string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Length > ModerationPolicy.ReasonMax)
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Choose verified or not verified, with a reason.");
             var (db, now) = (accounts.Db!, clock.GetUtcNow());
-            var review = await db.DobReviews.FindAsync([reviewId], cancellationToken);
+            // PR 505 review: two admins at once make one decision, and an escalation closed meanwhile keeps its own resolution.
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            var review = await db.DobReviews.FromSqlInterpolated($"SELECT * FROM dob_reviews WHERE id={reviewId} FOR UPDATE").SingleOrDefaultAsync(cancellationToken);
             if (review is null) return Results.NotFound();
             if (review.ResolvedAt is not null) return Problem(StatusCodes.Status409Conflict, ProblemCodes.InvalidRequest, "This review is already resolved.");
             // PR 491 review: a conflict of interest (D134) closes this route too, not only the escalation's own.
             if (await StaffAccessEndpoints.ExcludedAsync(db, current!.Account!.Id, [review.AccountId], cancellationToken)) return StaffAccessEndpoints.Conflict();
             // Issue 455 (D404): an escalated review is decided by an admin who didn't escalate it, which also closes the escalation.
-            var escalation = await db.AccountEscalations.SingleOrDefaultAsync(e => e.DobReviewId == reviewId && e.ResolvedAt == null, cancellationToken);
+            var escalation = await db.AccountEscalations.AsNoTracking().SingleOrDefaultAsync(e => e.DobReviewId == reviewId && e.ResolvedAt == null, cancellationToken);
             if (escalation is not null && !EscalationPolicy.MayResolve(escalation, current!.Account!.Id, true))
                 return Problem(StatusCodes.Status403Forbidden, ProblemCodes.ModerationNotPermitted, "Another admin has to decide a review you escalated.");
-            if (escalation is not null)
-            {
-                (escalation.ResolvedAt, escalation.ResolvedBy, escalation.ResolutionNote) = (now, current!.Account!.Id, "Date of birth review decided.");
+            if (escalation is not null && await db.AccountEscalations.Where(e => e.Id == escalation.Id && e.ResolvedAt == null).ExecuteUpdateAsync(u => u
+                    .SetProperty(e => e.ResolvedAt, now).SetProperty(e => e.ResolvedBy, current!.Account!.Id).SetProperty(e => e.ResolutionNote, "Date of birth review decided."), cancellationToken) == 1)
                 Audit.Record(db, now, current.Account.Id, "account", "account.escalation-resolved", "account", review.AccountId.ToString(), escalation.Id.ToString());
-            }
             var profile = await db.MemberProfiles.SingleAsync(p => p.AccountId == review.AccountId, cancellationToken);
             (review.ResolvedAt, review.ResolvedBy, review.Outcome, review.ResolutionNote) = (now, current!.Account!.Id, outcome, request.Reason.Trim());
             (profile.DateOfBirthVerified, profile.DateOfBirthVerifiedAt) = (outcome == DobReviewOutcome.Verified, outcome == DobReviewOutcome.Verified ? now : null);
             (profile.DobCheck, profile.DobCheckAt) = (DobCheck.None, now);
             Audit.Record(db, now, current.Account.Id, "account", "dob.review-resolved", "account", review.AccountId.ToString(), Wire(outcome));
             await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return Results.Ok(ReviewView(review, profile.DisplayName));
         });
 
