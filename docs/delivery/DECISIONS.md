@@ -1572,4 +1572,6 @@ Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10).
 - Staff can open the ID from Didit in a dialog, contact the member with a support ticket and unlock the date of birth. The member's update locks it again. Staff then look at the ID again and manually approve the date of birth and the ID.
 - The owner reports that the document check on their session passed and shows its date, so an unapproved check isn't the cause of #440 there. The webhook version and delivery contents remain unconfirmed.
 
-**OPEN** before the build: which staff roles may open the ID image ("admin/support/whoever"), and whether the Privacy Notice covers it. Today Swoovr never reads document images (D147, D403).
+**CONFIRMED** by the owner (25 November 2026, in chat): only **Admin** may open the ID image. The Privacy Notice will be updated to cover staff viewing it for ID verification when there is a mismatch. Amends D147 and D403, under which Swoovr never reads document images.
+
+**DEFAULT:** the image is fetched live after a recorded purpose and never stored, and it opens only for a mismatch under review. **Release gate:** the updated notice is in force before this reaches members' real documents; its wording, version and date are OPEN.
