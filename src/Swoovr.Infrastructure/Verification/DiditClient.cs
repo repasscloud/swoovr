@@ -64,25 +64,30 @@ public sealed class DiditClient(HttpClient http, DiditOptions options, ILogger<D
         }
     }
 
+    /// <summary>Staff wait for this read: it must end before the admin app's 10-second limit, so they see "unavailable" (PR 490 review).</summary>
+    private static readonly TimeSpan InspectLimit = TimeSpan.FromSeconds(6);
+
     public async Task<ProviderDecision> InspectDecisionAsync(string sessionId, CancellationToken cancellationToken)
     {
         if (!Configured) return new(ProviderReadResult.Unavailable);
         if (!Guid.TryParse(sessionId, out var id)) return new(ProviderReadResult.Gone);
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(options.BaseUrl, $"v3/session/{id}/decision/"));
         request.Headers.Add("x-api-key", options.ApiKey);
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(InspectLimit);
         try
         {
-            using var response = await http.SendAsync(request, cancellationToken);
+            using var response = await http.SendAsync(request, limit.Token);
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return new(ProviderReadResult.Gone);
             if (!response.IsSuccessStatusCode)
             {
                 log.LogWarning("Didit {What} returned {Status}.", "inspect", (int)response.StatusCode);
                 return new(ProviderReadResult.Unavailable);
             }
-            using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+            using var body = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(limit.Token), cancellationToken: limit.Token);
             return Inspect(body.RootElement, id);
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or JsonException)
+        catch (Exception exception) when (exception is HttpRequestException or OperationCanceledException or JsonException)
         {
             cancellationToken.ThrowIfCancellationRequested();
             log.LogWarning("Didit {What} failed: {Kind}.", "inspect", exception.GetType().Name);

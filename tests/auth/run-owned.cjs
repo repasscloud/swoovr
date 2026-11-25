@@ -89,7 +89,7 @@ async function main(){
     res.setHeader('Content-Type','application/json');if(req.method==='POST'&&req.url==='/v3/session/'){
      const input=JSON.parse(body),id=crypto.randomUUID(),record={session_id:id,status:'Not Started',vendor_data:input.vendor_data,workflow_id:input.workflow_id,url:'https://mock.didit.me/'+id};sessions.set(id,record);res.end(JSON.stringify(record));
     }else if(req.method==='PUT'&&/^\/owned\/decision\/[0-9a-f-]{36}$/.test(req.url)){sessions.set(req.url.slice(16),JSON.parse(body));res.end('{}');// a suite sets the decision this stand-in returns
-    }else{const id=/^\/v3\/session\/([0-9a-f-]{36})\/(?:decision|delete)\/$/.exec(req.url)?.[1];if(req.method==='DELETE'){sessions.delete(id);res.end('{}');}else if(id&&sessions.has(id))res.end(JSON.stringify(sessions.get(id)));else{res.statusCode=404;res.end('{}');}}
+    }else{const id=/^\/v3\/session\/([0-9a-f-]{36})\/(?:decision|delete)\/$/.exec(req.url)?.[1];if(req.method==='DELETE'){sessions.delete(id);res.end('{}');}else if(id&&sessions.has(id)){const{owned_delay_ms:wait=0,owned_status:code=200,...record}=sessions.get(id);if(wait)await new Promise(resolve=>setTimeout(resolve,wait));res.statusCode=code;res.end(JSON.stringify(record));}else{res.statusCode=404;res.end('{}');}}
    }catch{res.statusCode=400;res.end('{}');}
   });await new Promise(resolve=>provider.listen(0,'127.0.0.1',resolve));
   env={...cleanEnv,TMPDIR:folder,DOTNET_ENVIRONMENT:'Development',ASPNETCORE_ENVIRONMENT:'Development',ConnectionStrings__Swoovr:`Host=127.0.0.1;Port=5433;Database=${manifest.database};Username=swoovr;Password=${config.SWOOVR_DB_PASSWORD}`,
