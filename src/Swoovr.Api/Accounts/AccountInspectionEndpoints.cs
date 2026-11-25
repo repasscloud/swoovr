@@ -49,10 +49,10 @@ public static class AccountInspectionEndpoints
             if(string.IsNullOrWhiteSpace(request.Purpose)||request.Purpose.Trim().Length>500)return Problem(400,ProblemCodes.PurposeRequired,"Record a purpose (up to 500 characters).");
             var db=accounts.Db!;var now=clock.GetUtcNow();
             if(await StaffAccessEndpoints.GrantAsync(db,current.Account!.Id,StaffAccessPolicy.DiditDecisionOpen,now,token)is null)return StaffAccessEndpoints.NeedsGrant(StaffAccessPolicy.DiditDecisionOpen);
-            var attempts=db.IdVerificationAttempts.AsNoTracking().Where(a=>a.AccountId==id);
-            if(request.ReviewId is{}review)attempts=attempts.Where(a=>db.DobReviews.Any(r=>r.Id==review&&r.AccountId==id&&r.AttemptId==a.Id));
-            var session=await attempts.OrderByDescending(a=>a.CreatedAt).Select(a=>a.SessionId).FirstOrDefaultAsync(token);
-            if(string.IsNullOrEmpty(session))return Problem(404,ProblemCodes.NotAvailable,"There's no Didit check for this account.");
+            // Issue 488 (D413): only the check behind an open date of birth review, as the privacy notice wording says.
+            var session=await(from r in db.DobReviews join a in db.IdVerificationAttempts on r.AttemptId equals a.Id
+                where r.AccountId==id&&a.AccountId==id&&r.ResolvedAt==null&&(request.ReviewId==null||r.Id==request.ReviewId) select a.SessionId).SingleOrDefaultAsync(token);
+            if(string.IsNullOrEmpty(session))return Problem(404,ProblemCodes.NotAvailable,"There's no open date of birth review for this account.");
             db.IdentityAccesses.Add(new IdentityAccess{AccountId=id,ActorAccountId=current.Account.Id,Purpose=request.Purpose.Trim(),At=now});
             Audit.Record(db,now,current.Account.Id,"account","didit-decision.opened","account",id.ToString());
             await db.SaveChangesAsync(token);

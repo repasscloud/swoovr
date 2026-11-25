@@ -115,7 +115,7 @@ public sealed record EscalationRequest(string? Reason);
 public sealed record EscalationResolution(string? Note);
 /// <summary>The account's open escalation, or none.</summary>
 public sealed record EscalationState(EscalationView? Open);
-/// <summary>Issue 456 (D403): Admin with live "didit-decision-open" access and a recorded purpose. ReviewId picks that review's session; otherwise the newest.</summary>
+/// <summary>Issue 456 (D403): Admin with live "didit-decision-open" access and a recorded purpose. Only for an open date of birth review (D413): ReviewId, or otherwise the account's.</summary>
 public sealed record DiditDecisionRequest(string? Purpose, Guid? ReviewId = null);
 /// <summary>Result: available, gone (Didit no longer has it) or unavailable. Read live and never stored.</summary>
 public sealed record StaffDiditDecision(string Result, string? Status, IReadOnlyList<StaffDiditDocument> Documents);

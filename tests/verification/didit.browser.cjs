@@ -406,6 +406,13 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       assert.equal((await call(people.support.token, '/api/admin/access/grants', { method: 'POST', body: { capability: 'didit-decision-open', purpose: 'x' } })).status, 403); pass();
       assert.equal((await call(adm, '/api/admin/access/grants', { method: 'POST', body: { capability: 'didit-decision-open', purpose: 'Fictional date review' } })).status, 201); pass();
       assert.deepEqual(code(await didit(adm, 'bare', { purpose: ' ' })), [400, 'purpose-required']); pass();
+      // Issue 488 (D413): only for an open date of birth review.
+      assert.equal((await didit(adm, 'bare', why)).status, 404, 'no review'); pass();
+      assert.equal((await didit(adm, 'ana', why)).status, 404, 'a decided review'); pass();
+      const anaClosed = await sql(`SELECT id FROM dob_reviews WHERE account_id = '${ids.ana}'`);
+      assert.equal((await didit(adm, 'ana', { ...why, reviewId: anaClosed })).status, 404); pass();
+      const bareAttempt = await sql(`SELECT id FROM id_verification_attempts WHERE account_id = '${ids.bare}'`), bareReview = crypto.randomUUID();
+      await sql(`INSERT INTO dob_reviews (id, account_id, attempt_id, reason, created_at) VALUES ('${bareReview}', '${ids.bare}', '${bareAttempt}', 'still-different', now())`);
       r = await didit(adm, 'bare', why);
       assert.deepEqual([r.status, r.body.result, r.body.status], [200, 'available', 'Approved']); pass();
       assert.deepEqual([r.body.documents.length, r.body.documents[0].dateOfBirth, r.body.documents[0].sameDate], [1, '1971-01-01', false]); pass();
@@ -422,9 +429,6 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       await call(adm, '/api/admin/access/exclusions', { method: 'POST', body: { subjectAccountId: ids.legacy, reason: 'Fictional conflict' } });
       if (await sql(`SELECT count(*) FROM staff_exclusions WHERE staff_account_id = '${adminId}' AND subject_account_id = '${ids.legacy}'`) === '0') await sql(`INSERT INTO staff_exclusions (staff_account_id, subject_account_id, reason, created_by, created_at) VALUES ('${adminId}', '${ids.legacy}', 'Fictional conflict', '${adminId}', now())`);
       assert.deepEqual(code(await didit(adm, 'legacy', why)), [403, 'conflict-of-interest']); pass();
-      // A review for a member whose session the stand-in knows, to see the panel in the dialog.
-      const bareAttempt = await sql(`SELECT id FROM id_verification_attempts WHERE account_id = '${ids.bare}'`), bareReview = crypto.randomUUID();
-      await sql(`INSERT INTO dob_reviews (id, account_id, attempt_id, reason, created_at) VALUES ('${bareReview}', '${ids.bare}', '${bareAttempt}', 'still-different', now())`);
       // Issue 455 (D404): Support raises, an admin who didn't raise it resolves; nothing about it reaches the member.
       const raise = (token, who, reason) => call(token, `/api/admin/accounts/${ids[who]}/escalation`, { method: 'POST', body: { reason } });
       const sup = people.support.token;
@@ -686,6 +690,8 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
           assert.deepEqual([sent.length, sent[0]?.includes('half written')], [1, true], 'the decision, once'); pass();
           sent = await keyed('[data-review-dialog] [data-photo-close]');
           assert.deepEqual([sent.length, sent[0]?.includes('half written')], [1, true], 'outside a form, the decision'); pass();
+          await page.goto(`${admin}/accounts/${ids.ana}/verification`); await page.waitForSelector('[data-badge=didit]');
+          assert.equal(await page.locator('[data-didit-decision]').count(), 0, 'no panel without an open review'); pass();
           // PR 490 review: a slow or failing Didit shows the retry state inside the admin app's own 10-second limit.
           await page.setViewportSize({ width: 1280, height: 900 });
           for (const stall of [{ owned_delay_ms: 20000 }, { owned_status: 503 }]) {

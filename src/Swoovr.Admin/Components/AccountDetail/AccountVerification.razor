@@ -26,7 +26,7 @@
         }
     </ul>
 }
-@if (Permissions?.Verify == true && attempts is { Attempts.Count: > 0 })
+@if (Permissions?.Verify == true && attempts is { OpenDobReview: true })
 {
     <div class="ui-card ad-gap"><div class="ui-card-head"><h2>Didit result</h2></div><DiditDecision AccountId="Account.Id" /></div>
 }

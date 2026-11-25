@@ -71,5 +71,5 @@
         }
     }
     private void Refuse(int status, string? why) => (resultCode, message) = (why ?? status.ToString(),
-        why == "purpose-required" ? "Add the details of why you need this." : status == 404 ? "There's no Didit check for this account." : AdminText.Refusal(status, why));
+        why == "purpose-required" ? "Add the details of why you need this." : status == 404 ? "There's no open date of birth review for this account." : AdminText.Refusal(status, why));
 }
