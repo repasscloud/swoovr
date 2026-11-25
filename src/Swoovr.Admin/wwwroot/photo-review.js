@@ -99,7 +99,7 @@
 (() => {
   document.addEventListener('keydown', event => {
     const form = document.querySelector('[data-review-dialog] [data-dob-form]'); if (!form) return;
-    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); form.requestSubmit(form.querySelector('[data-dob-save]')); return; }
+    // Ctrl/Cmd+Enter is admin-ui.js's alone: two handlers submitted two forms (PR 490 review).
     if (event.metaKey || event.ctrlKey || event.altKey || event.target.closest?.('input,textarea,select,[contenteditable]')) return;
     const key = event.key.toLowerCase();
     if (key === 'm' || key === 'u') {
