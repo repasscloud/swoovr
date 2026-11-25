@@ -430,6 +430,24 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
             if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
           }
+          // PR 490 review: Ctrl+Enter submits the form in focus once, and never saves the decision from another form.
+          const posts = [], keyed = async (focus, fill) => {
+            await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
+            await page.check('[data-resolve=notVerified]', { force: true }); await page.fill('[data-dob-form] textarea[name=reason]', 'Fictional: half written');
+            if (fill) await fill();
+            await page.focus(focus);
+            posts.length = 0;
+            await page.route('**/*', route => { const r = route.request(); if (r.method() !== 'POST') return route.continue(); posts.push(decodeURIComponent((r.postDataBuffer()?.toString() ?? '').replace(/\+/g, ' '))); return route.abort(); });
+            await page.keyboard.press('Control+Enter'); await page.waitForTimeout(1500); await page.unroute('**/*');
+            return posts;
+          };
+          let sent = await keyed('[data-didit-decision] textarea[name=detail]', async () => { await page.click('[data-didit-decision=closed] summary'); await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check'); });
+          assert.equal(sent.length, 1, 'one request from the Didit form'); pass();
+          assert.ok(sent[0].includes('didit-') && !sent[0].includes('half written'), 'the Didit form, not the decision'); pass();
+          sent = await keyed('[data-dob-form] textarea[name=reason]');
+          assert.deepEqual([sent.length, sent[0]?.includes('half written')], [1, true], 'the decision, once'); pass();
+          sent = await keyed('[data-review-dialog] [data-photo-close]');
+          assert.deepEqual([sent.length, sent[0]?.includes('half written')], [1, true], 'outside a form, the decision'); pass();
           // PR 490 review: a slow or failing Didit shows the retry state inside the admin app's own 10-second limit.
           await page.setViewportSize({ width: 1280, height: 900 });
           for (const stall of [{ owned_delay_ms: 20000 }, { owned_status: 503 }]) {
