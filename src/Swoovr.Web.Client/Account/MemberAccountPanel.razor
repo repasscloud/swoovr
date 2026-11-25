@@ -97,7 +97,7 @@ else
                 {
                     <div id="setup-age" class="settings-dob">
                         @* D139: a date of birth is required and never shown; your age shows unless you hide it (Who I'd like to meet). *@
-                        @if (me.DobCheck != "none")
+                        @if (me.DobCheck != "none" && !(me.DobCheck == "manualReview" && me.DateOfBirthCorrectionUntil > DateTimeOffset.UtcNow))
                         {
                             <div class="settings-row"><div class="settings-row-text"><p class="settings-row-label">Date of birth</p>
                                 <p class="settings-row-help" data-dob-locked="@me.DobCheck">@(me.DobCheck == "correctionNeeded" ? AccountText.DobLockedCorrection : AccountText.DobLockedReview)</p></div></div>

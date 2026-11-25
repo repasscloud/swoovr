@@ -19,7 +19,7 @@
 else if (Account.DobCheck == "manualReview")
 {
     <section class="card notice" data-dob-review="open">
-        <p><strong>@AccountText.DobReviewTitle</strong> @AccountText.DobReview</p>
+        <p><strong>@AccountText.DobReviewTitle</strong> @(Account.DateOfBirthCorrectionUntil > DateTimeOffset.UtcNow ? AccountText.DobUnlocked : AccountText.DobReview)</p>
     </section>
 }
 @code {
