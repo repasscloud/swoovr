@@ -353,8 +353,8 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     // Issue 440 (D402): an approval that arrives without the date of birth is completed from Didit's decision, so a date
     // that differs gives the member their one correction; with no date anywhere it still goes to a person.
     if (process.env.SWOOVR_OWNED_DIDIT_URL) {
-      const decided = (session, vendor, checks) => fetch(`${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/decision/${session}`, { method: 'PUT',
-        body: JSON.stringify({ session_id: session, status: 'Approved', vendor_data: vendor, workflow_id: workflow, id_verifications: checks }) });
+      const decided = (session, vendor, checks, stall = {}) => fetch(`${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/decision/${session}`, { method: 'PUT',
+        body: JSON.stringify({ session_id: session, status: 'Approved', vendor_data: vendor, workflow_id: workflow, id_verifications: checks, ...stall }) });
       for (const [n, extra] of [['bare', {}], ['legacy', { decision: { id_verification: { status: 'Approved', date_of_birth: '1971-01-01' } } }], ['none', {}]]) {
         members[n] = await createMember('verify-' + n); await cli('beta', 'add', members[n].email);
         tokens[n] = await memberToken(browser, members[n]);
@@ -429,6 +429,21 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             await page.waitForSelector('[data-didit-decision=available]', { timeout: 20000 }); pass();
             assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
             if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
+          }
+          // PR 490 review: a slow or failing Didit shows the retry state inside the admin app's own 10-second limit.
+          await page.setViewportSize({ width: 1280, height: 900 });
+          for (const stall of [{ owned_delay_ms: 20000 }, { owned_status: 503 }]) {
+            await decided(bareSession, ids.bare, [], stall);
+            await page.goto(`${admin}/accounts/${ids.bare}/verification`);
+            await page.click('[data-didit-decision=closed] summary');
+            await page.selectOption('[data-didit-decision] select[name=purpose]', 'Date of birth review');
+            await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check');
+            const asked = Date.now();
+            await page.click('[data-didit-show]');
+            await page.waitForSelector('[data-didit-decision=unavailable]', { timeout: 20000 }); pass();
+            assert.ok(Date.now() - asked < 10000, 'answered before the admin app gives up'); pass();
+            assert.match(await page.textContent('[data-didit-decision]'), /can't be reached right now/); pass();
+            assert.equal(await page.locator('[data-didit-show]').count(), 1, 'can be tried again'); pass();
           }
           await page.setViewportSize({ width: 1280, height: 900 }); await page.goto(admin + '/');
           await page.setViewportSize({ width: 390, height: 844 }); await page.reload(); await page.waitForSelector('[data-dashboard]');
