@@ -1621,3 +1621,12 @@ Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10).
 
 Slice 2 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §2, §3). The API returns age and gender on a card in Dating and Friends, and orientation in Dating, each only under the person's own switch (D138, D139, D175). Business returns none of them. Cards show age after the name and gender · orientation on one line; nothing is shown when there's nothing to show. One query per Dating request for the labels; no effect on order or who appears.
 **DEFAULT:** Activities (optional in #476) shows none either. Pronouns, which no card shows, follow the same modes. The rule is in the shared list, so Near me and Traveller Search responses follow it; their web cards show no identity, as before.
+
+### D419 — Online status is built, and off until the owner turns it on (#499, 26 November 2026)
+
+Builds D410 (**CONFIRMED**, Q183 B) for Explore cards: opt-in on `/me/profile`, off by default, mutual, a green dot with the text alternative "Online" and nothing else.
+- Online means the member did something in the last 5 minutes. `Account.LastSeenAt` is written only every 5 minutes, so it can't say; `member_profiles.active_at` is separate, written at most once a minute and **only while the member's own switch is on**. Turning it off deletes it. It's in the member's own export and is never returned to anyone else.
+- A page's own polling (unread count, meeting safety, session) isn't activity, so a tab left open doesn't keep someone online.
+- Worked out after the list and its order are settled; nothing for official bots, and blocked or restricted members aren't listed at all. Opened profiles, chats and Traveller cards show no dot.
+- The promise on `/me/notifications` changes only where online status is offered. It still promises no last-seen time and no read receipts.
+- **DEFAULT:** offered per host by `Explore:OnlineStatus`, **off**, until Q189 ([#525](https://github.com/repasscloud/swoovr/issues/525)) says whether the Privacy Notice needs a sentence first. Turning it off in configuration hides every dot at once and stops writing.

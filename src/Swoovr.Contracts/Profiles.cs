@@ -37,7 +37,7 @@ public sealed record ModeUpdate(bool Enabled, bool Visible, IReadOnlyList<Guid>?
 public sealed record ProfileCard(Guid Id, string DisplayName, string? About, IReadOnlyList<string> Intentions, IReadOnlyList<BadgeView> Badges,
     int? Age = null, string? Gender = null, string? Pronouns = null, DistanceView? Distance = null, PhotoView? Photo = null, string? Visiting = null,
     string? PictureText = null, int PhotoCount = 0, string? Connection = null, bool NewMember = false,
-    string? Orientation = null);
+    string? Orientation = null, bool Online = false);
 
 /// <summary>
 /// D348: what another member may learn about distance. Band is hidden, nearby (0–2 km), within10Km, km10To20, km20To30,
@@ -49,6 +49,10 @@ public sealed record DistanceView(string Band, string? Basis = null);
 /// <summary>D348: the member's two independent location privacy settings, both off by default.</summary>
 public sealed record LocationSettingsView(bool AppearInNearby, bool ShowDistance);
 public sealed record LocationSettingsUpdate(bool AppearInNearby, bool ShowDistance);
+
+/// <summary>Issue 499 (D410): the member's own online status choice, off by default. Available: the host offers it.</summary>
+public sealed record OnlineStatusView(bool Available, bool ShowOnline);
+public sealed record OnlineStatusUpdate(bool ShowOnline);
 
 /// <summary>D348, #278: after an accepted Near me reading, the open market it is in (null outside every open market) and
 /// when it stops being used. Never the position.</summary>

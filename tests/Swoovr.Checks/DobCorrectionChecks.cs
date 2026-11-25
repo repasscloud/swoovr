@@ -25,6 +25,15 @@ static class DobCorrectionChecks
             "the prompt is the only way while a correction or review is open");
         // Issue 498 (D409): the new member window.
         var clock = new DateTimeOffset(2026, 11, 25, 0, 0, 0, TimeSpan.Zero);
+        // Issue 499 (D410): mutual, five minutes, never for bots or yourself, off where the host doesn't offer it.
+        MemberProfile On(bool show, double minutes, bool bot = false) => new() { AccountId = Guid.NewGuid(), ShowOnline = show, ActiveAt = clock.AddMinutes(-minutes), Bot = bot };
+        Expect(new MemberProfile() is { ShowOnline: false, ActiveAt: null }, "online status is off by default");
+        Expect(OnlineStatusPolicy.Shows(true, On(true, 0), On(true, 4.9), clock), "both on and active");
+        Expect(!OnlineStatusPolicy.Shows(true, On(false, 0), On(true, 0), clock) && !OnlineStatusPolicy.Shows(true, On(true, 0), On(false, 0), clock), "mutual");
+        Expect(!OnlineStatusPolicy.Shows(true, On(true, 0), On(true, 5), clock) && !OnlineStatusPolicy.Shows(true, On(true, 0), On(true, 0, bot: true), clock)
+            && !OnlineStatusPolicy.Shows(false, On(true, 0), On(true, 0), clock) && On(true, 0) is { } self && !OnlineStatusPolicy.Shows(true, self, self, clock), "window, bots, host, self");
+        Expect(!OnlineStatusPolicy.Counts("GET", "/api/me/notifications") && !OnlineStatusPolicy.Counts("GET", "/api/me/meeting-safety") && OnlineStatusPolicy.Counts("POST", "/api/me/notifications/read")
+            && OnlineStatusPolicy.Counts("GET", "/api/explore"), "a page's own polling isn't activity");
         // Issue 495 (D418): mode rules for a card.
         Expect(ModePrivacy.OnCard("dating", 34, "Woman", "she/her") == (34, "Woman", "she/her") && ModePrivacy.OnCard("friends", 34, "Woman", null) == (34, "Woman", null)
             && ModePrivacy.OnCard("activities", 34, "Woman", "she/her") == (null, null, null) && ModePrivacy.OnCard("business", 34, "Woman", "she/her") == (null, null, null), "identity on cards per mode");

@@ -65,6 +65,31 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.deepEqual(await Promise.all(['dating', 'friends'].map(order)), orders, 'the order does not change'); pass();
     await say({});
 
+    // Issue 499 (D410): online status is opt-in and mutual, five minutes, never a time, and never from a page's own polling.
+    const online = async (who, n) => (await explore(who, 'friends')).find(p => p.id === pid[n]).online;
+    const turn = (who, on) => call(tokens[who], '/api/me/online-status', { method: 'PUT', body: { showOnline: on } });
+    const activeAt = n => sql(`SELECT coalesce(active_at::text, '') FROM member_profiles WHERE account_id = '${ids[n]}'`);
+    assert.deepEqual((await call(tokens.viv, '/api/me/online-status')).body, { available: true, showOnline: false }); pass();
+    assert.equal(await activeAt('con'), '', 'nothing is kept while it is off'); pass();
+    const ordered = await order('friends');
+    await turn('con', true); assert.notEqual(await activeAt('con'), '');
+    assert.equal(await online('viv', 'con'), false, 'viv has it off'); pass();
+    await turn('viv', true);
+    assert.deepEqual([await online('viv', 'con'), await online('con', 'viv'), await online('viv', 'out')], [true, true, false]); pass();
+    assert.ok(!JSON.stringify(await explore('viv', 'friends')).toLowerCase().includes('activeat'), 'never a time'); pass();
+    await sql(`UPDATE member_profiles SET active_at = now() - interval '6 minutes' WHERE account_id = '${ids.con}'`);
+    assert.equal(await online('viv', 'con'), false); pass();
+    await call(tokens.con, '/api/me/notifications');
+    assert.equal(await online('viv', 'con'), false, 'the unread poll is not activity'); pass();
+    await call(tokens.con, '/api/me/profile');
+    assert.equal(await online('viv', 'con'), true); pass();
+    assert.deepEqual(await order('friends'), ordered, 'the order does not change'); pass();
+    await sql(`UPDATE member_profiles SET bot = true WHERE account_id = '${ids.con}'`);
+    assert.ok(!(await explore('viv', 'friends')).some(p => p.id === pid.con && p.online), 'never for bots'); pass();
+    await sql(`UPDATE member_profiles SET bot = false WHERE account_id = '${ids.con}'`);
+    await turn('con', false); assert.equal(await activeAt('con'), ''); assert.equal(await online('viv', 'con'), false); pass();
+    await turn('con', true);
+
     const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
     await page.goto(web + '/account/sign-in?intro=done');
     await page.fill('#username', members.viv.email); await page.fill('#password', members.viv.password);
@@ -75,6 +100,9 @@ const output = process.env.SWOOVR_SCREENSHOTS;
       await page.waitForSelector(`.member-card:has(a[href^="/people/${pid.con}"])`, { timeout: 20000 });
       const status = n => page.locator(`.member-card:has(a[href^="/people/${pid[n]}"]) [data-tile-status]`);
       assert.deepEqual([await status('con').textContent(), await status('out').textContent(), await status('inn').textContent(), await status('non').textContent()], ['Connected', 'Request sent', 'Request received', 'New member']); pass();
+      assert.deepEqual(await page.locator(`.member-card:has(a[href^="/people/${pid.con}"]) [data-tile-online]`).evaluateAll(a => a.map(e => [e.getAttribute('aria-label'), e.textContent, e.getBoundingClientRect().width > 6])), [['Online', '', true]]); pass();
+      assert.equal(await page.locator('[data-tile-online]').count(), 1); pass();
+      assert.ok(await page.locator('[data-tile-online]').evaluate(e => { const d = e.getBoundingClientRect(), n = e.parentElement.querySelector('a').getBoundingClientRect(); return d.top >= n.top && d.bottom <= n.bottom && d.right <= n.left; }), 'beside the name'); pass();
       const sizes = await page.locator('.member-card').evaluateAll(els => [...new Set(els.map(e => { const r = e.getBoundingClientRect(); return Math.round(r.width) + 'x' + Math.round(r.height); }))]);
       assert.equal(sizes.length, 1, 'one card size: ' + sizes); pass();
       assert.equal(await page.locator('.member-card button:not([data-card-badges])').count(), 0, 'no action buttons on cards'); pass();
@@ -91,6 +119,16 @@ const output = process.env.SWOOVR_SCREENSHOTS;
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); pass();
       if (output) await page.screenshot({ path: `${output}/explore-identity-${mode}-${theme}-${width}.png`, fullPage: true });
     }
+    // The member's own switch, and the promise on Notifications that changes with it.
+    await page.emulateMedia({ colorScheme: 'light' }); await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(web + '/me/profile'); await page.waitForSelector('[data-online-status=on]');
+    await page.locator('[data-online-status]').scrollIntoViewIfNeeded();
+    if (output) await page.locator('[data-online-status]').screenshot({ path: output + '/online-status-card.png' });
+    await page.click('[data-show-online]'); await page.waitForSelector('[data-online-status=off]'); pass();
+    assert.equal(await activeAt('viv'), ''); pass();
+    await page.goto(web + '/me/notifications'); await page.waitForSelector('[data-notification-privacy]');
+    assert.match(await page.textContent('[data-notification-privacy]'), /only if you both turn on online status/); pass();
+    assert.doesNotMatch(await page.textContent('[data-notification-privacy]'), /never shows anyone when you're online/); pass();
     console.log(`PASS: Explore card information, ${passed} checks.`);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

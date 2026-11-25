@@ -4917,6 +4917,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("about");
 
+                    b.Property<DateTimeOffset?>("ActiveAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("active_at");
+
                     b.Property<bool>("AdminVerified")
                         .HasColumnType("boolean")
                         .HasColumnName("admin_verified");
@@ -5091,6 +5095,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                     b.Property<bool>("ShowDistance")
                         .HasColumnType("boolean")
                         .HasColumnName("show_distance");
+
+                    b.Property<bool>("ShowOnline")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_online");
 
                     b.Property<Guid?>("TextRevision")
                         .HasColumnType("uuid")

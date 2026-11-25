@@ -7,6 +7,9 @@ public static class NotificationText
 {
     public const string Title = "Notifications";
     public const string PrivacyNote = "Lock screens and emails never show names, message text or which mode something is about unless you turn private previews off. Emails never do. Swoovr never shows anyone when you're online, active or have read their message.";
+    /// <summary>Issue 499 (D410): where the host offers online status, the promise says what it does instead. Never a last-seen time or a read receipt.</summary>
+    public const string PrivacyNoteWithOnline = "Lock screens and emails never show names, message text or which mode something is about unless you turn private previews off. Emails never do. Swoovr never shows anyone when you were last active or that you've read their message. Others can see that you're online only if you both turn on online status.";
+    public static string Privacy(bool onlineStatus) => onlineStatus ? PrivacyNoteWithOnline : PrivacyNote;
     public const string PreviewsHelp = "On: your lock screen says only that something is new. Off: it shows the person's name, the mode and the start of a message.";
     public const string QuietHelp = "No pushes or emails between these times (in your time zone). Everything still waits for you here.";
     public const string MutedHelp = "Nothing about a muted mode is pushed or emailed. It still shows here.";
