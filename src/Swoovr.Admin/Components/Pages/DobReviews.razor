@@ -115,6 +115,7 @@ else
         <section class="didit-decision" aria-label="Unlock the date of birth"><DobCorrectionTools AccountId="selected.AccountId" InReview="true" /></section>
         <form method="post" @formname="@($"resolve-{selected.Id}")" @onsubmit="() => ResolveAsync(selected.Id)" class="media-side dob-form" data-enhance="true" data-dob-form>
             <AntiforgeryToken />
+            <input type="hidden" name="changedAt" value="@(selected.ChangedAt?.ToString("O"))" />
             <dl class="media-meta">
                 <dt>Why</dt><dd>@(selected.Reason switch { "no-document-date" => "Didit returned no date from the document", "document-not-approved" => "Didit approved the session but not its document check, so its date isn't used", "admin-correction-mismatch" => "Member changed their date after staff unlocked it; it differs from the verified identity", _ => "Member corrected their date; it still differs from the ID" })</dd>
                 <dt>Opened</dt><dd>@selected.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC · @Ago(selected.CreatedAt) ago</dd>
@@ -210,10 +211,10 @@ else
         if (reason.Length == 0) { resultCode = "reason-required"; message = "Add a reason."; return; }
         if (DatePattern.IsMatch(reason)) { resultCode = "reason-date"; message = "Leave dates out of the reason."; return; }
         var next = Filtered.SkipWhile(r => r.Id != id).Skip(1).FirstOrDefault() ?? Filtered.FirstOrDefault(r => r.Id != id);
-        var result = await Admin.ResolveDobReviewAsync(id, outcome, reason);
+        var result = await Admin.ResolveDobReviewAsync(id, outcome, reason, DateTimeOffset.TryParse(Field("changedAt"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var changedAt) ? changedAt : null);
         resultCode = result.Ok ? "ok" : result.Code ?? result.Status.ToString();
         if (result.Ok) { Navigation.NavigateTo(Url(next?.Id)); return; }
-        message = AdminText.Refusal(result.Status, result.Code);
+        message = result.Code == "record-changed" ? "The member changed their date of birth. Look at the review again." : AdminText.Refusal(result.Status, result.Code);
         await LoadAsync();
     }
 }

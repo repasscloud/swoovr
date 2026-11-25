@@ -92,6 +92,7 @@ The photo screening key between the API and the `image-moderation` container is 
 | `UAT_ENTRA_CLIENT_ID` | realm templates + `automation.env` `SWOOVR_ENTRA_CLIENT_ID` | Application (client) ID |
 | `UAT_KEYCLOAK_ENABLED_REALMS` | `automation.env` `SWOOVR_KEYCLOAK_ENABLED_REALMS` | `swoovr-members,swoovr-staff` (default); venues can never be listed |
 | `UAT_DIDIT_WORKFLOW_ID` | `api.env` `Didit__WorkflowId` | |
+| `UAT_DIDIT_IMAGE_HOSTS` | `api.env` `Didit__IdImages__Hosts` | exact host names of Didit's document images, comma separated (#488); empty refuses every image and the API log names the host |
 | `UAT_R2_ENDPOINT`, `UAT_R2_BUCKET` | `api.env` `Media__R2__Endpoint`, `Media__R2__Bucket` | |
 | `UAT_TWILIO_SMS_FROM` | `api.env` `Sms__Twilio__From` | E.164 |
 | `UAT_MAIL_FROM`, `UAT_MAIL_FROM_NAME`, `UAT_MAIL_HELPDESK_FROM_NAME` | `mail.env` `SWOOVR_MAIL_FROM`, `_FROM_NAME`, `_HELPDESK_FROM_NAME` | `hello@repasscloud.com`, `Swoovr`, `Swoovr Helpdesk` (D358) |

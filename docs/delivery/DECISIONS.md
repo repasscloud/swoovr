@@ -1588,3 +1588,11 @@ Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10).
 - **Retention:** the owner confirmed Didit's console keeps sessions 30 days.
 - **Release gate:** a setting, off by default. Outside Development a host refuses to start with it on while the published notice is below 0.21. Off, the review works as it did.
 - **DEFAULT (builder):** exact-host allowlist that refuses everything while empty; JPEG, PNG or WebP by content; 5 MB a side; 8 seconds in total.
+
+### D414 — UAT runs the ID review before notice 0.21 (#488, 26 November 2026)
+
+**CONFIRMED** by the owner (26 November 2026, in chat): UAT is private testing, not open to the public, and the only ID in it is the owner's, so the ID review should be operational there. Legal reviews it before it goes to production. Amends D413's release gate **for UAT only**.
+- `Didit:IdImages` is on in UAT and may start with no image host: every image is then refused and the API log names the host, which the owner sets as `UAT_DIDIT_IMAGE_HOSTS`.
+- Every other hosted environment still refuses to start with it on before notice 0.21 is in force, or without a named host. The notice isn't published or changed by this.
+- If anyone else's ID is ever added to UAT, this exception no longer holds.
+- **PR 516 review:** a decision is refused (`record-changed`) if the member changed their date after the admin opened the review.

@@ -327,6 +327,7 @@ PROVIDER_VALUES = {
     'UAT_ENTRA_CLIENT_ID': [('automation.env', 'SWOOVR_ENTRA_CLIENT_ID')],
     'UAT_KEYCLOAK_ENABLED_REALMS': [('automation.env', 'SWOOVR_KEYCLOAK_ENABLED_REALMS')],
     'UAT_DIDIT_WORKFLOW_ID': [('api.env', 'Didit__WorkflowId')],
+    'UAT_DIDIT_IMAGE_HOSTS': [('api.env', 'Didit__IdImages__Hosts')],
     'UAT_R2_ENDPOINT': [('api.env', 'Media__R2__Endpoint')],
     'UAT_R2_BUCKET': [('api.env', 'Media__R2__Bucket')],
     'UAT_TWILIO_SMS_FROM': [('api.env', 'Sms__Twilio__From')],
