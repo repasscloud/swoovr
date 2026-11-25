@@ -2653,7 +2653,7 @@ Owner answer recorded 3 November 2026 — **CONFIRMED D308** ([source](https://g
 ### Q128 — Reporting to Swoovr through Zammad
 
 - Own issue: [#188](https://github.com/repasscloud/wanderconnect/issues/188) (decision-needed).
-- Issue: [#181](https://github.com/repasscloud/wanderconnect/issues/181#issuecomment-6619038197). Status: OPEN (decision-needed; owner-action for Zammad URL, API token secret and group names).
+- Issue: [#181](https://github.com/repasscloud/wanderconnect/issues/181#issuecomment-6619038197). Status: ANSWERED, owner 25 November 2026 (D411): sensitive safety reports go to the **Trust & Safety** group in Zammad. Not built yet; #188 stays open for it.
 - A (**Suggested**): ship the redesign; "Report to Swoovr" keeps D308 routing (guests → https://swoovr.com/support, members → in-app serious report) until Zammad details are supplied. B: hold the reporting change.
 - Built meanwhile: A.
 
@@ -2847,7 +2847,7 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q171 — Vultr environment, capacity and latency targets
 
-- Issue: [#295](https://github.com/repasscloud/wanderconnect/issues/295); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: OPEN. Earliest blocking phase: Before hosted sizing/acceptance.
+- Issue: [#295](https://github.com/repasscloud/wanderconnect/issues/295); parent [#294](https://github.com/repasscloud/wanderconnect/issues/294). Status: CLOSED as superseded by D384 (owner, 25 November 2026): there are no Vultr processor VMs to size.
 - Region, CPU architecture, VM resources, peak/sustained uploads and queue-to-ready latency/budget. DEFAULT: measure current upload limits and one-VM maintenance capacity before choosing a paid tier.
 - Design: [Vultr image pipeline](../superpowers/specs/2026-11-08-vultr-image-pipeline-design.md). Independent contracts/build/local verification can continue. Never post private credentials to the issue.
 
@@ -2942,12 +2942,12 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q183 — Online status on Explore cards
 
-- Issue: [#478](https://github.com/repasscloud/swoovr/issues/478) (for #476). Status: OPEN. Blocks only #476's online-status part; nothing else waits on it.
+- Issue: [#478](https://github.com/repasscloud/swoovr/issues/478) (for #476). Status: ANSWERED B, owner 25 November 2026 (D410). Build: #499.
 - Swoovr has no presence feature, and /me/notifications promises "Swoovr never shows anyone when you're online, active or have read their message." **183.1** **A (recommended):** no online status; keep the promise. **B:** opt-in "Show when I'm online" (off by default, mutual), change the promise and record the policy change. **C:** opt-out. **183.2** (B or C): **DEFAULT** "online" = active in the last 5 minutes, a dot plus the word "Online", never a last-seen time.
 
 ## Date of birth from Didit — [#440](https://github.com/repasscloud/swoovr/issues/440), 25 November 2026
 
 ### Q184 — A document check that isn't itself Approved
 
-- Issue: [#488](https://github.com/repasscloud/swoovr/issues/488). Status: OPEN. Blocks only closing #440; D402's fix doesn't wait on it.
+- Issue: [#488](https://github.com/repasscloud/swoovr/issues/488). Status: ANSWERED, owner 25 November 2026 (D412): A, with its own status. Not built yet; #488 stays open for it and for the cause on the owner's session.
 - A session can be approved while its document check keeps another status. **184.1** **A (recommended, today's rule):** the check supplies nothing and a person reviews it, with a label that doesn't say the date is missing. **B:** an approved session counts as approving its document check for the date, adult result and verified name.
