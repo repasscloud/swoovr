@@ -37,12 +37,14 @@ public static class DobChangeEndpoints
             if(current is null||!current.Allows(AccountRole.Admin))return Results.Forbid();
             if(await StaffAccessEndpoints.ExcludedAsync(db,current.Account!.Id,[id],token))return StaffAccessEndpoints.Conflict();
             if(!await db.Accounts.AnyAsync(a=>a.Id==id&&a.Realm==AccountRealm.Members&&a.Status==AccountStatus.Active,token)
-                ||!await db.MemberProfiles.AnyAsync(p=>p.AccountId==id&&p.DateOfBirth!=null&&p.DobCheck==DobCheck.None,token))return Problem(404,ProblemCodes.NotAvailable,"No eligible member date is on file; finish any existing ID correction or review first.");
+                ||!await db.MemberProfiles.AnyAsync(p=>p.AccountId==id&&p.DateOfBirth!=null
+                    // Issue 488 (D413): also during an open review; the review stays open after the member's update.
+                    &&(p.DobCheck==DobCheck.None||p.DobCheck==DobCheck.ManualReview&&db.DobReviews.Any(r=>r.AccountId==id&&r.ResolvedAt==null)),token))
+                return Problem(404,ProblemCodes.NotAvailable,"No eligible member date is on file; the member's own ID correction comes first.");
             await using var preservation=await PreservationLease.SharedAsync(db,token);
             await using var tx=await db.Database.BeginTransactionAsync(token);
             var now=clock.GetUtcNow();
-            await db.DobChangeGrants.Where(g=>g.AccountId==id&&g.ConsumedAt==null&&g.RevokedAt==null)
-                .ExecuteUpdateAsync(u=>u.SetProperty(g=>g.RevokedAt,now).SetProperty(g=>g.RevokedBy,current.Account.Id),token);
+            await RevokeUnusedAsync(db,id,current.Account.Id,now,token);
             var grant=new DobChangeGrant{Id=Guid.NewGuid(),AccountId=id,GrantedBy=current.Account.Id,Reason=request.Reason.Trim(),CreatedAt=now,ExpiresAt=now+DobChangePolicy.Window};
             db.DobChangeGrants.Add(grant);
             Audit.Record(db,now,current.Account.Id,"account","dob.correction-granted","account",id.ToString(),grant.Id.ToString());
@@ -85,6 +87,9 @@ public static class DobChangeEndpoints
     }
 
     public static DobGrantView View(DobChangeGrant grant)=>new(grant.Id,grant.AccountId,grant.CreatedAt,grant.ExpiresAt,grant.ConsumedAt,grant.RevokedAt);
+    public static Task<int> RevokeUnusedAsync(SwoovrDbContext db,Guid member,Guid actor,DateTimeOffset now,CancellationToken token)=>
+        db.DobChangeGrants.Where(g=>g.AccountId==member&&g.ConsumedAt==null&&g.RevokedAt==null)
+            .ExecuteUpdateAsync(u=>u.SetProperty(g=>g.RevokedAt,now).SetProperty(g=>g.RevokedBy,actor),token);
     public static async Task<bool> ConsumeAsync(SwoovrDbContext db,Guid grant,Guid member,DateTimeOffset now,CancellationToken token)=>
         await db.DobChangeGrants.Where(g=>g.Id==grant&&g.AccountId==member&&g.CreatedAt<=now&&g.ExpiresAt>now&&g.ConsumedAt==null&&g.RevokedAt==null)
             .ExecuteUpdateAsync(u=>u.SetProperty(g=>g.ConsumedAt,now),token)==1;

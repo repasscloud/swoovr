@@ -7,11 +7,16 @@
         <div><dt>Correction</dt>
             <dd data-dob-grant="@(live is null ? "none" : "available")">@(live is null ? (grants.Count == 0 ? "None allowed" : $"Last allowed {grants[0].CreatedAt:d MMM yyyy} · {State(grants[0])}") : $"Allowed until {live.ExpiresAt:d MMM yyyy HH:mm} UTC")</dd>
             <dd class="ad-act">
-                @if (live is null) {<button type="button" class="ui-button-ghost" data-dialog-open="dob-grant" data-op="dob-grant">Allow correction</button>}
+                @if (live is null) {<button type="button" class="ui-button-ghost" data-dialog-open="dob-grant" data-op="dob-grant">@(InReview ? "Unlock date of birth" : "Allow correction")</button>}
                 else {<form method="post" @formname="@($"dob-revoke-{live.Id}")" @onsubmit="() => RevokeAsync(live.Id)"><AntiforgeryToken /><button type="submit" class="ui-button-ghost" data-op="dob-revoke">Revoke</button></form>}
-                <a class="ui-button-ghost" href="/dob-history?account=@AccountId">History (Legal)</a>
+                @if (!InReview) {<a class="ui-button-ghost" href="/dob-history?account=@AccountId">History (Legal)</a>}
             </dd></div>
     </dl>
+    @if (InReview && live is not null)
+    {
+        @* Issue 488 (Q187): the approved reply, to paste into the member's support request. *@
+        <div data-dob-unlock-message><p class="ui-help">Reply to the member's support request: <CopyButton Value="@SupportTicketText.DobUnlockedBody" /></p><p>@SupportTicketText.DobUnlockedBody</p></div>
+    }
     @if (message is not null) {<p class="ui-help" role="status" data-dob-grant-result="@resultCode">@message</p>}
     <ConfirmDialog Id="dob-grant" FormName="dob-grant" Title="Allow one date of birth correction" Confirm="Allow for 24 hours" OnSubmit="GrantAsync">
         <label class="ui-field"><span>Reason</span><select name="dobReason" required><option>Member typing error, confirmed by ID</option><option>Didit document mismatch review</option><option>Legal instruction</option></select></label>
@@ -20,6 +25,7 @@
 }
 @code{
     [Parameter] public Guid AccountId{get;set;}
+    [Parameter] public bool InReview{get;set;}
     [CascadingParameter] private HttpContext? Context{get;set;}
     private bool allowed;
     private List<DobGrantView> grants=[];

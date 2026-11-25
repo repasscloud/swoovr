@@ -517,6 +517,46 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       if (process.env.SWOOVR_MEETING_OWNED_LOGS) for (const name of ['api.log', 'admin.log', 'web.log'])
         assert.ok(!/owned\/image|synthetic-signature/.test(require('node:fs').readFileSync(`${process.env.SWOOVR_MEETING_OWNED_LOGS}/${name}`, 'utf8')), name + ' holds no image link');
       pass();
+      // Issue 488 (D413): unlocking during a review. One use, locked again, and even a match waits for the second look.
+      await sql(`UPDATE member_profiles SET dob_check = 'ManualReview' WHERE account_id = '${ids.bare}'`);
+      const unlock = (token, who) => call(token, `/api/admin/accounts/${ids[who]}/dob-correction`, { method: 'POST', body: { reason: 'Didit document mismatch review' } });
+      const setDob = (who, dateOfBirth) => call(tokens[who], '/api/me/age', { method: 'PUT', body: { dateOfBirth, confirmed: true } });
+      assert.deepEqual(code(await setDob('bare', '1971-01-01')), [409, 'dob-under-review'], 'locked until staff unlock it'); pass();
+      for (const token of [null, tokens.bare, sup]) assert.ok([401, 403].includes((await unlock(token, 'bare')).status)); pass();
+      assert.deepEqual(code(await unlock(adm, 'legacy')), [403, 'conflict-of-interest']); pass();
+      assert.equal((await unlock(root, 'legacy')).status, 404, 'the one correction prompt is used first'); pass();
+      const held = await unlock(adm, 'bare');
+      assert.equal(held.status, 200); pass();
+      assert.equal((await call(adm, `/api/admin/accounts/${ids.bare}/dob-correction/${held.body.id}/revoke`, { method: 'POST' })).status, 200);
+      assert.deepEqual(code(await setDob('bare', '1971-01-01')), [409, 'dob-under-review'], 'revoked'); pass();
+      const late = await unlock(adm, 'bare'); await sql(`UPDATE restricted.dob_change_grants SET created_at = created_at - interval '25 hours', expires_at = expires_at - interval '25 hours' WHERE id = '${late.body.id}'`);
+      assert.deepEqual(code(await setDob('bare', '1971-01-01')), [409, 'dob-under-review'], 'expired'); pass();
+      assert.equal((await unlock(adm, 'bare')).status, 200);
+      assert.deepEqual(code(await call(tokens.bare, '/api/me/age', { method: 'PUT', body: { dateOfBirth: '1971-01-01' } })), [400, 'dob-confirmation-required']); pass();
+      if (process.env.SWOOVR_OWNED_DIDIT_URL) {
+        const unlocked = await browser.newContext({ viewport: { width: 390, height: 844 } }), own = await unlocked.newPage();
+        await signIn(own, members.bare); await own.goto(web + '/account'); await own.waitForSelector('[data-age-form]', { timeout: 20000 });
+        assert.match(await own.textContent('[data-dob-review=open]'), /You can now update your date of birth in Account settings\./); pass();
+        if (output) await own.screenshot({ path: output + '/dob-unlocked-390.png', fullPage: true });
+        await own.fill('#dob', '1971-01-01'); await own.check('.settings-dob input[type=checkbox]'); await own.click('[data-age-form] button[type=submit]');
+        await own.waitForSelector('[data-dob-locked=manualReview]', { timeout: 20000 }); pass();
+        assert.ok(!(await own.textContent('[data-dob-review=open]')).includes('You can now')); pass();
+        await unlocked.close();
+      }
+      assert.deepEqual([(r = await call(tokens.bare, '/api/me')).body.dateOfBirthVerified, r.body.dobCheck], [false, 'manualReview'], 'a match still waits for the second look'); pass();
+      assert.equal(await sql(`SELECT resolved_at IS NULL FROM dob_reviews WHERE id = '${bareReview}'`), 't'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM dob_reviews WHERE account_id = '${ids.bare}'`), '1', 'no second review'); pass();
+      assert.deepEqual(code(await setDob('bare', '1972-02-02')), [409, 'dob-under-review'], 'locked again'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'dob.correction-used' AND target_id = '${ids.bare}'`), '1'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE target_id = '${ids.bare}' AND detail ~ '19[0-9]{2}-'`), '0', 'no date in the audit'); pass();
+      // A decision withdraws an unused unlock.
+      assert.equal((await unlock(adm, 'pending')).status, 200);
+      assert.equal((await call(root, `/api/admin/dob-reviews/${pendingReview}/resolve`, { method: 'POST', body: { outcome: 'notVerified', reason: 'Fictional decision' } })).status, 200);
+      assert.deepEqual(code(await setDob('pending', '1971-01-01')), [409, 'date-of-birth-locked']); pass();
+      await sql(`UPDATE dob_reviews SET resolved_at = NULL, outcome = NULL, resolved_by = NULL WHERE id = '${pendingReview}'`); await sql(`UPDATE member_profiles SET dob_check = 'ManualReview' WHERE account_id = '${ids.pending}'`);
+      // An under-18 date still locks the account.
+      assert.equal((await unlock(adm, 'pending')).status, 200);
+      assert.deepEqual(code(await setDob('pending', `${new Date().getFullYear() - 10}-01-01`)), [403, 'account-locked']); pass();
       const queue = Number(await sql('SELECT count(*) FROM dob_reviews WHERE resolved_at IS NULL'));
       for (const role of ['admin', 'support']) {
         const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage();
@@ -540,6 +580,13 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
             if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
           }
+          await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
+          await page.click('[data-review-dialog] [data-op=dob-grant]'); await page.click('[data-confirm=dob-grant]');
+          await page.waitForSelector('[data-review-dialog] [data-dob-grant=available]'); pass();
+          assert.match(await page.textContent('[data-dob-unlock-message]'), /You can change it once in the next 24 hours, and it then locks again\./); pass();
+          assert.ok(!/\d{4}/.test(await page.textContent('[data-dob-unlock-message]'))); pass();
+          if (output) { await page.locator('[data-dob-unlock-message]').scrollIntoViewIfNeeded(); await page.screenshot({ path: output + '/dob-unlock-1280.png' }); }
+          await page.click('[data-review-dialog] [data-op=dob-revoke]'); await page.waitForSelector('[data-review-dialog] [data-dob-grant=none]'); pass();
           for (const theme of ['light', 'dark']) for (const width of [1280, 390]) {
             await page.emulateMedia({ colorScheme: theme });
             await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });

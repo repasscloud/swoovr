@@ -42,6 +42,8 @@ public static partial class SupportTicketText
     public const string CreateTicketLabel = "Create ticket";
     public const string DobTicketTitle = "Checking the date of birth on your account";
     public const string DobTicketBody = "Hello,\n\nWe need to check the date of birth on your Swoovr account against your ID check. Please reply to this message and we'll take it from there.\n\nPlease don't send photos of your ID here.\n\nSwoovr support";
+    // Issue 488 (Q187): approved by the owner, 25 November 2026; sent as a reply after staff unlock the date.
+    public const string DobUnlockedBody = AccountText.DobUnlocked + " You can change it once in the next 24 hours, and it then locks again. Please enter it exactly as it appears on your ID. Please don't send photos of your ID here.";
     /// <summary>Why the Create ticket action is unavailable, or null when the staff member can create in General Support.</summary>
     public static string? CreateUnavailable(int status, IReadOnlyList<string>? createQueues) => status switch
     {

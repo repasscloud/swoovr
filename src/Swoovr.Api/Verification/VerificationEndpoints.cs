@@ -262,6 +262,8 @@ public static class VerificationEndpoints
             (review.ResolvedAt, review.ResolvedBy, review.Outcome, review.ResolutionNote) = (now, current!.Account!.Id, outcome, request.Reason.Trim());
             (profile.DateOfBirthVerified, profile.DateOfBirthVerifiedAt) = (outcome == DobReviewOutcome.Verified, outcome == DobReviewOutcome.Verified ? now : null);
             (profile.DobCheck, profile.DobCheckAt) = (DobCheck.None, now);
+            // Issue 488 (D413): a decision withdraws an unlock the member hasn't used.
+            await DobChangeEndpoints.RevokeUnusedAsync(db, review.AccountId, current.Account.Id, now, cancellationToken);
             Audit.Record(db, now, current.Account.Id, "account", "dob.review-resolved", "account", review.AccountId.ToString(), Wire(outcome));
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);

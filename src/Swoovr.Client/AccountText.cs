@@ -10,6 +10,8 @@ public static class AccountText
     // Issue 439: the date of birth follow-up after an ID check, in plain words. Neither date is ever shown (D166).
     public const string DobReviewTitle = "Your ID is verified.";
     public const string DobReview = "Someone from Swoovr will check that the date of birth on your account matches your ID. You don't need to do anything, and we'll contact you if we need more.";
+    // Issue 488 (Q187): approved by the owner, 25 November 2026.
+    public const string DobUnlocked = "You can now update your date of birth in Account settings.";
     public const string DobLockedCorrection = "Use the prompt above to set your date of birth to the one on your ID.";
     public const string DobLockedReview = "Swoovr is checking this against your ID, so you can't change it for now.";
     public static string DobCorrected(bool matches) => matches

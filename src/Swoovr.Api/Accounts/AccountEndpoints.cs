@@ -85,7 +85,11 @@ public static class AccountEndpoints
             if (update.DateOfBirth is null)
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.DateOfBirthRequired, "Enter your date of birth.");
             // D166's provider-mismatch prompt remains independent of D299's Admin-authorised correction.
-            if (!DobCorrectionPolicy.OrdinaryChangeAllowed(profile.DobCheck))
+            var grant=await db.DobChangeGrants.Where(g=>g.AccountId==account.Id&&g.ConsumedAt==null&&g.RevokedAt==null&&g.ExpiresAt>now&&g.CreatedAt<=now)
+                .OrderByDescending(g=>g.CreatedAt).FirstOrDefaultAsync(cancellationToken);
+            // Issue 488 (D413): staff may unlock the date during a review; the review stays open whatever the new date is.
+            var underReview=profile.DobCheck==DobCheck.ManualReview;
+            if (!DobCorrectionPolicy.OrdinaryChangeAllowed(profile.DobCheck)&&!(underReview&&DobChangePolicy.Live(grant,account.Id,now)))
                 return profile.DobCheck == DobCheck.CorrectionNeeded
                     ? Problem(StatusCodes.Status409Conflict, ProblemCodes.DobCorrectionRequired, "Set your date of birth to the one on your ID to finish verification.")
                     : Problem(StatusCodes.Status409Conflict, ProblemCodes.DobUnderReview, "Swoovr is checking your date of birth. Contact support to change it.");
@@ -93,15 +97,13 @@ public static class AccountEndpoints
             if (change.Error != AgeChangeError.None)
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidAge, "That date of birth or age can't be used.");
             if(profile.DateOfBirth==update.DateOfBirth)return Results.Ok(View(profile,Today(clock),await BadgeOrderAsync(db,cancellationToken)));
-            var grant=await db.DobChangeGrants.Where(g=>g.AccountId==account.Id&&g.ConsumedAt==null&&g.RevokedAt==null&&g.ExpiresAt>now&&g.CreatedAt<=now)
-                .OrderByDescending(g=>g.CreatedAt).FirstOrDefaultAsync(cancellationToken);
             if(profile.DateOfBirth is not null&&!DobChangePolicy.Live(grant,account.Id,now))
                 return Problem(409,ProblemCodes.DateOfBirthLocked,"Your saved date of birth is locked. Request a correction at https://swoovr.com/support.");
             if(!DobChangePolicy.CanSave(profile.DateOfBirth,update.Confirmed,grant,account.Id,now))
                 return Problem(400,ProblemCodes.DobConfirmationRequired,"Confirm this date is correct before saving. It will then be locked.");
             var keys=accounts.Services.GetRequiredService<Swoovr.Api.Verification.IdentityKeys>();
             if(profile.DateOfBirth is not null&&keys.CurrentVersion is null)return Problem(503,ProblemCodes.NotConfigured,"Date correction is temporarily unavailable.");
-            var storedIdentity=profile.IdStatus==VerificationStatus.Verified?await db.VerifiedIdentities.FindAsync([account.Id],cancellationToken):null;
+            var storedIdentity=!underReview&&profile.IdStatus==VerificationStatus.Verified?await db.VerifiedIdentities.FindAsync([account.Id],cancellationToken):null;
             if(storedIdentity is not null&&(storedIdentity.Sealed.Length==0||!keys.Encryption.ContainsKey(storedIdentity.Sealed[0])))
                 return Problem(503,ProblemCodes.NotConfigured,"The stored identity comparison is temporarily unavailable.");
             if(profile.DateOfBirth is not null&&!await DobChangeEndpoints.ConsumeAsync(db,grant!.Id,account.Id,now,cancellationToken))
@@ -109,7 +111,12 @@ public static class AccountEndpoints
             DobChangeEndpoints.PreservePrevious(db,keys,profile,update.DateOfBirth.Value,grant?.Id,now);
             if(profile.DateOfBirth is not null)Audit.Record(db,now,account.Id,"account","dob.correction-used","account",account.Id.ToString(),grant!.Id.ToString());
             (profile.DateOfBirthVerified,profile.DateOfBirthVerifiedAt)=(false,null);
-            if(profile.IdStatus==VerificationStatus.Verified)
+            if(underReview)
+            {
+                profile.DobCheckAt=now;
+                Audit.Record(db,now,account.Id,"account","dob.review-updated","account",account.Id.ToString());
+            }
+            else if(profile.IdStatus==VerificationStatus.Verified)
             {
                 VerifiedIdentityFields? identity;
                 try{identity=await accounts.Services.GetRequiredService<Swoovr.Api.Verification.VerifiedIdentityStore>().OwnAsync(account.Id,cancellationToken);}
