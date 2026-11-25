@@ -133,6 +133,9 @@ public static class MemberText
     public const string Arrived = "You've arrived. You can now send requests to people here.";
     public const string BrowsingBeforeArrival = "You're looking before you arrive. You can send requests once you've confirmed you've arrived.";
 
+    /// <summary>Issue 495 (D418): gender and orientation on one line, only what the API returned for this mode.</summary>
+    public static string CardIdentity(ProfileCard card) => string.Join(" · ", new[] { card.Gender, card.Orientation }.Where(v => !string.IsNullOrWhiteSpace(v)));
+
     /// <summary>Issue 497: the viewer's standing with someone in the mode they're browsing; otherwise, for a while, that they're new (issue 498).</summary>
     public static string CardStatus(ProfileCard card) => card.Connection switch
     {

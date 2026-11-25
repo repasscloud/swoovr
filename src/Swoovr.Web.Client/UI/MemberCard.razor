@@ -24,6 +24,7 @@
     </div>
     <div class="mc-body">
         <div class="mc-name"><h2><a href="@Href"><span class="mc-name-text">@Name</span>@(Age is { } years ? $", {years}" : "")</a></h2>@Badges</div>
+        @if (!string.IsNullOrEmpty(Identity)) { <p class="mc-identity" data-tile-identity>@Identity</p> }
         @if (!string.IsNullOrEmpty(Status)) { <p class="mc-status" data-tile-status>@Status</p> }
         @if (Meta is not null)
         {
@@ -46,12 +47,14 @@
     public const int MaxChips = 2;
 
     [Parameter, EditorRequired] public string Name { get; set; } = "";
-    /// <summary>Optional: Explore shows no age today (issue 476 decides per mode).</summary>
+    /// <summary>Issue 495: only what the API returned for this mode.</summary>
     [Parameter] public int? Age { get; set; }
     [Parameter, EditorRequired] public string Href { get; set; } = "";
     [Parameter] public IReadOnlyList<string> Intentions { get; set; } = [];
     /// <summary>One short line under the name: the distance band or "Visiting …" (D348, D352). Left out when empty.</summary>
     [Parameter] public string Detail { get; set; } = "";
+    /// <summary>Issue 495: gender and orientation, as the API returned them for this mode. Left out when empty.</summary>
+    [Parameter] public string Identity { get; set; } = "";
     /// <summary>Issue 497: where the viewer stands with them, before the detail line. Left out when empty.</summary>
     [Parameter] public string Status { get; set; } = "";
     /// <summary>The text shown when there's no photo: the member's text picture or the start of their about.</summary>

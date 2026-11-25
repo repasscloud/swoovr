@@ -49,6 +49,22 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.ok(!bot || bot.newMember === false, 'never for bots'); pass();
     await sql(`UPDATE member_profiles SET bot = false WHERE account_id = '${ids.non}'`);
 
+    // Issue 495 (D418): age and gender in Dating and Friends, orientation in Dating only, nothing in Activities or Business;
+    // always under the person's own switches. Enforced by the API, and the order never changes.
+    for (const n of names) for (const mode of ['activities', 'business']) await call(tokens[n], `/api/me/modes/${mode}`, { method: 'PUT', body: { enabled: true, visible: true } });
+    const orientation = (await call(tokens.con, '/api/profile-options')).body.orientations[0];
+    const say = body => call(tokens.con, '/api/me/identity', { method: 'PUT', body: { gender: 'woman', orientation: orientation.id, showGender: true, showOrientation: true, showAge: true, showPronouns: true, pronounId: null, datingShowMe: ['man', 'woman', 'non-binary', 'another'], ...body } });
+    const facts = async mode => { const c = (await explore('viv', mode)).find(p => p.id === pid.con); return [typeof c.age, c.gender ?? null, c.orientation ?? null, c.pronouns ?? null]; };
+    const orders = await Promise.all(['dating', 'friends'].map(order));
+    assert.equal((await say({ pronouns: 'fae/faer' })).status, 200);
+    assert.deepEqual(await facts('dating'), ['number', 'Woman', orientation.label, 'fae/faer']); pass();
+    assert.deepEqual(await facts('friends'), ['number', 'Woman', null, 'fae/faer']); pass();
+    for (const mode of ['activities', 'business']) { const c = (await explore('viv', mode)).find(p => p.id === pid.con); assert.deepEqual([c.age ?? null, c.gender ?? null, c.orientation ?? null, c.pronouns ?? null], [null, null, null, null], mode); pass(); }
+    await say({ showGender: false, showOrientation: false, showAge: false, showPronouns: false });
+    { const c = (await explore('viv', 'dating')).find(p => p.id === pid.con); assert.deepEqual([c.age ?? null, c.gender ?? null, c.orientation ?? null, c.pronouns ?? null], [null, null, null, null]); pass(); }
+    assert.deepEqual(await Promise.all(['dating', 'friends'].map(order)), orders, 'the order does not change'); pass();
+    await say({});
+
     const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
     await page.goto(web + '/account/sign-in?intro=done');
     await page.fill('#username', members.viv.email); await page.fill('#password', members.viv.password);
@@ -63,6 +79,17 @@ const output = process.env.SWOOVR_SCREENSHOTS;
       assert.equal(sizes.length, 1, 'one card size: ' + sizes); pass();
       assert.equal(await page.locator('.member-card button:not([data-card-badges])').count(), 0, 'no action buttons on cards'); pass();
       if (output) await page.screenshot({ path: `${output}/explore-status-${theme}-${width}.png`, fullPage: true });
+    }
+    for (const [mode, identity, aged] of [['dating', 'Woman · ' + orientation.label, true], ['friends', 'Woman', true], ['activities', null, false], ['business', null, false]]) for (const [theme, width] of [['light', 390], ['dark', 1280]]) {
+      await page.emulateMedia({ colorScheme: theme }); await page.setViewportSize({ width, height: 900 });
+      await page.goto(web + '/explore?mode=' + mode);
+      const at = page.locator(`.member-card:has(a[href="/people/${pid.con}?mode=${mode}"])`); await at.waitFor({ timeout: 20000 });
+      assert.deepEqual(await at.locator('[data-tile-identity]').allTextContents(), identity ? [identity] : [], mode); pass();
+      assert.equal(/, \d\d$/.test((await at.locator('h2 a').textContent()).trim()), aged, mode + ' age'); pass();
+      const sizes = await page.locator('.member-card').evaluateAll(els => new Set(els.map(e => Math.round(e.getBoundingClientRect().height))).size);
+      assert.equal(sizes, 1, 'one card size'); pass();
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); pass();
+      if (output) await page.screenshot({ path: `${output}/explore-identity-${mode}-${theme}-${width}.png`, fullPage: true });
     }
     console.log(`PASS: Explore card information, ${passed} checks.`);
   } finally { await browser.close(); }

@@ -1616,3 +1616,8 @@ Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10).
 
 **CONFIRMED** by the owner on [#509](https://github.com/repasscloud/swoovr/issues/509): on another member's profile the badges are at the top right and larger, and selecting any of them opens a dialog that explains every badge. The photo verified parts of #509 wait for #417; nothing is shown as photo verified that isn't today.
 **DEFAULT:** the badges are one button, as on Explore cards (D406). The dialog lists theirs first, in the API's order (Q11), then the others. The "checked" dates move from the header into the dialog.
+
+### D418 — Identity on Explore cards, per mode (#495, 26 November 2026)
+
+Slice 2 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §2, §3). The API returns age and gender on a card in Dating and Friends, and orientation in Dating, each only under the person's own switch (D138, D139, D175). Business returns none of them. Cards show age after the name and gender · orientation on one line; nothing is shown when there's nothing to show. One query per Dating request for the labels; no effect on order or who appears.
+**DEFAULT:** Activities (optional in #476) shows none either. Pronouns, which no card shows, follow the same modes. The rule is in the shared list, so Near me and Traveller Search responses follow it; their web cards show no identity, as before.
