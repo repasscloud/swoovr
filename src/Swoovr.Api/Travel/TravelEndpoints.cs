@@ -138,7 +138,7 @@ public static class TravelEndpoints
             var order = await ProfileEndpoints.BadgeOrderAsync(db, cancellationToken);
             return Results.Ok(new VisitorPage(selected.Id, market!.Name, shown.Take(PageSize).Select(v => new VisitorCard(v.Person.Profile.PublicId,
                 ModePrivacy.DisplayName(aliases.GetValueOrDefault(v.Person.Profile.AccountId), v.Person.Profile.DisplayName)!, ProfileEndpoints.Badges(v.Person.Profile, order), chips.GetValueOrDefault(v.Person.Profile.AccountId, []),
-                Visit(v.Trip, v.City))).ToList(), p, shown.Count > PageSize));
+                Visit(v.Trip, v.City) with { Upcoming = TravelPolicy.LocalToday(v.City.TimeZone, now) < v.Trip.Arrival })).ToList(), p, shown.Count > PageSize));
         });
     }
 

@@ -440,7 +440,9 @@ public static class ProfileEndpoints
                 Distance(BandOf(c)),
                 photos.Main?.GetValueOrDefault((c.Profile.AccountId, selected.Id)), visiting?.GetValueOrDefault(c.Profile.AccountId),
                 // Issue 389 (D382, Q181.5 A): the text picture only while the tile has no approved photo.
-                photos.Main?.GetValueOrDefault((c.Profile.AccountId, selected.Id)) is null ? c.Profile.PictureText : null);
+                photos.Main?.GetValueOrDefault((c.Profile.AccountId, selected.Id)) is null ? c.Profile.PictureText : null,
+                // Issue 496: the photos others see in this mode, each once (the main photo included).
+                photos.Modes?.GetValueOrDefault((c.Profile.AccountId, selected.Id))?.Select(p => p.Id).Distinct().Count() ?? 0);
         }).ToList();
     }
 

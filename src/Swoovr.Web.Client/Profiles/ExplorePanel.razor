@@ -115,8 +115,8 @@
                 {
                     @* D348: a band only when both members show their distance; never a distance. *@
                     @* Issue 443 (D398): one card shape for photo and quote cards; issue 476 fills its overlay and detail slots. *@
-                    <MemberCard Name="@person.DisplayName" Href="@($"/people/{person.Id}?mode={selected}")" Detail="@(person.Visiting is { } where ? $"Visiting {where}" : MemberText.Distance(person.Distance) ?? "")"
-                                Intentions="person.Intentions" Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)">
+                    <MemberCard Name="@person.DisplayName" Href="@($"/people/{person.Id}?mode={selected}")" Detail="@(person.Visiting is { } where && person.Photo is null ? $"Visiting {where}" : MemberText.Distance(person.Distance) ?? "")"
+                                Intentions="person.Intentions" Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)" Overlays="@Overlays(person)">
                         <Badges><CardBadges Badges="person.Badges" /></Badges>
                     </MemberCard>
                 }
@@ -242,6 +242,11 @@
 
     // D203: an approved photo through its short-lived link. Issue 467 (owner): right-click and drag are blocked, which
     // only stops casual saving.
+    /// <summary>Issue 496 (D407): over a photo only. Explore lists nobody with an upcoming trip, so travel here is always a check-in.</summary>
+    private static RenderFragment? Overlays(ProfileCard person) => person.Photo is null || person.Visiting is null && person.PhotoCount < 2 ? null
+        : @<text>@if (person.Visiting is { } where) { <span class="mc-pill mc-pill-travel" data-tile-visiting><Icon Name="pin" Size="12" /><span>Visiting @where</span></span> }
+            @if (person.PhotoCount > 1) { <span class="mc-pill mc-pill-count" data-tile-photos="@person.PhotoCount"><Icon Name="image" Size="12" /><span class="visually-hidden">@person.PhotoCount photos</span><span aria-hidden="true">@person.PhotoCount</span></span> }</text>;
+
     private static RenderFragment TilePhoto(PhotoView photo, string name) => builder =>
     {
         builder.OpenElement(0, "img");

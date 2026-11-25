@@ -38,8 +38,9 @@ public sealed record TripPage(IReadOnlyList<TripView> Items, int Page, bool More
 public sealed record TripUpdate(int CityId, DateOnly Arrival, DateOnly Departure, bool Visible, Guid? ItineraryId, bool? DiscoverBeforeArrival = null);
 public sealed record ItineraryView(Guid Id);
 
-/// <summary>What a local sees of a visiting traveller's trip (Q17 rules 24–27): city, country and the exact dates only.</summary>
-public sealed record VisitView(Guid TripId, string City, string Country, DateOnly Arrival, DateOnly Departure);
+/// <summary>What a local sees of a visiting traveller's trip (Q17 rules 24–27): city, country and the exact dates only. Upcoming (destination feed, issue 496):
+/// the arrival date hasn't come yet in the destination (D137), so they aren't there.</summary>
+public sealed record VisitView(Guid TripId, string City, string Country, DateOnly Arrival, DateOnly Departure, bool? Upcoming = null);
 
 /// <summary>A traveller in the destination feed, always marked as visiting.</summary>
 public sealed record VisitorCard(Guid Id, string DisplayName, IReadOnlyList<BadgeView> Badges, IReadOnlyList<string> Intentions, VisitView Visiting);
