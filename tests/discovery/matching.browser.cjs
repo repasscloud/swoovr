@@ -205,10 +205,29 @@ const plus = days => { const d = new Date(todayIn('Australia/Adelaide') + 'T00:0
     await page.waitForSelector('[data-explore-local=dating-details-required]', { timeout: 20000 }); pass();
     await page.goto(web + '/me/matching');
     await page.waitForSelector('[data-matching=ready]', { timeout: 20000 });
-    await page.selectOption('#gender', 'woman');
+    // Issue 508: identity is on Your profile, Dating's "show me" stays here. Both save one record, so neither may undo the other.
+    assert.equal(await page.locator('#gender, #pronouns, #orientation, [data-show-gender]').count(), 0, 'identity moved off this page');
+    await page.waitForSelector('[data-gender-needed] a[href="/me/profile"]'); pass();
+    const stale = await context.newPage();
+    await stale.goto(web + '/me/profile'); await stale.waitForSelector('[data-profile-identity]');
     await page.check('[data-show-me-option=man]');
     await page.click('[data-identity-form] button[type=submit]');
     await page.waitForSelector('[data-identity-status=saved]'); pass();
+    await stale.selectOption('#gender', 'woman'); await stale.selectOption('#pronouns', 'self'); await stale.fill('#pronouns-own', 'fae/faer');
+    await stale.selectOption('#orientation', { index: 1 }); await stale.check('[data-show-orientation]'); await stale.uncheck('[data-show-age]');
+    await stale.click('[data-identity-form] button[type=submit]'); await stale.waitForSelector('[data-identity-status=saved]');
+    assert.equal(await sql(`SELECT array_to_string(dating_show_me, ',') FROM member_identities WHERE account_id = '${ids.fay}'`), 'man', 'a profile save keeps show me'); pass();
+    for (const width of [1280, 390]) {
+      await stale.setViewportSize({ width, height: 900 });
+      assert.ok(await stale.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll ' + width);
+      if (output) await stale.screenshot({ path: output + `/508-profile-${width}.png`, fullPage: true });
+    }
+    await stale.close();
+    // This page still holds the identity from before that save.
+    await page.click('[data-identity-form] button[type=submit]');
+    await page.waitForSelector('[data-gender-needed]', { state: 'detached' });
+    assert.equal(await sql(`SELECT pronoun_id || ':' || pronouns || ':' || (orientation_id IS NOT NULL) || ':' || show_orientation || ':' || show_age FROM member_identities WHERE account_id = '${ids.fay}'`),
+      'self:fae/faer:true:true:false', 'a show me save keeps the identity'); pass();
     assert.equal(await sql(`SELECT gender_id || ':' || array_to_string(dating_show_me, ',') FROM member_identities WHERE account_id = '${ids.fay}'`), 'woman:man'); pass();
     await page.selectOption('#min-age','25'); await page.selectOption('#max-age','45');
     await page.click('[data-filter-form] button[type=submit]');

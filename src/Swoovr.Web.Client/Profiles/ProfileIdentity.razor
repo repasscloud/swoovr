@@ -1,0 +1,68 @@
+@* Issue 508 (D415): gender, pronouns, orientation and what of them shows on the profile, moved here from "Who I'd like to meet".
+   Each is optional and separate (D138, D382); orientation never decides who anyone sees. Dating's "show me" stays there. Both
+   pages save one identity, so each re-reads it first and sends back the half it doesn't edit. *@
+@inject MemberClient Members
+@if (options is not null)
+{
+    <section class="rd-card" aria-labelledby="identity-heading" data-profile-identity>
+        <div class="rd-row rd-row-baseline"><h2 id="identity-heading">Identity</h2><p class="field-help">Orientation never decides who sees you.</p></div>
+        <form @onsubmit="SaveIdentityAsync" data-identity-form>
+            <div class="rd-grid rd-grid-3">
+                <div class="field"><label for="gender">Gender</label>
+                    <select id="gender" @bind="gender"><option value="">Not set</option>@foreach (var g in options.Genders) { <option value="@g.Id">@g.Label</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                @* Issue 389 (D382): a pronoun list plus Self-describe (50 characters), with its own switch. *@
+                <div class="field"><label for="pronouns">Pronouns</label>
+                    <select id="pronouns" @bind="pronounId"><option value="">Not set</option>@foreach (var p in options.Pronouns ?? []) { <option value="@p.Id">@p.Label</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                <div class="field"><label for="orientation">Orientation</label>
+                    <select id="orientation" @bind="orientation"><option value="">Not set</option>@foreach (var o in options.Orientations) { <option value="@o.Id">@o.Label</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
+                @if (gender == "another") { <div class="field"><label for="gender-description">Describe your gender (optional)</label><input id="gender-description" maxlength="40" @bind="genderDescription" /></div> }
+                @if (pronounId == "self") { <div class="field"><label for="pronouns-own">Your pronouns</label><input id="pronouns-own" maxlength="50" @bind="pronouns" data-pronouns-own /></div> }
+            </div>
+            <fieldset class="rd-group"><legend>On my profile</legend>
+                <div class="rd-chips">
+                    <label class="rd-chip"><input type="checkbox" @bind="showGender" data-show-gender />Gender</label>
+                    <label class="rd-chip"><input type="checkbox" @bind="showPronouns" data-show-pronouns />Pronouns</label>
+                    <label class="rd-chip"><input type="checkbox" @bind="showOrientation" data-show-orientation />Orientation</label>
+                    <label class="rd-chip"><input type="checkbox" @bind="showAge" data-show-age />Age</label>
+                </div>
+            </fieldset>
+            <div class="rd-actions">
+                <p role="status" aria-live="polite" class="field-help rd-status" data-identity-status="@identityStatus">@identityMessage</p>
+                <button type="submit" class="button" disabled="@busy">Save identity</button>
+            </div>
+        </form>
+    </section>
+}
+@code {
+    private bool busy, showGender = true, showOrientation, showAge = true, showPronouns = true;
+    private ProfileOptionsView? options;
+    private string? gender, genderDescription, pronounId, pronouns, orientation, identityStatus, identityMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // Nothing to edit until what's saved is known: a save replaces it.
+            if ((await Members.IdentityAsync()).Value is not { } i) return;
+            (gender, genderDescription, pronouns, orientation, showGender, showOrientation, showAge, pronounId, showPronouns) =
+                (i.Gender, i.GenderDescription, i.PronounId == "self" ? i.Pronouns : null, i.Orientation, i.ShowGender, i.ShowOrientation, i.ShowAge, i.PronounId, i.ShowPronouns);
+            options = (await Members.ProfileOptionsAsync()).Value;
+        }
+        catch (HttpRequestException) { }
+    }
+
+    private async Task SaveIdentityAsync()
+    {
+        busy = true;
+        try
+        {
+            if ((await Members.IdentityAsync()).Value is not { } saved) { Failed("unavailable"); return; }
+            var result = await Members.SaveIdentityAsync(new IdentityUpdate(gender, genderDescription, pronounId == "self" ? pronouns : null, orientation,
+                showGender, showOrientation, showAge, saved.DatingShowMe, string.IsNullOrEmpty(pronounId) ? null : pronounId, showPronouns));
+            if (result.Ok) (identityStatus, identityMessage) = ("saved", "Saved."); else Failed(result.Code);
+        }
+        catch (HttpRequestException) { Failed("unavailable"); }
+        finally { busy = false; }
+    }
+    private void Failed(string? code) => (identityStatus, identityMessage) = (code ?? "failed", code == "unavailable" ? "That didn't work. Try again." : "Check the options you picked.");
+}

@@ -1596,3 +1596,9 @@ Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10).
 - Every other hosted environment still refuses to start with it on before notice 0.21 is in force, or without a named host. The notice isn't published or changed by this.
 - If anyone else's ID is ever added to UAT, this exception no longer holds.
 - **PR 516 review:** a decision is refused (`record-changed`) if the member changed their date after the admin opened the review.
+
+### D415 — Identity moves to Your profile (#508, 26 November 2026)
+
+**CONFIRMED** by the owner on [#508](https://github.com/repasscloud/swoovr/issues/508): Gender, Pronouns, Orientation and "On my profile" belong in the Profile section. They're now a card on `/me/profile`, stored once as before (no API or schema change). New profile facts stay with #448.
+- **DEFAULT:** the card is called **Identity**, because the page already has an "About you" card. Dating's "show me" stays on *Who I'd like to meet* (the triage default), which links to the profile while no gender is set.
+- Both pages save the same record, so each re-reads it and sends back the half it doesn't edit.
