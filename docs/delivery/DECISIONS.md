@@ -1550,3 +1550,28 @@ Slice 4 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §8). 
 ### D409 — New member label on Explore cards (#498, 25 November 2026)
 
 Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10). `ProfileCard.newMember` is true while the account was created less than `Explore:NewMemberDays` days ago (**DEFAULT 14**; 0 turns it off; at most 90). Worked out after the list and its order are settled, so it can't affect either, and it ends on its own. Never for official bots. **DEFAULT:** it uses the card's status line, so "Connected" or a request takes its place.
+
+### D410 — Online status is opt-in and mutual (Q183 B, #478, 25 November 2026)
+
+**CONFIRMED** by the owner on #478. Builds in #499; not built yet.
+- Off by default; each member opts in on their own profile settings.
+- Only two members who both have it on see each other's status. With it off, a member sees nobody's status and nobody sees theirs: everyone looks offline.
+- Online is a green dot and nothing else. Offline, or not visible, is no dot. No other colours.
+- The promise on /me/notifications changes with the build, not before it.
+
+**DEFAULT** (Q183.2): online means active in the web or app in the last 5 minutes; never a last-seen time. The visible word "Online" proposed there is dropped ("green dot - nothing else"); the dot keeps a text alternative for screen readers.
+
+### D411 — Sensitive safety reports go to Trust & Safety in Zammad (Q128, #188, 25 November 2026)
+
+**CONFIRMED** by the owner on #188: assign sensitive safety reports to the Trust & Safety queue. Not built yet. It uses the provisioned `Trust & Safety` group; D308 routing stays until then.
+
+### D412 — Unapproved document checks, and reviewing the ID in the admin portal (Q184, #488, 25 November 2026)
+
+**CONFIRMED** by the owner on #488. Not built yet.
+- A document check that isn't Approved supplies no date of birth, and the review says so with its own status.
+- Staff can open the ID from Didit in a dialog, contact the member with a support ticket and unlock the date of birth. The member's update locks it again. Staff then look at the ID again and manually approve the date of birth and the ID.
+- The owner reports that the document check on their session passed and shows its date, so an unapproved check isn't the cause of #440 there. The webhook version and delivery contents remain unconfirmed.
+
+**CONFIRMED** by the owner (25 November 2026, in chat): only **Admin** may open the ID image. The Privacy Notice will be updated to cover staff viewing it for ID verification when there is a mismatch. That change goes in the same 0.21 update as the location wording (#283). Amends D147 and D403, under which Swoovr never reads document images.
+
+**DEFAULT:** the image is fetched live after a recorded purpose and never stored, and it opens only for a mismatch under review. **Release gate:** the updated notice is in force before this reaches members' real documents; its wording, version and date are OPEN.
