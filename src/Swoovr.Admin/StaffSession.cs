@@ -71,6 +71,8 @@ public static class AdminText
         (409, "bulk-export-approval-required") => "A bulk export needs another officer's approval (Elevated access). Then export again.",
         (403, "moderation-not-permitted") => "Your role can't do this here (staff-affiliated case, your own account, or a higher role's action).",
         (403, "media-safety-ack-required") => "Acknowledge the current media safety notice under Media first, then open the photo again.",
+        (409, "id-not-viewed") => "Open the ID document first, after the member's latest update.",
+        (409, "id-badge-removed") => "This member isn't ID Verified any more, so the ID can't be approved here.",
         (403, "account-locked") => "This account is locked.",
         (403, _) => "Your role can't do this.",
         // Issue 405: the API can't sign photo links or reach photo storage; staff can't fix it from here.

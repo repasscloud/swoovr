@@ -1871,6 +1871,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<DateTimeOffset?>("IdApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("id_approved_at");
+
                     b.Property<string>("Outcome")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
@@ -1910,6 +1914,36 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasFilter("resolved_at IS NULL");
 
                     b.ToTable("dob_reviews");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.DobReviewIdView", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<Guid>("ActorAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_account_id");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<Guid>("ReviewId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("review_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_dob_review_id_views");
+
+                    b.HasIndex("ReviewId", "ActorAccountId", "At")
+                        .HasDatabaseName("ix_dob_review_id_views_review_id_actor_account_id_at");
+
+                    b.ToTable("dob_review_id_views");
                 });
 
             modelBuilder.Entity("Swoovr.Domain.EmailRetirementOperation", b =>
@@ -9479,6 +9513,16 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_dob_reviews_id_verification_attempts_attempt_id");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.DobReviewIdView", b =>
+                {
+                    b.HasOne("Swoovr.Domain.DobReview", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_dob_review_id_views_dob_reviews_review_id");
                 });
 
             modelBuilder.Entity("Swoovr.Domain.EmailRetirementOperation", b =>

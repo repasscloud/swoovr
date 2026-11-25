@@ -35,6 +35,14 @@ static class DobCorrectionChecks
         Expect(!EscalationPolicy.MayResolve(new AccountEscalation { CreatedBy = raiser, ResolvedAt = DateTimeOffset.UtcNow }, otherAdmin, true), "once");
         Expect(!typeof(AccountEscalation).GetProperties().Any(p => p.PropertyType == typeof(DateOnly) || p.PropertyType == typeof(DateOnly?)), "an escalation stores no date of birth");
         Expect(Enum.GetValues<DobCheck>().Length == 3 && Enum.GetValues<DobReviewOutcome>().Length == 2, "three states, two review outcomes");
+        // Issue 488 (D413, Q186 A): approving needs the same admin's look since the member's last change, and a badge to keep.
+        var changed = new DateTimeOffset(2026, 11, 25, 1, 0, 0, TimeSpan.Zero);
+        Expect(DobCorrectionPolicy.ApproveId(VerificationStatus.Verified, changed.AddMinutes(1), changed) == IdApprovalRefusal.None, "looked since the change");
+        Expect(DobCorrectionPolicy.ApproveId(VerificationStatus.Verified, null, changed) == IdApprovalRefusal.NotViewed
+            && DobCorrectionPolicy.ApproveId(VerificationStatus.Verified, changed, changed) == IdApprovalRefusal.NotViewed
+            && DobCorrectionPolicy.ApproveId(VerificationStatus.Verified, changed.AddMinutes(-1), changed) == IdApprovalRefusal.NotViewed, "a look before the change doesn't count");
+        foreach (var status in Enum.GetValues<VerificationStatus>().Where(s => s != VerificationStatus.Verified))
+            Expect(DobCorrectionPolicy.ApproveId(status, changed.AddMinutes(1), changed) == IdApprovalRefusal.NotVerified, "never restores a badge: " + status);
         // Nothing about the document's date is held: the review has no date fields.
         Expect(!typeof(DobReview).GetProperties().Any(p => p.PropertyType == typeof(DateOnly) || p.PropertyType == typeof(DateOnly?)), "a review stores no date of birth");
         var now = DateTimeOffset.Parse("2026-11-02T10:00:00Z");

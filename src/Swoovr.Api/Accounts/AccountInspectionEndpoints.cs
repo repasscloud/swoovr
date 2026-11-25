@@ -14,7 +14,7 @@ public static class AccountInspectionEndpoints
 {
     public static readonly string[] HistoryActions=["age.updated","profile.updated","home-market.override","staff.affiliated","staff.revoked","moderation.warn","moderation.restrict","moderation.suspend","moderation.terminate","entitlement.granted","dob.correction-granted","dob.correction-revoked","dob.correction-used",
         // #190 (D323): account detail actions.
-        "entitlement.revoked","profile-dob.opened","didit-decision.opened","id-image.opened","account.escalated","account.escalation-resolved","account.locked","account.unlocked","sessions.revoked",
+        "entitlement.revoked","profile-dob.opened","didit-decision.opened","id-image.opened","id.review-approved","account.escalated","account.escalation-resolved","account.locked","account.unlocked","sessions.revoked",
         "verification.photoVerified.applied","verification.photoVerified.revoked","verification.idVerified.applied","verification.idVerified.revoked",
         // Issue 454: a support request staff opened for the member.
         "helpdesk.ticket.created"];
@@ -83,6 +83,12 @@ public static class AccountInspectionEndpoints
             Audit.Record(db,now,current.Account.Id,"account","id-image.opened","account",id.ToString(),request.ReviewId.ToString());
             await db.SaveChangesAsync(token);
             var read=await source.ReadAsync(session,id,token);
+            // Only a document that was shown counts as a look before approving.
+            if(read.Result==ProviderImageResult.Available)
+            {
+                db.DobReviewIdViews.Add(new DobReviewIdView{ReviewId=request.ReviewId,ActorAccountId=current.Account.Id,At=clock.GetUtcNow()});
+                await db.SaveChangesAsync(token);
+            }
             return Results.Ok(new StaffIdImages(Wire(read.Result),read.Images.Select(i=>new StaffIdImage(i.Side,i.ContentType,i.Data)).ToList()));
         });
         group.MapGet("/profile-preview",async(Guid id,ClaimsPrincipal user,AccountResolver accounts,TimeProvider clock,CancellationToken token)=>
