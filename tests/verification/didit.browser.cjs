@@ -441,6 +441,17 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       assert.deepEqual(code(await decide(adm, noneReview)), [403, 'moderation-not-permitted']); pass();
       assert.equal((await decide(root, noneReview)).status, 200); pass();
       assert.equal(await sql(`SELECT count(*) FROM account_escalations WHERE dob_review_id = '${noneReview}' AND resolved_at IS NULL`), '0'); pass();
+      // PR 505 review: an admin closes the escalation while another decides its review: the first resolution is kept, recorded once.
+      const raceReview = crypto.randomUUID(), rootId = await sql(`SELECT id FROM accounts WHERE subject = '${claims(root).sub}'`);
+      await sql(`INSERT INTO dob_reviews (id, account_id, attempt_id, reason, created_at) VALUES ('${raceReview}', '${ids.none}', '${legacyAttempt}', 'still-different', now())`);
+      assert.equal((await raise(sup, 'none', 'Fictional: race')).status, 200); pass();
+      const raceCase = await sql(`SELECT id FROM account_escalations WHERE dob_review_id = '${raceReview}' AND resolved_at IS NULL`);
+      const first = sql(`BEGIN; UPDATE account_escalations SET resolved_at = now(), resolved_by = '${rootId}', resolution_note = 'Fictional: first' WHERE id = '${raceCase}'; SELECT pg_sleep(4); COMMIT;`);
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      const decided2 = await Promise.all([decide(adm, raceReview), decide(root, raceReview)]); await first;
+      assert.deepEqual(decided2.map(x => x.status).sort(), [200, 409], 'one decision'); pass();
+      assert.equal(await sql(`SELECT resolution_note FROM account_escalations WHERE id = '${raceCase}'`), 'Fictional: first'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'account.escalation-resolved' AND detail = '${raceCase}'`), '0', 'the decision records no second resolution'); pass();
       for (const path of ['/api/me/notifications', '/api/me/notices', '/api/me/standing']) assert.ok(!JSON.stringify((await call(tokens.bare, path)).body).includes('altered'), path); pass();
       const queue = Number(await sql('SELECT count(*) FROM dob_reviews WHERE resolved_at IS NULL'));
       for (const role of ['admin', 'support']) {
@@ -477,6 +488,24 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
           await page.fill(`[data-escalation="${raisedCase.id}"] textarea`, 'Fictional: reviewed'); await page.click(`[data-escalation="${raisedCase.id}"] [data-escalation-resolve]`);
           await page.waitForSelector('[data-result=ok]'); pass();
           assert.equal(await page.locator(`[data-escalation="${raisedCase.id}"]`).count(), 0); pass();
+          // PR 490 review: Ctrl+Enter submits the form in focus once, and never saves the decision from another form.
+          const posts = [], keyed = async (focus, fill) => {
+            await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
+            await page.check('[data-resolve=notVerified]', { force: true }); await page.fill('[data-dob-form] textarea[name=reason]', 'Fictional: half written');
+            if (fill) await fill();
+            await page.focus(focus);
+            posts.length = 0;
+            await page.route('**/*', route => { const r = route.request(); if (r.method() !== 'POST') return route.continue(); posts.push(decodeURIComponent((r.postDataBuffer()?.toString() ?? '').replace(/\+/g, ' '))); return route.abort(); });
+            await page.keyboard.press('Control+Enter'); await page.waitForTimeout(1500); await page.unroute('**/*');
+            return posts;
+          };
+          let sent = await keyed('[data-didit-decision] textarea[name=detail]', async () => { await page.click('[data-didit-decision=closed] summary'); await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check'); });
+          assert.equal(sent.length, 1, 'one request from the Didit form'); pass();
+          assert.ok(sent[0].includes('didit-') && !sent[0].includes('half written'), 'the Didit form, not the decision'); pass();
+          sent = await keyed('[data-dob-form] textarea[name=reason]');
+          assert.deepEqual([sent.length, sent[0]?.includes('half written')], [1, true], 'the decision, once'); pass();
+          sent = await keyed('[data-review-dialog] [data-photo-close]');
+          assert.deepEqual([sent.length, sent[0]?.includes('half written')], [1, true], 'outside a form, the decision'); pass();
           // PR 490 review: a slow or failing Didit shows the retry state inside the admin app's own 10-second limit.
           await page.setViewportSize({ width: 1280, height: 900 });
           for (const stall of [{ owned_delay_ms: 20000 }, { owned_status: 503 }]) {

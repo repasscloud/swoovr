@@ -73,7 +73,7 @@
   document.addEventListener('keydown', event => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openPalette(); return; }
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-      const form = document.activeElement?.closest?.('form') ?? document.querySelector('dialog[open] form[method=post], details[open] form[method=post]');
+      const form = document.activeElement?.closest?.('form') ?? document.querySelector('[data-review-dialog] [data-dob-form]') ?? document.querySelector('dialog[open] form[method=post], details[open] form[method=post]');
       if (form && !form.closest('.ui-palette')) { event.preventDefault(); form.requestSubmit(form.querySelector('button[type=submit],button:not([type])') ?? undefined); }
       return;
     }
