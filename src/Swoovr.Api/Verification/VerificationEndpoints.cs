@@ -513,6 +513,7 @@ public static class VerificationEndpoints
     {
         var attempts = await db.IdVerificationAttempts.Where(a => a.AccountId == profile.AccountId).OrderByDescending(a => a.CreatedAt).ToListAsync(cancellationToken);
         return new(Wire(profile.IdStatus), profile.CanRequestIdVerification, Wire(profile.AgeStatus),
-            attempts.Select(a => new IdAttemptAdminView(a.Id, Wire(a.State), a.ProviderStatus, a.Started, a.SelfService, a.Adult, a.CreatedAt, a.UpdatedAt, a.CompletedAt)).ToList());
+            attempts.Select(a => new IdAttemptAdminView(a.Id, Wire(a.State), a.ProviderStatus, a.Started, a.SelfService, a.Adult, a.CreatedAt, a.UpdatedAt, a.CompletedAt)).ToList(),
+            await db.DobReviews.AnyAsync(r => r.AccountId == profile.AccountId && r.ResolvedAt == null, cancellationToken));
     }
 }

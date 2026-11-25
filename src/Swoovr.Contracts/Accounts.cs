@@ -370,7 +370,7 @@ public sealed record StartVerification(string Client);
 /// <summary>An attempt as admins see it (D129): outcome and operational metadata only, never document data.</summary>
 public sealed record IdAttemptAdminView(Guid Id, string State, string ProviderStatus, bool Started, bool SelfService, bool? Adult,
     DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, DateTimeOffset? CompletedAt);
-public sealed record AdminVerificationView(string IdStatus, bool CanRequestIdVerification, string AgeStatus, IReadOnlyList<IdAttemptAdminView> Attempts);
+public sealed record AdminVerificationView(string IdStatus, bool CanRequestIdVerification, string AgeStatus, IReadOnlyList<IdAttemptAdminView> Attempts, bool OpenDobReview = false);
 public sealed record AgeAssuranceRequest(bool NeedsVerification);
 /// <summary>The founder allocation job's result (D130): counts only.</summary>
 public sealed record FounderAllocationView(int Stamped, int Allocated, int Skipped, int PlacesLeft);
