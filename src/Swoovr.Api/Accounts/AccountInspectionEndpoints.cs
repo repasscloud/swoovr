@@ -50,8 +50,9 @@ public static class AccountInspectionEndpoints
             var db=accounts.Db!;var now=clock.GetUtcNow();
             if(await StaffAccessEndpoints.GrantAsync(db,current.Account!.Id,StaffAccessPolicy.DiditDecisionOpen,now,token)is null)return StaffAccessEndpoints.NeedsGrant(StaffAccessPolicy.DiditDecisionOpen);
             // Issue 488 (D413): only the check behind an open date of birth review, as the privacy notice wording says.
-            var session=await(from r in db.DobReviews join a in db.IdVerificationAttempts on r.AttemptId equals a.Id
-                where r.AccountId==id&&a.AccountId==id&&r.ResolvedAt==null&&(request.ReviewId==null||r.Id==request.ReviewId) select a.SessionId).SingleOrDefaultAsync(token);
+            var open=await(from r in db.DobReviews join a in db.IdVerificationAttempts on r.AttemptId equals a.Id
+                where r.AccountId==id&&a.AccountId==id&&r.ResolvedAt==null&&(request.ReviewId==null||r.Id==request.ReviewId) select new{r.Id,r.Reason,a.SessionId}).SingleOrDefaultAsync(token);
+            var session=open?.SessionId;
             if(string.IsNullOrEmpty(session))return Problem(404,ProblemCodes.NotAvailable,"There's no open date of birth review for this account.");
             db.IdentityAccesses.Add(new IdentityAccess{AccountId=id,ActorAccountId=current.Account.Id,Purpose=request.Purpose.Trim(),At=now});
             Audit.Record(db,now,current.Account.Id,"account","didit-decision.opened","account",id.ToString());
@@ -63,9 +64,19 @@ public static class AccountInspectionEndpoints
             var account=await db.Accounts.AsNoTracking().SingleAsync(a=>a.Id==id,token);
             var born=await db.MemberProfiles.Where(p=>p.AccountId==id).Select(p=>p.DateOfBirth).SingleOrDefaultAsync(token);
             var names=RegisteredNamePolicy.Complete(account)?new RegisteredNames(account.RegisteredFirstName!,account.RegisteredLastName,account.RegisteredMononym):null;
+            // Issue 506 (D416): a review saved as "no date from Didit" follows what Didit answers now. The reason only, never a date.
+            var reason=DobCorrectionPolicy.AfterLiveRead(open!.Reason,born,decision.Documents??[]);
+            if(reason!=open.Reason)
+            {
+                await using var transaction=await db.Database.BeginTransactionAsync(token);
+                if(await db.DobReviews.Where(r=>r.Id==open.Id&&r.ResolvedAt==null&&r.Reason==open.Reason).ExecuteUpdateAsync(u=>u.SetProperty(r=>r.Reason,reason),token)==1)
+                    Audit.Record(db,clock.GetUtcNow(),current.Account.Id,"account","dob.review-reason-updated","account",id.ToString(),reason);
+                await db.SaveChangesAsync(token);await transaction.CommitAsync(token);
+            }
             return Results.Ok(new StaffDiditDecision("available",decision.Status,(decision.Documents??[]).Select(d=>new StaffDiditDocument(d.Status,d.DocumentType,d.IssuingState,d.DateOfBirth,
                 names is null||d.FirstName is null?null:RegisteredNamePolicy.Matches(names,d.FirstName,d.LastName),
-                born is null||d.DateOfBirth is null?null:born==d.DateOfBirth)).ToList()));
+                born is null||d.DateOfBirth is null?null:born==d.DateOfBirth,
+                string.Join(' ',new[]{d.FirstName,d.LastName}.Where(n=>!string.IsNullOrWhiteSpace(n)))is{Length:>0}name?name:null)).ToList(),reason));
         });
         // Issue 488 (D413): the ID document for an open date of birth review, proxied live. Recorded before Didit is asked.
         group.MapPost("/id-image",async(Guid id,IdImageRequest request,ClaimsPrincipal user,AccountResolver accounts,IIdImageSource source,TimeProvider clock,CancellationToken token)=>

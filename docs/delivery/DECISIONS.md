@@ -1602,3 +1602,12 @@ Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10).
 **CONFIRMED** by the owner on [#508](https://github.com/repasscloud/swoovr/issues/508): Gender, Pronouns, Orientation and "On my profile" belong in the Profile section. They're now a card on `/me/profile`, stored once as before (no API or schema change). New profile facts stay with #448.
 - **DEFAULT:** the card is called **Identity**, because the page already has an "About you" card. Dating's "show me" stays on *Who I'd like to meet* (the triage default), which links to the profile while no gender is set.
 - Both pages save the same record, so each re-reads it and sends back the half it doesn't edit.
+
+### D416 — Didit result rows, the name on the ID, and the saved reason (#506, 26 November 2026)
+
+**CONFIRMED** by the owner on [#506](https://github.com/repasscloud/swoovr/issues/506). Amends D402 ("reviews already opened aren't rewritten") and D403.
+- Date of birth and Registered name each show what's on the ID and one pill on the same line: **Mismatch** in colour, or **Approved** when it matches. The "Read from Didit just now" text is gone.
+- The name on the ID is shown so an admin can decide about a difference such as a second middle name. It's Didit's `first_name` and `last_name` ([fields](https://docs.didit.me/getting-started/amlr-compliance#data-points-against-the-decision)), read live and never stored or logged. Admin only, with D403's purpose, time limit and audit, and D413's open-review limit.
+- **The reason.** A review saved as "No date from Didit" keeps that reason after Didit can be read. When an admin's live read finds an Approved document with a date, the saved reason becomes "Different from the ID" or "Same as the ID" and follows later reads. No date is stored; the audit holds the reason only. Reasons with another cause never change.
+- **DEFAULT:** names are compared as before (exact, ignoring case), so a second middle name is a Mismatch that an admin decides. A matching row on a document check that isn't Approved says "Matches". Showing the name is within Q188's "ID check result"; production still waits for notice 0.21.
+- **Not confirmed:** why Didit's delivery for the owner's UAT session of 23 November had no date. #440 stays open for a fresh session.

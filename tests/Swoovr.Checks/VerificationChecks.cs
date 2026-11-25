@@ -103,6 +103,15 @@ static class VerificationChecks
         Expect(IdVerificationPolicy.Complete(bare, pending).DocumentNotApproved, "the decision read again carries it");
         Expect(!IdVerificationPolicy.Complete(pending, full).DocumentNotApproved && IdVerificationPolicy.Complete(pending, full).DateOfBirth is not null, "approved by the time it is read again");
         Expect(IdVerificationPolicy.Complete(pending, null).DocumentNotApproved, "Didit unavailable: as reported");
+        // Issue 506 (D416): the saved reason follows an admin's live read; only an Approved document's date counts.
+        var (born, other) = (new DateOnly(1990, 1, 1), new DateOnly(1991, 1, 1));
+        ProviderDocument Doc(string status, DateOnly? date) => new(status, null, null, date, null, null);
+        Expect(DobCorrectionPolicy.AfterLiveRead("no-document-date", born, [Doc("Approved", other)]) == "document-date-differs", "a different date read live");
+        Expect(DobCorrectionPolicy.AfterLiveRead("document-date-differs", other, [Doc("Approved", other)]) == "document-date-matches", "follows a later read");
+        Expect(DobCorrectionPolicy.AfterLiveRead("no-document-date", born, [Doc("In Review", other), Doc("Approved", null)]) == "no-document-date", "no approved date");
+        Expect(DobCorrectionPolicy.AfterLiveRead("no-document-date", null, [Doc("Approved", other)]) == "no-document-date", "no saved date");
+        Expect(DobCorrectionPolicy.AfterLiveRead("still-different", born, [Doc("Approved", born)]) == "still-different"
+            && DobCorrectionPolicy.AfterLiveRead("document-not-approved", born, [Doc("Approved", other)]) == "document-not-approved", "other reasons stay");
         Expect(DobCorrectionPolicy.CorrectionReason(pending) == "document-not-approved" && DobCorrectionPolicy.CorrectionReason(full) == "still-different"
             && DobCorrectionPolicy.CorrectionReason(bare) == "still-different", "after the member's correction");
         Expect(completed.DateOfBirth == new DateOnly(1991, 2, 3) && completed.Adult == true && completed.Identity?.FirstName == "A", "completed from the decision");
