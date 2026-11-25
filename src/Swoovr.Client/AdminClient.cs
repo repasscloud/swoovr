@@ -190,6 +190,10 @@ public sealed partial class AdminClient(HttpClient transport)
     public Task<ApiResult<SupportLookupView>> SupportLookupAsync(string reference, CancellationToken cancellationToken = default) =>
         SendAsync<SupportLookupView>(HttpMethod.Get, $"api/admin/support/{Uri.EscapeDataString(reference)}", null, cancellationToken);
 
+    /// <summary>Issue 456 (D403): the member's Didit decision, read live with a recorded purpose (Admin with didit-decision-open access).</summary>
+    public Task<ApiResult<StaffDiditDecision>> DiditDecisionAsync(Guid accountId, string? purpose, Guid? reviewId = null, CancellationToken cancellationToken = default) =>
+        SendAsync<StaffDiditDecision>(HttpMethod.Post, $"api/admin/accounts/{accountId}/didit-decision", new DiditDecisionRequest(purpose, reviewId), cancellationToken);
+
     public Task<ApiResult<List<DobReviewView>>> DobReviewsAsync(CancellationToken cancellationToken = default) => DobReviewsAsync(true, cancellationToken);
 
     /// <summary>open=false also returns resolved reviews (newest 200 overall).</summary>

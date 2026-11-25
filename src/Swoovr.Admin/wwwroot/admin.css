@@ -419,7 +419,13 @@ tr[data-row-link]:hover td { background: color-mix(in srgb, var(--soft) 60%, tra
 
 /* ---- Date of birth reviews ---- */
 .dob-dialog { width: min(640px, calc(100vw - 48px)); }
-.dob-form { overflow: auto; }
+.dob-scroll { overflow: auto; max-height: calc(100dvh - 130px); }
+.didit-decision { display: grid; gap: 12px; }
+.didit-decision > * { margin: 0; }
+.didit-decision summary { cursor: pointer; font-size: .875rem; font-weight: 600; }
+.didit-form { display: grid; gap: 14px; margin-top: 14px; }
+.didit-form .ui-help { margin: 0; }
+.dob-scroll > .didit-decision { margin: 20px 20px 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
 .dob-inline-ref { display: inline-flex !important; margin: 0; vertical-align: middle; }
 .dob-didit { align-self: flex-start; gap: 8px; height: 36px; }
 .dob-decide { grid-template-columns: 1fr 1fr; }

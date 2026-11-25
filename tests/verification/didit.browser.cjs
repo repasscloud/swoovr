@@ -353,8 +353,8 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     // Issue 440 (D402): an approval that arrives without the date of birth is completed from Didit's decision, so a date
     // that differs gives the member their one correction; with no date anywhere it still goes to a person.
     if (process.env.SWOOVR_OWNED_DIDIT_URL) {
-      const decided = (session, vendor, checks) => fetch(`${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/decision/${session}`, { method: 'PUT',
-        body: JSON.stringify({ session_id: session, status: 'Approved', vendor_data: vendor, workflow_id: workflow, id_verifications: checks }) });
+      const decided = (session, vendor, checks, stall = {}) => fetch(`${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/decision/${session}`, { method: 'PUT',
+        body: JSON.stringify({ session_id: session, status: 'Approved', vendor_data: vendor, workflow_id: workflow, id_verifications: checks, ...stall }) });
       for (const [n, extra] of [['bare', {}], ['legacy', { decision: { id_verification: { status: 'Approved', date_of_birth: '1971-01-01' } } }], ['none', {}]]) {
         members[n] = await createMember('verify-' + n); await cli('beta', 'add', members[n].email);
         tokens[n] = await memberToken(browser, members[n]);
@@ -378,16 +378,92 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
         people[role].token = await staffToken(browser, people[role]); await call(people[role].token, '/api/session');
       }
       assert.equal((await call(people.support.token, '/api/admin/workspace')).body.dobReviewsWaiting ?? null, null); pass();
+      // Issue 456 (D403): the Didit decision, read live for an admin with live access and a purpose, never stored.
+      const didit = (token, who, body) => call(token, `/api/admin/accounts/${ids[who]}/didit-decision`, { method: 'POST', body });
+      const why = { purpose: 'Fictional date review' }, adm = people.admin.token;
+      assert.equal((await didit(null, 'bare', why)).status, 401); pass();
+      assert.equal((await didit(tokens.ana, 'bare', why)).status, 403); pass();
+      assert.equal((await didit(people.support.token, 'bare', why)).status, 403); pass(); // Support has no date of birth queue
+      assert.deepEqual(code(await didit(adm, 'bare', why)), [403, 'elevated-access-required']); pass();
+      assert.equal((await call(people.support.token, '/api/admin/access/grants', { method: 'POST', body: { capability: 'didit-decision-open', purpose: 'x' } })).status, 403); pass();
+      assert.equal((await call(adm, '/api/admin/access/grants', { method: 'POST', body: { capability: 'didit-decision-open', purpose: 'Fictional date review' } })).status, 201); pass();
+      assert.deepEqual(code(await didit(adm, 'bare', { purpose: ' ' })), [400, 'purpose-required']); pass();
+      r = await didit(adm, 'bare', why);
+      assert.deepEqual([r.status, r.body.result, r.body.status], [200, 'available', 'Approved']); pass();
+      assert.deepEqual([r.body.documents.length, r.body.documents[0].dateOfBirth, r.body.documents[0].sameDate], [1, '1971-01-01', false]); pass();
+      assert.equal((await didit(adm, 'none', why)).body.result, 'gone'); pass(); // the stand-in has no such session
+      assert.equal((await didit(adm, 'bare', { ...why, reviewId: crypto.randomUUID() })).status, 404); pass();
+      const bareSession = await sql(`SELECT session_id FROM id_verification_attempts WHERE account_id = '${ids.bare}'`);
+      await decided(bareSession, ids.legacy, [{ status: 'Approved', date_of_birth: '1971-01-01' }]);
+      r = await didit(adm, 'bare', why);
+      assert.deepEqual([r.body.result, r.body.documents], ['unavailable', []], 'another account\'s session is never shown'); pass();
+      await decided(bareSession, ids.bare, [{ status: 'Approved', age: 55, document_type: 'Passport', issuing_state: 'AUS', date_of_birth: '1971-01-01' }]);
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'didit-decision.opened' AND target_id = '${ids.bare}' AND detail IS NULL`), '2'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action LIKE 'didit-decision%' AND detail IS NOT NULL`), '0'); pass();
+      const adminId = await sql(`SELECT id FROM accounts WHERE subject = '${claims(adm).sub}'`);
+      await call(adm, '/api/admin/access/exclusions', { method: 'POST', body: { subjectAccountId: ids.legacy, reason: 'Fictional conflict' } });
+      if (await sql(`SELECT count(*) FROM staff_exclusions WHERE staff_account_id = '${adminId}' AND subject_account_id = '${ids.legacy}'`) === '0') await sql(`INSERT INTO staff_exclusions (staff_account_id, subject_account_id, reason, created_by, created_at) VALUES ('${adminId}', '${ids.legacy}', 'Fictional conflict', '${adminId}', now())`);
+      assert.deepEqual(code(await didit(adm, 'legacy', why)), [403, 'conflict-of-interest']); pass();
+      // A review for a member whose session the stand-in knows, to see the panel in the dialog.
+      const bareAttempt = await sql(`SELECT id FROM id_verification_attempts WHERE account_id = '${ids.bare}'`), bareReview = crypto.randomUUID();
+      await sql(`INSERT INTO dob_reviews (id, account_id, attempt_id, reason, created_at) VALUES ('${bareReview}', '${ids.bare}', '${bareAttempt}', 'still-different', now())`);
+      const queue = Number(await sql('SELECT count(*) FROM dob_reviews WHERE resolved_at IS NULL'));
       for (const role of ['admin', 'support']) {
         const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage();
         await page.goto(admin + '/');
         await page.fill('#username', people[role].email); await page.fill('#password', people[role].password); await page.click('#kc-login');
         await fillStaffOtp(page, people[role]);
         await page.waitForSelector('[data-dashboard]', { timeout: 20000 });
-        assert.equal(await page.locator('.admin-sidebar [data-nav-dob-count]').first().getAttribute('data-nav-dob-count', { timeout: 2000 }).catch(() => null), role === 'admin' ? String(waiting) : null, role); pass();
+        assert.equal(await page.locator('.admin-sidebar [data-nav-dob-count]').first().getAttribute('data-nav-dob-count', { timeout: 2000 }).catch(() => null), role === 'admin' ? String(queue) : null, role); pass();
         assert.equal(await page.locator('[data-dob-reviews-waiting]').count(), role === 'admin' ? 1 : 0, role); pass();
         if (output) await page.screenshot({ path: `${output}/admin-overview-${role}-1280.png` });
         if (role === 'admin') {
+          for (const [name, url, size] of [['dob-dialog-1280', `/dob-reviews?review=${bareReview}`, { width: 1280, height: 900 }], ['dob-dialog-390', `/dob-reviews?review=${bareReview}`, { width: 390, height: 844 }], ['account-verification-1280', `/accounts/${ids.bare}/verification`, { width: 1280, height: 900 }]]) {
+            await page.setViewportSize(size);
+            await page.goto(admin + url);
+            await page.click('[data-didit-decision=closed] summary');
+            if (output) await page.screenshot({ path: `${output}/${name}-closed.png` });
+            await page.selectOption('[data-didit-decision] select[name=purpose]', 'Date of birth review');
+            await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check');
+            await page.click('[data-didit-show]');
+            await page.waitForSelector('[data-didit-decision=available]', { timeout: 20000 }); pass();
+            assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
+            if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
+          }
+          // PR 490 review: Ctrl+Enter submits the form in focus once, and never saves the decision from another form.
+          const posts = [], keyed = async (focus, fill) => {
+            await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
+            await page.check('[data-resolve=notVerified]', { force: true }); await page.fill('[data-dob-form] textarea[name=reason]', 'Fictional: half written');
+            if (fill) await fill();
+            await page.focus(focus);
+            posts.length = 0;
+            await page.route('**/*', route => { const r = route.request(); if (r.method() !== 'POST') return route.continue(); posts.push(decodeURIComponent((r.postDataBuffer()?.toString() ?? '').replace(/\+/g, ' '))); return route.abort(); });
+            await page.keyboard.press('Control+Enter'); await page.waitForTimeout(1500); await page.unroute('**/*');
+            return posts;
+          };
+          let sent = await keyed('[data-didit-decision] textarea[name=detail]', async () => { await page.click('[data-didit-decision=closed] summary'); await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check'); });
+          assert.equal(sent.length, 1, 'one request from the Didit form'); pass();
+          assert.ok(sent[0].includes('didit-') && !sent[0].includes('half written'), 'the Didit form, not the decision'); pass();
+          sent = await keyed('[data-dob-form] textarea[name=reason]');
+          assert.deepEqual([sent.length, sent[0]?.includes('half written')], [1, true], 'the decision, once'); pass();
+          sent = await keyed('[data-review-dialog] [data-photo-close]');
+          assert.deepEqual([sent.length, sent[0]?.includes('half written')], [1, true], 'outside a form, the decision'); pass();
+          // PR 490 review: a slow or failing Didit shows the retry state inside the admin app's own 10-second limit.
+          await page.setViewportSize({ width: 1280, height: 900 });
+          for (const stall of [{ owned_delay_ms: 20000 }, { owned_status: 503 }]) {
+            await decided(bareSession, ids.bare, [], stall);
+            await page.goto(`${admin}/accounts/${ids.bare}/verification`);
+            await page.click('[data-didit-decision=closed] summary');
+            await page.selectOption('[data-didit-decision] select[name=purpose]', 'Date of birth review');
+            await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check');
+            const asked = Date.now();
+            await page.click('[data-didit-show]');
+            await page.waitForSelector('[data-didit-decision=unavailable]', { timeout: 20000 }); pass();
+            assert.ok(Date.now() - asked < 10000, 'answered before the admin app gives up'); pass();
+            assert.match(await page.textContent('[data-didit-decision]'), /can't be reached right now/); pass();
+            assert.equal(await page.locator('[data-didit-show]').count(), 1, 'can be tried again'); pass();
+          }
+          await page.setViewportSize({ width: 1280, height: 900 }); await page.goto(admin + '/');
           await page.setViewportSize({ width: 390, height: 844 }); await page.reload(); await page.waitForSelector('[data-dashboard]');
           if (output) await page.screenshot({ path: output + '/admin-overview-admin-390.png' });
           await sql(`UPDATE dob_reviews SET resolved_at = now() WHERE resolved_at IS NULL`);

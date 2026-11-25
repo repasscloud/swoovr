@@ -158,6 +158,7 @@ static class StaffConflictPersistenceChecks
         public string WorkflowId => "fictional";
         public Task<ProviderSession?> CreateSessionAsync(Guid account, string callback, CancellationToken token) => throw new Exception("Unexpected verification provider.");
         public Task<ProviderSession?> GetDecisionAsync(string session, CancellationToken token) => throw new Exception("Unexpected verification provider.");
+        public Task<ProviderDecision> InspectDecisionAsync(string session, CancellationToken token) => throw new Exception("Unexpected verification provider.");
         public Task<bool> DeleteSessionAsync(string session, CancellationToken token) => throw new Exception("Unexpected verification provider.");
     }
     private sealed class DevelopmentEnvironment : IHostEnvironment

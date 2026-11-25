@@ -11,7 +11,7 @@ public enum DobReviewOutcome { Verified, NotVerified }
 
 /// <summary>
 /// A manual review of a date of birth that didn't match the verified ID (D166), in the admin queue. Ids, times and the
-/// outcome only: never either date; the admin reads the document's date in Didit's console (kept 30 days, D147).
+/// outcome only: never either date; the admin reads the document's date live from Didit (kept there 30 days, D147; D403).
 /// </summary>
 public sealed class DobReview
 {
