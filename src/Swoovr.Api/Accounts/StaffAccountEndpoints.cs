@@ -236,12 +236,12 @@ public static class StaffAccountEndpoints
         var roles = grants.Select(g => g.Role).ToList();
         var info = await identity.AccountAsync(target.Subject, ct);
         var sessions = info is null ? null : await identity.SignInsAsync(target.Subject, ct);
-        var history = await db.AuditEntries.AsNoTracking().Where(a => a.TargetType == "account" && a.TargetId == id.ToString() && a.Action.StartsWith("staff."))
-            .OrderByDescending(a => a.Id).Take(100).Select(a => new StaffActionEntry(a.Id, a.At, a.Action)).ToListAsync(ct);
+        var history = await db.AuditEntries.AsNoTracking().Where(a => a.TargetType == "account" && a.TargetId == id.ToString() && (a.Action.StartsWith("staff.") || a.Action == "mfa.reset-requested" || a.Action == "mfa.credentials-cleared"))
+            .OrderByDescending(a => a.Id).Take(100).Select(a => new { a.Id, a.At, a.Action, a.Detail }).ToListAsync(ct);
         var summary = Summary(target, grants);
         if (info is not null) summary = summary with { Email = info.Email, FirstName = info.FirstName, LastName = info.LastName, Mfa = Mfa(info, target.MfaResetPending) };
         return Results.Ok(new StaffAccountDetail(summary, info?.Phone, info is not null, info?.Enabled == true, info?.EmailVerified == true,
-            info?.CredentialTypes ?? [], info?.RequiredActions ?? [], sessions?.Sessions.Select(s => new SignInSessionView(SignInPolicy.Handle(s.Id), SignInPolicy.Device(s.Clients, StaffWebClient), s.Started, s.LastActive, false)).ToArray() ?? [], history, StaffManagementPolicy.CanManage(actor.Account!.Id, actor.IsRootAdmin, target, roles, roles), target.MfaResetPending));
+            info?.CredentialTypes ?? [], info?.RequiredActions ?? [], sessions?.Sessions.Select(s => new SignInSessionView(SignInPolicy.Handle(s.Id), SignInPolicy.Device(s.Clients, StaffWebClient), s.Started, s.LastActive, false)).ToArray() ?? [], history.Select(a => new StaffActionEntry(a.Id, a.At, a.Action, MfaRecovery.From(a.Detail))).ToArray(), StaffManagementPolicy.CanManage(actor.Account!.Id, actor.IsRootAdmin, target, roles, roles), target.MfaResetPending));
     }
     // Staff sign in to Admin through this client; its sessions read as "web" rather than "other" (#347).
     private const string StaffWebClient = "swoovr-admin-web";

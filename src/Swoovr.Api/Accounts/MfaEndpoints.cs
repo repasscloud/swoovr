@@ -131,18 +131,21 @@ public static class MfaEndpoints
         {
             var roles=await db.RoleGrants.Where(g=>g.AccountId==id).Select(g=>g.Role).ToListAsync(ct);
             if(!StaffManagementPolicy.CanManage(actor.Account.Id,actor.IsRootAdmin,target,roles,roles))return Results.Forbid();
+            // Issue 374 (D405): staff recovery records how identity was verified (D373).
+            if(!MfaRecovery.Valid(request.VerificationMethod))return Invalid();
         }
+        var evidence=MfaRecovery.Detail(request.CaseReference!,target.Realm==AccountRealm.Staff?request.VerificationMethod:null);
         if(await StaffAccessEndpoints.ExcludedAsync(db,actor.Account.Id,[id],ct))return StaffAccessEndpoints.Conflict();
         IIdentityDirectory provider=target.Realm==AccountRealm.Staff?staff:members;
         if(!provider.Configured)return Unavailable();
         var now=clock.GetUtcNow();target.MfaResetPending=true;target.SessionsRevokedAt=Cutoff(target.SessionsRevokedAt,now);target.StaffRevision++;
         // Required is independent of credentials: clearing a staff factor can never make staff MFA optional.
         var required=target.Realm==AccountRealm.Staff||target.MfaRequired;
-        MfaElevationService.Audit(db,now,actor.Account.Id,id,"reset-requested","pending",request.CaseReference);await db.SaveChangesAsync(ct);helpdesk.Nudge();
+        MfaElevationService.Audit(db,now,actor.Account.Id,id,"reset-requested","pending",evidence);await db.SaveChangesAsync(ct);helpdesk.Nudge();
         accounts.Services.GetService<Swoovr.Api.Connections.MessagesConnections>()?.Retire(id,target.SessionsRevokedAt,clock.GetUtcNow());
         var ok=await provider.ClearMfaAsync(target.Subject,required,ct);
         if(ok){target.MfaResetPending=false;target.MfaLastResetAt=clock.GetUtcNow();}
-        MfaElevationService.Audit(db,clock.GetUtcNow(),actor.Account.Id,id,"credentials-cleared",ok?"confirmed":"unconfirmed",request.CaseReference);await db.SaveChangesAsync(ct);helpdesk.Nudge();
+        MfaElevationService.Audit(db,clock.GetUtcNow(),actor.Account.Id,id,"credentials-cleared",ok?"confirmed":"unconfirmed",evidence);await db.SaveChangesAsync(ct);helpdesk.Nudge();
         if(ok)await NotifyAsync(accounts,target,"An administrator reset your Swoovr authenticator after an account recovery review. Existing sessions have ended. If MFA is required, you must enrol again before continuing.",ct);
         return ok?await ViewAsync(target,provider,null,ct):Unavailable();
     }
