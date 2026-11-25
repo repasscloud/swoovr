@@ -74,6 +74,16 @@ static class VerificationChecks
             && inspected.Documents[0] == new ProviderDocument("In Review", "Passport", "AUS", new DateOnly(1991, 2, 3), "A", "B"), "the fields staff need");
         Expect(DiditClient.Inspect(Decision($$"""{"session_id":"{{Guid.NewGuid()}}","status":"Approved"}"""), sid).Result == ProviderReadResult.Unavailable, "another session is never shown");
         Expect(DiditClient.Inspect(Decision($$"""{"session_id":"{{sid}}","status":"Declined"}"""), sid) is { Result: ProviderReadResult.Available, Documents.Count: 0 }, "no document checks");
+        // PR 490 review: staff wait for this read, so a stalled Didit answers before the admin app's 10-second limit; a caller
+        // that goes away still cancels.
+        var stalled = new DiditClient(new HttpClient(new Stalled()) { Timeout = TimeSpan.FromSeconds(60) }, new DiditOptions("k", "w", "s", new Uri("https://didit.invalid/")),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<DiditClient>.Instance);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Expect(stalled.InspectDecisionAsync(sid.ToString(), default).GetAwaiter().GetResult().Result == ProviderReadResult.Unavailable && clock.Elapsed < TimeSpan.FromSeconds(8), "a stalled Didit is unavailable in time");
+        var left = false;
+        try { stalled.InspectDecisionAsync(sid.ToString(), new CancellationToken(true)).GetAwaiter().GetResult(); } catch (OperationCanceledException) { left = true; }
+        Expect(left, "a caller that left cancels");
+
         // Issue 440: an approval that arrives without the date (a V2-pinned webhook has a singular id_verification; some
         // deliveries carry no decision at all) is completed from Didit's own decision before anyone opens a review.
         var bare = DiditClient.Read(Decision("""{"session_id":"s","status":"Approved","vendor_data":"v","workflow_id":"w"}"""))!;
@@ -148,5 +158,14 @@ static class VerificationChecks
         Expect(Swoovr.Api.Verification.VerificationEndpoints.WebCallback("other", Config(("Didit:Callbacks:Web", "https://uat.swoovr.app/x"))) is null, "an unknown client gets no callback");
 
         Console.WriteLine($"PASS: {checks} Verification cases (Didit status mapping forward only, one self-service attempt, age gate and inheritance, adult from a decision without keeping the date, founder eligibility and the 1,000 limit, webhook V2/raw signatures, forgeries, tampering, stale timestamps).");
+    }
+
+    private sealed class Stalled : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            throw new InvalidOperationException();
+        }
     }
 }
