@@ -17,6 +17,11 @@ async function helpdeskSettings(){if(process.env.SWOOVR_OWNED_ZAMMAD!=='1')retur
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const command=(name,args,options={})=>new Promise((resolve,reject)=>execFile(name,args,{cwd:root,maxBuffer:8e6,...options},(error,stdout,stderr)=>error?reject(Object.assign(Error(name+' failed (private runner logs contain details).'),{privateOutput:stderr})):resolve(stdout.trim())));
 function selectedSuites(value){const selected=value?.split(',');if(!selected?.length||new Set(selected).size!==selected.length||selected.some(key=>!Object.hasOwn(suites,key)))throw Error('Set SWOOVR_OWNED_SUITES to explicit unique names: '+Object.keys(suites).join(','));if(selected.includes('deletion')&&selected.length!==1)throw Error('Run deletion alone: its owned hosts use a shorter reauthentication window.');return selected;}
+// A plainly synthetic 320x200 grey PNG with a darker band: no text, face or document design.
+function syntheticId(){const zlib=require('node:zlib'),w=320,h=200,rows=[];for(let y=0;y<h;y++){const row=Buffer.alloc(1+w,y>140&&y<160?90:200);row[0]=0;rows.push(row);}
+ const chunk=(type,data)=>{const body=Buffer.concat([Buffer.from(type),data]),size=Buffer.alloc(4),crc=Buffer.alloc(4);size.writeUInt32BE(data.length);crc.writeUInt32BE(zlib.crc32(body));return Buffer.concat([size,body,crc]);};
+ const head=Buffer.alloc(13);head.writeUInt32BE(w,0);head.writeUInt32BE(h,4);head[8]=8;
+ return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',head),chunk('IDAT',zlib.deflateSync(Buffer.concat(rows))),chunk('IEND',Buffer.alloc(0))]);}
 async function reserve(){const server=net.createServer();await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});return{server,port:server.address().port,close:()=>new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()))};}
 async function main(){
  const selected=selectedSuites(process.env.SWOOVR_OWNED_SUITES);
@@ -89,6 +94,8 @@ async function main(){
     res.setHeader('Content-Type','application/json');if(req.method==='POST'&&req.url==='/v3/session/'){
      const input=JSON.parse(body),id=crypto.randomUUID(),record={session_id:id,status:'Not Started',vendor_data:input.vendor_data,workflow_id:input.workflow_id,url:'https://mock.didit.me/'+id};sessions.set(id,record);res.end(JSON.stringify(record));
     }else if(req.method==='PUT'&&/^\/owned\/decision\/[0-9a-f-]{36}$/.test(req.url)){sessions.set(req.url.slice(16),JSON.parse(body));res.end('{}');// a suite sets the decision this stand-in returns
+    }else if(req.method==='GET'&&/^\/owned\/image\/[a-z-]+\.(png|bad|big)\?/.test(req.url)){const kind=/\.(png|bad|big)\?/.exec(req.url)[1];res.setHeader('Content-Type','image/png');// synthetic picture only, never identity material
+     res.end(kind==='png'?syntheticId():kind==='bad'?'<script>synthetic</script>':Buffer.concat([syntheticId(),Buffer.alloc(5*1024*1024)]));
     }else{const id=/^\/v3\/session\/([0-9a-f-]{36})\/(?:decision|delete)\/$/.exec(req.url)?.[1];if(req.method==='DELETE'){sessions.delete(id);res.end('{}');}else if(id&&sessions.has(id)){const{owned_delay_ms:wait=0,owned_status:code=200,...record}=sessions.get(id);if(wait)await new Promise(resolve=>setTimeout(resolve,wait));res.statusCode=code;res.end(JSON.stringify(record));}else{res.statusCode=404;res.end('{}');}}
    }catch{res.statusCode=400;res.end('{}');}
   });await new Promise(resolve=>provider.listen(0,'127.0.0.1',resolve));
@@ -96,7 +103,7 @@ async function main(){
    ...(selected.includes('deletion')?{Accounts__ReauthSeconds:'45',SWOOVR_REAUTH_SECONDS:'45'}:{}),...await helpdeskSettings(),
    Keycloak__BaseUrl:'http://localhost:8180',Keycloak__RequireHttpsMetadata:'false',Mfa__StaffClientId:manifest.staffClient,Staff__LocalPasswords:'true',Phone__Required:'false',Founders__Secrets__1:synthetic.SWOOVR_FOUNDER_SECRET_V1,
    MemberAdmin__ClientSecret:synthetic.SWOOVR_MEMBERS_API_ADMIN_SECRET,MemberAdmin__ContactRetirementEnabled:'false',MemberAdmin__ContactRetirementWorker:'false',
-   Didit__ApiKey:'synthetic-owned-only',Didit__WorkflowId:synthetic.SWOOVR_DIDIT_WORKFLOW_ID,Didit__WebhookSecret:synthetic.SWOOVR_DIDIT_WEBHOOK_SECRET,Didit__BaseUrl:'http://127.0.0.1:'+provider.address().port+'/',Didit__Callbacks__Web:manifest.web+'/me/verification/return',
+   Didit__ApiKey:'synthetic-owned-only',Didit__WorkflowId:synthetic.SWOOVR_DIDIT_WORKFLOW_ID,Didit__WebhookSecret:synthetic.SWOOVR_DIDIT_WEBHOOK_SECRET,Didit__BaseUrl:'http://127.0.0.1:'+provider.address().port+'/',Didit__Callbacks__Web:manifest.web+'/me/verification/return',Didit__IdImages__Enabled:'true',Didit__IdImages__Hosts:'127.0.0.1:'+provider.address().port,
    Media__Store:'local',Media__Local__Path:media,Media__Screening__Simulate:'blocked',Media__Screening__RequireKnownContentCheck:'true',Media__Screening__Worker:'false',Media__Screening__BaseUrl:'http://127.0.0.1:1/',
    Email__Smtp__Host:'127.0.0.1',Email__Smtp__Port:'1025',Email__Provider:'smtp',Sms__Provider:'simulated',Push__Provider:'simulated',Retention__Worker:'false',MeetingSafety__Worker:'false',Notifications__Worker:'false',TextHarm__Enabled:'false',PolicyNotices__Enabled:'false',
    SWOOVR_OWNED_RUN_MANIFEST:manifestPath,SWOOVR_TEST_API_BASE:manifest.api,SWOOVR_TEST_APP_DATABASE:manifest.database,SWOOVR_TEST_WEB_BASE:manifest.web,SWOOVR_TEST_ADMIN_BASE:manifest.admin,SWOOVR_TEST_ENV_PATH:manifest.envPath,

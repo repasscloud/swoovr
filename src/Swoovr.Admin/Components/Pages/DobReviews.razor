@@ -111,6 +111,7 @@ else
             }
         </section>
         <DiditDecision AccountId="selected.AccountId" ReviewId="selected.Id" />
+        @if (selected.IdImage) { <IdDocument AccountId="selected.AccountId" ReviewId="selected.Id" /> }
         <form method="post" @formname="@($"resolve-{selected.Id}")" @onsubmit="() => ResolveAsync(selected.Id)" class="media-side dob-form" data-enhance="true" data-dob-form>
             <AntiforgeryToken />
             <dl class="media-meta">

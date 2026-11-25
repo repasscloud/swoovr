@@ -21,6 +21,10 @@ public static class ProviderSetup
             configuration["Didit:WebhookSecret"], new Uri(configuration["Didit:BaseUrl"] ?? "https://verification.didit.me/"));
         services.AddSingleton(didit);
         services.AddHttpClient<IIdVerificationProvider, DiditClient>(http => http.Timeout = TimeSpan.FromSeconds(15));
+        // Issue 488 (D413): signed image links must reach no log and follow no redirect.
+        services.AddSingleton(new DiditImageOptions(configuration.GetValue("Didit:IdImages:Enabled", false), DiditImageOptions.Parse(configuration["Didit:IdImages:Hosts"])));
+        services.AddHttpClient<IIdImageSource, DiditIdImages>(http => http.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false }).RemoveAllLoggers();
         var keycloak = configuration.GetSection("Keycloak").Get<KeycloakOptions>() ?? new KeycloakOptions();
         services.AddSingleton(new IdentityAdminOptions(keycloak.BaseUrl, keycloak.MembersRealm,
             configuration["MemberAdmin:ClientId"] ?? "swoovr-api-accounts", configuration["MemberAdmin:ClientSecret"]));

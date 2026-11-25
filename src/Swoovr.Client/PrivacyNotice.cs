@@ -15,7 +15,7 @@ public static class PrivacyNotice
     // Issue 296 (Q172, D374): raw-original photo wording applied as the owner supplied it. Version and approval date are NOT
     // advanced until owner/legal approval of the final text and its publication date (owner instruction on #296).
     public const string StatusLabel = "Privacy notice — approved 17 November 2026.";
-    public const string Version = "0.20, 17 November 2026";
+    public const string Version = Swoovr.Contracts.PrivacyNoticeVersion.Current;
     /// <summary>CONFIRMED (D202, Q80): privacy@swoovr.com; mail to privacy@swoovr.app forwards to it.</summary>
     public const string Contact = "privacy@swoovr.com";
 

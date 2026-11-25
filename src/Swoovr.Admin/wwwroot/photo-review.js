@@ -16,6 +16,8 @@
     const dialog = event.target.closest?.('[data-photo-dialog],[data-review-dialog]');
     if (dialog && event.target.closest('a[href]')) { returnId = dialog.querySelector('[data-reveal]')?.dataset.reveal; dialog.close(); }
   }, true);
+  // Issue 488: an ID document leaves the page with it, so going back can't bring it up again.
+  window.addEventListener('pagehide', () => document.querySelectorAll('[data-id-image] img').forEach(image => image.remove()));
   document.addEventListener('DOMContentLoaded', () => { openReview(); window.Blazor?.addEventListener('enhancedload', openReview); }, { once: true });
   openReview();
 })();

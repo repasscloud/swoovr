@@ -107,7 +107,7 @@ public sealed record VerifiedIdentityView(Guid AccountId, string? FirstName, str
 
 /// <summary>D166: a manual date-of-birth review in the admin queue. Never either date: the admin reads the document's in Didit's console.</summary>
 public sealed record DobReviewView(Guid Id, Guid AccountId, string? DisplayName, string Reason, DateTimeOffset CreatedAt, DateTimeOffset? ResolvedAt, string? Outcome,
-    string? FirstName = null, string? LastName = null, string? DiditSessionId = null, string? ResolutionNote = null, string? ResolvedByName = null, EscalationView? Escalation = null);
+    string? FirstName = null, string? LastName = null, string? DiditSessionId = null, string? ResolutionNote = null, string? ResolvedByName = null, EscalationView? Escalation = null, bool IdImage = false);
 /// <summary>Issue 455 (D404): internal, never shown to the member. CanResolve: an admin who didn't raise it.</summary>
 public sealed record EscalationView(Guid Id, Guid AccountId, string? DisplayName, Guid? DobReviewId, string Reason, string RaisedBy, DateTimeOffset CreatedAt,
     string? ResolvedBy = null, DateTimeOffset? ResolvedAt = null, string? ResolutionNote = null, bool CanResolve = false);
@@ -121,6 +121,11 @@ public sealed record DiditDecisionRequest(string? Purpose, Guid? ReviewId = null
 public sealed record StaffDiditDecision(string Result, string? Status, IReadOnlyList<StaffDiditDocument> Documents);
 /// <summary>NameMatches and SameDate compare with the member's registered name and saved date; null when either side is missing.</summary>
 public sealed record StaffDiditDocument(string Status, string? DocumentType, string? IssuingCountry, DateOnly? DateOfBirth, bool? NameMatches, bool? SameDate);
+/// <summary>Issue 488 (D413): Admin with live "id-image-open" access, a recorded purpose and an open date of birth review.</summary>
+public sealed record IdImageRequest(string? Purpose, Guid ReviewId);
+/// <summary>Result: available, gone, unavailable, none (no document image) or refused. Read live and never stored.</summary>
+public sealed record StaffIdImages(string Result, IReadOnlyList<StaffIdImage> Images);
+public sealed record StaffIdImage(string Side, string ContentType, byte[] Data);
 /// <summary>"verified" (the date on file matches the ID) or "notVerified", with a reason (audited, never shown publicly).</summary>
 public sealed record DobReviewDecision(string? Outcome, string? Reason);
 /// <summary>Q125 A (D317): an ID-verified member's registered name change waiting for staff. The current confirmed name is

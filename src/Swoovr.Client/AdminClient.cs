@@ -204,6 +204,10 @@ public sealed partial class AdminClient(HttpClient transport)
     public Task<ApiResult<StaffDiditDecision>> DiditDecisionAsync(Guid accountId, string? purpose, Guid? reviewId = null, CancellationToken cancellationToken = default) =>
         SendAsync<StaffDiditDecision>(HttpMethod.Post, $"api/admin/accounts/{accountId}/didit-decision", new DiditDecisionRequest(purpose, reviewId), cancellationToken);
 
+    /// <summary>Issue 488 (D413): the member's ID document for an open date of birth review (Admin with id-image-open access).</summary>
+    public Task<ApiResult<StaffIdImages>> IdImagesAsync(Guid accountId, Guid reviewId, string? purpose, CancellationToken cancellationToken = default) =>
+        SendAsync<StaffIdImages>(HttpMethod.Post, $"api/admin/accounts/{accountId}/id-image", new IdImageRequest(purpose, reviewId), cancellationToken);
+
     public Task<ApiResult<List<DobReviewView>>> DobReviewsAsync(CancellationToken cancellationToken = default) => DobReviewsAsync(true, cancellationToken);
 
     /// <summary>open=false also returns resolved reviews (newest 200 overall).</summary>

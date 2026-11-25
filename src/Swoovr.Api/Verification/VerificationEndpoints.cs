@@ -210,7 +210,7 @@ public static class VerificationEndpoints
 
         // D166: the manual date-of-birth review queue. Admins read the document's date in Didit's console and decide.
         var reviews = app.MapGroup("/api/admin/dob-reviews").RequireAuthorization();
-        reviews.MapGet("", async (bool? open, ClaimsPrincipal user, AccountResolver accounts, CancellationToken cancellationToken) =>
+        reviews.MapGet("", async (bool? open, ClaimsPrincipal user, AccountResolver accounts, IIdImageSource images, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await AdminEndpoints.StaffAsync(user, accounts, AccountRole.Admin, cancellationToken);
             if (denied is not null) return denied;
@@ -231,6 +231,7 @@ public static class VerificationEndpoints
             {
                 FirstName = x.First, LastName = x.Last, DiditSessionId = string.IsNullOrEmpty(x.Session) ? null : x.Session,
                 ResolvedByName = x.r.ResolvedBy is null ? null : StaffName(x.ResolverFirst, x.ResolverLast, x.ResolverEmail),
+                IdImage = images.Enabled && x.r.ResolvedAt is null && !string.IsNullOrEmpty(x.Session),
                 Escalation = escalations.GetValueOrDefault(x.r.Id),
             }).ToList());
         });

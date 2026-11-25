@@ -14,7 +14,7 @@ public static class AccountInspectionEndpoints
 {
     public static readonly string[] HistoryActions=["age.updated","profile.updated","home-market.override","staff.affiliated","staff.revoked","moderation.warn","moderation.restrict","moderation.suspend","moderation.terminate","entitlement.granted","dob.correction-granted","dob.correction-revoked","dob.correction-used",
         // #190 (D323): account detail actions.
-        "entitlement.revoked","profile-dob.opened","didit-decision.opened","account.escalated","account.escalation-resolved","account.locked","account.unlocked","sessions.revoked",
+        "entitlement.revoked","profile-dob.opened","didit-decision.opened","id-image.opened","account.escalated","account.escalation-resolved","account.locked","account.unlocked","sessions.revoked",
         "verification.photoVerified.applied","verification.photoVerified.revoked","verification.idVerified.applied","verification.idVerified.revoked",
         // Issue 454: a support request staff opened for the member.
         "helpdesk.ticket.created"];
@@ -66,6 +66,24 @@ public static class AccountInspectionEndpoints
             return Results.Ok(new StaffDiditDecision("available",decision.Status,(decision.Documents??[]).Select(d=>new StaffDiditDocument(d.Status,d.DocumentType,d.IssuingState,d.DateOfBirth,
                 names is null||d.FirstName is null?null:RegisteredNamePolicy.Matches(names,d.FirstName,d.LastName),
                 born is null||d.DateOfBirth is null?null:born==d.DateOfBirth)).ToList()));
+        });
+        // Issue 488 (D413): the ID document for an open date of birth review, proxied live. Recorded before Didit is asked.
+        group.MapPost("/id-image",async(Guid id,IdImageRequest request,ClaimsPrincipal user,AccountResolver accounts,IIdImageSource source,TimeProvider clock,CancellationToken token)=>
+        {
+            var(current,denied)=await StaffAsync(user,accounts,id,false,token);if(denied is not null)return denied;
+            if(!current!.Allows(AccountRole.Admin))return Results.Forbid();
+            if(!source.Enabled)return Problem(404,ProblemCodes.NotAvailable,"ID images aren't available.");
+            if(string.IsNullOrWhiteSpace(request.Purpose)||request.Purpose.Trim().Length>500)return Problem(400,ProblemCodes.PurposeRequired,"Record a purpose (up to 500 characters).");
+            var db=accounts.Db!;var now=clock.GetUtcNow();
+            if(await StaffAccessEndpoints.GrantAsync(db,current.Account!.Id,StaffAccessPolicy.IdImageOpen,now,token)is null)return StaffAccessEndpoints.NeedsGrant(StaffAccessPolicy.IdImageOpen);
+            var session=await(from r in db.DobReviews join a in db.IdVerificationAttempts on r.AttemptId equals a.Id
+                where r.Id==request.ReviewId&&r.AccountId==id&&a.AccountId==id&&r.ResolvedAt==null select a.SessionId).SingleOrDefaultAsync(token);
+            if(string.IsNullOrEmpty(session))return Problem(404,ProblemCodes.NotAvailable,"There's no open date of birth review for this account.");
+            db.IdentityAccesses.Add(new IdentityAccess{AccountId=id,ActorAccountId=current.Account.Id,Purpose=request.Purpose.Trim(),At=now});
+            Audit.Record(db,now,current.Account.Id,"account","id-image.opened","account",id.ToString(),request.ReviewId.ToString());
+            await db.SaveChangesAsync(token);
+            var read=await source.ReadAsync(session,id,token);
+            return Results.Ok(new StaffIdImages(Wire(read.Result),read.Images.Select(i=>new StaffIdImage(i.Side,i.ContentType,i.Data)).ToList()));
         });
         group.MapGet("/profile-preview",async(Guid id,ClaimsPrincipal user,AccountResolver accounts,TimeProvider clock,CancellationToken token)=>
         {
