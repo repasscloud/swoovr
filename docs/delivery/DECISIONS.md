@@ -1567,7 +1567,7 @@ Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10).
 
 ### D412 — Unapproved document checks, and reviewing the ID in the admin portal (Q184, #488, 25 November 2026)
 
-**CONFIRMED** by the owner on #488. Not built yet.
+**CONFIRMED** by the owner on #488. Built under D413.
 - A document check that isn't Approved supplies no date of birth, and the review says so with its own status.
 - Staff can open the ID from Didit in a dialog, contact the member with a support ticket and unlock the date of birth. The member's update locks it again. Staff then look at the ID again and manually approve the date of birth and the ID.
 - The owner reports that the document check on their session passed and shows its date, so an unapproved check isn't the cause of #440 there. The webhook version and delivery contents remain unconfirmed.
@@ -1575,3 +1575,16 @@ Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10).
 **CONFIRMED** by the owner (25 November 2026, in chat): only **Admin** may open the ID image. The Privacy Notice will be updated to cover staff viewing it for ID verification when there is a mismatch. That change goes in the same 0.21 update as the location wording (#283). Amends D147 and D403, under which Swoovr never reads document images.
 
 **DEFAULT:** the image is fetched live after a recorded purpose and never stored, and it opens only for a mismatch under review. **Release gate:** the updated notice is in force before this reaches members' real documents; its wording, version and date are OPEN.
+
+### D413 — How the ID review is built (Q185–Q188, #488, 25 November 2026)
+
+**CONFIRMED** by the owner (25 November 2026, in chat, approving the plan). Completes D412; amends D166, D299, D402 and D403 where it says so. Built in order: (1) status, (2) ID image dialog, (3) ticket and unlock, (4) manual approval, (5) D403's limit.
+- **Status.** An approved session with document checks, none of them Approved, opens `document-not-approved`, "Document check not approved in Didit". It supplies no date, adult result or identity. An Approved check with no date is still `no-document-date`. Existing reviews aren't rewritten.
+- **Where the ID opens (Q185 A, [#510](https://github.com/repasscloud/swoovr/issues/510)):** any open date of birth review. Admin only. Live from Didit, never stored, cached or logged, with no Didit address sent to the browser.
+- **Approving the ID (Q186 A, [#511](https://github.com/repasscloud/swoovr/issues/511)):** marks the date of birth verified, keeps ID Verified and records the approval on the review. It never changes the age status, adult result, sealed identity, name match or Didit's own status, and never restores a removed badge. The same admin must have opened the ID since the member's last update. D404's rules stay.
+- **Unlock.** D299's 24-hour, one-use grant also works during a review. The member's update locks the date again and the review stays open even if the date matches, so the second look always happens. An under-18 date still locks the account.
+- **Wording (Q187, [#512](https://github.com/repasscloud/swoovr/issues/512); Q188, [#513](https://github.com/repasscloud/swoovr/issues/513)):** approved word for word in those issues. The notice wording is published with #283 as 0.21; its effective date is OPEN (owner sets it).
+- **Limit on D403:** the Didit result also opens only for an open review, as the notice wording says.
+- **Retention:** the owner confirmed Didit's console keeps sessions 30 days.
+- **Release gate:** a setting, off by default. Outside Development a host refuses to start with it on while the published notice is below 0.21. Off, the review works as it did.
+- **DEFAULT (builder):** exact-host allowlist that refuses everything while empty; JPEG, PNG or WebP by content; 5 MB a side; 8 seconds in total.

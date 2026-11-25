@@ -137,7 +137,15 @@ public sealed class DiditClient(HttpClient http, DiditOptions options, ILogger<D
         if (root.ValueKind != JsonValueKind.Object || Text(root, "session_id") is not { } session) return null;
         var decision = root.TryGetProperty("decision", out var d) ? d : root;
         return new(session, Text(root, "status") ?? "", Text(root, "vendor_data"), Text(root, "workflow_id"), Adult(decision), Text(root, "url"), DateOfBirth(decision),
-            Identity(decision));
+            Identity(decision), DocumentNotApproved(decision));
+    }
+
+    /// <summary>Issue 488 (D413): there are document checks and none is Approved. No document check at all isn't that.</summary>
+    private static bool DocumentNotApproved(JsonElement decision)
+    {
+        if (decision.ValueKind != JsonValueKind.Object || !decision.TryGetProperty("id_verifications", out var checks) || checks.ValueKind != JsonValueKind.Array) return false;
+        var statuses = checks.EnumerateArray().Where(c => c.ValueKind == JsonValueKind.Object).Select(c => Text(c, "status")).ToList();
+        return statuses.Count > 0 && !statuses.Any(s => string.Equals(s, "Approved", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
