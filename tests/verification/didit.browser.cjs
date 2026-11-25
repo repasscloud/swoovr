@@ -353,8 +353,8 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     // Issue 440 (D402): an approval that arrives without the date of birth is completed from Didit's decision, so a date
     // that differs gives the member their one correction; with no date anywhere it still goes to a person.
     if (process.env.SWOOVR_OWNED_DIDIT_URL) {
-      const decided = (session, vendor, checks) => fetch(`${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/decision/${session}`, { method: 'PUT',
-        body: JSON.stringify({ session_id: session, status: 'Approved', vendor_data: vendor, workflow_id: workflow, id_verifications: checks }) });
+      const decided = (session, vendor, checks, stall = {}) => fetch(`${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/decision/${session}`, { method: 'PUT',
+        body: JSON.stringify({ session_id: session, status: 'Approved', vendor_data: vendor, workflow_id: workflow, id_verifications: checks, ...stall }) });
       for (const [n, extra] of [['bare', {}], ['legacy', { decision: { id_verification: { status: 'Approved', date_of_birth: '1971-01-01' } } }], ['none', {}]]) {
         members[n] = await createMember('verify-' + n); await cli('beta', 'add', members[n].email);
         tokens[n] = await memberToken(browser, members[n]);
@@ -427,6 +427,12 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       assert.equal((await call(root, `/api/admin/escalations/${own.id}/resolve`, { method: 'POST', body: { note: 'Fictional: looked at' } })).body.resolutionNote, 'Fictional: looked at'); pass();
       assert.equal((await call(root, `/api/admin/escalations/${own.id}/resolve`, { method: 'POST', body: { note: 'Fictional' } })).status, 409); pass();
       assert.equal(await sql(`SELECT string_agg(action, ',' ORDER BY id) FROM audit_entries WHERE action LIKE 'account.escalat%' AND target_id = '${ids.web}'`), 'account.escalated,account.escalation-resolved'); pass();
+      // PR 491 review: staff with a conflict of interest can't close an escalation by deciding its review either.
+      const conflictAttempt = await sql(`SELECT id FROM id_verification_attempts WHERE account_id = '${ids.legacy}'`), conflictReview = crypto.randomUUID();
+      await sql(`INSERT INTO dob_reviews (id, account_id, attempt_id, reason, created_at) VALUES ('${conflictReview}', '${ids.legacy}', '${conflictAttempt}', 'still-different', now())`);
+      assert.equal((await raise(sup, 'legacy', 'Fictional: please look')).status, 200); pass();
+      assert.deepEqual(code(await call(adm, `/api/admin/dob-reviews/${conflictReview}/resolve`, { method: 'POST', body: { outcome: 'verified', reason: 'Fictional' } })), [403, 'conflict-of-interest']); pass();
+      assert.equal(await sql(`SELECT (SELECT count(*) FROM account_escalations WHERE dob_review_id = '${conflictReview}' AND resolved_at IS NULL) + (SELECT count(*) FROM dob_reviews WHERE id = '${conflictReview}' AND resolved_at IS NULL)`), '2', 'both stay open'); pass();
       // Deciding an escalated review: not by the person who escalated it; another admin closes both.
       const legacyAttempt = await sql(`SELECT id FROM id_verification_attempts WHERE account_id = '${ids.none}'`);
       const noneReview = await sql(`SELECT id FROM dob_reviews WHERE account_id = '${ids.none}' AND resolved_at IS NULL`); assert.ok(legacyAttempt && noneReview);
@@ -471,7 +477,22 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
           await page.fill(`[data-escalation="${raisedCase.id}"] textarea`, 'Fictional: reviewed'); await page.click(`[data-escalation="${raisedCase.id}"] [data-escalation-resolve]`);
           await page.waitForSelector('[data-result=ok]'); pass();
           assert.equal(await page.locator(`[data-escalation="${raisedCase.id}"]`).count(), 0); pass();
-          await page.goto(admin + '/');
+          // PR 490 review: a slow or failing Didit shows the retry state inside the admin app's own 10-second limit.
+          await page.setViewportSize({ width: 1280, height: 900 });
+          for (const stall of [{ owned_delay_ms: 20000 }, { owned_status: 503 }]) {
+            await decided(bareSession, ids.bare, [], stall);
+            await page.goto(`${admin}/accounts/${ids.bare}/verification`);
+            await page.click('[data-didit-decision=closed] summary');
+            await page.selectOption('[data-didit-decision] select[name=purpose]', 'Date of birth review');
+            await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check');
+            const asked = Date.now();
+            await page.click('[data-didit-show]');
+            await page.waitForSelector('[data-didit-decision=unavailable]', { timeout: 20000 }); pass();
+            assert.ok(Date.now() - asked < 10000, 'answered before the admin app gives up'); pass();
+            assert.match(await page.textContent('[data-didit-decision]'), /can't be reached right now/); pass();
+            assert.equal(await page.locator('[data-didit-show]').count(), 1, 'can be tried again'); pass();
+          }
+          await page.setViewportSize({ width: 1280, height: 900 }); await page.goto(admin + '/');
           await page.setViewportSize({ width: 390, height: 844 }); await page.reload(); await page.waitForSelector('[data-dashboard]');
           if (output) await page.screenshot({ path: output + '/admin-overview-admin-390.png' });
           await sql(`UPDATE dob_reviews SET resolved_at = now() WHERE resolved_at IS NULL`);
