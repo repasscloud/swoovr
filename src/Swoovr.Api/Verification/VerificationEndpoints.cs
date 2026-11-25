@@ -246,6 +246,8 @@ public static class VerificationEndpoints
             var review = await db.DobReviews.FindAsync([reviewId], cancellationToken);
             if (review is null) return Results.NotFound();
             if (review.ResolvedAt is not null) return Problem(StatusCodes.Status409Conflict, ProblemCodes.InvalidRequest, "This review is already resolved.");
+            // PR 491 review: a conflict of interest (D134) closes this route too, not only the escalation's own.
+            if (await StaffAccessEndpoints.ExcludedAsync(db, current!.Account!.Id, [review.AccountId], cancellationToken)) return StaffAccessEndpoints.Conflict();
             // Issue 455 (D404): an escalated review is decided by an admin who didn't escalate it, which also closes the escalation.
             var escalation = await db.AccountEscalations.SingleOrDefaultAsync(e => e.DobReviewId == reviewId && e.ResolvedAt == null, cancellationToken);
             if (escalation is not null && !EscalationPolicy.MayResolve(escalation, current!.Account!.Id, true))
