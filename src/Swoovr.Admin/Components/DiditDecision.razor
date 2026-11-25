@@ -58,9 +58,17 @@
             var grant = await Admin.RequestGrantAsync(new AccessGrantRequest(Capability, purpose));
             if (!grant.Ok) { Refuse(grant.Status, grant.Code); return; }
         }
-        var result = await Admin.DiditDecisionAsync(AccountId, purpose, ReviewId);
-        decision = result.Value;
-        if (!result.Ok) Refuse(result.Status, result.Code);
+        try
+        {
+            var result = await Admin.DiditDecisionAsync(AccountId, purpose, ReviewId);
+            decision = result.Value;
+            if (!result.Ok) Refuse(result.Status, result.Code);
+        }
+        catch (Exception exception) when ((exception is HttpRequestException or TaskCanceledException) && Context?.RequestAborted.IsCancellationRequested != true)
+        {
+            // The API didn't answer in time (PR 490 review): the retry state, never the error page.
+            decision = new StaffDiditDecision("unavailable", null, []);
+        }
     }
     private void Refuse(int status, string? why) => (resultCode, message) = (why ?? status.ToString(),
         why == "purpose-required" ? "Add the details of why you need this." : status == 404 ? "There's no Didit check for this account." : AdminText.Refusal(status, why));
