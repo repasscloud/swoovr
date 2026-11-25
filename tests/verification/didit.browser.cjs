@@ -149,6 +149,11 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     for (const body of [{ outcome: 'verified' }, { outcome: 'maybe', reason: 'x' }, { outcome: '0', reason: 'x' }])
     { assert.equal((await call(root, `/api/admin/dob-reviews/${anaReview.id}/resolve`, { method: 'POST', body })).status, 400, JSON.stringify(body)); pass(); }
     assert.equal((await call(root, `/api/admin/dob-reviews/${crypto.randomUUID()}/resolve`, { method: 'POST', body: { outcome: 'verified', reason: 'x' } })).status, 404); pass();
+    if (process.env.SWOOVR_OWNED_DIDIT_URL) { // the gate is on here: the admin has to look at the ID first (issue 488)
+      await fetch(`${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/decision/${anaSession}`, { method: 'PUT', body: JSON.stringify({ session_id: anaSession, status: 'Approved', vendor_data: ids.ana, workflow_id: workflow, id_verifications: [{ status: 'Approved', front_image: `${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/image/front.png?signature=synthetic-signature` }] }) });
+      assert.equal((await call(root, '/api/admin/access/grants', { method: 'POST', body: { capability: 'id-image-open', purpose: 'Fictional ID check' } })).status, 201);
+      assert.equal((await call(root, `/api/admin/accounts/${ids.ana}/id-image`, { method: 'POST', body: { purpose: 'Fictional ID check', reviewId: anaReview.id } })).body.result, 'available'); pass();
+    }
     r = await call(root, `/api/admin/dob-reviews/${anaReview.id}/resolve`, { method: 'POST', body: { outcome: 'verified', reason: 'Fictional: checked against the document in Didit.' } });
     assert.deepEqual([r.status, r.body.outcome], [200, 'verified']); pass();
     anaMe = (await call(tokens.ana, '/api/me')).body;
@@ -557,6 +562,40 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       // An under-18 date still locks the account.
       assert.equal((await unlock(adm, 'pending')).status, 200);
       assert.deepEqual(code(await setDob('pending', `${new Date().getFullYear() - 10}-01-01`)), [403, 'account-locked']); pass();
+      // Issue 488 (D413): the second look, then approving the date of birth and the ID together.
+      const webReview = await sql(`SELECT id FROM dob_reviews WHERE account_id = '${ids.web}' AND resolved_at IS NULL`);
+      const approve = (token, id) => call(token, `/api/admin/dob-reviews/${id}/resolve`, { method: 'POST', body: { outcome: 'verified', reason: 'Fictional: looked again' } });
+      const facts = () => sql(`SELECT p.id_status || '|' || p.age_status || '|' || coalesce(p.age_status_at::text, '') || '|' || a.adult || '|' || a.provider_status || '|' || coalesce(m.registered_names_match_id::text, '') || '|' || coalesce((SELECT md5(v.sealed::text) FROM restricted.verified_identities v WHERE v.account_id = p.account_id), '')
+        FROM member_profiles p JOIN accounts m ON m.id = p.account_id JOIN id_verification_attempts a ON a.account_id = p.account_id WHERE p.account_id = '${ids.web}'`);
+      const untouched = await facts(); assert.ok(untouched);
+      await decided(webSession, ids.web, idChecks('front.png'));
+      assert.equal((await approve(sup, webReview)).status, 403); pass();
+      assert.deepEqual(code(await approve(adm, webReview)), [409, 'id-not-viewed']); pass();
+      assert.equal((await grantId(root)).status, 201);
+      assert.equal((await idImage(root, 'web', webReview)).body.result, 'available');
+      assert.deepEqual(code(await approve(adm, webReview)), [409, 'id-not-viewed'], 'another admin\'s look does not count'); pass();
+      assert.equal((await idImage(adm, 'web', webReview)).body.result, 'available');
+      assert.equal((await unlock(adm, 'web')).status, 200);
+      assert.equal((await setDob('web', '1975-05-05')).status, 200);
+      assert.deepEqual(code(await approve(adm, webReview)), [409, 'id-not-viewed'], 'a look before the member\'s update does not count'); pass();
+      await decided(webSession, ids.web, [], { owned_status: 503 });
+      assert.equal((await idImage(adm, 'web', webReview)).body.result, 'unavailable');
+      assert.deepEqual(code(await approve(adm, webReview)), [409, 'id-not-viewed'], 'nothing was shown'); pass();
+      await decided(webSession, ids.web, idChecks('front.png'));
+      assert.equal((await idImage(adm, 'web', webReview)).body.result, 'available');
+      await sql(`UPDATE member_profiles SET id_status = 'Rejected' WHERE account_id = '${ids.web}'`);
+      assert.deepEqual(code(await approve(adm, webReview)), [409, 'id-badge-removed']); pass(); // never restores a removed badge
+      await sql(`UPDATE member_profiles SET id_status = 'Verified' WHERE account_id = '${ids.web}'`);
+      assert.equal((await approve(adm, webReview)).status, 200); pass();
+      assert.equal(await facts(), untouched, 'no age, identity, name or provider result changes'); pass();
+      assert.deepEqual([(r = await call(tokens.web, '/api/me')).body.dateOfBirthVerified, r.body.dobCheck], [true, 'none']); pass();
+      assert.equal((await call(adm, '/api/admin/dob-reviews?open=false')).body.find(x => x.id === webReview).idApproved, true); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'id.review-approved' AND target_id = '${ids.web}' AND detail = '${webReview}'`), '1'); pass();
+      assert.deepEqual(code(await setDob('web', '1976-06-06')), [409, 'date-of-birth-locked']); pass();
+      // An escalated review: not by the admin who escalated it, even after looking.
+      assert.equal((await raise(adm, 'pending', 'Fictional: second opinion')).status, 200);
+      assert.equal((await idImage(adm, 'pending', pendingReview)).body.result, 'available');
+      assert.deepEqual(code(await approve(adm, pendingReview)), [403, 'moderation-not-permitted']); pass();
       const queue = Number(await sql('SELECT count(*) FROM dob_reviews WHERE resolved_at IS NULL'));
       for (const role of ['admin', 'support']) {
         const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage();
@@ -580,6 +619,11 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
             if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
           }
+          await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
+          assert.match(await page.textContent('[data-dob-form]'), /Approve date of birth and ID/); pass();
+          await page.check('[data-resolve=verified]', { force: true }); await page.fill('[data-dob-form] textarea[name=reason]', 'Fictional'); await page.click('[data-dob-save]');
+          await page.waitForSelector('[data-result=id-not-viewed]'); pass();
+          if (output) { await page.locator('[data-dob-save]').scrollIntoViewIfNeeded(); await page.screenshot({ path: output + '/dob-approve-1280.png' }); }
           await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
           await page.click('[data-review-dialog] [data-op=dob-grant]'); await page.click('[data-confirm=dob-grant]');
           await page.waitForSelector('[data-review-dialog] [data-dob-grant=available]'); pass();

@@ -235,7 +235,7 @@ public static class VerificationEndpoints
                 Escalation = escalations.GetValueOrDefault(x.r.Id),
             }).ToList());
         });
-        reviews.MapPost("/{reviewId:guid}/resolve", async (Guid reviewId, DobReviewDecision request, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock,
+        reviews.MapPost("/{reviewId:guid}/resolve", async (Guid reviewId, DobReviewDecision request, ClaimsPrincipal user, AccountResolver accounts, IIdImageSource images, TimeProvider clock,
             CancellationToken cancellationToken) =>
         {
             var (current, denied) = await AdminEndpoints.StaffAsync(user, accounts, AccountRole.Admin, cancellationToken);
@@ -244,6 +244,10 @@ public static class VerificationEndpoints
                 || string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Length > ModerationPolicy.ReasonMax)
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Choose verified or not verified, with a reason.");
             var (db, now) = (accounts.Db!, clock.GetUtcNow());
+            // Issue 488: the member's update and the decision never overlap, so a look always covers the date being approved.
+            var subject = await db.DobReviews.Where(r => r.Id == reviewId).Select(r => (Guid?)r.AccountId).SingleOrDefaultAsync(cancellationToken);
+            if (subject is null) return Results.NotFound();
+            await using var lifecycle = await AccountLifecycleLease.AcquireAsync(db, subject.Value, cancellationToken);
             // PR 505 review: two admins at once make one decision, and an escalation closed meanwhile keeps its own resolution.
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             var review = await db.DobReviews.FromSqlInterpolated($"SELECT * FROM dob_reviews WHERE id={reviewId} FOR UPDATE").SingleOrDefaultAsync(cancellationToken);
@@ -255,13 +259,29 @@ public static class VerificationEndpoints
             var escalation = await db.AccountEscalations.AsNoTracking().SingleOrDefaultAsync(e => e.DobReviewId == reviewId && e.ResolvedAt == null, cancellationToken);
             if (escalation is not null && !EscalationPolicy.MayResolve(escalation, current!.Account!.Id, true))
                 return Problem(StatusCodes.Status403Forbidden, ProblemCodes.ModerationNotPermitted, "Another admin has to decide a review you escalated.");
+            var profile = await db.MemberProfiles.SingleAsync(p => p.AccountId == review.AccountId, cancellationToken);
+            // Issue 488 (D413, Q186 A): with ID images on, verifying approves the date of birth and the ID after the admin's own look.
+            var approvesId = images.Enabled && outcome == DobReviewOutcome.Verified;
+            if (approvesId)
+            {
+                var viewed = await db.DobReviewIdViews.Where(v => v.ReviewId == reviewId && v.ActorAccountId == current.Account.Id).MaxAsync(v => (DateTimeOffset?)v.At, cancellationToken);
+                switch (DobCorrectionPolicy.ApproveId(profile.IdStatus, viewed, profile.DobCheckAt ?? review.CreatedAt))
+                {
+                    case IdApprovalRefusal.NotViewed: return Problem(StatusCodes.Status409Conflict, ProblemCodes.IdNotViewed, "Open the ID document first, after the member's latest update.");
+                    case IdApprovalRefusal.NotVerified: return Problem(StatusCodes.Status409Conflict, ProblemCodes.IdBadgeRemoved, "This member isn't ID Verified any more.");
+                }
+            }
             if (escalation is not null && await db.AccountEscalations.Where(e => e.Id == escalation.Id && e.ResolvedAt == null).ExecuteUpdateAsync(u => u
                     .SetProperty(e => e.ResolvedAt, now).SetProperty(e => e.ResolvedBy, current!.Account!.Id).SetProperty(e => e.ResolutionNote, "Date of birth review decided."), cancellationToken) == 1)
                 Audit.Record(db, now, current.Account.Id, "account", "account.escalation-resolved", "account", review.AccountId.ToString(), escalation.Id.ToString());
-            var profile = await db.MemberProfiles.SingleAsync(p => p.AccountId == review.AccountId, cancellationToken);
             (review.ResolvedAt, review.ResolvedBy, review.Outcome, review.ResolutionNote) = (now, current!.Account!.Id, outcome, request.Reason.Trim());
             (profile.DateOfBirthVerified, profile.DateOfBirthVerifiedAt) = (outcome == DobReviewOutcome.Verified, outcome == DobReviewOutcome.Verified ? now : null);
             (profile.DobCheck, profile.DobCheckAt) = (DobCheck.None, now);
+            if (approvesId)
+            {
+                review.IdApprovedAt = now;
+                Audit.Record(db, now, current.Account.Id, "account", "id.review-approved", "account", review.AccountId.ToString(), reviewId.ToString());
+            }
             // Issue 488 (D413): a decision withdraws an unlock the member hasn't used.
             await DobChangeEndpoints.RevokeUnusedAsync(db, review.AccountId, current.Account.Id, now, cancellationToken);
             Audit.Record(db, now, current.Account.Id, "account", "dob.review-resolved", "account", review.AccountId.ToString(), Wire(outcome));
@@ -385,7 +405,7 @@ public static class VerificationEndpoints
     }
 
     private static DobReviewView ReviewView(DobReview r, string? name) =>
-        new(r.Id, r.AccountId, name, r.Reason, r.CreatedAt, r.ResolvedAt, r.Outcome is { } o ? Wire(o) : null, ResolutionNote: r.ResolutionNote);
+        new(r.Id, r.AccountId, name, r.Reason, r.CreatedAt, r.ResolvedAt, r.Outcome is { } o ? Wire(o) : null, ResolutionNote: r.ResolutionNote, IdApproved: r.IdApprovedAt is not null);
 
     private static string NameWire(NameReviewOutcome outcome) => outcome == NameReviewOutcome.Matches ? "matches" : "mismatch";
 

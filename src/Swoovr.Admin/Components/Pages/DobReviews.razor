@@ -68,7 +68,7 @@ else
             <tr data-dob-resolved="@r.Id">
                 <td><strong>@Name(r)</strong><span class="ui-sub"><a href="/accounts/@r.AccountId">Account</a> · <span class="beta-ref dob-inline-ref"><code>@r.AccountId.ToString()[..8]</code><CopyButton Value="@r.AccountId.ToString()" /></span></span></td>
                 <td>@WhyLabel(r.Reason)</td>
-                <td><span class="ui-pill" data-tone="@(r.Outcome == "verified" ? "approve" : "quiet")">@(r.Outcome == "verified" ? "Verified" : "Left unverified")</span></td>
+                <td><span class="ui-pill" data-tone="@(r.Outcome == "verified" ? "approve" : "quiet")">@(r.Outcome == "verified" ? "Verified" : "Left unverified")</span>@if (r.IdApproved) { <span class="ui-sub">Date of birth and ID</span> }</td>
                 <td class="dob-note">@(r.ResolutionNote ?? "—")</td>
                 <td>@r.ResolvedAt?.ToUniversalTime().ToString("d MMM HH:mm") UTC<span class="ui-sub">@r.ResolvedByName</span></td>
             </tr>
@@ -127,7 +127,7 @@ else
             @if (selected.DiditSessionId is { } s && SessionUrl(s) is { } url) { <a class="ui-button-ghost dob-didit" href="@url" target="_blank" rel="noopener noreferrer" data-didit-open>Compare in Didit @External<kbd>D</kbd></a> }
             <fieldset class="ui-field"><legend>Outcome</legend>
                 <div class="media-decide dob-decide" role="radiogroup">
-                    <label><input type="radio" name="outcome" value="verified" required checked="@(Field("outcome") == "verified")" data-resolve="verified" /><span>Matches ID<kbd>M</kbd></span></label>
+                    <label><input type="radio" name="outcome" value="verified" required checked="@(Field("outcome") == "verified")" data-resolve="verified" /><span>@(selected.IdImage ? "Approve date of birth and ID" : "Matches ID")<kbd>M</kbd></span></label>
                     <label><input type="radio" name="outcome" value="notVerified" required checked="@(Field("outcome") == "notVerified")" data-resolve="notVerified" /><span>Leave unverified<kbd>U</kbd></span></label>
                 </div>
             </fieldset>
@@ -206,7 +206,7 @@ else
     private async Task ResolveAsync(Guid id)
     {
         var outcome = Field("outcome"); var reason = Field("reason").Trim();
-        if (outcome is not ("verified" or "notVerified")) { resultCode = "outcome-required"; message = "Choose Matches ID or Leave unverified."; return; }
+        if (outcome is not ("verified" or "notVerified")) { resultCode = "outcome-required"; message = "Choose an outcome."; return; }
         if (reason.Length == 0) { resultCode = "reason-required"; message = "Add a reason."; return; }
         if (DatePattern.IsMatch(reason)) { resultCode = "reason-date"; message = "Leave dates out of the reason."; return; }
         var next = Filtered.SkipWhile(r => r.Id != id).Skip(1).FirstOrDefault() ?? Filtered.FirstOrDefault(r => r.Id != id);

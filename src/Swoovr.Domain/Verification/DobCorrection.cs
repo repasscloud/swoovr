@@ -26,7 +26,20 @@ public sealed class DobReview
     public DobReviewOutcome? Outcome { get; set; }
     /// <summary>Staff reason recorded with the outcome (no dates). Null for reviews resolved before it was kept.</summary>
     public string? ResolutionNote { get; set; }
+    /// <summary>Issue 488 (D413): when an admin, having looked at the ID, approved it together with the date of birth.</summary>
+    public DateTimeOffset? IdApprovedAt { get; set; }
 }
+
+/// <summary>Issue 488 (D413): an admin was shown the ID document for this review. Ids and the time only.</summary>
+public sealed class DobReviewIdView
+{
+    public long Id { get; set; }
+    public Guid ReviewId { get; set; }
+    public Guid ActorAccountId { get; set; }
+    public DateTimeOffset At { get; set; }
+}
+
+public enum IdApprovalRefusal { None, NotViewed, NotVerified }
 
 public enum DobCorrectionResult { Verified, ManualReview }
 
@@ -52,6 +65,13 @@ public static class DobCorrectionPolicy
 
     /// <summary>Why a review opens after the member's one correction.</summary>
     public static string CorrectionReason(ProviderSession session) => session.DocumentNotApproved ? "document-not-approved" : "still-different";
+
+    /// <summary>
+    /// Q186 A (D413): the same admin has to have seen the ID since the date last changed, and approving keeps ID Verified
+    /// but never restores it. Nothing about age, the verified identity or the provider's result changes.
+    /// </summary>
+    public static IdApprovalRefusal ApproveId(VerificationStatus status, DateTimeOffset? viewedAt, DateTimeOffset changedAt) =>
+        status != VerificationStatus.Verified ? IdApprovalRefusal.NotVerified : viewedAt > changedAt ? IdApprovalRefusal.None : IdApprovalRefusal.NotViewed;
 
     /// <summary>The ordinary date-of-birth form is closed while a correction or a review is open, so the prompt is the only way.</summary>
     public static bool OrdinaryChangeAllowed(DobCheck state) => state == DobCheck.None;

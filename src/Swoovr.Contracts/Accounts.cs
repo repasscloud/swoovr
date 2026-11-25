@@ -220,6 +220,10 @@ public static class ProblemCodes
     public const string DobCorrectionRequired = "dob-correction-required";
     /// <summary>D166: an admin is reviewing the date of birth; it can't be changed meanwhile.</summary>
     public const string DobUnderReview = "dob-under-review";
+    /// <summary>Issue 488 (D413): the admin hasn't seen the ID since the member's date last changed.</summary>
+    public const string IdNotViewed = "id-not-viewed";
+    /// <summary>Issue 488 (D413): ID Verified was removed; a review never restores it.</summary>
+    public const string IdBadgeRemoved = "id-badge-removed";
     /// <summary>D189: a hold needs a reason (up to 1,000 characters).</summary>
     public const string HoldReasonRequired = "hold-reason-required";
     /// <summary>D189: a hold names 1–20 existing accounts; named conversations must involve one of them; an admin's only the case's people.</summary>

@@ -59,6 +59,7 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
     public DbSet<HomeCityCheck> HomeCityChecks => Set<HomeCityCheck>();
     public DbSet<MemberLocation> MemberLocations => Set<MemberLocation>();
     public DbSet<DobReview> DobReviews => Set<DobReview>();
+    public DbSet<DobReviewIdView> DobReviewIdViews => Set<DobReviewIdView>();
     public DbSet<AccountEscalation> AccountEscalations => Set<AccountEscalation>();
     public DbSet<NameChangeReview> NameChangeReviews => Set<NameChangeReview>();
     public DbSet<DobChangeGrant> DobChangeGrants => Set<DobChangeGrant>();
@@ -821,6 +822,12 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             review.Property(r => r.ResolutionNote).HasMaxLength(1000);
             review.HasIndex(r => r.AccountId, "ix_dob_reviews_one_open").IsUnique().HasFilter("resolved_at IS NULL");
             review.HasIndex(r => r.CreatedAt);
+        });
+        // Issue 488 (D413): who was shown the ID for a review; staff ids aren't foreign keys, as in the audit.
+        model.Entity<DobReviewIdView>(view =>
+        {
+            view.HasOne<DobReview>().WithMany().HasForeignKey(v => v.ReviewId).OnDelete(DeleteBehavior.Cascade);
+            view.HasIndex(v => new { v.ReviewId, v.ActorAccountId, v.At });
         });
         // Issue 455 (D404): one open escalation per account. Staff ids aren't foreign keys, as in the audit.
         model.Entity<AccountEscalation>(escalation =>
