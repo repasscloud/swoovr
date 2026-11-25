@@ -174,8 +174,30 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     await page.waitForURL(`**/people/${pid.sam}**`); pass();
     await page.goto(web + `/people/${pid.fay}`);
     await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
-    assert.equal(await page.locator('.person-name .badge-row').getAttribute('data-badges'), 'founder photoVerified idVerified staff'); pass();
-    assert.deepEqual(await page.locator('.person-name .badge-date').allInnerTexts(), ['checked 17 Oct 2026', 'checked 18 Oct 2026']); pass();
+    // Issue 509: larger badges at the top right, and one dialog that explains every badge; the check dates are in it.
+    const held = ['founder', 'photoVerified', 'idVerified', 'staff'];
+    assert.equal(await page.locator('[data-open-badges]').getAttribute('data-badges'), held.join(' ')); pass();
+    assert.equal(await page.locator('.person-head .badge-date').count(), 0); pass();
+    for (const theme of ['light', 'dark']) for (const width of [1280, 390]) {
+      await page.emulateMedia({ colorScheme: theme }); await page.setViewportSize({ width, height: 900 });
+      const at = async s => page.locator(s).first().boundingBox();
+      const [head, button, icon, h1] = [await at('.person-head'), await at('[data-open-badges]'), await at('[data-open-badges] svg'), await at('.person-head h1')];
+      assert.ok(icon.width >= 28 && button.height >= 44 && h1.x + h1.width <= button.x + 1 && Math.abs(button.y - head.y) < 2, 'top right, larger'); pass();
+      assert.ok(Math.abs(button.x + button.width - head.x - head.width) <= 8, 'right edge'); pass();
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll'); pass();
+      await page.click('[data-safety-menu]');
+      await page.locator('[data-open-badges] svg').nth(2).click(); // any badge
+      await page.waitForSelector('[data-member-dialog=badges]');
+      assert.deepEqual(await page.locator('[data-badges-held] [data-badge-row]').evaluateAll(a => a.map(x => x.dataset.badgeRow)), held); pass();
+      assert.deepEqual(await page.locator('[data-badges-other] [data-badge-row]').evaluateAll(a => a.map(x => x.dataset.badgeRow)), ['bot']); pass();
+      assert.deepEqual(await page.locator('[data-member-dialog=badges] .badge-date').allInnerTexts(), ['Checked 17 Oct 2026', 'Checked 18 Oct 2026']); pass();
+      assert.equal(await page.locator('[data-safety-menu-list]').count(), 0); pass();
+      if (output) await page.screenshot({ path: `${output}/person-badges-dialog-${theme}-${width}.png` });
+      await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=badges]', { state: 'detached' });
+      assert.ok(await page.evaluate(() => document.activeElement.hasAttribute('data-open-badges')), 'focus goes back'); pass();
+      if (output) await page.screenshot({ path: `${output}/person-badges-${theme}-${width}.png` });
+    }
+    await page.emulateMedia({ colorScheme: 'light' }); await page.setViewportSize({ width: 390, height: 844 });
     if (output) await page.screenshot({ path: output + '/person-badges-390.png', fullPage: true });
     await context.close();
     console.log(`PASS: badges, staff and bots acceptance, ${passed} checks (admin-only audited routes; staff in discovery with a badge that grants no role and can't be hidden; several badges from records, expiry hides, admin verified never returned; badge order from data; bots classified and authorised per mode, refused elsewhere, only the bot badge, withdrawal hides at once; web tiles and profile draw the API's badges in order).`);

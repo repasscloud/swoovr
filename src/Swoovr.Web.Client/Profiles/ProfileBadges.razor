@@ -1,0 +1,33 @@
+@* Issue 509 (D417): the badges at the top right of a profile. Selecting them opens one dialog that explains every badge, so nobody has
+   to guess: theirs first, in the API's order (Q11) with the date of each check, then the rest. Nothing here awards a badge (D55). *@
+@if (Badges.Count > 0)
+{
+    <button type="button" class="person-badges badge-row" @ref="button" aria-haspopup="dialog" data-badges="@string.Join(" ", Badges.Select(b => b.Badge))" data-open-badges
+            aria-label="@("Badges: " + string.Join(", ", Badges.Select(b => BadgeArtwork.Label(AccountText.BadgeKind(b.Badge)))) + ". What they mean")" @onclick="OpenAsync">
+        @foreach (var badge in Badges) { <Badge Kind="@AccountText.BadgeKind(badge.Badge)" Size="28" /> }
+    </button>
+    <MemberDialog Kind="badges" Title="What badges mean" Open="open" Closed="() => open = false" ReturnFocus="button">
+        <h3 class="person-subhead">@Name has</h3>
+        <ul class="badge-list" data-badges-held>
+            @foreach (var badge in Badges) { @Row(badge.Badge, badge.CheckedAt) }
+        </ul>
+        @if (AccountText.OtherBadges(Badges) is { Count: > 0 } others)
+        {
+            <h3 class="person-subhead">Other badges on Swoovr</h3>
+            <ul class="badge-list" data-badges-other>
+                @foreach (var badge in others) { @Row(badge, null) }
+            </ul>
+        }
+    </MemberDialog>
+}
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BadgeView> Badges { get; set; } = [];
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+    /// <summary>Raised before the dialog opens, so anything else open on the page can close.</summary>
+    [Parameter] public EventCallback Opening { get; set; }
+    private ElementReference button;
+    private bool open;
+    private async Task OpenAsync() { await Opening.InvokeAsync(); open = true; }
+    private static RenderFragment Row(string badge, DateTimeOffset? checkedAt) =>
+        @<li data-badge-row="@badge"><Badge Kind="@AccountText.BadgeKind(badge)" Size="28" /><span><strong>@BadgeArtwork.Label(AccountText.BadgeKind(badge))</strong> <span class="field-help">@AccountText.BadgeMeaning(badge)</span>@if (checkedAt is { } at) { <span class="badge-date">Checked @at.ToString("d MMM yyyy")</span> }</span></li>;
+}

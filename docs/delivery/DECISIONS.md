@@ -1611,3 +1611,8 @@ Slice 5 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) §10).
 - **The reason.** A review saved as "No date from Didit" keeps that reason after Didit can be read. When an admin's live read finds an Approved document with a date, the saved reason becomes "Different from the ID" or "Same as the ID" and follows later reads. No date is stored; the audit holds the reason only. Reasons with another cause never change.
 - **DEFAULT:** names are compared as before (exact, ignoring case), so a second middle name is a Mismatch that an admin decides. A matching row on a document check that isn't Approved says "Matches". Showing the name is within Q188's "ID check result"; production still waits for notice 0.21.
 - **Not confirmed:** why Didit's delivery for the owner's UAT session of 23 November had no date. #440 stays open for a fresh session.
+
+### D417 — Profile badges: top right, larger, with one explanation (#509, 26 November 2026)
+
+**CONFIRMED** by the owner on [#509](https://github.com/repasscloud/swoovr/issues/509): on another member's profile the badges are at the top right and larger, and selecting any of them opens a dialog that explains every badge. The photo verified parts of #509 wait for #417; nothing is shown as photo verified that isn't today.
+**DEFAULT:** the badges are one button, as on Explore cards (D406). The dialog lists theirs first, in the API's order (Q11), then the others. The "checked" dates move from the header into the dialog.
