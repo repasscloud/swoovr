@@ -107,7 +107,7 @@ public sealed record VerifiedIdentityView(Guid AccountId, string? FirstName, str
 
 /// <summary>D166: a manual date-of-birth review in the admin queue. Never either date: the admin reads the document's in Didit's console.</summary>
 public sealed record DobReviewView(Guid Id, Guid AccountId, string? DisplayName, string Reason, DateTimeOffset CreatedAt, DateTimeOffset? ResolvedAt, string? Outcome,
-    string? FirstName = null, string? LastName = null, string? DiditSessionId = null, string? ResolutionNote = null, string? ResolvedByName = null, EscalationView? Escalation = null, bool IdImage = false, bool IdApproved = false);
+    string? FirstName = null, string? LastName = null, string? DiditSessionId = null, string? ResolutionNote = null, string? ResolvedByName = null, EscalationView? Escalation = null, bool IdImage = false, bool IdApproved = false, DateTimeOffset? ChangedAt = null);
 /// <summary>Issue 455 (D404): internal, never shown to the member. CanResolve: an admin who didn't raise it.</summary>
 public sealed record EscalationView(Guid Id, Guid AccountId, string? DisplayName, Guid? DobReviewId, string Reason, string RaisedBy, DateTimeOffset CreatedAt,
     string? ResolvedBy = null, DateTimeOffset? ResolvedAt = null, string? ResolutionNote = null, bool CanResolve = false);
@@ -126,8 +126,9 @@ public sealed record IdImageRequest(string? Purpose, Guid ReviewId);
 /// <summary>Result: available, gone, unavailable, none (no document image) or refused. Read live and never stored.</summary>
 public sealed record StaffIdImages(string Result, IReadOnlyList<StaffIdImage> Images);
 public sealed record StaffIdImage(string Side, string ContentType, byte[] Data);
-/// <summary>"verified" (the date on file matches the ID) or "notVerified", with a reason (audited, never shown publicly).</summary>
-public sealed record DobReviewDecision(string? Outcome, string? Reason);
+/// <summary>ChangedAt is the review's as the admin opened it: a decision after the member changed their date is refused (PR 516 review).</summary>
+/// <remarks>"verified" (the date on file matches the ID) or "notVerified", with a reason (audited, never shown publicly).</remarks>
+public sealed record DobReviewDecision(string? Outcome, string? Reason, DateTimeOffset? ChangedAt = null);
 /// <summary>Q125 A (D317): an ID-verified member's registered name change waiting for staff. The current confirmed name is
 /// shown; the verified identity record is opened separately through restricted, logged access.</summary>
 public sealed record NameReviewView(Guid Id, Guid AccountId, string? DisplayName, string? FirstName, string? LastName, bool Mononym, long Revision,

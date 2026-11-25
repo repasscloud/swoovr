@@ -219,8 +219,8 @@ public sealed partial class AdminClient(HttpClient transport)
         SendAsync<List<NameReviewView>>(HttpMethod.Get, open ? "api/admin/name-reviews" : "api/admin/name-reviews?open=false", null, cancellationToken);
     public Task<ApiResult<NameReviewView>> ResolveNameReviewAsync(Guid id, string outcome, string reason, CancellationToken cancellationToken = default) =>
         SendAsync<NameReviewView>(HttpMethod.Post, $"api/admin/name-reviews/{id}/resolve", new NameReviewDecision(outcome, reason), cancellationToken);
-    public Task<ApiResult<DobReviewView>> ResolveDobReviewAsync(Guid id, string outcome, string reason, CancellationToken cancellationToken = default) =>
-        SendAsync<DobReviewView>(HttpMethod.Post, $"api/admin/dob-reviews/{id}/resolve", new DobReviewDecision(outcome, reason), cancellationToken);
+    public Task<ApiResult<DobReviewView>> ResolveDobReviewAsync(Guid id, string outcome, string reason, DateTimeOffset? changedAt = null, CancellationToken cancellationToken = default) =>
+        SendAsync<DobReviewView>(HttpMethod.Post, $"api/admin/dob-reviews/{id}/resolve", new DobReviewDecision(outcome, reason, changedAt), cancellationToken);
 
     /// <summary>D191: opens one verified identity record (`legal` only) with a recorded purpose.</summary>
     public Task<ApiResult<VerifiedIdentityView>> IdentityAsync(Guid accountId, string? purpose, CancellationToken cancellationToken = default) =>

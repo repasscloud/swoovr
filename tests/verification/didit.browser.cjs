@@ -590,7 +590,11 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       await sql(`UPDATE member_profiles SET id_status = 'Rejected' WHERE account_id = '${ids.web}'`);
       assert.deepEqual(code(await approve(adm, webReview)), [409, 'id-badge-removed']); pass(); // never restores a removed badge
       await sql(`UPDATE member_profiles SET id_status = 'Verified' WHERE account_id = '${ids.web}'`);
-      assert.equal((await approve(adm, webReview)).status, 200); pass();
+      // PR 516 review: a decision on a date that changed after the admin opened the review is refused.
+      const seen = (await call(adm, '/api/admin/dob-reviews')).body.find(x => x.id === webReview).changedAt;
+      const decideSeen = changedAt => call(adm, `/api/admin/dob-reviews/${webReview}/resolve`, { method: 'POST', body: { outcome: 'verified', reason: 'Fictional: looked again', changedAt } });
+      assert.deepEqual(code(await decideSeen('2026-01-01T00:00:00Z')), [409, 'record-changed']); pass();
+      assert.equal((await decideSeen(seen)).status, 200); pass();
       assert.equal(await facts(), untouched, 'no age, identity, name or provider result changes'); pass();
       assert.deepEqual([(r = await call(tokens.web, '/api/me')).body.dateOfBirthVerified, r.body.dobCheck], [true, 'none']); pass();
       assert.equal((await call(adm, '/api/admin/dob-reviews?open=false')).body.find(x => x.id === webReview).idApproved, true); pass();
@@ -625,6 +629,7 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
           }
           await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
           assert.match(await page.textContent('[data-dob-form]'), /Approve date of birth and ID/); pass();
+          assert.ok(Date.parse(await page.inputValue('[data-dob-form] [name=changedAt]')) > 0); pass();
           await page.check('[data-resolve=verified]', { force: true }); await page.fill('[data-dob-form] textarea[name=reason]', 'Fictional'); await page.click('[data-dob-save]');
           await page.waitForSelector('[data-result=id-not-viewed]'); pass();
           if (output) { await page.locator('[data-dob-save]').scrollIntoViewIfNeeded(); await page.screenshot({ path: output + '/dob-approve-1280.png' }); }

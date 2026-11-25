@@ -81,8 +81,9 @@ public static class HostingPolicy
         // Issue 488 (D413): staff open members' ID documents only once the notice that says so is in force, and only from named hosts.
         if(Flag("Didit:IdImages:Enabled"))
         {
-            if(!Swoovr.Contracts.PrivacyNoticeVersion.CoversIdReview(notice??Swoovr.Contracts.PrivacyNoticeVersion.Current,today??DateOnly.FromDateTime(DateTime.UtcNow)))errors.Add("notice-required:Didit:IdImages:Enabled");
-            Require("Didit:IdImages:Hosts");
+            // D414: UAT is private and holds only the owner's own ID, so it may run first; with no host yet, the API log names it.
+            if(!uat&&!Swoovr.Contracts.PrivacyNoticeVersion.CoversIdReview(notice??Swoovr.Contracts.PrivacyNoticeVersion.Current,today??DateOnly.FromDateTime(DateTime.UtcNow)))errors.Add("notice-required:Didit:IdImages:Enabled");
+            if(!uat)Require("Didit:IdImages:Hosts");
             foreach(var name in (Read("Didit:IdImages:Hosts")??"").Split(',',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries))
                 if(Uri.CheckHostName(name)!=UriHostNameType.Dns||!name.Contains('.')||name.EndsWith(".localhost",StringComparison.OrdinalIgnoreCase))errors.Add("unsafe-host:Didit:IdImages:Hosts");
         }

@@ -27,10 +27,14 @@ static class HostingPolicyChecks
         foreach(var value in new[]{"0.0.0.0/0","::/0","not-a-network"}){var c=Api();c["Hosting:TrustedProxyNetworks"]=value;Expect(Errors(c).Contains("trusted-proxy-networks-required"),"unbounded/invalid proxy trust refused");}
         {var c=Api();c["AllowedHosts"]="*";Expect(Errors(c).Contains("explicit-allowed-hosts-required"),"wildcard hosts refused");c=Api();c["Hosting:PublicOrigin"]="https://api-uat.swoovr.app/path";Expect(Errors(c).Contains("public-origin-required"),"public origin cannot carry path");}
         // Issue 488 (D413): ID images need the notice in force and named hosts.
-        {string[] With(string hosts,string notice){var c=Api();c["Didit:IdImages:Enabled"]="true";c["Didit:IdImages:Hosts"]=hosts;return HostingPolicy.Validate(HostKind.Api,"Uat",c,true,notice,new(2026,12,10)).ToArray();}
+        {string[] With(string hosts,string notice,string env="Production"){var c=Api();c["Didit:IdImages:Enabled"]="true";c["Didit:IdImages:Hosts"]=hosts;return HostingPolicy.Validate(HostKind.Api,env,c,true,notice,new(2026,12,10)).ToArray();}
          Expect(With("media.example.test","0.21, 3 December 2026").Length==0,"ID images with the notice in force");
          Expect(With("media.example.test","0.20, 17 November 2026").SequenceEqual(["notice-required:Didit:IdImages:Enabled"])&&With("media.example.test","0.21, 11 December 2026").Length==1,"not before the notice");
-         foreach(var bad in new[]{"localhost","127.0.0.1","*.example.test","https://media.example.test","media.example.test:8443","a.localhost",""})Expect(With(bad,"0.21, 3 December 2026").Length>0,"image host refused: "+bad);}
+         foreach(var bad in new[]{"localhost","127.0.0.1","*.example.test","https://media.example.test","media.example.test:8443","a.localhost",""})Expect(With(bad,"0.21, 3 December 2026").Length>0,"image host refused: "+bad);
+         // D414: UAT is private (the owner's own ID only), so it may run before the notice, and with no host yet to learn its name.
+         Expect(With("media.example.test","0.20, 17 November 2026","Uat").Length==0&&With("","0.20, 17 November 2026","Uat").Length==0,"UAT before the notice");
+         foreach(var env in new[]{"Production","Staging","uat-typo"})Expect(With("media.example.test","0.20, 17 November 2026",env).Contains("notice-required:Didit:IdImages:Enabled"),"never elsewhere: "+env);
+         foreach(var bad in new[]{"localhost","127.0.0.1","*.example.test"})Expect(With(bad,"0.20, 17 November 2026","Uat").Length>0,"UAT image host refused: "+bad);}
         // D336/D337: scanning always on with a scanner; a configured helpdesk needs its retention identity.
         {var c=Api();c["Attachments:Scanning:Enabled"]="false";Expect(Errors(c).Contains("required-enabled:Attachments:Scanning:Enabled"),"attachment scanning can't be switched off");Expect(Errors(c,env:"Development").Length==0,"Development may switch scanning off");}
         {var c=Api();c["Attachments:Scanning:Worker"]="false";Expect(Errors(c).Contains("required-enabled:Attachments:Scanning:Worker"),"scan worker required");}

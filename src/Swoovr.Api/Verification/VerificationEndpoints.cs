@@ -221,7 +221,7 @@ public static class VerificationEndpoints
                               join t in db.IdVerificationAttempts on r.AttemptId equals t.Id into attempts from t in attempts.DefaultIfEmpty()
                               join s in db.Accounts on r.ResolvedBy equals (Guid?)s.Id into resolvers from s in resolvers.DefaultIfEmpty()
                               where open == false || r.ResolvedAt == null
-                              select new { r, p.DisplayName, First = a.RegisteredNamesConfirmedAt != null ? a.RegisteredFirstName : null,
+                              select new { r, p.DisplayName, p.DobCheckAt, First = a.RegisteredNamesConfirmedAt != null ? a.RegisteredFirstName : null,
                                   Last = a.RegisteredNamesConfirmedAt != null ? a.RegisteredLastName : null, Session = t == null ? null : t.SessionId,
                                   ResolverFirst = s == null ? null : s.RegisteredFirstName, ResolverLast = s == null ? null : s.RegisteredLastName, ResolverEmail = s == null ? null : s.Email };
             // The open queue is oldest first; the full list (open=false) returns the newest 200 for history.
@@ -231,6 +231,7 @@ public static class VerificationEndpoints
             {
                 FirstName = x.First, LastName = x.Last, DiditSessionId = string.IsNullOrEmpty(x.Session) ? null : x.Session,
                 ResolvedByName = x.r.ResolvedBy is null ? null : StaffName(x.ResolverFirst, x.ResolverLast, x.ResolverEmail),
+                ChangedAt = x.DobCheckAt ?? x.r.CreatedAt,
                 IdImage = images.Enabled && x.r.ResolvedAt is null && !string.IsNullOrEmpty(x.Session),
                 Escalation = escalations.GetValueOrDefault(x.r.Id),
             }).ToList());
@@ -261,6 +262,9 @@ public static class VerificationEndpoints
                 return Problem(StatusCodes.Status403Forbidden, ProblemCodes.ModerationNotPermitted, "Another admin has to decide a review you escalated.");
             var profile = await db.MemberProfiles.SingleAsync(p => p.AccountId == review.AccountId, cancellationToken);
             // Issue 488 (D413, Q186 A): with ID images on, verifying approves the date of birth and the ID after the admin's own look.
+            // PR 516 review: the admin decided on a date the member has since changed.
+            if (request.ChangedAt is { } seen && seen != (profile.DobCheckAt ?? review.CreatedAt))
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.RecordChanged, "The member changed their date of birth. Look at the review again.");
             var approvesId = images.Enabled && outcome == DobReviewOutcome.Verified;
             if (approvesId)
             {
