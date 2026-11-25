@@ -48,14 +48,13 @@
 
     @* D382 (Q181.5 A), PR 392 review: the text picture from onboarding stays editable and removable here. *@
     <section class="rd-card" aria-labelledby="picture-text-heading" data-picture-text-settings>
-        <div class="rd-row rd-row-baseline">
-            <h2 id="picture-text-heading">Text picture</h2>
-            <p class="field-help">Shown on your tile when there's no photo. Swoovr draws your words as a simple text picture, without AI.</p>
-        </div>
+        @* Issue 507: a full-width box, then the rules on the left of the buttons. *@
+        <h2 id="picture-text-heading">Text picture</h2>
         <form @onsubmit="SavePictureTextAsync" data-picture-text-form>
-            <div class="rd-row">
-                <div class="field rd-grow"><label for="picture-text">What would you like your picture to say? <span class="rd-count" data-picture-text-count>· @(pictureText?.Length ?? 0)/100</span></label>
-                    <input id="picture-text" maxlength="100" placeholder="Optional" @bind="pictureText" @bind:event="oninput" /></div>
+            <div class="field"><label for="picture-text">What would you like your picture to say? <span class="rd-count" data-picture-text-count>· @(pictureText?.Length ?? 0)/100</span></label>
+                <input id="picture-text" maxlength="100" placeholder="Optional" aria-describedby="picture-text-help" @bind="pictureText" @bind:event="oninput" /></div>
+            <div class="rd-row rd-text-picture-foot">
+                <p class="field-help" id="picture-text-help" data-picture-text-help>No phone numbers, email addresses, social handles or other contact details. Your words are checked like the rest of your profile.</p>
                 <div class="rd-actions">
                     @if (profile.PictureText is not null)
                     {
@@ -64,7 +63,6 @@
                     <button type="submit" class="button button-secondary" disabled="@(busy || string.IsNullOrWhiteSpace(pictureText) || pictureText.Trim() == profile.PictureText)" data-picture-text-save>Save text picture</button>
                 </div>
             </div>
-            <p class="field-help">No phone numbers, email addresses, social handles or other contact details. Your words are checked like the rest of your profile.</p>
             <p role="status" aria-live="polite" class="field-help rd-status" data-picture-text-status="@pictureTextStatus">@pictureTextMessage</p>
         </form>
     </section>

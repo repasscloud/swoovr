@@ -127,6 +127,19 @@ const signIn=async(context,member)=>{const page=await context.newPage();await pa
    await Promise.all([page.waitForURL(u=>u.href.startsWith(web)&&!u.pathname.startsWith('/account/sign-in')),page.click('#kc-login')]);
    await page.goto(web+'/me/profile');await page.waitForSelector('[data-picture-text-settings]');
    assert.equal(await page.inputValue('#picture-text'),'Coffee first, then mountains.');
+   // Issue 507: a full-width box; below it the rules on the left and Save on the right; stacked on a phone, never overflowing.
+   for(const [width,side] of [[1280,true],[390,false]]){
+    await page.setViewportSize({width,height:900});
+    const box=async s=>{const b=await page.locator('[data-picture-text-settings] '+s).boundingBox();assert.ok(b,s);return b;};
+    const form=await box('[data-picture-text-form]'),field=await box('#picture-text'),save=await box('[data-picture-text-save]'),help=await box('[data-picture-text-help]');
+    assert.ok(Math.abs(field.width-form.width)<2,`field ${field.width} of ${form.width} at ${width}`);
+    assert.ok(save.y>=field.y+field.height&&Math.abs(save.x+save.width-form.x-form.width)<2,'save below, right');
+    assert.ok(help.y>=field.y+field.height);if(side)assert.ok(help.x+help.width<=save.x&&help.y<save.y+save.height,'help beside save');
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no sideways scroll');
+   }
+   assert.doesNotMatch(await page.locator('[data-picture-text-settings]').innerText(),/Shown on your tile/);pass();
+   await page.setViewportSize({width:1280,height:900});
+   if(process.env.SWOOVR_SCREENSHOTS)await page.locator('[data-picture-text-settings]').screenshot({path:process.env.SWOOVR_SCREENSHOTS+'/507-text-picture.png'});
    await page.fill('#picture-text','call me 0412 345 678');await page.click('[data-picture-text-save]');
    await page.waitForSelector('[data-picture-text-status=picture-text-contact]');pass();
    await page.fill('#picture-text','Mountains first, then coffee.');await page.click('[data-picture-text-save]');
