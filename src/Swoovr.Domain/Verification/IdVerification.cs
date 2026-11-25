@@ -117,6 +117,23 @@ public static class IdVerificationPolicy
         return Rank(next) > Rank(current) || current == IdAttemptState.InReview && next == IdAttemptState.InProgress ? next : null;
     }
 
+    /// <summary>Issue 440 (D402): an approval that came without the document's date of birth, so Didit's decision is read again.</summary>
+    public static bool NeedsDecision(ProviderSession reported) => Map(reported.Status) == IdAttemptState.Approved && reported.DateOfBirth is null;
+
+    /// <summary>
+    /// Issue 440 (D402): what was reported, completed from Didit's own decision for the same session, member and workflow
+    /// while it is still approved. A reported minor stays a minor. Anything else leaves the report as it was.
+    /// </summary>
+    public static ProviderSession Complete(ProviderSession reported, ProviderSession? decision) =>
+        decision is null || decision.SessionId != reported.SessionId || decision.VendorData != reported.VendorData
+            || reported.WorkflowId is { } workflow && decision.WorkflowId != workflow || Map(decision.Status) != IdAttemptState.Approved
+            ? reported
+            : reported with
+            {
+                Adult = reported.Adult == false ? false : decision.Adult ?? reported.Adult,
+                DateOfBirth = decision.DateOfBirth, Identity = decision.Identity ?? reported.Identity,
+            };
+
     /// <summary>Whether this member may start a self-service check now (D128, D129).</summary>
     public static IdStartRefusal CanStart(MemberProfile profile, IReadOnlyCollection<IdVerificationAttempt> attempts)
     {

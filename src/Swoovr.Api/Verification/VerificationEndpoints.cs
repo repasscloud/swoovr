@@ -152,7 +152,7 @@ public static class VerificationEndpoints
         // D152: Didit calls the API directly (never through the BFF). Signature first, then the signed timestamp, then
         // a durable dedupe on event_id in the same transaction as the change.
         app.MapPost("/api/webhooks/didit", async (HttpRequest http, SwoovrDbContext db, DiditOptions options, TimeProvider clock,
-            VerifiedIdentityStore identities, ILoggerFactory logs, CancellationToken cancellationToken) =>
+            VerifiedIdentityStore identities, IIdVerificationProvider provider, ILoggerFactory logs, CancellationToken cancellationToken) =>
         {
             var log = logs.CreateLogger("Swoovr.Api.Verification.DiditWebhook");
             if (http.ContentLength > MaxWebhookBytes) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
@@ -187,6 +187,9 @@ public static class VerificationEndpoints
                         : session.VendorData != attempt.AccountId.ToString() ? "vendor-mismatch"
                         : session.WorkflowId is { } workflow && workflow != attempt.WorkflowId ? "workflow-mismatch"
                         : "applied";
+                    // Issue 440 (D402): read before the account lease and the save, so a slow provider holds neither.
+                    if (outcome == "applied" && provider.Configured && !IdVerificationPolicy.Settled(attempt!.State) && IdVerificationPolicy.NeedsDecision(session))
+                        session = IdVerificationPolicy.Complete(session, await provider.GetDecisionAsync(session.SessionId, cancellationToken));
                 }
                 db.DiditWebhookEvents.Add(new DiditWebhookEvent { EventId = eventId, ReceivedAt = now, WebhookType = Short(type, 48), SessionId = session?.SessionId is { Length: <= 64 } s ? s : null, Outcome = outcome });
                 // Hold the account lease through the final save so a registered-name edit can't commit between the

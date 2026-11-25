@@ -88,6 +88,7 @@ async function main(){
    try{const body=await new Promise((resolve,reject)=>{let text='';req.on('data',part=>{text+=part;if(text.length>65536)reject(Error('Too large'));});req.on('end',()=>resolve(text));});
     res.setHeader('Content-Type','application/json');if(req.method==='POST'&&req.url==='/v3/session/'){
      const input=JSON.parse(body),id=crypto.randomUUID(),record={session_id:id,status:'Not Started',vendor_data:input.vendor_data,workflow_id:input.workflow_id,url:'https://mock.didit.me/'+id};sessions.set(id,record);res.end(JSON.stringify(record));
+    }else if(req.method==='PUT'&&/^\/owned\/decision\/[0-9a-f-]{36}$/.test(req.url)){sessions.set(req.url.slice(16),JSON.parse(body));res.end('{}');// a suite sets the decision this stand-in returns
     }else{const id=/^\/v3\/session\/([0-9a-f-]{36})\/(?:decision|delete)\/$/.exec(req.url)?.[1];if(req.method==='DELETE'){sessions.delete(id);res.end('{}');}else if(id&&sessions.has(id))res.end(JSON.stringify(sessions.get(id)));else{res.statusCode=404;res.end('{}');}}
    }catch{res.statusCode=400;res.end('{}');}
   });await new Promise(resolve=>provider.listen(0,'127.0.0.1',resolve));
@@ -100,7 +101,7 @@ async function main(){
    Email__Smtp__Host:'127.0.0.1',Email__Smtp__Port:'1025',Email__Provider:'smtp',Sms__Provider:'simulated',Push__Provider:'simulated',Retention__Worker:'false',MeetingSafety__Worker:'false',Notifications__Worker:'false',TextHarm__Enabled:'false',PolicyNotices__Enabled:'false',
    SWOOVR_OWNED_RUN_MANIFEST:manifestPath,SWOOVR_TEST_API_BASE:manifest.api,SWOOVR_TEST_APP_DATABASE:manifest.database,SWOOVR_TEST_WEB_BASE:manifest.web,SWOOVR_TEST_ADMIN_BASE:manifest.admin,SWOOVR_TEST_ENV_PATH:manifest.envPath,
    SWOOVR_TEST_PG_CONTAINER:manifest.pgContainer,SWOOVR_TEST_PG_PORT:String(manifest.pgPort),SWOOVR_TEST_ROOT_FIXTURE:manifest.rootFixture,SWOOVR_TEST_MEMBER_CLIENT:manifest.memberClient,SWOOVR_TEST_STAFF_CLIENT:manifest.staffClient,
-   SWOOVR_OWNED_DIDIT_SIMULATED:'1',SWOOVR_BROWSER_OUTPUT:path.join(evidence,'browser'),SWOOVR_SCREENSHOTS:path.join(evidence,'browser'),SWOOVR_MEETING_OWNED_LOGS:evidence};
+   SWOOVR_OWNED_DIDIT_SIMULATED:'1',SWOOVR_OWNED_DIDIT_URL:'http://127.0.0.1:'+provider.address().port,SWOOVR_BROWSER_OUTPUT:path.join(evidence,'browser'),SWOOVR_SCREENSHOTS:path.join(evidence,'browser'),SWOOVR_MEETING_OWNED_LOGS:evidence};
   await fs.mkdir(env.SWOOVR_BROWSER_OUTPUT,{mode:0o700});
   await pg('postgres','CREATE DATABASE '+manifest.database);createdDb=true;
   for(const args of [['migrate'],['geonames','import',path.join(root,'tests/fixtures/geonames')]])await command('dotnet',[dll('Api'),...args],{cwd:path.join(root,'src/Swoovr.Api'),env});
