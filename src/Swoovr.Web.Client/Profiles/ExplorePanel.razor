@@ -258,18 +258,25 @@
 
     private sealed record NearRead(string Status, LocationCheck? Reading);
 
-    private async Task ShareAsync()
+    private Task ShareAsync() => ShareAsync(false);
+
+    /// <param name="background">The 5-minute refresh, not the member's own choice (PR 560 review).</param>
+    private async Task ShareAsync(bool background)
     {
-        if (scope != "nearMe" || nearBusy) return;
+        if (disposed || scope != "nearMe" || nearBusy) return;
         nearBusy = true;
         try
         {
             NearRead? read;
             try { read = await JS.InvokeAsync<NearRead>("swoovrLocation.readNearMe"); }
             catch (Exception error) when (error is JSException or InvalidOperationException) { read = new("unavailable", null); }
-            if (scope != "nearMe") return;
+            // PR 560 review: the member may have left Explore or Near me while the browser was reading.
+            if (disposed || scope != "nearMe") return;
             if (read is not { Status: "ok", Reading: { } reading }) { nearState = read?.Status ?? "unavailable"; return; }
-            var saved = await Members.SaveLocationAsync(reading);
+            var saved = await Members.SaveLocationAsync(reading, background);
+            if (disposed || scope != "nearMe") return;
+            // Stopped elsewhere (or expired): stop refreshing; only the member's own Share starts again.
+            if (background && saved.Code == ProblemCodes.LocationRequired) { StopRefresh(); (nearState, state, people, market) = ("prompt", "ready", [], null); return; }
             // 429: a reading from the last 5 minutes is still in use, so the list loads from it.
             if (!saved.Ok && saved.Status != 429) { nearState = saved.Code == ProblemCodes.LocationUnusable ? "inaccurate" : "unavailable"; return; }
             nearState = "ready";
@@ -283,7 +290,7 @@
     /// <summary>Issue 282: while Near me stays open and the page is visible, at most one new reading every 5 minutes.</summary>
     private void StartRefresh()
     {
-        if (nearRefresh is not null) return;
+        if (disposed || nearRefresh is not null) return;
         nearRefresh = new CancellationTokenSource();
         _ = RefreshLoopAsync(nearRefresh.Token);
     }
@@ -299,7 +306,7 @@
                 try { shown = await JS.InvokeAsync<bool>("swoovrLocation.visible"); }
                 catch (Exception error) when (error is JSException or InvalidOperationException) { shown = false; }
                 if (!shown || disposed || scope != "nearMe") continue;
-                await InvokeAsync(async () => { await ShareAsync(); StateHasChanged(); });
+                await InvokeAsync(async () => { await ShareAsync(true); StateHasChanged(); });
             }
         }
         catch (OperationCanceledException) { }

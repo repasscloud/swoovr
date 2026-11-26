@@ -155,6 +155,16 @@ const text = {
     assert.deepEqual((await call(tokens.web, '/api/me/location-settings')).body, { appearInNearby: true, showDistance: true }); pass();
     await page.click('[data-stop-sharing]'); await page.waitForSelector('[data-location-status=stopped]');
     assert.equal(await sql(`SELECT count(*) FROM member_locations WHERE account_id = '${ids.web}'`), '0', 'stop sharing deletes the stored position'); pass();
+    // PR 560 review: after Stop sharing, a page's automatic refresh (in any tab or device) can't start sharing again; only the
+    // member's own Share can. A background refresh may only replace a stored reading.
+    const fresh = () => ({ ...HERE, accuracyMetres: 30, takenAt: new Date().toISOString() });
+    const background = { 'X-Swoovr-Background': '1' };
+    assert.deepEqual([(r => [r.status, r.body?.code])(await call(tokens.web, '/api/me/location', { method: 'PUT', body: fresh(), headers: background }))].flat(), [409, 'location-required']); pass();
+    assert.equal(await sql(`SELECT count(*) FROM member_locations WHERE account_id = '${ids.web}'`), '0', 'nothing stored by a background refresh'); pass();
+    assert.equal((await call(tokens.web, '/api/me/location', { method: 'PUT', body: fresh() })).status, 200, 'the member\'s own Share works'); pass();
+    await regate();
+    assert.equal((await call(tokens.web, '/api/me/location', { method: 'PUT', body: fresh(), headers: background })).status, 200, 'and a refresh may replace it'); pass();
+    await call(tokens.web, '/api/me/location', { method: 'DELETE' });
     await accessible(page, 'Privacy & safety with Location');
     if (output) await page.screenshot({ path: output + '/location-settings-390.png', fullPage: true });
 

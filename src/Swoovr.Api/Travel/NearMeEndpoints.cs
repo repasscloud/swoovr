@@ -73,13 +73,17 @@ public static class NearMeEndpoints
         // One reading while Near me is open (never in the background). Stored snapped and sealed; every refusal reason
         // reads the same, so the answer reveals nothing about the previous reading.
         api.MapPut("/me/location", async (LocationCheck? check, ClaimsPrincipal user, AccountResolver accounts, LocationKeys keys,
-            IEnumerable<IAcceptedReadingObserver> observers, TimeProvider clock, CancellationToken cancellationToken) =>
+            IEnumerable<IAcceptedReadingObserver> observers, TimeProvider clock, HttpContext http, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
             var (me, db, now) = (current!.Profile!, accounts.Db!, clock.GetUtcNow());
             var reading = check is null ? null : new LocationReading(check.Latitude, check.Longitude, check.AccuracyMetres, check.TakenAt);
             var previous = await db.MemberLocations.FindAsync([me.AccountId], cancellationToken);
+            // PR 560 review: a page's automatic refresh may only replace a stored reading. After Stop sharing (the row is gone)
+            // nothing is sent again until the member chooses Share, in any tab or device.
+            if (previous is null && BackgroundRequest.Marked(http.Request.Headers[BackgroundRequest.Header].ToString()))
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.LocationRequired, "Share your location to use Near me.");
             switch (NearMePolicy.Accept(reading, previous, previous is null ? null : keys.Open(previous.SealedCell), now))
             {
                 case NearMeRefusal.TooSoon: return Problem(StatusCodes.Status429TooManyRequests, ProblemCodes.TooManyAttempts, "Your location can update every five minutes.");
