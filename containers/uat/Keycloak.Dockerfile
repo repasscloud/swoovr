@@ -15,7 +15,7 @@ RUN set -eu; \
     mkdir -p /build/main /build/tests /output; \
     javac --release 21 -classpath '/keycloak-libs/*' -d /build/main $(find provider/main/java -name '*.java' | sort); \
     cp -R provider/main/resources/. /build/main/; \
-    sed -n 's/.*public const string Header = "\([^";]*\)";.*/header=\1/p; s/.*public const string Initial = "\([^";]*\)";.*/initial=\1/p' ApiContract.cs > /build/main/swoovr-api-contract.properties; \
+    sed -n '/^public static class ApiContract$/,/^}/{ s/.*public const string Header = "\([^";]*\)";.*/header=\1/p; s/.*public const string Initial = "\([^";]*\)";.*/initial=\1/p; }' ApiContract.cs > /build/main/swoovr-api-contract.properties; \
     test "$(wc -l < /build/main/swoovr-api-contract.properties)" -eq 2; \
     javac --release 21 -classpath '/build/main:/keycloak-libs/*' -d /build/tests $(find provider/test/java -name '*.java' | sort); \
     java -classpath '/build/tests:/build/main:/keycloak-libs/*' app.swoovr.identity.RetirementPolicyChecks; \

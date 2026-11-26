@@ -29,7 +29,10 @@ with tempfile.TemporaryDirectory(prefix="swoovr-contact-policy-check-") as priva
     subprocess.run([compiler,"--release","21","-classpath",classpath,"-d",str(main),*sorted(str(p) for p in (base/"main/java").rglob("*.java"))],check=True,cwd=root)
     resources=base/"main/resources"
     if resources.exists():shutil.copytree(resources,main,dirs_exist_ok=True)
-    contract=(root/"src/Swoovr.Contracts/ApiContract.cs").read_text()
+    # Only the ApiContract class: other classes in the file (e.g. BackgroundRequest) also declare Header.
+    contract=re.search(r"^public static class ApiContract$.*?^}",(root/"src/Swoovr.Contracts/ApiContract.cs").read_text(),re.M|re.S)
+    if not contract:raise RuntimeError("Canonical API contract could not be generated.")
+    contract=contract.group(0)
     values={name:re.search(r'public const string '+name+r' = "([^"\n]+)";',contract) for name in ["Header","Initial"]}
     if not all(values.values()):raise RuntimeError("Canonical API contract could not be generated.")
     (main/"swoovr-api-contract.properties").write_text("header="+values["Header"].group(1)+"\ninitial="+values["Initial"].group(1)+"\n")
