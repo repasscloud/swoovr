@@ -160,8 +160,14 @@ public sealed partial class MemberClient(HttpClient transport)
         SendAsync<LocationSettingsView>(new HttpRequestMessage(HttpMethod.Get, "api/me/location-settings"), cancellationToken);
 
     /// <summary>D348, #278: one Near me reading while Near me is open; refused if too soon, too old, too coarse or impossible.</summary>
-    public Task<ApiResult<NearMeLocationView>> SaveLocationAsync(LocationCheck reading, CancellationToken cancellationToken = default) =>
-        SendAsync<NearMeLocationView>(new HttpRequestMessage(HttpMethod.Put, "api/me/location") { Content = JsonContent.Create(reading) }, cancellationToken);
+    /// <param name="background">PR 560 review: the page's own 5-minute refresh. The API only lets it replace a stored reading, so
+    /// after Stop sharing (or anywhere the position was deleted) only the member's own Share starts again.</param>
+    public Task<ApiResult<NearMeLocationView>> SaveLocationAsync(LocationCheck reading, bool background = false, CancellationToken cancellationToken = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Put, "api/me/location") { Content = JsonContent.Create(reading) };
+        if (background) request.Headers.TryAddWithoutValidation(BackgroundRequest.Header, "1");
+        return SendAsync<NearMeLocationView>(request, cancellationToken);
+    }
 
     /// <summary>D348, #278: stop sharing; the stored Near me reading is deleted at once.</summary>
     public Task<int> StopSharingLocationAsync(CancellationToken cancellationToken = default) =>
