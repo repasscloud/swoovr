@@ -428,6 +428,9 @@ public static class ProfileEndpoints
             .ToDictionaryAsync(m => m.AccountId, m => new { m.About, m.ShareCoreAbout, m.DisplayName }, cancellationToken);
         var order = await BadgeOrderAsync(db, cancellationToken);
         var genders = await GenderLabelsAsync(db, cancellationToken);
+        // Issue 495: the labels once, and only where orientation can show.
+        var orientations = selected.Id == ConnectionModeIds.Dating
+            ? await db.ProfileOptions.Where(o => o.Kind == "orientation").ToDictionaryAsync(o => o.Id, o => o.Label, cancellationToken) : [];
         // D203: the main photo, else the first photo picked for this mode; approved photos only, as signed links.
         var photos = links is null ? default : await Media.MediaEndpoints.PhotosAsync(db, links, shownIds, [selected.Id], now, cancellationToken);
         // Issue 497: the pending or accepted request with each person in this mode, in one query; never another mode's.
@@ -442,7 +445,9 @@ public static class ProfileEndpoints
         var recent = newFrom is { } from ? (await db.Accounts.Where(a => shownIds.Contains(a.Id) && a.CreatedAt > from).Select(a => a.Id).ToListAsync(cancellationToken)).ToHashSet() : [];
         return shown.Select(c =>
         {
-            var shownAs = Public(identities.GetValueOrDefault(c.Profile.AccountId), facts[c.Profile.AccountId].Age, genders);
+            var identity = identities.GetValueOrDefault(c.Profile.AccountId);
+            var (ageShown, genderShown, pronounsShown) = Public(identity, facts[c.Profile.AccountId].Age, genders);
+            var shownAs = ModePrivacy.OnCard(selected.Id, ageShown, genderShown, pronounsShown);
             var about = abouts.GetValueOrDefault(c.Profile.AccountId) is { } a ? ModePrivacy.About(a.About, c.Profile.About, a.ShareCoreAbout) : null;
             // D348: a band between home cities only when both show their distance; never a distance.
             return new ProfileCard(c.Profile.PublicId, ModePrivacy.DisplayName(abouts.GetValueOrDefault(c.Profile.AccountId)?.DisplayName, c.Profile.DisplayName)!, about,
@@ -453,7 +458,8 @@ public static class ProfileEndpoints
                 photos.Main?.GetValueOrDefault((c.Profile.AccountId, selected.Id)) is null ? c.Profile.PictureText : null,
                 // Issue 496: the photos others see in this mode, each once (the main photo included).
                 photos.Modes?.GetValueOrDefault((c.Profile.AccountId, selected.Id))?.Select(p => p.Id).Distinct().Count() ?? 0,
-                standing.GetValueOrDefault(c.Profile.AccountId), !c.Profile.Bot && recent.Contains(c.Profile.AccountId));
+                standing.GetValueOrDefault(c.Profile.AccountId), !c.Profile.Bot && recent.Contains(c.Profile.AccountId),
+                OrientationIn(selected.Id, identity, orientations));
         }).ToList();
     }
 

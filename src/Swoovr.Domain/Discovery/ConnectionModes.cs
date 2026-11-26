@@ -122,6 +122,13 @@ public static class ProfileTextPolicy
 /// </summary>
 public static class ModePrivacy
 {
+    /// <summary>
+    /// Issue 495 (D418): what may be on a card in a mode, after the person's own switches. Age, gender and pronouns in Dating
+    /// and Friends only; orientation in Dating only. Activities and Business show none of them.
+    /// </summary>
+    public static (int? Age, string? Gender, string? Pronouns) OnCard(string modeId, int? age, string? gender, string? pronouns) =>
+        modeId is ConnectionModeIds.Dating or ConnectionModeIds.Friends ? (age, gender, pronouns) : (null, null, null);
+
     /// <summary>Q118: the selected mode alias, else the main public name. No identity-provider fallback.</summary>
     public static string? DisplayName(string? modeName, string? publicName) => ProfileTextPolicy.Clean(modeName) ?? publicName;
 

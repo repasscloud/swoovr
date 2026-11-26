@@ -30,12 +30,14 @@ public sealed record ProfileUpdate(string? DisplayName, string? About, int? Home
 public sealed record ModeUpdate(bool Enabled, bool Visible, IReadOnlyList<Guid>? Intentions, string? About = null, bool? ShareCoreAbout = null, string? DisplayName = null);
 
 /// <summary>One person in Explore for one mode, with the public badges the API decided (Q11). No age, email or account id.</summary>
-/// <remarks>Age, Gender and Pronouns only as the person allows (D138, D139); never the date of birth.</remarks>
+/// <remarks>Age, Gender and Pronouns only as the person allows (D138, D139) and the mode does (issue 495: Dating and Friends);
+/// Orientation in Dating only, when they show it. Never the date of birth.</remarks>
 /// <param name="Distance">D348: a band, never a distance or coordinates.</param>
 /// <param name="PictureText">Issue 389 (D382): the person's text picture, only while the tile has no approved photo.</param>
 public sealed record ProfileCard(Guid Id, string DisplayName, string? About, IReadOnlyList<string> Intentions, IReadOnlyList<BadgeView> Badges,
     int? Age = null, string? Gender = null, string? Pronouns = null, DistanceView? Distance = null, PhotoView? Photo = null, string? Visiting = null,
-    string? PictureText = null, int PhotoCount = 0, string? Connection = null, bool NewMember = false);
+    string? PictureText = null, int PhotoCount = 0, string? Connection = null, bool NewMember = false,
+    string? Orientation = null);
 
 /// <summary>
 /// D348: what another member may learn about distance. Band is hidden, nearby (0–2 km), within10Km, km10To20, km20To30,

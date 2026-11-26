@@ -25,6 +25,9 @@ static class DobCorrectionChecks
             "the prompt is the only way while a correction or review is open");
         // Issue 498 (D409): the new member window.
         var clock = new DateTimeOffset(2026, 11, 25, 0, 0, 0, TimeSpan.Zero);
+        // Issue 495 (D418): mode rules for a card.
+        Expect(ModePrivacy.OnCard("dating", 34, "Woman", "she/her") == (34, "Woman", "she/her") && ModePrivacy.OnCard("friends", 34, "Woman", null) == (34, "Woman", null)
+            && ModePrivacy.OnCard("activities", 34, "Woman", "she/her") == (null, null, null) && ModePrivacy.OnCard("business", 34, "Woman", "she/her") == (null, null, null), "identity on cards per mode");
         Expect(NewMemberPolicy.From(14, clock) == clock.AddDays(-14) && NewMemberPolicy.From(0, clock) is null && NewMemberPolicy.From(-1, clock) is null && NewMemberPolicy.From(int.MaxValue, clock) == clock.AddDays(-90), "new member window: configurable, off at 0, at most 90 days");
         // Issue 455 (D404): escalations hold no dates, and only another admin resolves one.
         foreach (var date in new[] { "born 3/2/1991", "1991-02-03", "3 February 1991", "Feb 3rd, 1991", "ID says 03.02.91" }) Expect(EscalationPolicy.Text(date) is null, "refused: " + date);
