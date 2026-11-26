@@ -48,6 +48,8 @@ public sealed class IdentityAccess
     public Guid AccountId { get; set; }
     public Guid ActorAccountId { get; set; }
     public string Purpose { get; set; } = "";
+    /// <summary>Issue 535 (D425): the chosen reason's stable code, when the purpose came from one; null for free-text purposes.</summary>
+    public string? ReasonCode { get; set; }
     public DateTimeOffset At { get; set; }
 }
 

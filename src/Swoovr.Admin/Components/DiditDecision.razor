@@ -26,8 +26,16 @@
             <summary>Show Didit's result</summary>
             <form method="post" @formname="@FormName" @onsubmit="OpenAsync" class="didit-form">
                 <AntiforgeryToken />
-                <label class="ui-field"><span>Purpose</span><select name="purpose" required>@foreach (var p in Purposes) { <option>@p</option> }</select></label>
-                <label class="ui-field"><span>Details</span><textarea name="detail" rows="2" maxlength="300" required placeholder="No dates"></textarea></label>
+                @if (ReviewId is null)
+                {
+                    <label class="ui-field"><span>Purpose</span><select name="purpose" required>@foreach (var p in Purposes) { <option>@p</option> }</select></label>
+                    <label class="ui-field"><span>Details</span><textarea name="detail" rows="2" maxlength="300" required placeholder="No dates"></textarea></label>
+                }
+                else
+                {
+                    @* Issue 535 (D425): the review is the purpose, recorded as "Identity discrepancy review". *@
+                    <label class="ui-field"><span>Details (optional)</span><textarea name="detail" rows="2" maxlength="@IdentityAccessReasons.DetailMax" placeholder="No dates"></textarea></label>
+                }
                 <p class="ui-help">Access lasts 60 minutes and is recorded against your name.</p>
                 <div><button type="submit" class="ui-button-ghost" data-didit-show>Show result</button></div>
             </form>
@@ -59,8 +67,9 @@
     {
         if (Context is not null && !Context.Response.HasStarted) Context.Response.Headers.CacheControl = "no-store";
         var detail = Field("detail").Trim();
-        if (detail.Length == 0) { Refuse(400, "purpose-required"); return; }
-        var purpose = $"{Field("purpose")}: {detail}";
+        var reasonCode = ReviewId is null ? null : IdentityAccessReasons.DiscrepancyReview;
+        var purpose = reasonCode is null ? (detail.Length == 0 ? null : $"{Field("purpose")}: {detail}") : IdentityAccessReasons.Purpose(reasonCode, detail, IdentityAccessReasons.DiditResult);
+        if (purpose is null) { Refuse(400, "purpose-required"); return; }
         var grants = (await Admin.GrantsAsync()).Value ?? [];
         if (!grants.Any(g => g.Active && g.Capability == Capability))
         {
@@ -69,7 +78,7 @@
         }
         try
         {
-            var result = await Admin.DiditDecisionAsync(AccountId, purpose, ReviewId);
+            var result = await Admin.DiditDecisionAsync(AccountId, reasonCode is null ? purpose : detail, ReviewId, reasonCode);
             decision = result.Value;
             if (!result.Ok) Refuse(result.Status, result.Code);
             if (decision?.ReviewReason is { } reason) await ReasonRead.InvokeAsync(reason);

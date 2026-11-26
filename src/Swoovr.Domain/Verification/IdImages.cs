@@ -1,7 +1,8 @@
 namespace Swoovr.Domain;
 
-/// <summary>Issue 488 (D413). Gone: the provider no longer has the session. None: it has no document image. Refused: an image broke the host, type or size rules.</summary>
-public enum ProviderImageResult { Available, Gone, Unavailable, None, Refused }
+/// <summary>Issue 488 (D413). Gone: the provider no longer has the session. None: it has no document image. HostNotAllowed: an image's host
+/// isn't in `Didit:IdImages:Hosts` (issue 535: the owner's configuration, not Didit). Refused: an image broke the type or size rules.</summary>
+public enum ProviderImageResult { Available, Gone, Unavailable, None, Refused, HostNotAllowed }
 /// <summary>One side of an ID document, held in memory for one response: never stored, cached or logged.</summary>
 public sealed record ProviderImage(string Side, string ContentType, byte[] Data);
 public sealed record ProviderImages(ProviderImageResult Result, IReadOnlyList<ProviderImage> Images)

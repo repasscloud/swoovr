@@ -52,10 +52,10 @@ static class IdImageChecks
         await Is("Didit failing", ProviderImageResult.Unavailable, Read(front, code: HttpStatusCode.ServiceUnavailable), 1);
         await Is("no document check", ProviderImageResult.None, Read("[]"), 1);
         await Is("no image (a key without media, or a wallet)", ProviderImageResult.None, Read("""[{"status":"Approved","front_image":null}]"""), 1);
-        await Is("a host not listed", ProviderImageResult.Refused, Read(front, hosts: "other.example"), 1);
-        await Is("no host listed", ProviderImageResult.Refused, Read(front, hosts: ""), 1);
+        await Is("a host not listed", ProviderImageResult.HostNotAllowed, Read(front, hosts: "other.example"), 1);
+        await Is("no host listed", ProviderImageResult.HostNotAllowed, Read(front, hosts: ""), 1);
         foreach (var bad in new[] { "http://media.example/f", "https://media.example.evil.test/f", "https://user@media.example/f", "https://media.example:8443/f", "https://sub.media.example/f", "file:///etc/passwd", "/relative" })
-            await Is("refused: " + bad, ProviderImageResult.Refused, Read($$"""[{"front_image":"{{bad}}"}]"""), 1);
+            await Is("host not allowed: " + bad, ProviderImageResult.HostNotAllowed, Read($$"""[{"front_image":"{{bad}}"}]"""), 1);
         await Is("a redirect", ProviderImageResult.Unavailable, Read(front, _ => new(HttpStatusCode.Redirect) { Headers = { Location = new Uri("https://other.example/") } }), 2);
         await Is("an expired link", ProviderImageResult.Unavailable, Read(front, _ => new(HttpStatusCode.Forbidden)));
         await Is("HTML labelled as a PNG", ProviderImageResult.Refused, Read(front, _ => new(HttpStatusCode.OK) { Content = new StringContent("<script>1</script>", Encoding.UTF8, "image/png") }));
