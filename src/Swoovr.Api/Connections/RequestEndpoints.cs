@@ -289,8 +289,7 @@ public static class RequestEndpoints
         query = Listed(db, query, me);
         var rows = await query.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).Skip((page - 1) * PageSize).Take(PageSize + 1).ToListAsync(cancellationToken);
         var shown = rows.Take(PageSize).ToList();
-        var views = new List<ConnectionRequestView>();
-        foreach (var row in shown) views.Add(await ViewAsync(db, row, me, cancellationToken));
+        var views = await ViewsAsync(db, shown, me, cancellationToken);
         return new(await WithFacesAsync(db, services, shown, views, me, now, cancellationToken), page, rows.Count > PageSize);
     }
 
@@ -326,14 +325,34 @@ public static class RequestEndpoints
         }).ToList();
     }
 
-    public static async Task<ConnectionRequestView> ViewAsync(SwoovrDbContext db, ConnectionRequest request, Guid me, CancellationToken cancellationToken)
+    public static async Task<ConnectionRequestView> ViewAsync(SwoovrDbContext db, ConnectionRequest request, Guid me, CancellationToken cancellationToken) =>
+        (await ViewsAsync(db, [request], me, cancellationToken))[0];
+
+    /// <summary>
+    /// The rows of a page in a few queries (PR 561 review), not several per row: the other people's profiles, their names in
+    /// each mode, the badge order and any trip visits load once for the whole page. Same order as <paramref name="requests"/>.
+    /// </summary>
+    public static async Task<List<ConnectionRequestView>> ViewsAsync(SwoovrDbContext db, IReadOnlyList<ConnectionRequest> requests, Guid me,
+        CancellationToken cancellationToken)
     {
-        var otherId = request.FromAccountId == me ? request.ToAccountId : request.FromAccountId;
-        var other = await db.MemberProfiles.SingleAsync(p => p.AccountId == otherId, cancellationToken);
-        var alias = await db.MemberModes.Where(m => m.AccountId == other.AccountId && m.ModeId == request.ModeId).Select(m => m.DisplayName).SingleOrDefaultAsync(cancellationToken);
-        var person = new PersonSummary(other.PublicId, ModePrivacy.DisplayName(alias, other.DisplayName), ProfileEndpoints.Badges(other, await ProfileEndpoints.BadgeOrderAsync(db, cancellationToken)));
-        var visit = request.TripId is { } tripId ? await (from t in db.Trips join c in db.GeoCities on t.GeoNameId equals c.GeoNameId
-                                                         where t.Id == tripId select Travel.TravelEndpoints.Visit(t, c)).SingleOrDefaultAsync(cancellationToken) : null;
-        return new(request.Id, request.ModeId, request.FromAccountId == me ? "sent" : "received", Wire(request.Status), person, request.CreatedAt, visit);
+        if (requests.Count == 0) return [];
+        Guid Other(ConnectionRequest r) => r.FromAccountId == me ? r.ToAccountId : r.FromAccountId;
+        var others = requests.Select(Other).Distinct().ToList();
+        var profiles = await db.MemberProfiles.Where(p => others.Contains(p.AccountId)).ToDictionaryAsync(p => p.AccountId, cancellationToken);
+        var aliases = (await db.MemberModes.Where(m => others.Contains(m.AccountId)).Select(m => new { m.AccountId, m.ModeId, m.DisplayName }).ToListAsync(cancellationToken))
+            .ToDictionary(m => (m.AccountId, m.ModeId), m => m.DisplayName);
+        var order = await ProfileEndpoints.BadgeOrderAsync(db, cancellationToken);
+        var tripIds = requests.Where(r => r.TripId is not null).Select(r => r.TripId!.Value).Distinct().ToList();
+        var visits = tripIds.Count == 0 ? [] : await (from t in db.Trips join c in db.GeoCities on t.GeoNameId equals c.GeoNameId
+                                                      where tripIds.Contains(t.Id) select new { t.Id, Visit = Travel.TravelEndpoints.Visit(t, c) })
+            .ToDictionaryAsync(v => v.Id, v => v.Visit, cancellationToken);
+        return requests.Select(request =>
+        {
+            var other = profiles[Other(request)];
+            var person = new PersonSummary(other.PublicId, ModePrivacy.DisplayName(aliases.GetValueOrDefault((other.AccountId, request.ModeId)), other.DisplayName),
+                ProfileEndpoints.Badges(other, order));
+            var visit = request.TripId is { } tripId ? visits.GetValueOrDefault(tripId) : null;
+            return new ConnectionRequestView(request.Id, request.ModeId, request.FromAccountId == me ? "sent" : "received", Wire(request.Status), person, request.CreatedAt, visit);
+        }).ToList();
     }
 }

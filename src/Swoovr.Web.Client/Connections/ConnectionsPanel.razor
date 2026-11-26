@@ -155,7 +155,10 @@
 
     private async Task LoadAsync()
     {
-        var (inbox, outbox, links, blocks) = (await Members.RequestsAsync("received"), await Members.RequestsAsync("sent"), await Members.ConnectionsAsync(), await Members.BlocksAsync());
+        // PR 561 review: the four lists load at once, not one after another.
+        var (inboxing, outboxing, linking, blocking) = (Members.RequestsAsync("received"), Members.RequestsAsync("sent"), Members.ConnectionsAsync(), Members.BlocksAsync());
+        await Task.WhenAll(inboxing, outboxing, linking, blocking);
+        var (inbox, outbox, links, blocks) = (inboxing.Result, outboxing.Result, linking.Result, blocking.Result);
         (received, sent, connected, blocked) = ([.. inbox.Value?.Items ?? []], [.. outbox.Value?.Items ?? []], [.. links.Value?.Items ?? []], (IReadOnlyList<BlockedPerson>?)blocks.Value ?? []);
         (moreReceived, moreSent, moreConnected) = (inbox.Value?.More == true, outbox.Value?.More == true, links.Value?.More == true);
         (pageReceived, pageSent, pageConnected) = (1, 1, 1);
