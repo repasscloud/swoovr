@@ -1,7 +1,7 @@
-@* Who the member is and who they'd like to meet (D137–D140, Interactive WebAssembly). Gender, pronouns and orientation
-   are each optional and separate; Dating needs a gender and a "show me", which is reciprocal. Orientation never
-   decides who anyone sees. Filters are per mode: the free ones for everyone (including distance up to 50 km, D347), the
-   wider distances and Plus sorting when the entitlement service says Plus (D151). Excluded intentions work both ways: people holding one can't find or contact you in that mode. *@
+@* Who the member would like to meet (D137–D140, Interactive WebAssembly). Dating needs a gender (on Your profile, issue 508)
+   and a "show me", which is reciprocal. Filters are per mode: the free ones for everyone (including distance up to 50 km,
+   D347), the wider distances and Plus sorting when the entitlement service says Plus (D151). Excluded intentions work both
+   ways: people holding one can't find or contact you in that mode. *@
 @inject MemberClient Members
 <div class="rd-page">
 <div class="page-heading" data-matching="@(loaded ? (options is null ? "refused" : "ready") : "loading")">
@@ -12,30 +12,12 @@
 </div>
 @if (options is not null)
 {
-    @* Issue 418 (owner-approved mockup): identity in one row, what shows on your profile and Dating's "show me" as chips. *@
-    <section class="rd-card" aria-labelledby="identity-heading">
-        <div class="rd-row rd-row-baseline"><h2 id="identity-heading">About you</h2><p class="field-help">Orientation never decides who sees you.</p></div>
+    @* Issue 508 (D415): gender, pronouns and orientation are on Your profile; Dating's "show me" is who you'd like to meet, so it stays. *@
+    <section class="rd-card" aria-labelledby="show-me-heading">
+        <h2 id="show-me-heading">Dating</h2>
         <form @onsubmit="SaveIdentityAsync" data-identity-form>
-            <div class="rd-grid rd-grid-3">
-                <div class="field"><label for="gender">Gender</label>
-                    <select id="gender" @bind="gender"><option value="">Not set</option>@foreach (var g in options.Genders) { <option value="@g.Id">@g.Label</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
-                @* Issue 389 (D382): a pronoun list plus Self-describe (50 characters), with its own switch. *@
-                <div class="field"><label for="pronouns">Pronouns</label>
-                    <select id="pronouns" @bind="pronounId"><option value="">Not set</option>@foreach (var p in options.Pronouns ?? []) { <option value="@p.Id">@p.Label</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
-                <div class="field"><label for="orientation">Orientation</label>
-                    <select id="orientation" @bind="orientation"><option value="">Not set</option>@foreach (var o in options.Orientations) { <option value="@o.Id">@o.Label</option> }</select><span class="field-chevron" aria-hidden="true"><Icon Name="back" Size="18" /></span></div>
-                @if (gender == "another") { <div class="field"><label for="gender-description">Describe your gender (optional)</label><input id="gender-description" maxlength="40" @bind="genderDescription" /></div> }
-                @if (pronounId == "self") { <div class="field"><label for="pronouns-own">Your pronouns</label><input id="pronouns-own" maxlength="50" @bind="pronouns" data-pronouns-own /></div> }
-            </div>
-            <fieldset class="rd-group"><legend>On my profile</legend>
-                <div class="rd-chips">
-                    <label class="rd-chip"><input type="checkbox" @bind="showGender" data-show-gender />Gender</label>
-                    <label class="rd-chip"><input type="checkbox" @bind="showPronouns" data-show-pronouns />Pronouns</label>
-                    <label class="rd-chip"><input type="checkbox" @bind="showOrientation" data-show-orientation />Orientation</label>
-                    <label class="rd-chip"><input type="checkbox" @bind="showAge" data-show-age />Age</label>
-                </div>
-            </fieldset>
-            <fieldset class="rd-group" data-show-me><legend>In Dating, show me</legend>
+            @if (gender is null) { <p class="field-help" data-gender-needed>Dating also needs your gender. <a class="link" href="/me/profile">Add it on your profile</a>.</p> }
+            <fieldset class="rd-group" data-show-me><legend>Show me</legend>
                 @* D161: "Prefer not to say" is a privacy choice, not a gender, so it's never a "show me" option. D382 (Q181.1 A): "Man" and
                    "Woman" include Trans man and Trans woman, so the API's ShowMe list has four choices. *@
                 <div class="rd-chips">
@@ -67,12 +49,11 @@
 }
 </div>
 @code {
-    private bool loaded, busy, showGender = true, showOrientation, showAge = true, showPronouns = true;
-    private string? pronounId;
+    private bool loaded, busy;
     private ProfileOptionsView? options;
     private List<ConnectionModeView> modes = [];
     private string modeId = "dating";
-    private string? gender, genderDescription, pronouns, orientation, identityStatus, identityMessage;
+    private string? gender, identityStatus, identityMessage;
     private HashSet<string> showMe = [];
 
     protected override async Task OnInitializedAsync()
@@ -82,9 +63,8 @@
         {
             modes = (await Members.ModesAsync()).Value ?? [];
             if ((await Members.IdentityAsync()).Value is { } i)
-                (gender, genderDescription, pronouns, orientation, showGender, showOrientation, showAge, showMe, pronounId, showPronouns) =
-                    (i.Gender, i.GenderDescription, i.PronounId == "self" ? i.Pronouns : null, i.Orientation, i.ShowGender, i.ShowOrientation, i.ShowAge, i.DatingShowMe.ToHashSet(),
-                     i.PronounId, i.ShowPronouns);
+                (gender, showMe) = (string.IsNullOrEmpty(i.Gender) ? null : i.Gender, i.DatingShowMe.ToHashSet());
+            else options = null;
         }
         loaded = true;
     }
@@ -97,10 +77,16 @@
     private async Task SaveIdentityAsync()
     {
         busy = true;
-        var result = await Members.SaveIdentityAsync(new IdentityUpdate(gender, genderDescription, pronounId == "self" ? pronouns : null, orientation, showGender, showOrientation, showAge, showMe.ToList(), string.IsNullOrEmpty(pronounId) ? null : pronounId, showPronouns));
-        busy = false;
-        (identityStatus, identityMessage) = result.Ok ? ("saved", "Saved.") : (result.Code ?? "failed", "Check the options you picked.");
+        try
+        {
+            // The rest of the identity is edited on Your profile: re-read it, so this never puts an older copy back.
+            if ((await Members.IdentityAsync()).Value is not { } i) { (identityStatus, identityMessage) = ("unavailable", "That didn't work. Try again."); return; }
+            gender = string.IsNullOrEmpty(i.Gender) ? null : i.Gender;
+            var result = await Members.SaveIdentityAsync(new IdentityUpdate(i.Gender, i.GenderDescription, i.PronounId == "self" ? i.Pronouns : null, i.Orientation,
+                i.ShowGender, i.ShowOrientation, i.ShowAge, showMe.ToList(), i.PronounId, i.ShowPronouns));
+            (identityStatus, identityMessage) = result.Ok ? ("saved", "Saved.") : (result.Code ?? "failed", "Check the options you picked.");
+        }
+        catch (HttpRequestException) { (identityStatus, identityMessage) = ("unavailable", "That didn't work. Try again."); }
+        finally { busy = false; }
     }
-
-
 }
