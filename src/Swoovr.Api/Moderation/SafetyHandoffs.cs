@@ -133,3 +133,22 @@ public sealed class SafetyHandoffWorker(IServiceScopeFactory scopes, TimeProvide
         }
     }
 }
+
+/// <summary>
+/// PR 528 review (D420): which cases a helpdesk item answers to in Swoovr Admin. Its case links, and for a sensitive report's
+/// item its case through the hand-off row (the item's operation reference), so the case's queue and conflict-of-interest rules
+/// apply even while a lost create answer waits to be reconciled and the link isn't saved yet.
+/// </summary>
+public static class SafetyHandoffAccess
+{
+    public static async Task<Guid[]> CasesAsync(SwoovrDbContext db, SupportTicket ticket, CancellationToken ct)
+    {
+        var linked = await db.Set<TicketingCaseLink>().Where(l => l.ProviderTicketId == ticket.Id).Select(l => l.CaseId).Distinct().ToArrayAsync(ct);
+        var handedOff = ticket.OperationReference is { } operation && Guid.TryParse(operation, out var id)
+            ? await db.SafetyHandoffs.Where(h => h.Id == id).Select(h => h.CaseId).ToArrayAsync(ct) : [];
+        return linked.Concat(handedOff).Distinct().ToArray();
+    }
+
+    /// <summary>An item Swoovr raised with no member or guest behind it is shown only when it is tied to a case.</summary>
+    public static bool Refused(bool systemOnly, IReadOnlyCollection<Guid> cases) => systemOnly && cases.Count == 0;
+}
