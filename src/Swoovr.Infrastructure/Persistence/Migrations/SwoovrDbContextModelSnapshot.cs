@@ -3906,6 +3906,14 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("case_id");
 
+                    b.Property<string>("ContentRating")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Standard")
+                        .HasColumnName("content_rating");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(32)

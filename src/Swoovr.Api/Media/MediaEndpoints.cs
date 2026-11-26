@@ -259,7 +259,7 @@ public static class MediaEndpoints
                 if (owner is null || !inAlbum || item.Status != MediaStatus.Uncertain || !ExplicitMediaPolicy.AlbumApprovalAllowed(item, owner))
                     return Problem(StatusCodes.Status409Conflict, ProblemCodes.AlbumApprovalNotAllowed,
                         "Only a photo uploaded into a private album by an ID Verified member can be approved for albums only.");
-                await db.MediaItems.Where(i => i.Id == item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.AlbumOnly, true), cancellationToken);
+                await db.MediaItems.Where(i => i.Id == item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.AlbumOnly, true).SetProperty(i => i.ContentRating, ContentRating.Explicit), cancellationToken);
             }
             var applied = request.Decision switch
             {
@@ -268,7 +268,7 @@ public static class MediaEndpoints
                 _ => await pipeline.BlockAsync(item, actor, "escalated-by-reviewer", now, cancellationToken,review),
             };
             if (!applied && albumApproval)
-                await db.MediaItems.Where(i => i.Id == item.Id && i.Status != MediaStatus.Passed).ExecuteUpdateAsync(u => u.SetProperty(i => i.AlbumOnly, false), cancellationToken);
+                await db.MediaItems.Where(i => i.Id == item.Id && i.Status != MediaStatus.Passed).ExecuteUpdateAsync(u => u.SetProperty(i => i.AlbumOnly, false).SetProperty(i => i.ContentRating, ContentRating.Standard), cancellationToken);
             if (!applied) return Problem(StatusCodes.Status409Conflict, ProblemCodes.UnknownPhoto, "That photo isn't waiting for a decision.");
             return Results.Ok(new { item.Id, state = request.Decision switch { "approve" => "approved", "reject" => "rejected", _ => "escalated" } });
         });
@@ -333,8 +333,12 @@ public static class MediaEndpoints
         var albumIds = albums.Select(a => a.Id).ToList();
         var entries = await db.PhotoAlbumItems.Where(e => albumIds.Contains(e.AlbumId)).OrderBy(e => e.Position).ToListAsync(cancellationToken);
         var albumModes = await db.PhotoAlbumModes.Where(m => albumIds.Contains(m.AlbumId)).ToListAsync(cancellationToken);
+        // Issue 431 (D389): "contains explicit" is worked out here from the live photos, so deleting the last explicit one clears it at once.
+        var explicitIds = (await db.MediaItems.Where(i => i.AccountId == me && i.ContentRating == ContentRating.Explicit && i.RemovedAt == null && i.Status == MediaStatus.Passed)
+            .Select(i => i.Id).ToListAsync(cancellationToken)).ToHashSet();
         var albumViews = albums.Select(a => new PhotoAlbumView(a.Id, a.Name, entries.Where(e => e.AlbumId == a.Id).Select(e => e.MediaId).ToList(),
-            albumModes.Where(m => m.AlbumId == a.Id).Select(m => m.ModeId).Order().ToList(), a.CreatedAt)).ToList();
+            albumModes.Where(m => m.AlbumId == a.Id).Select(m => m.ModeId).Order().ToList(), a.CreatedAt,
+            entries.Any(e => e.AlbumId == a.Id && explicitIds.Contains(e.MediaId)))).ToList();
         // #231: the owner's own not-approved photo, while it can still be appealed, through an owner-only link (never a blocked one).
         string? Preview(MediaItem i) => MediaPolicy.OwnerPreview(i, now) ? links.For(i.Id, "own", now) : null;
         return new(items.Select(i => View(i, places.Where(p => p.MediaId == i.Id && p.Scope != MediaPolicy.Main).Select(p => p.Scope).ToList(), links.For(i.Id, "member", now), Preview(i))).ToList(),

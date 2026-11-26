@@ -74,6 +74,11 @@ public sealed class MediaItem
     /// or added to another album; removing it from its album isn't possible, only deleting it.
     /// </summary>
     public bool AlbumOnly { get; set; }
+    /// <summary>
+    /// Issue 431 (D389, slice 1): whether the photo is explicit. Only a reviewer's decision sets <see cref="ContentRating.Explicit"/>
+    /// (D205: the automatic check only flags). Today that is the albums-only approval, so every <see cref="AlbumOnly"/> photo is explicit.
+    /// </summary>
+    public ContentRating ContentRating { get; set; }
     public DateTimeOffset? PreservationPendingAt { get; set; }
     public DateTimeOffset? PreservationCompletedAt { get; set; }
     public DateTimeOffset? NextPreservationAt { get; set; }
@@ -377,3 +382,6 @@ public static class MediaRecoveryPolicy
     public static bool Due(MediaStatus status, DateTimeOffset? completed, DateTimeOffset? next, DateTimeOffset now) =>
         status == MediaStatus.Blocked && completed is null && next is { } due && due <= now;
 }
+
+/// <summary>Issue 431 (D389): a photo's stored rating. An album shows "contains explicit" while it holds a live explicit photo (derived, never stored).</summary>
+public enum ContentRating { Standard, Explicit }

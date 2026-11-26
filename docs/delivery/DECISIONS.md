@@ -1640,3 +1640,11 @@ Builds D411 (**CONFIRMED**, Q128). D308's routing is unchanged for members: the 
 - **Delivery:** every minute (`Safety:HandoffWorker`). The row id is the Zammad operation id: a create that may have reached Zammad is found again by search, never sent twice. Retries back off from a minute to an hour; after 24 attempts (about a day) the row is Failed, logged and audited (`safety-report.handoff-failed`). Without the token it waits and uses no attempts.
 - **UAT:** the token is empty in the env template, so an upgrade's check passes; provisioning fills it during the upgrade, and the API reads it on its next start (the next deployment, or `docker compose up -d api`). Reports made in between are delivered then.
 - **Not yet shown:** a run against a real Zammad. The provisioning script was syntax-checked only.
+
+### D421 — Explicit media, slice 1: a stored rating on every photo (#431, 26 November 2026)
+
+Builds the first part of D389's DEFAULT design. Independent of Q182: no chat delivery changes.
+- `media_items.content_rating` is `Standard` or `Explicit`, default `Standard`. Only a reviewer's albums-only approval (`APPROVED_ALBUM_EXPLICIT`) sets `Explicit`, together with `album_only`, and undoes both if the approval doesn't apply. The migration backfills every `album_only` photo to `Explicit`.
+- An album "contains explicit" while it holds a live (approved, not removed) explicit photo. Worked out each time the owner's photos are read, never stored, so deleting the last one clears it. The owner sees an **Explicit** tag on the album card and page.
+- An explicit photo can't be added to another album (checked on the rating as well as `album_only`). The other places that keep album-only photos out (modes, main photo, onboarding, Explore, Traveller cards, library list) are unchanged; they check `album_only`, which every explicit photo has today.
+- Not built yet: chat delivery, the per-view gate, `REJECT_EXPLICIT_CHAT` and the recipient's display (#431's later sections, Q182 #432).
