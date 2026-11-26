@@ -307,13 +307,10 @@ public static class RequestEndpoints
         if (rows.Count == 0) return views;
         var others = rows.Select(r => r.FromAccountId == me ? r.ToAccountId : r.FromAccountId).Distinct().ToList();
         var configuration = services.GetRequiredService<IConfiguration>();
-        var open = new HashSet<(Guid, string)>();
-        foreach (var other in others)
-        {
-            var person = await ProfileEndpoints.Candidates(db, configuration, me).SingleOrDefaultAsync(c => c.Profile.AccountId == other, cancellationToken);
-            if (person is null) continue;
-            foreach (var mode in await ProfileEndpoints.SharedModesAsync(db, me, person, cancellationToken)) open.Add((other, mode.Id));
-        }
+        // PR 561 review: one candidate query and one batched shared-modes check for the whole page, not one per person.
+        var people = await ProfileEndpoints.Candidates(db, configuration, me).Where(c => others.Contains(c.Profile.AccountId)).ToListAsync(cancellationToken);
+        var open = (await ProfileEndpoints.SharedModesAsync(db, me, people, cancellationToken))
+            .SelectMany(p => p.Value.Select(mode => (p.Key, mode.Id))).ToHashSet();
         var links = services.GetService<Media.MediaLinks>();
         var photos = links is null ? default : await Media.MediaEndpoints.PhotosAsync(db, links, others, rows.Select(r => r.ModeId).Distinct().ToList(), now, cancellationToken);
         var identities = await ProfileEndpoints.IdentitiesAsync(db, others, cancellationToken);
