@@ -41,7 +41,10 @@ public static class AccountText
     public static IReadOnlyList<Swoovr.Contracts.BadgeView> CardBadges(IReadOnlyList<Swoovr.Contracts.BadgeView> badges) =>
         badges.OrderBy(b => Array.IndexOf(CardOrder, b.Badge) is >= 0 and var i ? i : CardOrder.Length).ToList();
 
-    /// <summary>What a badge means, for the explanation on a card.</summary>
+    /// <summary>Issue 509 (D417): the badges someone doesn't hold, so a profile explains every one.</summary>
+    public static IReadOnlyList<string> OtherBadges(IReadOnlyList<Swoovr.Contracts.BadgeView> held) => CardOrder.Where(b => held.All(h => h.Badge != b)).ToList();
+
+    /// <summary>What a badge means, for the explanation on a card or profile.</summary>
     public static string BadgeMeaning(string badge) => badge switch
     {
         "idVerified" => "Their ID document was checked.", "photoVerified" => "Their profile photos were checked against them.",
