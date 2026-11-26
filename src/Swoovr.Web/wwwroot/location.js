@@ -9,4 +9,23 @@ window.swoovrLocation = {
       () => resolve(null),
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
   }),
+  // Issue 282: the Permissions API only chooses the wording ("granted", "prompt", "denied" or "unsupported"); it never prompts.
+  permission: async () => {
+    if (!navigator.geolocation) return 'unsupported';
+    try { if (navigator.permissions?.query) return (await navigator.permissions.query({ name: 'geolocation' })).state; } catch { }
+    return 'prompt';
+  },
+  // Issue 282: one Near me reading when the member opens or refreshes Near me. Status: ok, inaccurate (over 2 km), denied,
+  // unsupported or unavailable. Never watched; the page asks again at most every 5 minutes while it is open and visible.
+  readNearMe: () => new Promise(resolve => {
+    if (!navigator.geolocation) { resolve({ status: 'unsupported', reading: null }); return; }
+    navigator.geolocation.getCurrentPosition(
+      p => {
+        const reading = { latitude: p.coords.latitude, longitude: p.coords.longitude, accuracyMetres: p.coords.accuracy, takenAt: new Date(p.timestamp).toISOString() };
+        resolve({ status: p.coords.accuracy > 2000 ? 'inaccurate' : 'ok', reading });
+      },
+      e => resolve({ status: e.code === 1 ? 'denied' : 'unavailable', reading: null }),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  }),
+  visible: () => document.visibilityState === 'visible',
 };

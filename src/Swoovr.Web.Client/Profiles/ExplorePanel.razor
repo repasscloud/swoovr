@@ -29,8 +29,13 @@
     {
         <div class="explore-toolbar">
             @* Owner (issue 442): the market only; the selected mode is already shown by the switcher. *@
+            @* Issue 282 (D345, D352): Active location (the default; the checked-in destination or the home market) or Near me. *@
+            <nav class="segmented explore-scope" aria-label="Where" data-explore-scope="@scope">
+                <button type="button" class="segment" aria-pressed="@(scope == "active" ? "true" : "false")" @onclick='() => ScopeAsync("active")' data-scope="active">Active location</button>
+                <button type="button" class="segment" aria-pressed="@(scope == "nearMe" ? "true" : "false")" @onclick='() => ScopeAsync("nearMe")' data-scope="nearMe">Near me</button>
+            </nav>
             <p class="explore-market">
-                @if (market is not null) { <span data-explore-market data-explore-visiting="@(visitingCity is null ? "false" : "true")">@(visitingCity is { } city ? $"Visiting {city}: people in {market}" : $"People in {market}")</span> }
+                @if (market is not null) { <span data-explore-market data-explore-visiting="@(visitingCity is null ? "false" : "true")">@(scope == "nearMe" ? $"Near you in {market}" : visitingCity is { } city ? $"Visiting {city}: people in {market}" : $"People in {market}")</span> }
                 <button type="button" class="link-button" @onclick="ShowNoticeAsync" data-explore-about>ⓘ About Explore</button>
             </p>
             <div class="explore-actions">
@@ -50,7 +55,22 @@
 @if (loaded && refused is null)
 {
     <section class="explore-results" aria-live="polite" data-explore-mode="@selected" data-explore-state="@state">
-        @if (state == "off")
+        @if (scope == "nearMe" && nearState != "ready")
+        {
+            @* Issue 282: the approved issue 271 §12 wording. The button stays after a denial; the browser decides whether to ask again. *@
+            <div class="card notice near-me-notice" data-near-me="@nearState">
+                <p>@(nearState switch { "denied" => LocationText.Blocked, "unsupported" => LocationText.Unsupported, "inaccurate" => LocationText.Inaccurate, "unavailable" => "We couldn't get your location. Try again, or continue using Home market.", _ => LocationText.BeforePrompt })</p>
+                @if (nearState == "prompt") { <p class="field-help"><a class="link" href="/privacy#location">Privacy Notice</a></p> }
+                @if (nearState != "unsupported")
+                {
+                    <div class="near-me-actions">
+                        <button type="button" class="button" disabled="@nearBusy" @onclick="ShareAsync" data-near-me-share>@(nearState == "prompt" ? "Share my location" : "Try again")</button>
+                        <button type="button" class="button button-secondary" @onclick='() => ScopeAsync("active")' data-near-me-home>Use Home market</button>
+                    </div>
+                }
+            </div>
+        }
+        else if (state == "off")
         {
             <div class="card notice" data-explore-local="mode-not-enabled">
                 <p>@Label(selected) is off for you, so you can't see who's here.</p>
@@ -138,10 +158,14 @@
     private string? market, visitingCity;
     private bool interested, busy;
     private string selected = "";
+    /// <summary>Issue 282: "active" or "nearMe"; nearState is prompt, denied, unsupported, inaccurate, unavailable or ready.</summary>
+    private string scope = "active", nearState = "prompt";
+    private bool nearBusy;
+    private CancellationTokenSource? nearRefresh;
     private string state = "loading";
     private long requestRevision;
     private bool disposed;
-    public void Dispose(){disposed=true;requestRevision++;}
+    public void Dispose(){disposed=true;requestRevision++;StopRefresh();}
     private List<ConnectionModeView> modes = [];
     private MyProfileView? mine;
     private IReadOnlyList<ProfileCard> people = [];
@@ -187,13 +211,15 @@
         var revision=++requestRevision;
         (selected, state, people,market,onlineExpired) = (modeId, "loading", [],null,false);
         ApiResult<ExploreResult> result;
-        try{result=await Members.ExploreAsync(modeId);}
+        try{result=scope=="nearMe"?await Members.ExploreNearMeAsync(modeId):await Members.ExploreAsync(modeId);}
         catch(Exception error)when(error is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException or NotSupportedException)
         {
             if(!disposed&&revision==requestRevision)(state,people,market)=("unavailable",[],null);
             return;
         }
         if(disposed||revision!=requestRevision||selected!=modeId)return;
+        // Issue 282: the reading has gone stale (over 2 hours) or was deleted: ask for a new one.
+        if(scope=="nearMe"&&result.Code==ProblemCodes.LocationRequired){(state,people,market,nearState)=("ready",[],null,"prompt");return;}
         (state, people, market) = result.Code switch
         {
             ProblemCodes.ModeNotEnabled => ("off", [], market),
@@ -214,6 +240,72 @@
         onlineExpired = true;
         await InvokeAsync(StateHasChanged);
     }
+
+    /// <summary>Issue 282: Near me reads location only when the member opens it (and permission is already granted) or asks.</summary>
+    private async Task ScopeAsync(string to)
+    {
+        if (scope == to) return;
+        scope = to;
+        StopRefresh();
+        if (to == "active") { nearState = "prompt"; await SelectAsync(selected); return; }
+        (state, people, market) = ("ready", [], null);
+        string permission;
+        try { permission = await JS.InvokeAsync<string>("swoovrLocation.permission"); }
+        catch (Exception error) when (error is JSException or InvalidOperationException) { permission = "prompt"; }
+        nearState = permission switch { "unsupported" => "unsupported", "denied" => "denied", _ => "prompt" };
+        if (permission == "granted") await ShareAsync();
+    }
+
+    private sealed record NearRead(string Status, LocationCheck? Reading);
+
+    private async Task ShareAsync()
+    {
+        if (scope != "nearMe" || nearBusy) return;
+        nearBusy = true;
+        try
+        {
+            NearRead? read;
+            try { read = await JS.InvokeAsync<NearRead>("swoovrLocation.readNearMe"); }
+            catch (Exception error) when (error is JSException or InvalidOperationException) { read = new("unavailable", null); }
+            if (scope != "nearMe") return;
+            if (read is not { Status: "ok", Reading: { } reading }) { nearState = read?.Status ?? "unavailable"; return; }
+            var saved = await Members.SaveLocationAsync(reading);
+            // 429: a reading from the last 5 minutes is still in use, so the list loads from it.
+            if (!saved.Ok && saved.Status != 429) { nearState = saved.Code == ProblemCodes.LocationUnusable ? "inaccurate" : "unavailable"; return; }
+            nearState = "ready";
+            await SelectAsync(selected);
+            StartRefresh();
+        }
+        catch (HttpRequestException) { nearState = "unavailable"; }
+        finally { nearBusy = false; }
+    }
+
+    /// <summary>Issue 282: while Near me stays open and the page is visible, at most one new reading every 5 minutes.</summary>
+    private void StartRefresh()
+    {
+        if (nearRefresh is not null) return;
+        nearRefresh = new CancellationTokenSource();
+        _ = RefreshLoopAsync(nearRefresh.Token);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken token)
+    {
+        using var timer = new PeriodicTimer(LocationText.Refresh);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                bool shown;
+                try { shown = await JS.InvokeAsync<bool>("swoovrLocation.visible"); }
+                catch (Exception error) when (error is JSException or InvalidOperationException) { shown = false; }
+                if (!shown || disposed || scope != "nearMe") continue;
+                await InvokeAsync(async () => { await ShareAsync(); StateHasChanged(); });
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void StopRefresh() { nearRefresh?.Cancel(); nearRefresh?.Dispose(); nearRefresh = null; }
 
     private async Task DismissNoticeAsync()
     {

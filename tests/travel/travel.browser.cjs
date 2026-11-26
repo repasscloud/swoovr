@@ -250,7 +250,7 @@ const plus = (days, zone = 'Australia/Adelaide') => {
     await travPage.waitForSelector('[data-trip-status=saved]'); pass();
     const added = (await call(tokens.trav, '/api/me/trips')).body.items.find(t => t.city.id === GLENELG);
     assert.deepEqual([added.arrival, added.departure, added.state], [plus(40), plus(42), 'planned']); pass();
-    await travPage.locator(`[data-trip="${added.id}"]`).getByLabel('Visible to locals').uncheck();
+    await travPage.locator(`[data-trip="${added.id}"]`).getByLabel('Let people there discover me before arrival').uncheck();
     await travPage.getByText('Hidden. The trip is kept.').waitFor();
     assert.equal((await call(tokens.trav, '/api/me/trips')).body.items.find(t => t.id === added.id).visible, false); pass();
     if (output) await travPage.screenshot({ path: output + '/travel-traveller-390.png', fullPage: true });

@@ -1044,3 +1044,16 @@ body:has(.public-layout) { padding-bottom: 0; }
 .dob-correction-form { display: grid; gap: 16px; margin-top: 16px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .dialog-actions .button { width: auto; min-height: 44px; padding: 0 20px; }
+/* Issue 282: the Explore scope switch, Near me's permission notice and the Travel pre-arrival switches. */
+.explore-scope { margin: 0 0 8px; }
+.near-me-notice p { max-width: none; }
+.near-me-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.near-me-actions .button { width: auto; min-height: 44px; padding: 0 20px; }
+.trip-switches { display: grid; gap: 10px; margin: 8px 0; }
+/* The label, its approved description and the opening day each on their own line, beside the switch. */
+.trip-switches .ph-switch-row > span, [data-trip-form] .ph-switch-row > span { display: grid; gap: 2px; padding-block: 8px; }
+/* Owner rule (D390): no full-width buttons; the trip actions and Save trip are content width. */
+.trip-list .request-actions .button, [data-trip-form] > .button { width: auto; flex: none; min-height: 44px; padding: 0 20px; }
+.trip-list .request-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+[data-trip-form] > .button { justify-self: start; }
+.location-stop { margin-top: 16px; }
