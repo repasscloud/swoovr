@@ -34,6 +34,9 @@ static class DobCorrectionChecks
             && !OnlineStatusPolicy.Shows(false, On(true, 0), On(true, 0), clock) && On(true, 0) is { } self && !OnlineStatusPolicy.Shows(true, self, self, clock), "window, bots, host, self");
         Expect(!OnlineStatusPolicy.Counts("GET", "/api/me/notifications") && !OnlineStatusPolicy.Counts("GET", "/api/me/meeting-safety") && OnlineStatusPolicy.Counts("POST", "/api/me/notifications/read")
             && OnlineStatusPolicy.Counts("GET", "/api/explore"), "a page's own polling isn't activity");
+        // PR 526 review: a ticket the member opens counts; the same request as an automatic refresh doesn't.
+        Expect(OnlineStatusPolicy.Counts("GET", "/api/me/tickets/42") && !OnlineStatusPolicy.Counts("GET", "/api/me/tickets/42", background: true)
+            && Swoovr.Contracts.BackgroundRequest.Marked("1") && !Swoovr.Contracts.BackgroundRequest.Marked("true") && !Swoovr.Contracts.BackgroundRequest.Marked(null), "a marked background refresh isn't activity");
         // Issue 495 (D418): mode rules for a card.
         Expect(ModePrivacy.OnCard("dating", 34, "Woman", "she/her") == (34, "Woman", "she/her") && ModePrivacy.OnCard("friends", 34, "Woman", null) == (34, "Woman", null)
             && ModePrivacy.OnCard("activities", 34, "Woman", "she/her") == (null, null, null) && ModePrivacy.OnCard("business", 34, "Woman", "she/her") == (null, null, null), "identity on cards per mode");

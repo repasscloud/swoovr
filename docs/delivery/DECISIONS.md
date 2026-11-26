@@ -1626,7 +1626,7 @@ Slice 2 of D401 ([#476](https://github.com/repasscloud/swoovr/issues/476) ยง2, ย
 
 Builds D410 (**CONFIRMED**, Q183 B) for Explore cards: opt-in on `/me/profile`, off by default, mutual, a green dot with the text alternative "Online" and nothing else.
 - Online means the member did something in the last 5 minutes. `Account.LastSeenAt` is written only every 5 minutes, so it can't say; `member_profiles.active_at` is separate, written at most once a minute and **only while the member's own switch is on**. Turning it off deletes it. It's in the member's own export and is never returned to anyone else.
-- A page's own polling (unread count, meeting safety, session) isn't activity, so a tab left open doesn't keep someone online.
+- A page's own polling (unread count, meeting safety, session) isn't activity, so a tab left open doesn't keep someone online. Any other automatic refresh sends `X-Swoovr-Background: 1` (forwarded by the BFF) and doesn't count either; the support ticket's 5-second refresh while a file is checked is the first (PR 526 review).
 - Worked out after the list and its order are settled; nothing for official bots, and blocked or restricted members aren't listed at all. Opened profiles, chats and Traveller cards show no dot.
 - The promise on `/me/notifications` changes only where online status is offered. It still promises no last-seen time and no read receipts.
 - **DEFAULT:** offered per host by `Explore:OnlineStatus`, **off**, until Q189 ([#525](https://github.com/repasscloud/swoovr/issues/525)) says whether the Privacy Notice needs a sentence first. Turning it off in configuration hides every dot at once and stops writing.

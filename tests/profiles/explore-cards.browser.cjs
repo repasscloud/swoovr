@@ -81,6 +81,9 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.equal(await online('viv', 'con'), false); pass();
     await call(tokens.con, '/api/me/notifications');
     assert.equal(await online('viv', 'con'), false, 'the unread poll is not activity'); pass();
+    // PR 526 review: an automatic refresh says so with the background header and isn't activity either.
+    await fetch(process.env.SWOOVR_TEST_API_BASE + '/api/me/profile', { headers: { Authorization: 'Bearer ' + tokens.con, 'Swoovr-Version': '2026-10-28', 'X-Swoovr-Background': '1' } });
+    assert.equal(await online('viv', 'con'), false, 'a marked background refresh is not activity'); pass();
     await call(tokens.con, '/api/me/profile');
     assert.equal(await online('viv', 'con'), true); pass();
     assert.deepEqual(await order('friends'), ordered, 'the order does not change'); pass();
