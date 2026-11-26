@@ -59,6 +59,8 @@ if (persistence && builder.Configuration.GetValue("Location:PurgeWorker", true))
 // D349, #281: the scheduled Home City check (hourly in hosted runs; `location home-city-check` on demand).
 if (persistence && builder.Configuration.GetValue("Location:HomeCityCheck:Worker", !builder.Environment.IsDevelopment()))
     builder.Services.AddHostedService<Swoovr.Api.Travel.HomeCityCheckWorker>();
+// Issue 188 (D420): each sensitive safety report's item in the helpdesk's Trust & Safety group (every minute).
+if (persistence && builder.Configuration.GetValue("Safety:HandoffWorker", true)) builder.Services.AddHostedService<Swoovr.Api.Moderation.SafetyHandoffWorker>();
 var app = builder.Build();
 HostRuntime.Use(app,HostKind.Api);
 if(app.Services.GetRequiredService<Swoovr.Api.Policies.ApprovedPolicyCatalogue>().Resolve(app.Configuration["Policies:RequiredVersion"],DateTimeOffset.UtcNow).State==Swoovr.Domain.PolicyRequirementState.ConfigurationInvalid)throw new InvalidOperationException("No matching effective approved policy exists for Policies:RequiredVersion.");

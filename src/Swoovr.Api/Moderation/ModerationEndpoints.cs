@@ -273,6 +273,10 @@ public static class ModerationEndpoints
             var checkIns=await db.MeetingSafetyCheckIns.AsNoTracking().Where(c=>c.SessionId==meeting.Id).OrderBy(c=>c.DueAt).Select(c=>new{c.DueAt,c.GraceEndsAt,c.RespondedAt,c.Response,c.EscalatedAt}).ToListAsync(cancellationToken);
             db.CaseEvidence.Add(new CaseEvidence{Id=Guid.NewGuid(),CaseId=item.Id,ReportId=report.Id,Kind="meeting-safety",MediaIds=[],CapturedAt=now,Snapshot=JsonSerializer.Serialize(new{meetingSafetySessionId=meeting.Id,meeting.StartsAt,meeting.FinalCheckInAt,meeting.TimeZoneId,meeting.VenueOrArea,status=MeetingSafetyPolicy.State(meeting.Status),meeting.ClosedAt,checkIns},SnapshotJson)});
         }
+        // Issue 188 (D411, D420): a sensitive report also gets an item in the helpdesk's Trust & Safety group. Queued here, in the
+        // report's own transaction, and raised by SafetyHandoffJob, so the helpdesk being down never loses or delays the report.
+        if (category.Serious)
+            db.SafetyHandoffs.Add(new SafetyHandoff { Id = Guid.NewGuid(), ReportId = report.Id, CaseId = item.Id, CategoryId = category.Id, State = SafetyHandoffState.Pending, NextAttemptAt = now, CreatedAt = now });
         Audit.Record(db, now, me, "account", category.Serious ? "report.serious" : "report.created", "moderation-case", item.Id.ToString(), $"{category.Id}:{category.Priority}");
         var closed = new List<Conversation>();
         if (request.Block) await Connections.RequestEndpoints.AddBlockAsync(db, me, subjectAccount, now, cancellationToken, closed);

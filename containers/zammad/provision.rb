@@ -75,6 +75,17 @@ home_city.assign_attributes(firstname: 'Swoovr', lastname: 'Home City check', em
   password: input.fetch('password'), role_ids: [home_city_role.id], created_by_id: actor, updated_by_id: actor)
 home_city.save!
 home_city.group_ids_access_map = {groups.fetch('Home City checks') => ['create', 'read']}
+# Safety reports (issue 188, D411, D420): raises each sensitive report's internal-note item in "Trust & Safety", with itself as
+# the customer, so no member is ever its customer. Create and read there only; like the Home City check it has no Agent role.
+safety_role = Role.find_or_initialize_by(name: 'Swoovr safety reports')
+safety_role.assign_attributes(active: true, default_at_signup: false, created_by_id: actor, updated_by_id: actor)
+safety_role.save!
+safety_role.permission_grant('ticket.agent')
+safety = User.find_or_initialize_by(login: 'swoovr-safety-reports')
+safety.assign_attributes(firstname: 'Swoovr', lastname: 'Safety reports', email: 'safety-reports@example.test', active: true,
+  password: input.fetch('password'), role_ids: [safety_role.id], created_by_id: actor, updated_by_id: actor)
+safety.save!
+safety.group_ids_access_map = {groups.fetch('Trust & Safety') => ['create', 'read']}
 def api_token(user, label, permissions)
   token = Token.find_by(action: 'api', user_id: user.id, name: label)
   token ||= Token.create!(action: 'api', persistent: true, user_id: user.id, name: label,
@@ -368,4 +379,5 @@ puts "SWOOVR_PROVISION_RESULT=" + JSON.generate({version: Version.get, groups: g
   identity_token: api_token(identity, 'swoovr-local-identity', ['admin.user']),
   staff_directory_token: api_token(directory, 'swoovr-local-staff-directory', ['admin.user', 'admin.session', 'ticket.agent']),
   retention_token: api_token(retention, 'swoovr-local-retention', ['admin.data_privacy', 'ticket.agent']),
-  home_city_check_token: api_token(home_city, 'swoovr-local-home-city-check', ['ticket.agent'])})
+  home_city_check_token: api_token(home_city, 'swoovr-local-home-city-check', ['ticket.agent']),
+  safety_report_token: api_token(safety, 'swoovr-local-safety-reports', ['ticket.agent'])})

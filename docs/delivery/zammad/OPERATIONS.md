@@ -26,6 +26,7 @@ Template with placeholders: `containers/zammad/api.env.example`. Names match the
 | `Ticketing:Zammad:IdentityToken` | Customer lifecycle token (cannot read tickets on its own) |
 | `Ticketing:Zammad:RetentionToken` | Retention identity (D337): reads ticket metadata in every group, deletes only through data privacy tasks; required on hosted hosts |
 | `Ticketing:Zammad:HomeCityCheckToken` | Home City check identity (D349, D354): creates internal-note items and reads their state in "Home City checks" only. Without it, suggestions wait (and fail after ten attempts) |
+| `Ticketing:Zammad:SafetyReportToken` | Safety report identity (D420): creates internal-note items in "Trust & Safety" for sensitive reports, as its own customer. Without it, items wait (no attempts used) |
 | `Location:HomeCityCheck:AdminBaseUrl` | Swoovr Admin's public origin for the account link in Home City check notes (path only without it) |
 | `Attachments:Scanning:ClamAv:Host`, `Port`, `TimeoutSeconds`, `MaxStreamBytes` | ClamAV for support attachments (D336); required on hosted hosts. `Attachments:Scanning:Enabled=false` is Development only |
 | `Ticketing:Zammad:StaffDirectoryToken` | Staff directory credential; enables staff synchronisation (none: staff can't use the helpdesk) |
@@ -127,3 +128,9 @@ Files that arrive **by email** go straight into Zammad and are not scanned there
 - **Runs** hourly in hosted environments (`Location:HomeCityCheck:Worker`, off in Development), or `dotnet Swoovr.Api.dll location home-city-check`.
 - **Working an item:** the first article is an internal note with the account link, public id, Home City, period and counts. The member can't see the item until you reply. To contact them, use the "Suggest updating your Home City" macro in Zammad or the text module of the same name in Swoovr Admin. Close it when done. No new item is raised while one is open, or for 90 days after it closes.
 - **Retention:** category `HomeCityCheck`, 6 months after closure (D337 ledger).
+
+## Sensitive safety reports (D411, D420)
+
+- **Group:** "Trust & Safety". Each report in a Serious Safety Incident category raises one item, from the `swoovr-safety-reports` identity (custom role with `ticket.agent`; create and read in this group only; never an Agent, owner or synchronised staff member), provisioned by `containers/zammad/provision.rb`. Re-run provisioning on an existing helpdesk to add it, then restart the API so it reads the new token.
+- **The item** is an internal note with the category and a link to the case in Swoovr Admin. Work the case in Swoovr Admin; don't copy names, messages or evidence into Zammad. The member never sees the item.
+- **Delivery** runs every minute (`Safety:HandoffWorker`). A row that fails 24 times (about a day) is audited as `safety-report.handoff-failed` with its code; the report and case in Swoovr are unaffected.

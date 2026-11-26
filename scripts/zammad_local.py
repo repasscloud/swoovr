@@ -129,6 +129,8 @@ def api_settings(config, output=None):
     if config.get('retention_token'): zammad['RetentionToken'] = config['retention_token']
     # D349 (#281): the Home City check identity (its own group only; internal-note items and their state).
     if config.get('home_city_check_token'): zammad['HomeCityCheckToken'] = config['home_city_check_token']
+    # Issue 188 (D420): the safety report identity ("Trust & Safety" only; internal-note items).
+    if config.get('safety_report_token'): zammad['SafetyReportToken'] = config['safety_report_token']
     settings = {'Ticketing': {'Zammad': zammad}}
     private_write(target / 'api.json', json.dumps(settings))
     lines = ['Ticketing__Zammad__' + key + '=' + value for key, value in zammad.items()]

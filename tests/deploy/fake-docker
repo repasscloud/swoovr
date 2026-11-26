@@ -49,7 +49,7 @@ if [[ "${1:-}" == compose ]]; then
           cat > /dev/null
           # Like provision.rb: the Swoovr ticket columns are added (schema_changed) only on an empty Zammad database.
           changed=false; [[ -f "$state/zammad-columns" ]] || { changed=true; touch "$state/zammad-columns"; }
-          echo 'SWOOVR_PROVISION_RESULT={"version":"7.2.2","schema_changed":'"$changed"',"groups":{"General Support":1},"identity_token":"t1","staff_directory_token":"t2","retention_token":"t3","home_city_check_token":"t4"}' ;;
+          echo 'SWOOVR_PROVISION_RESULT={"version":"7.2.2","schema_changed":'"$changed"',"groups":{"General Support":1},"identity_token":"t1","staff_directory_token":"t2","retention_token":"t3","home_city_check_token":"t4","safety_report_token":"t5"}' ;;
       esac ;;
     *) exit 0 ;;
   esac

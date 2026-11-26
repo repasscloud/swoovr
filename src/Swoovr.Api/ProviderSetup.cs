@@ -83,6 +83,8 @@ public static class ProviderSetup
             services.AddScoped<Ticketing.HelpdeskRetention>();
             // D349, #281: the Home City check job needs the database (the worker and `location home-city-check`).
             services.AddScoped<Swoovr.Api.Travel.HomeCityCheckJob>();
+            // Issue 188 (D420): sensitive safety reports to the helpdesk.
+            services.AddScoped<Moderation.SafetyHandoffJob>();
             services.AddScoped<Retention.RetentionJobs>();
         }
         services.AddScoped<Microsoft.EntityFrameworkCore.Diagnostics.ISaveChangesInterceptor, Retention.PreservationSaveInterceptor>();

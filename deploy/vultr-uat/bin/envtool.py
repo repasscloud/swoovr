@@ -293,6 +293,7 @@ def provision_output():
         'Ticketing__Zammad__StaffDirectoryToken': data['staff_directory_token'],
         'Ticketing__Zammad__RetentionToken': data['retention_token'],
         'Ticketing__Zammad__HomeCityCheckToken': data['home_city_check_token'],
+        'Ticketing__Zammad__SafetyReportToken': data['safety_report_token'],
     })
     print('Provisioned Zammad ' + data['version'] + '; groups: ' + str(len(data['groups'])) + '. Tokens stored in env/api.env.')
 
@@ -352,7 +353,7 @@ PROVIDER_VALUES = {
     'UAT_ZAMMAD_MANAGE_MAIL': [('mail.env', 'SWOOVR_ZAMMAD_MANAGE_MAIL')],
 }
 ZAMMAD_TOKENS = ['Ticketing__Zammad__IdentityToken', 'Ticketing__Zammad__StaffDirectoryToken',
-                 'Ticketing__Zammad__RetentionToken', 'Ticketing__Zammad__HomeCityCheckToken']
+                 'Ticketing__Zammad__RetentionToken', 'Ticketing__Zammad__HomeCityCheckToken', 'Ticketing__Zammad__SafetyReportToken']
 
 
 def encode(name, value):

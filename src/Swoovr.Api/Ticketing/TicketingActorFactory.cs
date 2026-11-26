@@ -24,6 +24,11 @@ public sealed class TicketingActorFactory(IConfiguration configuration,TimeProvi
     /// only). It raises the scheduled check's internal-note items and reads their state for the cooldown. Null when not configured.
     /// </summary>
     public ZammadTicketingProvider? HomeCityCheck()=>string.IsNullOrWhiteSpace(configuration["Ticketing:Zammad:HomeCityCheckToken"])?null:Provider(configuration["Ticketing:Zammad:HomeCityCheckToken"]);
+    /// <summary>
+    /// Issue 188 (D420): the safety report identity (`swoovr-safety-reports`: ticket.agent with create/read in "Trust &amp; Safety"
+    /// only). It raises each sensitive report's internal-note item, as its own customer. Null when not configured.
+    /// </summary>
+    public ZammadTicketingProvider? SafetyReports()=>string.IsNullOrWhiteSpace(configuration["Ticketing:Zammad:SafetyReportToken"])||configuration["Ticketing:Zammad:SafetyReportToken"]!.StartsWith("__",StringComparison.Ordinal)?null:Provider(configuration["Ticketing:Zammad:SafetyReportToken"]);
     public bool Configured=>Uri.TryCreate(configuration["Ticketing:Zammad:BaseUrl"],UriKind.Absolute,out _)&&!string.IsNullOrWhiteSpace(configuration["Ticketing:Zammad:IdentityToken"]);
     private ZammadTicketingProvider Provider(string? token,long? from=null)
     {
