@@ -55,6 +55,9 @@ public sealed class SafetyHandoffJob(SwoovrDbContext db, TicketingActorFactory a
             await db.SaveChangesAsync(ct);
             return;
         }
+        // PR 528 review: only a create sent in this pass and certainly refused may be sent again. A failed read while
+        // reconciling (which Zammad's transport reports as certain) must leave the row Sending, or the next pass would duplicate it.
+        var creating = false;
         try
         {
             var me = await provider.ActorAsync(ct);
@@ -74,6 +77,7 @@ public sealed class SafetyHandoffJob(SwoovrDbContext db, TicketingActorFactory a
             // Recorded before the write, so a lost answer is reconciled rather than sent again.
             row.State = SafetyHandoffState.Sending;
             await db.SaveChangesAsync(ct);
+            creating = true;
             var ticket = await provider.CreateTicketAsync(new SupportTicketDraft(SafetyHandoffPolicy.Title, note, me.Id, group, row.Id.ToString("D"), TicketingPolicy.SystemSource), ct);
             if (ticket.CustomerId != me.Id || ticket.GroupId != group) { Defer(row, now, "provider-identity-mismatch"); await db.SaveChangesAsync(CancellationToken.None); return; }
             await CreatedAsync(row, ticket.Id, now, ct);
@@ -81,7 +85,7 @@ public sealed class SafetyHandoffJob(SwoovrDbContext db, TicketingActorFactory a
         catch (TicketingProviderException error)
         {
             // A refusal Zammad certainly didn't apply can be created again; anything uncertain stays to be reconciled.
-            if (!error.Uncertain && row.State == SafetyHandoffState.Sending) row.State = SafetyHandoffState.Pending;
+            if (creating && !error.Uncertain) row.State = SafetyHandoffState.Pending;
             Defer(row, now, error.Code); await db.SaveChangesAsync(CancellationToken.None);
         }
         catch (TicketingAccessException error) { Defer(row, now, error.Code); await db.SaveChangesAsync(CancellationToken.None); }

@@ -115,7 +115,7 @@
                 {
                     @* D348: a band only when both members show their distance; never a distance. *@
                     @* Issue 443 (D398): one card shape for photo and quote cards; issue 476 fills its overlay and detail slots. *@
-                    <MemberCard Name="@person.DisplayName" Age="@person.Age" Identity="@MemberText.CardIdentity(person)" Online="person.Online" Href="@($"/people/{person.Id}?mode={selected}")" Detail="@(person.Visiting is { } where && person.Photo is null ? $"Visiting {where}" : MemberText.Distance(person.Distance) ?? "")"
+                    <MemberCard Name="@person.DisplayName" Age="@person.Age" Identity="@MemberText.CardIdentity(person)" Online="@(person.Online && !onlineExpired)" Href="@($"/people/{person.Id}?mode={selected}")" Detail="@(person.Visiting is { } where && person.Photo is null ? $"Visiting {where}" : MemberText.Distance(person.Distance) ?? "")"
                                 Intentions="person.Intentions" Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)" Overlays="@Overlays(person)" Status="@MemberText.CardStatus(person)">
                         <Badges><CardBadges Badges="person.Badges" /></Badges>
                     </MemberCard>
@@ -145,6 +145,8 @@
     private List<ConnectionModeView> modes = [];
     private MyProfileView? mine;
     private IReadOnlyList<ProfileCard> people = [];
+    // PR 526 review: the dots from one load go after MemberText.OnlineShownFor.
+    private bool onlineExpired;
 
     private string RefusedText => refused switch
     {
@@ -183,7 +185,7 @@
     {
         if(disposed)return;
         var revision=++requestRevision;
-        (selected, state, people,market) = (modeId, "loading", [],null);
+        (selected, state, people,market,onlineExpired) = (modeId, "loading", [],null,false);
         ApiResult<ExploreResult> result;
         try{result=await Members.ExploreAsync(modeId);}
         catch(Exception error)when(error is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException or InvalidOperationException or NotSupportedException)
@@ -201,6 +203,16 @@
         };
         // D352: while a checked-in trip is active, Explore is that destination's market.
         visitingCity = result.Ok ? result.Value?.Visiting : null;
+        if (people.Any(p => p.Online)) _ = ExpireOnlineAsync(revision);
+    }
+
+    private async Task ExpireOnlineAsync(long revision)
+    {
+        try { await Task.Delay(MemberText.OnlineShownFor); }
+        catch (TaskCanceledException) { return; }
+        if (disposed || revision != requestRevision) return;
+        onlineExpired = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task DismissNoticeAsync()

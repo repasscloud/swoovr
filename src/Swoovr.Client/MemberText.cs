@@ -133,6 +133,12 @@ public static class MemberText
     public const string Arrived = "You've arrived. You can now send requests to people here.";
     public const string BrowsingBeforeArrival = "You're looking before you arrive. You can send requests once you've confirmed you've arrived.";
 
+    /// <summary>
+    /// PR 526 review (D419): an open Explore page hides its online dots this long after the list loaded, so it never keeps
+    /// showing someone as online; loading the list again (which counts towards the search limit) shows them afresh.
+    /// </summary>
+    public static readonly TimeSpan OnlineShownFor = TimeSpan.FromMinutes(2);
+
     /// <summary>Issue 495 (D418): gender and orientation on one line, only what the API returned for this mode.</summary>
     public static string CardIdentity(ProfileCard card) => string.Join(" · ", new[] { card.Gender, card.Orientation }.Where(v => !string.IsNullOrWhiteSpace(v)));
 

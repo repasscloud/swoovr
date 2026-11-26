@@ -23,7 +23,7 @@ static class SafetyHandoffChecks
         private readonly HttpListener listener = new();
         private readonly CancellationTokenSource stop = new();
         public readonly List<string> Posts = [];
-        public bool LoseNextAnswer, GroupMissing;
+        public bool LoseNextAnswer, GroupMissing, SearchFails;
         public string? Applied;
         public long TicketId = 4100;
         public Uri Root { get; }
@@ -45,6 +45,7 @@ static class SafetyHandoffChecks
                 var path = context.Request.Url!.PathAndQuery; var status = 200; string body;
                 if (path.StartsWith("/api/v1/users/me")) body = """{"id":77,"login":"swoovr-safety-reports","active":true,"roles":["Swoovr safety reports"],"group_ids":{"5":["create","read"]}}""";
                 else if (path == "/api/v1/groups") body = GroupMissing ? """[{"id":6,"name":"General Support"}]""" : """[{"id":5,"name":"Trust & Safety"},{"id":6,"name":"General Support"}]""";
+                else if (path.StartsWith("/api/v1/tickets/search") && SearchFails) { status = 503; body = "{}"; }
                 else if (path.StartsWith("/api/v1/tickets/search")) body = Applied is { } op && Uri.UnescapeDataString(path).Contains(op) ? "[" + Ticket(op) + "]" : "[]";
                 else if (path == "/api/v1/tickets" && context.Request.HttpMethod == "POST")
                 {
@@ -106,6 +107,12 @@ static class SafetyHandoffChecks
         await Job(true).RunAsync(now, default);
         row = await Fresh(first.Id);
         check("a lost answer leaves the item to reconcile", row is { State: SafetyHandoffState.Sending, Attempts: 1, TicketId: null } && zammad.Posts.Count == 1);
+        // PR 528 review: a failed search while reconciling keeps it Sending, so the next pass searches again instead of creating.
+        zammad.SearchFails = true; await Due(first.Id);
+        await Job(true).RunAsync(now, default);
+        row = await Fresh(first.Id);
+        check("a failed reconciliation read keeps the item Sending", row is { State: SafetyHandoffState.Sending, Attempts: 2, TicketId: null } && zammad.Posts.Count == 1);
+        zammad.SearchFails = false;
         await Due(first.Id);
         await Job(true).RunAsync(now, default);
         row = await Fresh(first.Id);
