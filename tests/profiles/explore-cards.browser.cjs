@@ -122,6 +122,21 @@ const output = process.env.SWOOVR_SCREENSHOTS;
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); pass();
       if (output) await page.screenshot({ path: `${output}/explore-identity-${mode}-${theme}-${width}.png`, fullPage: true });
     }
+    // PR 526 review: an open page hides its dots two minutes after the list loaded.
+    {
+      const timed = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+      await timed.clock.install();
+      await timed.goto(web + '/account/sign-in?intro=done');
+      await timed.fill('#username', members.viv.email); await timed.fill('#password', members.viv.password);
+      await Promise.all([timed.waitForURL(web + '/explore'), timed.click('#kc-login')]);
+      await timed.goto(web + '/explore?mode=friends');
+      await timed.waitForSelector('[data-tile-online]', { timeout: 20000 }); pass();
+      await timed.clock.fastForward('01:50');
+      assert.equal(await timed.locator('[data-tile-online]').count(), 1, 'still shown before two minutes'); pass();
+      await timed.clock.fastForward('00:20');
+      await timed.waitForSelector('[data-tile-online]', { state: 'detached', timeout: 10000 }); pass();
+      await timed.context().close();
+    }
     // The member's own switch, and the promise on Notifications that changes with it.
     await page.emulateMedia({ colorScheme: 'light' }); await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(web + '/me/profile'); await page.waitForSelector('[data-online-status=on]');
