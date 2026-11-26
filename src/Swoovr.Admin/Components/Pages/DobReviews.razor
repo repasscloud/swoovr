@@ -83,7 +83,7 @@ else
     var next = index >= 0 && index < Filtered.Count - 1 ? Filtered[index + 1] : null;
     <dialog open class="media-dialog dob-dialog" data-review-dialog aria-labelledby="dob-heading">
         <header class="media-dialog-head">
-            <div><h2 id="dob-heading">@Name(selected)</h2><p class="ui-sub">@(index + 1) of @Filtered.Count · @WhyLabel(selected.Reason)</p></div>
+            <div><h2 id="dob-heading">@Name(selected)</h2><p class="ui-sub">@(index + 1) of @Filtered.Count · @WhyLabel(Reason(selected))</p></div>
             <nav class="media-dialog-nav" aria-label="Review navigation">
                 @if (previous is not null) { <a class="ui-icon-button" href="@Url(previous.Id)" data-review-prev aria-label="Previous">@Chevron("M15 6l-6 6 6 6")</a> } else { <span class="ui-icon-button" aria-disabled="true">@Chevron("M15 6l-6 6 6 6")</span> }
                 @if (next is not null) { <a class="ui-icon-button" href="@Url(next.Id)" data-review-next aria-label="Next">@Chevron("M9 6l6 6-6 6")</a> } else { <span class="ui-icon-button" aria-disabled="true">@Chevron("M9 6l6 6-6 6")</span> }
@@ -110,14 +110,14 @@ else
                 </details>
             }
         </section>
-        <DiditDecision AccountId="selected.AccountId" ReviewId="selected.Id" />
+        <DiditDecision AccountId="selected.AccountId" ReviewId="selected.Id" ReasonRead="r => liveReason = r" />
         @if (selected.IdImage) { <IdDocument AccountId="selected.AccountId" ReviewId="selected.Id" /> }
         <section class="didit-decision" aria-label="Unlock the date of birth"><DobCorrectionTools AccountId="selected.AccountId" InReview="true" /></section>
         <form method="post" @formname="@($"resolve-{selected.Id}")" @onsubmit="() => ResolveAsync(selected.Id)" class="media-side dob-form" data-enhance="true" data-dob-form>
             <AntiforgeryToken />
             <input type="hidden" name="changedAt" value="@(selected.ChangedAt?.ToString("O"))" />
             <dl class="media-meta">
-                <dt>Why</dt><dd>@(selected.Reason switch { "no-document-date" => "Didit returned no date from the document", "document-not-approved" => "Didit approved the session but not its document check, so its date isn't used", "admin-correction-mismatch" => "Member changed their date after staff unlocked it; it differs from the verified identity", _ => "Member corrected their date; it still differs from the ID" })</dd>
+                <dt>Why</dt><dd data-dob-why>@WhyDetail(Reason(selected))</dd>
                 <dt>Opened</dt><dd>@selected.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC · @Ago(selected.CreatedAt) ago</dd>
                 <dt>ID Verified</dt><dd><span class="ui-pill" data-tone="approve">Kept</span></dd>
                 <dt>Member</dt><dd><a href="/accounts/@selected.AccountId">View account</a></dd>
@@ -154,11 +154,24 @@ else
     private List<DobReviewView> waiting = [], resolved = [];
     private string? message, resultCode, createTicketBlocked;
     private bool Resolved => View == "resolved";
-    private static readonly (string, string)[] Whys = [("still-different", "Still different after correction"), ("no-document-date", "No date from Didit"), ("document-not-approved", "Document check not approved in Didit"), ("admin-correction-mismatch", "Differs after staff unlocked it")];
+    private static readonly (string, string)[] Whys = [("still-different", "Still different after correction"), ("no-document-date", "No date from Didit"), ("document-date-differs", "Different from the ID"), ("document-date-matches", "Same as the ID"), ("document-not-approved", "Document check not approved in Didit"), ("admin-correction-mismatch", "Differs after staff unlocked it")];
     private static string WhyLabel(string reason) => Whys.FirstOrDefault(w => w.Item1 == reason).Item2 ?? "Still different after correction";
+    // Issue 506 (D416): the reason after a live read in this request; the URL's filter still holds the review that was opened.
+    private string? liveReason;
+    private string Reason(DobReviewView r) => liveReason ?? r.Reason;
+    private static string WhyDetail(string reason) => reason switch
+    {
+        "no-document-date" => "Didit returned no date from the document",
+        "document-date-differs" => "The member's date differs from the date on their ID",
+        "document-date-matches" => "The member's date is the date on their ID",
+        "document-not-approved" => "Didit approved the session but not its document check, so its date isn't used",
+        "admin-correction-mismatch" => "Member changed their date after staff unlocked it; it differs from the verified identity",
+        _ => "Member corrected their date; it still differs from the ID",
+    };
     private static readonly Regex DatePattern = new(@"\b\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}\b|\b(19|20)\d{2}-\d{1,2}-\d{1,2}\b", RegexOptions.Compiled);
 
-    private List<DobReviewView> Filtered => waiting.Where(r => (string.IsNullOrEmpty(Why) || r.Reason == Why) && (Escalated is not ("yes" or "no") || r.Escalation is not null == (Escalated == "yes")) && Matches(r)).ToList();
+    // Issue 506: the opened review stays whatever the filter says: reading Didit can change its reason while its forms are open.
+    private List<DobReviewView> Filtered => waiting.Where(r => r.Id == Focus || (string.IsNullOrEmpty(Why) || r.Reason == Why) && (Escalated is not ("yes" or "no") || r.Escalation is not null == (Escalated == "yes")) && Matches(r)).ToList();
     private List<DobReviewView> ResolvedFiltered => resolved.Where(r => string.IsNullOrEmpty(Outcome) || r.Outcome == Outcome).OrderByDescending(r => r.ResolvedAt).ToList();
     private DobReviewView? Selected => Resolved ? null : Filtered.FirstOrDefault(r => r.Id == Focus);
     private bool Matches(DobReviewView r)

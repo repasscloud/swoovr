@@ -18,7 +18,8 @@ public sealed class DobReview
     public Guid Id { get; set; }
     public Guid AccountId { get; set; }
     public Guid AttemptId { get; set; }
-    /// <summary>"still-different", "no-document-date", "document-not-approved" (issue 488) or "admin-correction-mismatch" (D299).</summary>
+    /// <summary>"still-different", "no-document-date", "document-not-approved" (issue 488), "admin-correction-mismatch" (D299),
+    /// or after a live read "document-date-differs" / "document-date-matches" (issue 506).</summary>
     public string Reason { get; set; } = "";
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ResolvedAt { get; set; }
@@ -62,6 +63,15 @@ public static class DobCorrectionPolicy
 
     /// <summary>Issue 488 (D413): why a review opens when an approved session gave no date of birth.</summary>
     public static string ReviewReason(ProviderSession session) => session.DocumentNotApproved ? "document-not-approved" : "no-document-date";
+
+    /// <summary>
+    /// Issue 506 (D416): a review opened as "no date from Didit" says what an admin's live read shows instead, and follows later
+    /// reads. Only an Approved document's date counts; every other reason, and a read without both dates, stays as it was.
+    /// </summary>
+    public static string AfterLiveRead(string reason, DateOnly? profile, IEnumerable<ProviderDocument> documents) =>
+        reason is not ("no-document-date" or "document-date-differs" or "document-date-matches") || profile is null
+            || documents.FirstOrDefault(d => string.Equals(d.Status, "Approved", StringComparison.OrdinalIgnoreCase) && d.DateOfBirth is not null)?.DateOfBirth is not { } read ? reason
+        : read == profile ? "document-date-matches" : "document-date-differs";
 
     /// <summary>Why a review opens after the member's one correction.</summary>
     public static string CorrectionReason(ProviderSession session) => session.DocumentNotApproved ? "document-not-approved" : "still-different";

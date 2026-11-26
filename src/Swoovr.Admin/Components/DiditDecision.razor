@@ -10,12 +10,12 @@
             {
                 <dt>Document check</dt><dd><span class="ui-pill" data-tone="@Tone(doc.Status)" data-didit-document="@doc.Status">@(doc.Status.Length == 0 ? "Unknown" : doc.Status)</span></dd>
                 <dt>Document</dt><dd>@(doc.DocumentType ?? "—")@(doc.IssuingCountry is { } country ? $" · {country}" : "")</dd>
-                <dt>Date of birth</dt><dd data-didit-dob>@(doc.DateOfBirth?.ToString("d MMMM yyyy") ?? "Not reported") @if (doc.SameDate is { } same) { <span class="ui-sub">@(same ? "Same as the member's saved date" : "Different from the member's saved date")</span> }</dd>
-                <dt>Registered name</dt><dd>@(doc.NameMatches switch { true => "Matches the ID", false => "Doesn't match the ID", _ => "Can't be compared" })</dd>
+                @* Issue 506: what's on the ID, then whether it equals what the member saved, on one line. *@
+                <dt>Date of birth</dt><dd class="didit-row" data-didit-dob><span>@(doc.DateOfBirth?.ToString("d MMMM yyyy") ?? "Not reported")</span>@Match(doc, doc.SameDate)</dd>
+                <dt>Registered name</dt><dd class="didit-row" data-didit-name><span>@(doc.Name ?? "Not reported")</span>@Match(doc, doc.NameMatches)</dd>
             }
         </dl>
         @if (d.Documents.Count == 0) { <p class="ui-help">Didit has no document check for this session.</p> }
-        <p class="ui-help">Read from Didit just now. Swoovr doesn't store it.</p>
     }
     else
     {
@@ -37,6 +37,8 @@
 @code {
     [Parameter, EditorRequired] public Guid AccountId { get; set; }
     [Parameter] public Guid? ReviewId { get; set; }
+    /// <summary>Issue 506 (D416): why the review is open after this read.</summary>
+    [Parameter] public EventCallback<string> ReasonRead { get; set; }
     [CascadingParameter] private HttpContext? Context { get; set; }
     private const string Capability = "didit-decision-open";
     private static readonly string[] Purposes = ["Date of birth review", "Age or identity review", "Member support request", "Investigate a report"];
@@ -44,6 +46,13 @@
     private string? message, resultCode;
     private string FormName => $"didit-{ReviewId ?? AccountId}";
     private static string Tone(string? status) => string.Equals(status, "approved", StringComparison.OrdinalIgnoreCase) ? "approve" : "quiet";
+    /// <summary>Owner wording (issue 506): "Mismatch" in colour; "Approved" as above when it matches an Approved document.</summary>
+    private static RenderFragment Match(StaffDiditDocument doc, bool? same) => same switch
+    {
+        true => @<span class="ui-pill" data-tone="approve" data-didit-match="yes">@(Tone(doc.Status) == "approve" ? "Approved" : "Matches")</span>,
+        false => @<span class="ui-pill" data-tone="warn" data-didit-match="no">Mismatch</span>,
+        _ => @<span class="ui-pill" data-tone="quiet" data-didit-match="unknown">Can't be compared</span>,
+    };
     private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
 
     private async Task OpenAsync()
@@ -63,6 +72,7 @@
             var result = await Admin.DiditDecisionAsync(AccountId, purpose, ReviewId);
             decision = result.Value;
             if (!result.Ok) Refuse(result.Status, result.Code);
+            if (decision?.ReviewReason is { } reason) await ReasonRead.InvokeAsync(reason);
         }
         catch (Exception exception) when ((exception is HttpRequestException or TaskCanceledException) && Context?.RequestAborted.IsCancellationRequested != true)
         {

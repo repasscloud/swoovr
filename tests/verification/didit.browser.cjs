@@ -417,13 +417,23 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       assert.deepEqual([r.status, r.body.result, r.body.status], [200, 'available', 'Approved']); pass();
       assert.deepEqual([r.body.documents.length, r.body.documents[0].dateOfBirth, r.body.documents[0].sameDate], [1, '1971-01-01', false]); pass();
       assert.equal((await didit(adm, 'none', why)).body.result, 'gone'); pass(); // the stand-in has no such session
+      // Issue 506 (D416): the name on the ID is read live, and a "no date" review says what Didit answers now. Nothing read is kept.
+      assert.equal(r.body.reviewReason, 'still-different', 'other reasons stay'); pass();
+      await sql(`UPDATE dob_reviews SET reason = 'no-document-date' WHERE id = '${bareReview}'`);
+      await decided(await sql(`SELECT session_id FROM id_verification_attempts WHERE account_id = '${ids.bare}'`), ids.bare, [{ status: 'Approved', document_type: 'Passport', date_of_birth: '1971-01-01', first_name: 'Fictional Middle Second', last_name: 'Person' }]);
+      r = await didit(adm, 'bare', why);
+      assert.deepEqual([r.body.documents[0].name, r.body.documents[0].nameMatches, r.body.reviewReason], ['Fictional Middle Second Person', false, 'document-date-differs']); pass();
+      assert.equal(await sql(`SELECT reason FROM dob_reviews WHERE id = '${bareReview}'`), 'document-date-differs'); pass();
+      assert.equal(await sql(`SELECT string_agg(detail, ',') FROM audit_entries WHERE action = 'dob.review-reason-updated' AND target_id = '${ids.bare}'`), 'document-date-differs'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE detail LIKE '%Middle Second%' OR detail LIKE '%1971%'`), '0'); pass();
+      await sql(`UPDATE dob_reviews SET reason = 'still-different' WHERE id = '${bareReview}'`);
       assert.equal((await didit(adm, 'bare', { ...why, reviewId: crypto.randomUUID() })).status, 404); pass();
       const bareSession = await sql(`SELECT session_id FROM id_verification_attempts WHERE account_id = '${ids.bare}'`);
       await decided(bareSession, ids.legacy, [{ status: 'Approved', date_of_birth: '1971-01-01' }]);
       r = await didit(adm, 'bare', why);
       assert.deepEqual([r.body.result, r.body.documents], ['unavailable', []], 'another account\'s session is never shown'); pass();
       await decided(bareSession, ids.bare, [{ status: 'Approved', age: 55, document_type: 'Passport', issuing_state: 'AUS', date_of_birth: '1971-01-01' }]);
-      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'didit-decision.opened' AND target_id = '${ids.bare}' AND detail IS NULL`), '2'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'didit-decision.opened' AND target_id = '${ids.bare}' AND detail IS NULL`), '3'); pass();
       assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action LIKE 'didit-decision%' AND detail IS NOT NULL`), '0'); pass();
       const adminId = await sql(`SELECT id FROM accounts WHERE subject = '${claims(adm).sub}'`);
       await call(adm, '/api/admin/access/exclusions', { method: 'POST', body: { subjectAccountId: ids.legacy, reason: 'Fictional conflict' } });
@@ -615,7 +625,13 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
         assert.equal(await page.locator('[data-dob-reviews-waiting]').count(), role === 'admin' ? 1 : 0, role); pass();
         if (output) await page.screenshot({ path: `${output}/admin-overview-${role}-1280.png` });
         if (role === 'admin') {
-          for (const [name, url, size] of [['dob-dialog-1280', `/dob-reviews?review=${bareReview}`, { width: 1280, height: 900 }], ['dob-dialog-390', `/dob-reviews?review=${bareReview}`, { width: 390, height: 844 }], ['account-verification-1280', `/accounts/${ids.bare}/verification`, { width: 1280, height: 900 }]]) {
+          for (let [name, url, size] of [['dob-dialog-1280', `/dob-reviews?review=${bareReview}`, { width: 1280, height: 900 }], ['dob-dialog-390', `/dob-reviews?review=${bareReview}`, { width: 390, height: 844 }], ['account-verification-1280', `/accounts/${ids.bare}/verification`, { width: 1280, height: 900 }]]) {
+            // Issue 506: a "no date" review, opened through its own filter, with a name on the ID that isn't the registered one.
+            await sql(`UPDATE member_profiles SET date_of_birth = '1971-01-02' WHERE account_id = '${ids.bare}'`);
+            await sql(`UPDATE dob_reviews SET reason = 'no-document-date' WHERE id = '${bareReview}'`);
+            await sql(`UPDATE accounts SET registered_first_name = 'Fictional', registered_last_name = 'Person', registered_names_confirmed_at = now() WHERE id = '${ids.bare}'`);
+            await decided(bareSession, ids.bare, [{ ...idChecks('front.png', 'back.png')[0], document_type: 'Passport', issuing_state: 'AUS', first_name: 'Fictional Middle Second', last_name: 'Person' }]);
+            if (url.includes('review=')) url += '&why=no-document-date';
             await page.setViewportSize(size);
             await page.goto(admin + url);
             await page.click('[data-didit-decision=closed] summary');
@@ -625,8 +641,24 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             await page.click('[data-didit-show]');
             await page.waitForSelector('[data-didit-decision=available]', { timeout: 20000 }); pass();
             assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
-            if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
+            assert.match(await page.textContent('[data-didit-name]'), /Fictional Middle Second Person/); pass();
+            assert.deepEqual(await page.locator('[data-didit-match]').allTextContents(), ['Mismatch', 'Mismatch']); pass();
+            for (const row of ['dob', 'name']) {
+              const [label, value, pill] = await page.evaluate(x => { const d = document.querySelector(`[data-didit-${x}]`), mid = e => { const b = e.getBoundingClientRect(); return b.top + b.height / 2; }; return [d.previousElementSibling, d.children[0], d.children[1]].map(mid); }, row);
+              if (size.width === 1280) assert.ok(Math.abs(value - pill) < 3 && Math.abs(label - value) < 3, row + ' on one line'); pass();
+            }
+            assert.ok(!/Read from Didit/.test(await page.textContent('[data-didit-decision]'))); pass();
+            assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll'); pass();
+            if (url.includes('review=')) {
+              assert.equal((await page.textContent('[data-dob-why]')).trim(), "The member's date differs from the date on their ID"); pass();
+              if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
+              // The filter no longer holds the changed reason, but the open review's own forms still answer.
+              await page.check('[data-resolve=notVerified]', { force: true }); await page.fill('[data-dob-form] textarea[name=reason]', 'Fictional 1 1 1971 1/1/1971'); await page.click('[data-dob-save]');
+              await page.waitForSelector('[data-result=reason-date]'); pass();
+            }
+            else if (output) await page.screenshot({ path: `${output}/${name}-open.png` });
           }
+          await sql(`UPDATE member_profiles SET date_of_birth = '1971-01-01' WHERE account_id = '${ids.bare}'`);
           await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
           assert.match(await page.textContent('[data-dob-form]'), /Approve date of birth and ID/); pass();
           assert.ok(Date.parse(await page.inputValue('[data-dob-form] [name=changedAt]')) > 0); pass();

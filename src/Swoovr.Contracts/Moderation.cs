@@ -118,9 +118,10 @@ public sealed record EscalationState(EscalationView? Open);
 /// <summary>Issue 456 (D403): Admin with live "didit-decision-open" access and a recorded purpose. Only for an open date of birth review (D413): ReviewId, or otherwise the account's.</summary>
 public sealed record DiditDecisionRequest(string? Purpose, Guid? ReviewId = null);
 /// <summary>Result: available, gone (Didit no longer has it) or unavailable. Read live and never stored.</summary>
-public sealed record StaffDiditDecision(string Result, string? Status, IReadOnlyList<StaffDiditDocument> Documents);
-/// <summary>NameMatches and SameDate compare with the member's registered name and saved date; null when either side is missing.</summary>
-public sealed record StaffDiditDocument(string Status, string? DocumentType, string? IssuingCountry, DateOnly? DateOfBirth, bool? NameMatches, bool? SameDate);
+/// <param name="ReviewReason">Issue 506 (D416): why the review is open after this read; null when nothing was read.</param>
+public sealed record StaffDiditDecision(string Result, string? Status, IReadOnlyList<StaffDiditDocument> Documents, string? ReviewReason = null);
+/// <summary>Name is the name on the ID (issue 506), shown live and never stored. NameMatches and SameDate compare with the member's registered name and saved date; null when either side is missing.</summary>
+public sealed record StaffDiditDocument(string Status, string? DocumentType, string? IssuingCountry, DateOnly? DateOfBirth, bool? NameMatches, bool? SameDate, string? Name = null);
 /// <summary>Issue 488 (D413): Admin with live "id-image-open" access, a recorded purpose and an open date of birth review.</summary>
 public sealed record IdImageRequest(string? Purpose, Guid ReviewId);
 /// <summary>Result: available, gone, unavailable, none (no document image) or refused. Read live and never stored.</summary>
