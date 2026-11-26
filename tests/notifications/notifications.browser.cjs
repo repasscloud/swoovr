@@ -406,6 +406,34 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     assert.equal(await bff('api/me/notifications'), 200); pass();
     assert.equal(await bff('api/me/devices'), 404); pass(); // devices are the app's, not the web's
     assert.equal(await page.evaluate(async () => (await fetch('/bff/api/me/notifications')).status), 400); pass(); // no BFF header
+    // PR 556 review: answering a request while a poll still holds the old count drops the Connections badge at once, and
+    // that older poll can't bring it back when it answers later.
+    // A fresh request for bob, so there is one to answer whatever happened above.
+    const fresh = await request('cat', 'bob', 'dating');
+    assert.ok(fresh.status < 300, 'a request for bob to decline ' + fresh.status); pass();
+    const waitingBefore = (await centre('bob')).pendingRequests;
+    assert.ok(waitingBefore >= 1, `bob has ${waitingBefore} waiting`); pass();
+    await page.goto(web + '/connections');
+    await page.waitForSelector(`[data-unread-badge="connections"][data-pending-requests="${waitingBefore}"]`, { state: 'attached', timeout: 20000 }); pass();
+    const centrePoll = /\/api\/me\/notifications$/;
+    let releaseHeld, heldCaptured, holdingCentre = false;
+    const heldRelease = new Promise(done => { releaseHeld = done; }), heldPoll = new Promise(done => { heldCaptured = done; });
+    await page.route(centrePoll, async route => {
+      if (holdingCentre) return route.continue();
+      holdingCentre = true;
+      const response = await route.fetch();
+      heldCaptured();
+      await heldRelease;
+      await route.fulfill({ response });
+    });
+    await heldPoll; // the next 30-second poll, with the old count, still in flight
+    await page.locator(`[data-request="${fresh.body.id}"] button:has-text("Decline")`).click();
+    const after = String(waitingBefore - 1), shown = () => page.locator('[data-unread-badge="connections"]').getAttribute('data-pending-requests').catch(() => '0');
+    await page.waitForFunction(n => (document.querySelector('[data-unread-badge="connections"]')?.dataset.pendingRequests ?? '0') === n, after, { timeout: 10000 }); pass();
+    const olderAnswer = page.waitForResponse(r => centrePoll.test(r.url()));
+    releaseHeld(); await olderAnswer; await sleep(1000);
+    assert.equal(await shown() ?? '0', after, 'the older poll does not restore the old count'); pass();
+    await page.unroute(centrePoll);
     await context.close();
 
     console.log(`PASS: notifications (${passed} checks).`);

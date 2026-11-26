@@ -292,7 +292,7 @@
         (connectStatus, connectMessage) = result.Ok ? (answer, answer == "accept" ? "Connected." : answer == "decline" ? "Declined." : "Request withdrawn.")
             : ("failed", "That request isn't available any more.");
         await ReloadAsync();
-        await Unread.RefreshAsync(); // issue 540
+        await Unread.ChangedByMemberAsync(); // issue 540
     }
 
     private async Task DisconnectAsync(Guid connectionId)

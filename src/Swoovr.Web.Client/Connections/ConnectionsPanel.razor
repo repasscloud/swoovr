@@ -123,7 +123,7 @@
             ? (answer, answer switch { "accept" => "Connected.", "decline" => "Declined. They won't be told why.", _ => "Request withdrawn." })
             : ("failed", "That request isn't available any more.");
         await LoadAsync();
-        await Unread.RefreshAsync(); // issue 540: the Connections badge follows at once, not at the next poll
+        await Unread.ChangedByMemberAsync(); // issue 540: the Connections badge follows at once, even during a poll
         busy = false;
     }
 

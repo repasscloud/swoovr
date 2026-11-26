@@ -48,6 +48,17 @@ public sealed class UnreadNotifications(MemberClient members, NavigationManager 
         return true;
     }
 
+    /// <summary>
+    /// After the member changes something the counts depend on (issue 540: answering a request). Unlike RefreshAsync it
+    /// never skips while a poll is in flight: it asks again, and LoadAsync's ordering drops the older poll's answer if it
+    /// arrives later (PR 556 review). A failed read keeps the last counts.
+    /// </summary>
+    public async Task ChangedByMemberAsync(CancellationToken cancellationToken = default)
+    {
+        try { await LoadAsync(cancellationToken); }
+        catch (Exception error) when (error is HttpRequestException or OperationCanceledException or TaskCanceledException) { }
+    }
+
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
         if (!await refreshing.WaitAsync(0, cancellationToken)) return;
