@@ -2117,6 +2117,8 @@ Owner-authorised tracking/publication only. All 15 substantive reports processed
 
 ### Q95 — Admin account search fails to find existing users by email address
 
+- Status 26 November 2026: CLOSED. #137 is closed and nothing is left open here; the history below is kept.
+
 Owner answer recorded 2 November 2026 — **CONFIRMED D289** ([source](https://github.com/repasscloud/wanderconnect/issues/137#issuecomment-6570109341)): Account email lookup works; owner requests resolution in this PR. Original cause remains unproven. Closes #137 on merge; phone search/browse is separate Q110. Implementation/acceptance is tracked in [overnight delivery](OVERNIGHT-DELIVERY-2026-11-02.md); recording is not completion of the code.
 
 Current status checked 2 November 2026: [PR #152](https://github.com/repasscloud/wanderconnect/pull/152) is merged into main; issue remains OPEN. Owner confirmed working lookup on #137 (2 November); original cause remains unproven and closure is deferred to a next PR. New scope: Q110/#155.
@@ -2136,6 +2138,8 @@ Implementation progress (2 November 2026): the false no-match on API refusal is 
 
 ### Q96 — Admin session incorrectly reports expiration and displays inconsistent, unbranded authentication pages
 
+- Status 26 November 2026: CLOSED. #138 is closed and nothing is left open here; the history below is kept.
+
 Current status checked 2 November 2026: [PR #152](https://github.com/repasscloud/wanderconnect/pull/152) is merged into main; issue remains OPEN. Remaining acceptance and scope boundaries below still apply; merge is not production or device acceptance.
 
 Implementation progress (2 November 2026): [PR #152](https://github.com/repasscloud/wanderconnect/pull/152) adds staff token renewal and a branded anonymous signed-out page. Reproduced expired-token/cookie mismatch with an owned temporary provider client; actual Edge verified renewal and reauthentication after owned-provider-session revocation. Ten unit checks cover concurrency, absolute deadline, unchanged authentication evidence, refusal/malformed expiry and late renewal after logout. The review-discovered logout race is fixed. Final full `./scripts/check.sh` passed, including 596 PostgreSQL cases and all three smoke suites. Hosted/multi-instance and original private-session timing remain unverified; no security gates were relaxed. See [handoff](ISSUE-FIX-HANDOFF.md).
@@ -2153,6 +2157,8 @@ Implementation progress (2 November 2026): [PR #152](https://github.com/repasscl
 
 ### Q97 — Improve Admin photo moderation workflow, reveal controls and standardised review decisions
 
+- Status 26 November 2026: CLOSED. #139 is closed and nothing is left open here; the history below is kept.
+
 Current status checked 2 November 2026: [PR #152](https://github.com/repasscloud/wanderconnect/pull/152) is merged into main; issue remains OPEN. Follow-ups: Q114/#159 (workspace), Q115/#160 (appeals/retention), Q113/#158 (Safari refresh). Approval-note retention/case controls remain dependencies; adult-media policy is deferred.
 
 Implementation progress (2 November2026): independently actionable queue changes are included in merged [PR #152](https://github.com/repasscloud/wanderconnect/pull/152): factual automatic review purpose, blurred preview, audited keyboard reveal, stable decision-bound codes, server-side Other-note requirement and retained coded counts. Synthetic-only actual Edge acceptance and full `./scripts/check.sh` passed (607 PostgreSQL cases, three smoke suites, zero build warnings/errors). Review-discovered cross-item note restoration is fixed and regressed. D178 eligibility remains deferred/unchanged; no adult material or owner review is needed. Case-specific legacy controls remain, and private approval notes require a governed retained-history design rather than ungoverned retention; coded approvals refuse unsupported notes. See [handoff](ISSUE-FIX-HANDOFF.md) and [reason boundaries](../architecture/MEDIA-REVIEW-REASONS.md). Issue remains partially fixed/open pending remaining acceptance and these precise dependencies.
@@ -2169,6 +2175,8 @@ Implementation progress (2 November2026): independently actionable queue changes
 <a id="q98"></a>
 
 ### Q98 — Redesign Beta Enrollments screen with searchable table, improved layout and scalable administration
+
+- Status 26 November 2026: CLOSED. #140 is closed and nothing is left open here; the history below is kept.
 
 Implementation checkpoint: [Q98 evidence](Q98-BETA-VISUALS-2026-11-02.md) contains the code, actual validation and remaining acceptance. Source implementation is in this draft PR; provider/physical/hosted gaps are not represented as passed.
 
@@ -2189,6 +2197,8 @@ Implementation progress (2 November2026): [PR #152](https://github.com/repassclo
 
 ### Q99 — Redesign public landing page and remove authenticated navigation and development messaging
 
+- Status 26 November 2026: CLOSED. #141 is closed and nothing is left open here; the history below is kept.
+
 Owner answer recorded 2 November 2026 — **CONFIRMED D290** ([source](https://github.com/repasscloud/wanderconnect/issues/141#issuecomment-6572956911)): 141.1 A; 141.2 Yes; 141.3 A; 141.4 A; 141.5–141.7 Yes. Anonymous pages are only /, /terms, /community-guidelines, /privacy, /safety/advice and country-only /safety. Other page routes redirect to / silently. Sign-in/create buttons only on home, no top-right links; remove Private beta and draft labels; Support goes to https://swoovr.com/support. Standard only for guests; successful sign-in lands on Explore. Same pre-sign-in rule on native. Supersedes D288 runtime draft deferral for these approved operative readers and D20 guest theme choice; authentication callbacks/assets remain necessary protocol resources, not guest pages. Implementation/acceptance is tracked in [overnight delivery](OVERNIGHT-DELIVERY-2026-11-02.md); recording is not completion of the code.
 
 Historical intake status before this delivery: [PR #153](https://github.com/repasscloud/wanderconnect/pull/153) is merged into main; issue remains OPEN. Remaining acceptance and scope boundaries below still apply; merge is not production or device acceptance.
@@ -2208,6 +2218,8 @@ Historical implementation before this delivery: Guest navigation/landing fixed; 
 
 ### Q100 — Correct unauthenticated /account routing and prevent account content being displayed before sign-in
 
+- Status 26 November 2026: CLOSED. #142 is closed and nothing is left open here; the history below is kept.
+
 Current status checked 2 November 2026: [PR #153](https://github.com/repasscloud/wanderconnect/pull/153) is merged into main; issue remains OPEN. Remaining acceptance and scope boundaries below still apply; merge is not production or device acceptance.
 
 Implementation progress (2 November 2026): Configured guests route directly into sign-in; retry/unconfigured fallbacks retained; BFF still401. See [implementation and actual-browser evidence](ISSUE-AUTH-FIXES.md). Full `./scripts/check.sh` passed (596 PostgreSQL cases, three smoke suites, zero build warnings/errors); Merged in [PR #153](https://github.com/repasscloud/wanderconnect/pull/153); the issue stays open pending outstanding acceptance.
@@ -2224,6 +2236,8 @@ Implementation progress (2 November 2026): Configured guests route directly into
 <a id="q101"></a>
 
 ### Q101 — Restore approved Swoovr sign-in design and correct desktop and mobile authentication layouts
+
+- Status 26 November 2026: CLOSED. #143 is closed and nothing is left open here; the history below is kept.
 
 Current status checked 2 November 2026: [PR #153](https://github.com/repasscloud/wanderconnect/pull/153) is merged into main; issue remains OPEN. Remaining acceptance and scope boundaries below still apply; merge is not production or device acceptance.
 
@@ -2242,6 +2256,8 @@ Implementation progress (2 November 2026): Desktop auth frame implemented; canon
 
 ### Q102 — Redesign account registration screen to meet Swoovr's production design standards
 
+- Status 26 November 2026: CLOSED. #144 is closed and nothing is left open here; the history below is kept.
+
 Current status checked 2 November 2026: [PR #153](https://github.com/repasscloud/wanderconnect/pull/153) is merged into main; issue remains OPEN. Remaining acceptance and scope boundaries below still apply; merge is not production or device acceptance.
 
 Implementation progress (2 November 2026): Registration shares the responsive frame; email-first/adult/draft requirements preserved. See [implementation and actual-browser evidence](ISSUE-AUTH-FIXES.md). Full `./scripts/check.sh` passed (596 PostgreSQL cases, three smoke suites, zero build warnings/errors); Merged in [PR #153](https://github.com/repasscloud/wanderconnect/pull/153); the issue stays open pending outstanding acceptance.
@@ -2258,6 +2274,8 @@ Implementation progress (2 November 2026): Registration shares the responsive fr
 <a id="q103"></a>
 
 ### Q103 — Registration errors are difficult to identify when an email address is already registered
+
+- Status 26 November 2026: CLOSED. #145 is closed and nothing is left open here; the history below is kept.
 
 Current status checked 2 November 2026: [PR #153](https://github.com/repasscloud/wanderconnect/pull/153) is merged into main; issue remains OPEN. Remaining acceptance and scope boundaries below still apply; merge is not production or device acceptance.
 
@@ -2276,6 +2294,8 @@ Implementation progress (2 November 2026): Duplicate-email error focus and acces
 
 ### Q104 — Redesign Forgot Password screen to match Swoovr authentication standards
 
+- Status 26 November 2026: CLOSED. #146 is closed and nothing is left open here; the history below is kept.
+
 Current status checked 2 November 2026: [PR #153](https://github.com/repasscloud/wanderconnect/pull/153) is merged into main; issue remains OPEN. Remaining acceptance and scope boundaries below still apply; merge is not production or device acceptance.
 
 Implementation progress (2 November 2026): Reset frame and email input/autocomplete corrected without changing provider token handling. See [implementation and actual-browser evidence](ISSUE-AUTH-FIXES.md). Full `./scripts/check.sh` passed (596 PostgreSQL cases, three smoke suites, zero build warnings/errors); Merged in [PR #153](https://github.com/repasscloud/wanderconnect/pull/153); the issue stays open pending outstanding acceptance.
@@ -2293,6 +2313,8 @@ Implementation progress (2 November 2026): Reset frame and email input/autocompl
 
 ### Q105 — Replace password reset notification with dedicated confirmation screen and prevent account enumeration
 
+- Status 26 November 2026: CLOSED. #147 is closed and nothing is left open here; the history below is kept.
+
 Current status checked 2 November 2026: [PR #153](https://github.com/repasscloud/wanderconnect/pull/153) is merged into main; issue remains OPEN. Remaining acceptance and scope boundaries below still apply; merge is not production or device acceptance.
 
 Implementation progress (2 November 2026): Dedicated neutral acknowledgement verified for enabled/absent/disabled fixtures; timing resistance remains unverified. See [implementation and actual-browser evidence](ISSUE-AUTH-FIXES.md). Full `./scripts/check.sh` passed (596 PostgreSQL cases, three smoke suites, zero build warnings/errors); Merged in [PR #153](https://github.com/repasscloud/wanderconnect/pull/153); the issue stays open pending outstanding acceptance.
@@ -2309,6 +2331,8 @@ Implementation progress (2 November 2026): Dedicated neutral acknowledgement ver
 <a id="q106"></a>
 
 ### Q106 — Redesign Swoovr Me / Account page for a desktop-first experience and clearer onboarding flow
+
+- Status 26 November 2026: CLOSED. #148 is closed and nothing is left open here; the history below is kept.
 
 Owner answer recorded 2 November 2026 — **CONFIRMED D292** ([source](https://github.com/repasscloud/wanderconnect/issues/148#issuecomment-6572313253)): 148.1 A; 148.2 Yes; 148.3 A; 148.4 A; 148.5 B; 148.6 Yes; 148.7 A. Mobile verification then DOB, only DOB if phone gate off; tabs remain and offer direct setup recovery. Safety notice once per server-stored wording revision, thereafter footer only. Coupon redemption in Membership & billing; desktop account sidebar with specified sections. 148.8 adds small version/build footer text. Supersedes intake onboarding deferral; retain actual phone-gate configuration and essential account rights. Implementation/acceptance is tracked in [overnight delivery](OVERNIGHT-DELIVERY-2026-11-02.md); recording is not completion of the code.
 
@@ -2328,6 +2352,8 @@ Historical implementation progress before this delivery: [PR #154](https://githu
 
 ### Q107 — Redesign Profile and Modes page for responsive layouts, clearer controls and improved profile management
 
+- Status 26 November 2026: CLOSED. #149 is closed and nothing is left open here; the history below is kept.
+
 Status 23 November 2026: closed by the owner-approved redesign of #422 (Your profile, D390). It covers the layout, controls and save acceptance above. Matching semantics, mode independence, custom names and about consent are unchanged.
 
 Current status checked 2 November 2026: [PR #154](https://github.com/repasscloud/wanderconnect/pull/154) is merged into main; issue remains OPEN. Initial registered-name mapping is now Q117/#162; independent mode names are Q118/#163 and conflict with D175.
@@ -2346,6 +2372,8 @@ Implementation progress (2 November 2026): [PR #154](https://github.com/repasscl
 
 ### Q108 — Redesign Your Photos page with shared photo library, independent mode galleries and membership limits
 
+- Status 26 November 2026: CLOSED. #150 is closed and nothing is left open here; the history below is kept.
+
 Owner answer recorded 2 November 2026 — **CONFIRMED D293** ([source](https://github.com/repasscloud/wanderconnect/issues/150#issuecomment-6572392572)): 150.1 A; 150.2 60 unless ridiculous overhead, otherwise 30; 150.3 Yes; 150.4 A; 150.5 B; 150.6 No. Independent main photo per mode, explicitly selected with no automatic migration; placeholders allowed because members may have no profile photos. Free/Plus/Premium mode totals 8/16/24. Downgrade hides excess by order without deleting. Explicitly supersedes D175 shared-main-photo requirement. DEFAULT choose 60 library objects: same existing storage path, no eager duplication; measure storage rather than claim cost acceptance. Implementation/acceptance is tracked in [overnight delivery](OVERNIGHT-DELIVERY-2026-11-02.md); recording is not completion of the code.
 
 Historical intake status, before the owner answer and this implementation: [PR #154](https://github.com/repasscloud/wanderconnect/pull/154) is merged into main; issue remains OPEN. Q111/#156 and Q114–Q115/#159–#160 must preserve the shared main photo and current quotas; independent mains/photo limits remain deferred.
@@ -2363,6 +2391,8 @@ Historical implementation progress before this delivery: [PR #154](https://githu
 <a id="q109"></a>
 
 ### Q109 — Redesign "Who I'd Like to Meet" with responsive layouts, clearer discovery preferences and improved filtering controls
+
+- Status 26 November 2026: CLOSED. #151 is closed and nothing is left open here; the history below is kept.
 
 Status 23 November 2026: closed by the owner-approved redesign of #418 (Who I'd like to meet, D390). It covers the layout, controls and save acceptance above. Matching semantics, mode independence, custom names and about consent are unchanged.
 
@@ -2386,6 +2416,8 @@ Processing complete, investigation/decisions OPEN. Q110–Q120 follow actual pri
 
 ### Q110 — Extend Admin account lookup with phone search and permission-scoped account browsing
 
+- Status 26 November 2026: CLOSED. #155 is closed and nothing is left open here; the history below is kept.
+
 Owner answer recorded 3 November 2026 — **CONFIRMED D307** ([source](https://github.com/repasscloud/wanderconnect/issues/155#issuecomment-6596651120)): search by mobile (optional +, spaces stripped), lowercased email, or registered first/last name with `%` wildcards; results show first name, last name, age, city, ID verified, email and phone; includes lawful third-party investigations. Permissions/audit/paging are DEFAULT; browse-all was not requested. Recording is not completion of the code.
 
 - Issue: [#155](https://github.com/repasscloud/wanderconnect/issues/155); [intake item 18](ISSUE-INTAKE.md#intake-18).
@@ -2402,6 +2434,8 @@ Owner answer recorded 3 November 2026 — **CONFIRMED D307** ([source](https://g
 
 ### Q111 — Organise Admin account details and add scoped profile inspection
 
+- Status 26 November 2026: CLOSED. #155 is closed and nothing is left open here; the history below is kept.
+
 Owner answer recorded 2 November 2026 — **CONFIRMED D294** ([source](https://github.com/repasscloud/wanderconnect/issues/155#issuecomment-6572427017)): 156.1–156.3 A; 156.4–156.5 Yes (posted on #155). All staff see calculated age/DOB assurance, full DOB only with elevation and recorded purpose. Read-only mode previews for Support/Admin/Root without visits/impersonation. Hidden/unassigned/pending/rejected photos Admin-only via audited reveal. Chats only through report/case. Legal gains no moderation; Root gains no Legal privilege. Answers belong to Q111/#156 despite posting on #155. Q110/#155 permissions remain OPEN. Implementation/acceptance is tracked in [overnight delivery](OVERNIGHT-DELIVERY-2026-11-02.md); recording is not completion of the code.
 
 - Issue: [#156](https://github.com/repasscloud/wanderconnect/issues/156); [intake item 19](ISSUE-INTAKE.md#intake-19).
@@ -2417,6 +2451,8 @@ Owner answer recorded 2 November 2026 — **CONFIRMED D294** ([source](https://g
 <a id="q112"></a>
 
 ### Q112 — Define authoritative beta/public/closed registration controls across Keycloak and applications
+
+- Status 26 November 2026: CLOSED. #157 is closed and nothing is left open here; the history below is kept.
 
 Implementation checkpoint: [Q112 evidence](Q112-REGISTRATION-CONTROLS-2026-11-02.md) contains the code, actual validation and remaining acceptance. Source implementation is in this draft PR; provider/physical/hosted gaps are not represented as passed.
 
@@ -2436,6 +2472,8 @@ Owner answer recorded 2 November 2026 — **CONFIRMED D295** ([source](https://g
 
 ### Q113 — Investigate Safari Admin refresh replaying missing named SSR forms
 
+- Status 26 November 2026: CLOSED. #158 is closed and nothing is left open here; the history below is kept.
+
 Owner answer recorded 2 November 2026 — **CONFIRMED D296** ([source](https://github.com/repasscloud/wanderconnect/issues/158#issuecomment-6572996253)): 158.1 Yes; 158.2 any Admin page in private Safari; 158.3 Cmd+R/reload prompts resend form each time; 158.4 independent of time open, navigation works. Safari 27.2 (22625.2.8.11.9). Owner reproduction evidence supports POST refresh investigation, not a proven session-expiry cause. Implementation/acceptance is tracked in [overnight delivery](OVERNIGHT-DELIVERY-2026-11-02.md); recording is not completion of the code.
 
 - Issue: [#158](https://github.com/repasscloud/wanderconnect/issues/158); [intake item 21](ISSUE-INTAKE.md#intake-21).
@@ -2451,6 +2489,8 @@ Owner answer recorded 2 November 2026 — **CONFIRMED D296** ([source](https://g
 <a id="q114"></a>
 
 ### Q114 — Provide a compact photo-review queue, focused review controls and scoped workload history
+
+- Status 26 November 2026: CLOSED. #159 is closed and nothing is left open here; the history below is kept.
 
 Implementation checkpoint: [Q114 evidence](Q114-PHOTO-REVIEW-2026-11-02.md) contains the code, actual validation and remaining acceptance. Source implementation is in this draft PR; provider/physical/hosted gaps are not represented as passed.
 
@@ -2470,6 +2510,8 @@ Owner answer recorded 2 November 2026 — **CONFIRMED D297** ([source](https://g
 
 ### Q115 — Define photo rejection notices, appeals and retention-safe reconsideration
 
+- Status 26 November 2026: CLOSED. #160 is closed and nothing is left open here; the history below is kept.
+
 Implementation checkpoint: [Q115 evidence](Q115-PHOTO-APPEALS-2026-11-02.md) contains the code, actual validation and remaining acceptance. Source implementation is in this draft PR; provider/physical/hosted gaps are not represented as passed.
 
 Owner answer recorded 2 November 2026 — **CONFIRMED D298** ([source](https://github.com/repasscloud/wanderconnect/issues/160#issuecomment-6572660549)): 160.1 A; 160.2 A; 160.3 Yes; 160.4 A; 160.5 A; 160.6 Yes. In-app photo rejection/outcome notices; one appeal within 30 days, different Admin decides, final. Suspected CSAM/known illegal/specialist media never appealable and no detailed reason. Keep rejected file privately 30 days then delete unless held. Admin may reconsider independently with reason and re-screening. Rejection remains hidden; ordinary approval cannot bypass screening/specialist/preservation. Existing D135 sanction appeals remain distinct. Implementation/acceptance is tracked in [overnight delivery](OVERNIGHT-DELIVERY-2026-11-02.md); recording is not completion of the code.
@@ -2487,6 +2529,8 @@ Owner answer recorded 2 November 2026 — **CONFIRMED D298** ([source](https://g
 <a id="q116"></a>
 
 ### Q116 — Review universal DOB locking and temporary Admin-authorised member correction
+
+- Status 26 November 2026: CLOSED. #161 is closed and nothing is left open here; the history below is kept.
 
 Implementation checkpoint: [Q116 evidence](Q116-DOB-CORRECTION-2026-11-02.md) contains the code, actual validation and remaining acceptance. Source implementation is in this draft PR; provider/physical/hosted gaps are not represented as passed.
 
@@ -2506,6 +2550,8 @@ Owner answer recorded 2 November 2026 — **CONFIRMED D299** ([source](https://g
 
 ### Q117 — Define registered-name collection and preserve separation from public and verified identity
 
+- Status 26 November 2026: CLOSED. #162 is closed and nothing is left open here; the history below is kept.
+
 Implementation checkpoint: [Q117 evidence](Q117-REGISTERED-NAMES-2026-11-02.md) contains the code, actual validation and remaining acceptance. Source implementation is in this draft PR; provider/physical/hosted gaps are not represented as passed.
 
 Owner answer recorded 2 November 2026 — **CONFIRMED D300** ([source](https://github.com/repasscloud/wanderconnect/issues/162#issuecomment-6572808962)): 162.1 A; 162.2 A; 162.3 Yes; 162.4 A; 162.5 Yes; 162.6 A; 162.7 A with owner condition; 162.8 B. Required surname with one-name exception; provider names confirmed/completed on first sign-in. Existing incomplete accounts complete before continuing (owner expects later DB reset, not authorized here). Initialize public name from first name only if unset. Support/Admin/Root see registered names. Members can edit registered names with audit, but ID-verified members lose ID Verified and must submit ID again. Staff see registered-name/ID match flag without decrypted names. Registered and verified identity remain separate; explicit owner badge revocation on name edits supersedes any general assumption that ID badge persists through that edit. D166 DOB mismatch handling remains. Implementation/acceptance is tracked in [overnight delivery](OVERNIGHT-DELIVERY-2026-11-02.md); recording is not completion of the code.
@@ -2523,6 +2569,8 @@ Owner answer recorded 2 November 2026 — **CONFIRMED D300** ([source](https://g
 <a id="q118"></a>
 
 ### Q118 — Decide optional per-mode public display-name overrides and safe fallback
+
+- Status 26 November 2026: CLOSED. #163 is closed and nothing is left open here; the history below is kept.
 
 Implementation checkpoint: [Q118 evidence](Q118-MODE-NAMES-2026-11-02.md) contains the code, actual validation and remaining acceptance. Source implementation is in this draft PR; provider/physical/hosted gaps are not represented as passed.
 
@@ -2915,6 +2963,8 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q181 — First sign-in onboarding decisions
 
+- Status 26 November 2026: CLOSED. #390 is closed and nothing is left open here; the history below is kept.
+
 - Issue: [#390](https://github.com/repasscloud/wanderconnect/issues/390) (sub-issue of #389). Status: OPEN. Earliest blocking phase: the #389 identity and Dating steps (181.1). Other slices proceed on the DEFAULTs. Built on every DEFAULT (A) as **D382** (19 November 2026); an answer changes D382.
 - **181.1** Trans man / Trans woman (new genders) and Dating "show me", which today matches gender ids exactly (D138/D161). **DEFAULT A:** "Man" includes Trans man and "Woman" includes Trans woman. B: separate "show me" options. C: both.
 - **181.2** Blank display name → registered first name (Q117/Q118, D301 keep the registered name separate). **DEFAULT A:** pre-fill it visibly and let the member edit it. B: copy it on Continue and say so.
@@ -2929,7 +2979,7 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q182 — Explicit media in chat: open decisions
 
-- Issue: [#432](https://github.com/repasscloud/swoovr/issues/432) (for #431). Status: OPEN. Earliest blocking phase: the #431 chat-delivery slice (182.1, 182.2). Work proceeds on every DEFAULT (A), recorded as **D389**; an answer changes D389.
+- Issue: [#432](https://github.com/repasscloud/swoovr/issues/432) (for #431). Status: SUPERSEDED IN PART, owner 26 November 2026: 182.1 and 182.2 are replaced by the owner's direction on #546 (**D423**). The open points, including 182.3–182.7, continue as **Q191**.
 - **182.1 A nude sent straight to chat.** **DEFAULT A:** never delivered directly. It is marked explicit, and the sender alone gets a notice, plus **Save to a private album** if ID Verified. From the album it follows the recipient's setting. **B:** delivered directly when both are ID Verified and the recipient has opted in, and it is also filed into the sender's album. **C:** always rejected, with no album offer.
 - **182.2 Who moderates chat photos.** **DEFAULT A:** the automatic check for every photo, a person only for flagged ones (passed photos show at once). **B:** a person reviews every chat photo before delivery, so nothing shows at once.
 - **182.3 What can be sent from an album.** **DEFAULT A:** single photos and the whole album, both gated per photo. **B:** single photos only.
@@ -2972,5 +3022,45 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q189 — Does online status need a Privacy Notice sentence before it's turned on?
 
-- Issue: [#525](https://github.com/repasscloud/swoovr/issues/525) (for #499). Status: OPEN. Blocks turning on `Explore:OnlineStatus`; the build is merged off.
+- Issue: [#525](https://github.com/repasscloud/swoovr/issues/525) (for #499). Status: ANSWERED A, owner 26 November 2026 (**D422**): the owner's wording goes into 0.21, and online status is turned on with that notice, UAT first and production together. Effective date OPEN.
 - The notice in force doesn't mention online status. Swoovr keeps the member's last activity, to about a minute, only while they have the switch on, and shows others a green dot, never a time. **A (recommended):** add one sentence to the 0.21 update (#283) and turn it on with that notice. **B:** the notice's "Other members see only the profile information your settings allow" already covers it; turn it on now, UAT first. **C:** turn it on in private UAT now and take A for production.
+
+## UAT review, 26 November 2026 — [#530](https://github.com/repasscloud/swoovr/issues/530)–[#546](https://github.com/repasscloud/swoovr/issues/546)
+
+### Q190 — Photo Verified: evidence retention, expiry, reviewers and attempts
+
+- Issue: [#547](https://github.com/repasscloud/swoovr/issues/547) (for #530, D424; #417, #372, D371). Status: OPEN. The schema can start on the DEFAULTs; the release waits.
+- **190.1 Evidence retention.** **A (recommended):** delete the evidence photo 30 days after the staff decision, keep the decision record. **B:** keep it while the badge is valid. **C:** delete it at the decision.
+- **190.2 Expiry.** **A (recommended):** 12 months, then verify again. **B:** none; only a changed matched photo or staff revocation removes it.
+- **190.3 Reviewers.** **A (recommended):** Support and Admin. **B:** Admin only (as D412).
+- **190.4 Attempts.** **A (recommended):** 3 in 30 days, each with a fresh code. **B:** one at a time, no limit.
+- **190.5 Privacy Notice.** **A (recommended):** a sentence in 0.21 if the dates line up, otherwise 0.22. **B:** the current notice covers it.
+
+### Q191 — Adult chat photos to opted-in recipients: open points
+
+- Issue: [#548](https://github.com/repasscloud/swoovr/issues/548) (for #546, D423; follows Q182). Status: OPEN. Earliest blocking phase: direct delivery to eligible recipients. The per-view gate and the review destination **Chat** proceed.
+- **191.1 Marking explicit without a reviewer** (D205). **A (recommended):** a photo flagged for nudity is rated Explicit automatically on delivery, opens blurred with Show, and staff can overturn it. **B:** delivered as Standard.
+- **191.2 Sender's album.** **A (recommended):** stays in the chat only. **B:** also filed into the sender's private album.
+- **191.3 Which mode's switch.** **A (recommended):** on for at least one mode the pair is connected in. **B:** on for every connected mode.
+- **191.4 The rest of Q182.** **A (recommended):** keep the DEFAULTs 182.3, 182.4, 182.6 and 182.7. **B:** change named ones.
+
+### Q192 — Legal name differences against the ID
+
+- Issue: [#549](https://github.com/repasscloud/swoovr/issues/549) (for #533; D416, D317, D191). Status: OPEN. Blocks the name-correction build.
+- **192.1 Same name.** **A (recommended):** ignore case, spaces, accents, hyphens and apostrophes; a middle-name-only difference gets a one-time member correction; anything else is a mismatch (correction, then admin review). **B:** a middle-name-only difference is accepted automatically.
+- **192.2 The correction.** **A (recommended):** the member can only adopt the name on the ID, once, audited, refreshing ban and identity indexes. **B:** free text, then admin review.
+
+### Q193 — Meet-up requests from chat: scope
+
+- Issue: [#550](https://github.com/repasscloud/swoovr/issues/550) (for #545; D176, #40, #59). Status: OPEN. Blocks the build.
+- **193.1 Scope.** **A (recommended):** private 1-on-1 meet-ups from chat only (mockup section A); groups, discovery and events stay deferred (#36, #46, #59). **B:** include group meet-ups.
+- **193.2 Venues.** **A (recommended):** free text, no venue-search provider. **B:** a named provider.
+- **193.3 Modes.** **A (recommended):** all four, with each mode's categories. **B:** Dating and Friends only.
+- **193.4 After acceptance.** **A (recommended):** Add to calendar and an optional prompt for meeting safety, never automatic; no reminders at first. **B:** also a reminder notification.
+
+### Q194 — Sharing a location in chat
+
+- Issue: [#551](https://github.com/repasscloud/swoovr/issues/551) (for #544; D351, #90). Status: OPEN. Blocks the build.
+- **194.1 Privacy Notice.** **A (recommended):** a sentence (0.22, or 0.21 if the dates line up) before UAT. **B:** the current notice covers it.
+- **194.2 Map display.** **A (recommended):** no third-party map images; the card opens the member's maps app or web maps. **B:** a provider's preview.
+- **194.3 Retention.** **A (recommended):** kept and removed like any message (D165). **B:** expires after a set time.

@@ -1650,3 +1650,26 @@ Builds the first part of D389's DEFAULT design. Independent of Q182: no chat del
 - An album "contains explicit" while it holds a live (approved, not removed) explicit photo. Worked out each time the owner's photos are read, never stored, so deleting the last one clears it. The owner sees an **Explicit** tag on the album card and page.
 - An explicit photo can't be added to another album (checked on the rating as well as `album_only`). The other places that keep album-only photos out (modes, main photo, onboarding, Explore, Traveller cards, library list) are unchanged; they check `album_only`, which every explicit photo has today.
 - Not built yet: chat delivery, the per-view gate, `REJECT_EXPLICIT_CHAT` and the recipient's display (#431's later sections, Q182 #432).
+
+### D422 — Online status ships with Privacy Notice 0.21 (Q189 A, #525, 26 November 2026)
+
+**CONFIRMED** by the owner on [#525](https://github.com/repasscloud/swoovr/issues/525): option A. The owner's "Online status" wording (and the attached patch) goes into Privacy Notice 0.21, word for word, together with the location wording (#283) and staff viewing an ID (#513, D413). `Explore:OnlineStatus` is turned on in UAT in the same release as that notice, and both are promoted to production together. Not built yet. The effective date of 0.21 is still OPEN (owner sets it).
+
+### D423 — Adult chat photos go directly to eligible recipients who opted in (#546, 26 November 2026)
+
+**CONFIRMED** by the owner on [#546](https://github.com/repasscloud/swoovr/issues/546) (UAT direction). Supersedes D389 rule 1 ("nudes sent straight to chat are rejected") and Q182's DEFAULTs for 182.1 and 182.2 ([#432](https://github.com/repasscloud/swoovr/issues/432)). Not built yet.
+- **Eligible recipient:** ID Verified first, then **Receive explicit media** on for the mode (`ExplicitMediaPolicy`). The sender stays ID Verified (D389). For an eligible recipient a chat photo is delivered after mandatory screening passes, with no routine manual nudity review.
+- **Never bypassed:** "CSAM-only" means removing routine nudity review, not file validation, malware scanning, known-CSAM matching, quarantine or other prohibited-content checks. Screening that can't run fails closed.
+- **Recipient not eligible:** screened as normal; a flagged photo goes to review with Destination **Chat** (its own pill, beside #536/#537). Staff get an explicit classification reason that is separate from delivery. An approved standard false positive is delivered normally.
+- **Explicit never delivered when a gate fails:** the recipient gets no message, notification, unread count or link. The sender sees their own photo blurred with a neutral notice ("Recipient does not allow adult content" or equivalent) and can reveal their own permitted photo. Prohibited media stays blocked and can't be revealed. Failure text never reveals the recipient's verification or settings.
+- Eligibility is checked again at delivery and at every view (D389, 182.4).
+- **OPEN** in Q191 ([#548](https://github.com/repasscloud/swoovr/issues/548)): how an unreviewed photo is rated explicit (D205), the sender's album, which mode's switch counts, and Q182's remaining DEFAULTs.
+
+### D424 — Photo Verified: a four-character code on paper and staff review (#530, 26 November 2026)
+
+**CONFIRMED** by the owner on [#530](https://github.com/repasscloud/swoovr/issues/530), refining [#417](https://github.com/repasscloud/swoovr/issues/417) and keeping D371's requirements ([#372](https://github.com/repasscloud/swoovr/issues/372): optional, invalidation, expiry, revocation, no indefinite biometric retention). Supersedes #417's challenge format and five-second video. Not built yet.
+- **Web:** a server-generated, account-bound, single-use four-character alphanumeric code and the date, written on paper. The member uploads a photo holding it, face, code and date visible. Status is shown; a fresh code is issued for a resubmission.
+- **Staff:** a **Photo Identified** review type in the photo review queue. Staff compare the face with the member's public profile photos and check the code and date. Approval awards **Photo Verified** and records the matched photos and the date; rejection awards nothing and gives the member an outcome.
+- Photo Verified never grants or implies ID Verified, legal identity or age. A change to a matched public profile photo (not a private album photo) removes it. Replays and approvals against changed photos are refused.
+- **Later (Flutter):** a three-second front-camera video instead of the paper photo; the submission model allows video evidence.
+- **OPEN** in Q190 ([#547](https://github.com/repasscloud/swoovr/issues/547)): evidence retention, expiry, reviewer role, attempts and notice wording.
