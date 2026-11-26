@@ -89,6 +89,10 @@ const MODES = ['dating', 'friends', 'activities', 'business'];
     await row('activities').getByRole('button', { name: 'Accept' }).click();
     await page.waitForSelector('[data-connections-status=accept]');
     assert.equal(await page.textContent('[data-section=received] [data-section-count] [aria-hidden]'), '3'); pass();
+    // PR 561 review: a request withdrawn while the member stays here lowers the count with the next poll, without a click.
+    const business = received.find(r => r.mode === 'business').id;
+    assert.equal((await call(tokens.ada, `/api/requests/${business}/withdraw`, { method: 'POST' })).status, 200);
+    await page.waitForSelector('[data-section=received] [data-section-count="2"]', { timeout: 45000 }); pass();
     // Blocked: only the name, opened by its link.
     // The way members get there: Privacy & safety → Blocked people → Manage.
     await page.goto(web + '/me/safety');

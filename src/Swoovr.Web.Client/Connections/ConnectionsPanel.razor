@@ -134,6 +134,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // PR 561 review: the shared poll updates the count on the Connections tab; this section count follows it.
+        Unread.Changed += OnUnreadChanged;
         try
         {
             var catalogue = await Members.ModesAsync();
@@ -223,7 +225,13 @@
         if (Asked(e.Location) is { } asked && asked != section) { section = asked; InvokeAsync(StateHasChanged); }
     }
 
-    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
+    private void OnUnreadChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        Unread.Changed -= OnUnreadChanged;
+    }
 
     private string Label(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;
 
