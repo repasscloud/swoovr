@@ -46,7 +46,9 @@ public static class AccountInspectionEndpoints
         {
             var(current,denied)=await StaffAsync(user,accounts,id,false,token);if(denied is not null)return denied;
             if(!current!.Allows(AccountRole.Admin))return Results.Forbid();
-            if(string.IsNullOrWhiteSpace(request.Purpose)||request.Purpose.Trim().Length>500)return Problem(400,ProblemCodes.PurposeRequired,"Record a purpose (up to 500 characters).");
+            // Issue 535 (D425): a review's own purpose needs no typing; a free-text purpose still works where no code is sent.
+            var purpose=request.Reason is null?request.Purpose?.Trim():IdentityAccessReasons.Purpose(request.Reason,request.Purpose,IdentityAccessReasons.DiditResult);
+            if(string.IsNullOrEmpty(purpose)||purpose.Length>500)return Problem(400,ProblemCodes.PurposeRequired,"Record a purpose (up to 500 characters).");
             var db=accounts.Db!;var now=clock.GetUtcNow();
             if(await StaffAccessEndpoints.GrantAsync(db,current.Account!.Id,StaffAccessPolicy.DiditDecisionOpen,now,token)is null)return StaffAccessEndpoints.NeedsGrant(StaffAccessPolicy.DiditDecisionOpen);
             // Issue 488 (D413): only the check behind an open date of birth review, as the privacy notice wording says.
@@ -54,7 +56,7 @@ public static class AccountInspectionEndpoints
                 where r.AccountId==id&&a.AccountId==id&&r.ResolvedAt==null&&(request.ReviewId==null||r.Id==request.ReviewId) select new{r.Id,r.Reason,a.SessionId}).SingleOrDefaultAsync(token);
             var session=open?.SessionId;
             if(string.IsNullOrEmpty(session))return Problem(404,ProblemCodes.NotAvailable,"There's no open date of birth review for this account.");
-            db.IdentityAccesses.Add(new IdentityAccess{AccountId=id,ActorAccountId=current.Account.Id,Purpose=request.Purpose.Trim(),At=now});
+            db.IdentityAccesses.Add(new IdentityAccess{AccountId=id,ActorAccountId=current.Account.Id,Purpose=purpose,ReasonCode=request.Reason,At=now});
             Audit.Record(db,now,current.Account.Id,"account","didit-decision.opened","account",id.ToString());
             await db.SaveChangesAsync(token);
             var decision=await provider.InspectDecisionAsync(session,token);
@@ -84,13 +86,15 @@ public static class AccountInspectionEndpoints
             var(current,denied)=await StaffAsync(user,accounts,id,false,token);if(denied is not null)return denied;
             if(!current!.Allows(AccountRole.Admin))return Results.Forbid();
             if(!source.Enabled)return Problem(404,ProblemCodes.NotAvailable,"ID images aren't available.");
-            if(string.IsNullOrWhiteSpace(request.Purpose)||request.Purpose.Trim().Length>500)return Problem(400,ProblemCodes.PurposeRequired,"Record a purpose (up to 500 characters).");
+            // Issue 535 (D425): a reason chosen from a fixed list, with detail only when it adds something (required for Other).
+            var purpose=IdentityAccessReasons.Purpose(request.Reason,request.Purpose,IdentityAccessReasons.IdDocument);
+            if(purpose is null)return Problem(400,ProblemCodes.PurposeRequired,"Choose why you need to see the ID; Other needs a detail (up to 300 characters).");
             var db=accounts.Db!;var now=clock.GetUtcNow();
             if(await StaffAccessEndpoints.GrantAsync(db,current.Account!.Id,StaffAccessPolicy.IdImageOpen,now,token)is null)return StaffAccessEndpoints.NeedsGrant(StaffAccessPolicy.IdImageOpen);
             var session=await(from r in db.DobReviews join a in db.IdVerificationAttempts on r.AttemptId equals a.Id
                 where r.Id==request.ReviewId&&r.AccountId==id&&a.AccountId==id&&r.ResolvedAt==null select a.SessionId).SingleOrDefaultAsync(token);
             if(string.IsNullOrEmpty(session))return Problem(404,ProblemCodes.NotAvailable,"There's no open date of birth review for this account.");
-            db.IdentityAccesses.Add(new IdentityAccess{AccountId=id,ActorAccountId=current.Account.Id,Purpose=request.Purpose.Trim(),At=now});
+            db.IdentityAccesses.Add(new IdentityAccess{AccountId=id,ActorAccountId=current.Account.Id,Purpose=purpose,ReasonCode=request.Reason,At=now});
             Audit.Record(db,now,current.Account.Id,"account","id-image.opened","account",id.ToString(),request.ReviewId.ToString());
             await db.SaveChangesAsync(token);
             var read=await source.ReadAsync(session,id,token);

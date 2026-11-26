@@ -116,15 +116,17 @@ public sealed record EscalationResolution(string? Note);
 /// <summary>The account's open escalation, or none.</summary>
 public sealed record EscalationState(EscalationView? Open);
 /// <summary>Issue 456 (D403): Admin with live "didit-decision-open" access and a recorded purpose. Only for an open date of birth review (D413): ReviewId, or otherwise the account's.</summary>
-public sealed record DiditDecisionRequest(string? Purpose, Guid? ReviewId = null);
+/// <param name="Reason">Issue 535 (D425): an <see cref="IdentityAccessReasons"/> code. With it, Purpose is optional detail.</param>
+public sealed record DiditDecisionRequest(string? Purpose, Guid? ReviewId = null, string? Reason = null);
 /// <summary>Result: available, gone (Didit no longer has it) or unavailable. Read live and never stored.</summary>
 /// <param name="ReviewReason">Issue 506 (D416): why the review is open after this read; null when nothing was read.</param>
 public sealed record StaffDiditDecision(string Result, string? Status, IReadOnlyList<StaffDiditDocument> Documents, string? ReviewReason = null);
 /// <summary>Name is the name on the ID (issue 506), shown live and never stored. NameMatches and SameDate compare with the member's registered name and saved date; null when either side is missing.</summary>
 public sealed record StaffDiditDocument(string Status, string? DocumentType, string? IssuingCountry, DateOnly? DateOfBirth, bool? NameMatches, bool? SameDate, string? Name = null);
 /// <summary>Issue 488 (D413): Admin with live "id-image-open" access, a recorded purpose and an open date of birth review.</summary>
-public sealed record IdImageRequest(string? Purpose, Guid ReviewId);
-/// <summary>Result: available, gone, unavailable, none (no document image) or refused. Read live and never stored.</summary>
+/// <param name="Reason">Issue 535 (D425): required, one of <see cref="IdentityAccessReasons.IdDocument"/>. Purpose is optional detail (required for Other).</param>
+public sealed record IdImageRequest(string? Purpose, Guid ReviewId, string? Reason = null);
+/// <summary>Result: available, gone, unavailable, none (no document image), hostNotAllowed (Swoovr isn't set up for the image host, issue 535) or refused (too large, or not a JPEG, PNG or WebP). Read live and never stored.</summary>
 public sealed record StaffIdImages(string Result, IReadOnlyList<StaffIdImage> Images);
 public sealed record StaffIdImage(string Side, string ContentType, byte[] Data);
 /// <summary>ChangedAt is the review's as the admin opened it: a decision after the member changed their date is refused (PR 516 review).</summary>

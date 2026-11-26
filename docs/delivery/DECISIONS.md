@@ -1673,3 +1673,12 @@ Builds the first part of D389's DEFAULT design. Independent of Q182: no chat del
 - Photo Verified never grants or implies ID Verified, legal identity or age. A change to a matched public profile photo (not a private album photo) removes it. Replays and approvals against changed photos are refused.
 - **Later (Flutter):** a three-second front-camera video instead of the paper photo; the submission model allows video evidence.
 - **OPEN** in Q190 ([#547](https://github.com/repasscloud/swoovr/issues/547)): evidence retention, expiry, reviewer role, attempts and notice wording.
+
+### D425 — Reasons for opening a member's Didit result or ID document are chosen, not typed (#535, 26 November 2026)
+
+**CONFIRMED** by the owner on [#535](https://github.com/repasscloud/swoovr/issues/535). Amends D403 and D413 (how the purpose is recorded); their access rules are unchanged: Admin only, the 60-minute grant, an open date of birth review, conflict-of-interest exclusions and per-view audit.
+- **Didit result in a review:** no reason to type. The purpose is recorded as "Identity discrepancy review" (code `identity-discrepancy-review`); details are optional. On the account page the purpose list and details stay as they were.
+- **ID document:** a required reason from a list: Date of birth verification, Legal name verification, Date of birth and legal name, Document discrepancy investigation, or Other (details required). Details are otherwise optional, up to 300 characters.
+- The code is stored with each view in the sensitive-access log (`restricted.identity_accesses.reason_code`); the label and any details are the recorded purpose. Free-text purposes elsewhere have no code.
+- A chosen reason is the "recorded reason" in the approved 0.21 wording (#513, D413). The ID still opens only during an open date of birth review, so the legal-name reasons apply within one; a name-only review (#533) waits for Q192 and a check of the notice wording.
+- **Why the image didn't show on UAT:** Swoovr refused it because UAT has no `UAT_DIDIT_IMAGE_HOSTS` (D414: while it's empty every image is refused and the API log names the host). The owner sets that variable; Didit's availability is still to be confirmed with it set. The admin now says which cause applies: "Swoovr isn't set up to accept Didit's image host yet" (`hostNotAllowed`) or "larger than 5 MB or not a JPEG, PNG or WebP" (`refused`), separate from Didit having no image, no longer having the session, or not answering.

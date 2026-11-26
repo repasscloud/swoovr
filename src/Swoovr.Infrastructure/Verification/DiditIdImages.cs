@@ -44,7 +44,7 @@ public sealed class DiditIdImages(HttpClient http, DiditOptions options, DiditIm
                 return new(ProviderImageResult.Unavailable);
             var links = Links(body.RootElement);
             if (links.Count == 0) return new(ProviderImageResult.None);
-            if (links.Any(l => !Allowed(l.Link))) return new(ProviderImageResult.Refused);
+            if (links.Any(l => !Allowed(l.Link))) return new(ProviderImageResult.HostNotAllowed);
             var sides = await Task.WhenAll(links.Select(l => FetchAsync(l.Side, l.Link, limit.Token)));
             return sides.FirstOrDefault(s => s.Result != ProviderImageResult.Available) ?? new(ProviderImageResult.Available, sides.SelectMany(s => s.Images).ToList());
         }

@@ -152,7 +152,7 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     if (process.env.SWOOVR_OWNED_DIDIT_URL) { // the gate is on here: the admin has to look at the ID first (issue 488)
       await fetch(`${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/decision/${anaSession}`, { method: 'PUT', body: JSON.stringify({ session_id: anaSession, status: 'Approved', vendor_data: ids.ana, workflow_id: workflow, id_verifications: [{ status: 'Approved', front_image: `${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/image/front.png?signature=synthetic-signature` }] }) });
       assert.equal((await call(root, '/api/admin/access/grants', { method: 'POST', body: { capability: 'id-image-open', purpose: 'Fictional ID check' } })).status, 201);
-      assert.equal((await call(root, `/api/admin/accounts/${ids.ana}/id-image`, { method: 'POST', body: { purpose: 'Fictional ID check', reviewId: anaReview.id } })).body.result, 'available'); pass();
+      assert.equal((await call(root, `/api/admin/accounts/${ids.ana}/id-image`, { method: 'POST', body: { purpose: 'Fictional ID check', reviewId: anaReview.id, reason: 'dob-verification' } })).body.result, 'available'); pass();
     }
     r = await call(root, `/api/admin/dob-reviews/${anaReview.id}/resolve`, { method: 'POST', body: { outcome: 'verified', reason: 'Fictional: checked against the document in Didit.' } });
     assert.deepEqual([r.status, r.body.outcome], [200, 'verified']); pass();
@@ -488,7 +488,7 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       // Issue 488 (D413): the ID document, proxied live for an open review. Synthetic pictures only.
       const picture = name => `${process.env.SWOOVR_OWNED_DIDIT_URL}/owned/image/${name}?signature=synthetic-signature`;
       const idChecks = (front, back) => [{ status: 'Approved', age: 55, date_of_birth: '1971-01-01', front_image: front && picture(front), back_image: back && picture(back), portrait_image: picture('portrait.png') }];
-      const idImage = (token, who, reviewId, purpose = 'Fictional ID check') => call(token, `/api/admin/accounts/${ids[who]}/id-image`, { method: 'POST', body: { purpose, reviewId } });
+      const idImage = (token, who, reviewId, purpose = 'Fictional ID check', reason = 'dob-verification') => call(token, `/api/admin/accounts/${ids[who]}/id-image`, { method: 'POST', body: { purpose, reviewId, reason } });
       const grantId = token => call(token, '/api/admin/access/grants', { method: 'POST', body: { capability: 'id-image-open', purpose: 'Fictional ID check' } });
       await decided(bareSession, ids.bare, idChecks('front.png', 'back.png'));
       assert.equal((await idImage(null, 'bare', bareReview)).status, 401); pass();
@@ -497,12 +497,18 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       assert.equal((await grantId(sup)).status, 403); pass();
       assert.deepEqual(code(await idImage(adm, 'bare', bareReview)), [403, 'elevated-access-required'], 'the Didit result access is not enough'); pass();
       assert.equal((await grantId(adm)).status, 201); pass();
-      assert.deepEqual(code(await idImage(adm, 'bare', bareReview, ' ')), [400, 'purpose-required']); pass();
+      // Issue 535 (D425): a reason from the list is required; details are optional except for Other.
+      assert.deepEqual(code(await idImage(adm, 'bare', bareReview, 'Fictional ID check', null)), [400, 'purpose-required'], 'no reason'); pass();
+      assert.deepEqual(code(await idImage(adm, 'bare', bareReview, 'Fictional ID check', 'because')), [400, 'purpose-required'], 'unknown reason'); pass();
+      assert.deepEqual(code(await idImage(adm, 'bare', bareReview, ' ', 'other')), [400, 'purpose-required'], 'Other without a detail'); pass();
+      assert.deepEqual(code(await idImage(adm, 'bare', bareReview, 'x'.repeat(301))), [400, 'purpose-required'], 'detail too long'); pass();
+      assert.equal((await idImage(adm, 'bare', bareReview, ' ', 'legal-name-verification')).body.result, 'available', 'a reason alone is enough'); pass();
+      assert.deepEqual((await sql(`SELECT reason_code || '|' || purpose FROM restricted.identity_accesses WHERE account_id = '${ids.bare}' ORDER BY id DESC LIMIT 1`)), 'legal-name-verification|Legal name verification'); pass();
       r = await idImage(adm, 'bare', bareReview);
       assert.deepEqual([r.status, r.body.result, r.body.images.map(i => i.side + ' ' + i.contentType)], [200, 'available', ['Front image/png', 'Back image/png']]); pass();
       assert.equal(Buffer.from(r.body.images[0].data, 'base64').subarray(1, 4).toString(), 'PNG'); pass();
       assert.ok(!JSON.stringify(r.body).includes('/owned/'), 'no provider address reaches the browser'); pass();
-      const raw = await fetch(`${api}/api/admin/accounts/${ids.bare}/id-image`, { method: 'POST', headers: { Authorization: 'Bearer ' + adm, 'Content-Type': 'application/json', 'Swoovr-Version': '2026-10-28' }, body: JSON.stringify({ purpose: 'Fictional ID check', reviewId: bareReview }) });
+      const raw = await fetch(`${api}/api/admin/accounts/${ids.bare}/id-image`, { method: 'POST', headers: { Authorization: 'Bearer ' + adm, 'Content-Type': 'application/json', 'Swoovr-Version': '2026-10-28' }, body: JSON.stringify({ purpose: 'Fictional ID check', reviewId: bareReview, reason: 'dob-verification' }) });
       assert.deepEqual([raw.status, raw.headers.get('cache-control')], [200, 'no-store']); pass();
       assert.deepEqual(code(await idImage(adm, 'legacy', conflictReview)), [403, 'conflict-of-interest']); pass(); // declared, and linked accounts use the same rule
       await sql(`INSERT INTO staff_member_links (staff_account_id, member_account_id, linked_at, linked_by) VALUES ('${adminId}', '${ids.eve}', now(), '${adminId}')`);
@@ -515,7 +521,7 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       await said('unavailable', ids.legacy, idChecks('front.png'));
       await said('refused', ids.bare, idChecks('front.bad'));
       await said('refused', ids.bare, idChecks('front.png', 'back.big'));
-      await said('refused', ids.bare, [{ status: 'Approved', front_image: 'https://media.example.test/front.png' }]);
+      await said('hostNotAllowed', ids.bare, [{ status: 'Approved', front_image: 'https://media.example.test/front.png' }]);
       await said('none', ids.bare, [{ status: 'Approved', front_image: null }]);
       await said('unavailable', ids.bare, [], { owned_status: 503 });
       await said('gone', ids.bare, [], { owned_status: 404 });
@@ -531,7 +537,7 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
       assert.equal((await idImage(adm, 'pending', pendingReview)).body.result, 'available'); pass();
       // Audited with ids only, in the sensitive-access log, and nowhere else.
       assert.equal(await sql(`SELECT string_agg(DISTINCT detail, ',') FROM audit_entries WHERE action = 'id-image.opened' AND target_id = '${ids.bare}'`), bareReview); pass();
-      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'id-image.opened' AND target_id = '${ids.bare}'`), '10'); pass();
+      assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action = 'id-image.opened' AND target_id = '${ids.bare}'`), '11'); pass();
       assert.equal((await call(sup, `/api/admin/dob-reviews`)).status, 403); pass();
       if (process.env.SWOOVR_MEETING_OWNED_LOGS) for (const name of ['api.log', 'admin.log', 'web.log'])
         assert.ok(!/owned\/image|synthetic-signature/.test(require('node:fs').readFileSync(`${process.env.SWOOVR_MEETING_OWNED_LOGS}/${name}`, 'utf8')), name + ' holds no image link');
@@ -636,10 +642,12 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             await page.goto(admin + url);
             await page.click('[data-didit-decision=closed] summary');
             if (output) await page.screenshot({ path: `${output}/${name}-closed.png` });
-            await page.selectOption('[data-didit-decision] select[name=purpose]', 'Date of birth review');
-            await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check');
+            // Issue 535 (D425): inside a review its purpose is recorded for the admin; details are optional.
+            if (url.includes('review=')) assert.equal(await page.locator('[data-didit-decision] select[name=purpose]').count(), 0, 'no purpose to choose in a review');
+            else { await page.selectOption('[data-didit-decision] select[name=purpose]', 'Date of birth review'); await page.fill('[data-didit-decision] textarea[name=detail]', 'Fictional check'); }
             await page.click('[data-didit-show]');
             await page.waitForSelector('[data-didit-decision=available]', { timeout: 20000 }); pass();
+            if (url.includes('review=')) { assert.equal(await sql(`SELECT reason_code || '|' || purpose FROM restricted.identity_accesses WHERE account_id = '${ids.bare}' ORDER BY id DESC LIMIT 1`), 'identity-discrepancy-review|Identity discrepancy review'); pass(); }
             assert.match(await page.textContent('[data-didit-dob]'), /1 January 1971/); pass();
             assert.match(await page.textContent('[data-didit-name]'), /Fictional Middle Second Person/); pass();
             assert.deepEqual(await page.locator('[data-didit-match]').allTextContents(), ['Mismatch', 'Mismatch']); pass();
@@ -678,7 +686,7 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
             await page.goto(`${admin}/dob-reviews?review=${bareReview}`);
             await page.evaluate(t => { try { localStorage.setItem('swoovr.admin.theme', t); } catch { } }, theme); await page.reload();
             assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme); pass();
-            await page.click('[data-id-image=closed] summary'); await page.fill('[data-id-image] textarea', 'Fictional look');
+            await page.click('[data-id-image=closed] summary'); await page.selectOption('[data-id-image] select[name=idReason]', 'dob-verification'); await page.fill('[data-id-image] textarea', 'Fictional look');
             const answered = page.waitForResponse(x => x.request().method() === 'POST' && x.url().includes('/dob-reviews'));
             await page.click('[data-id-image-show]');
             assert.equal((await answered).headers()['cache-control'].includes('no-store'), true); pass();

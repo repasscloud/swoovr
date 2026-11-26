@@ -16,14 +16,15 @@
     {
         @if (read is not null)
         {
-            <p class="ui-help" role="status">@(read.Result switch { "gone" => "No longer available from Didit.", "none" => "Didit has no document image for this check.", "refused" => "The document image can't be shown.", _ => "Didit can't be reached right now. Try again shortly." })</p>
+            <p class="ui-help" role="status">@(read.Result switch { "gone" => "No longer available from Didit.", "none" => "Didit has no document image for this check.", "hostNotAllowed" => "Swoovr isn't set up to accept Didit's image host yet. The platform owner adds it; the API log names it.", "refused" => "Didit's image was refused: it's larger than 5 MB or isn't a JPEG, PNG or WebP.", _ => "Didit can't be reached right now. Try again shortly." })</p>
         }
         @if (message is not null) { <p class="media-error" role="status" data-id-image-result="@resultCode">@message</p> }
         <details open="@(message is not null)">
             <summary>Open the ID document</summary>
             <form method="post" @formname="@FormName" @onsubmit="OpenAsync" class="didit-form">
                 <AntiforgeryToken />
-                <label class="ui-field"><span>Why you need to see it</span><textarea name="idPurpose" rows="2" maxlength="450" required placeholder="No dates"></textarea></label>
+                <label class="ui-field"><span>Reason</span><select name="idReason" required><option value="" selected disabled>Choose a reason</option>@foreach (var choice in IdentityAccessReasons.IdDocument) { <option value="@choice">@IdentityAccessReasons.Label(choice)</option> }</select></label>
+                <label class="ui-field"><span>Details (optional; needed for Other)</span><textarea name="idPurpose" rows="2" maxlength="@IdentityAccessReasons.DetailMax" placeholder="No dates"></textarea></label>
                 <p class="ui-help">Access lasts 60 minutes and is recorded against your name.</p>
                 <div><button type="submit" class="ui-button-ghost" data-id-image-show>Open ID document</button></div>
             </form>
@@ -42,9 +43,10 @@
     private async Task OpenAsync()
     {
         if (Context is not null && !Context.Response.HasStarted) Context.Response.Headers.CacheControl = "no-store";
-        var detail = Context?.Request.HasFormContentType == true ? Context.Request.Form["idPurpose"].ToString().Trim() : "";
-        if (detail.Length == 0) { Refuse(400, "purpose-required"); return; }
-        var purpose = "Date of birth review: " + detail;
+        string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString().Trim() : "";
+        // Issue 535 (D425): a reason from the list; details only when they add something (Other needs them).
+        var (reason, detail) = (Field("idReason"), Field("idPurpose"));
+        if (IdentityAccessReasons.Purpose(reason, detail, IdentityAccessReasons.IdDocument) is not { } purpose) { Refuse(400, reason.Length == 0 ? "reason-required" : "purpose-required"); return; }
         try
         {
             var grants = (await Admin.GrantsAsync()).Value ?? [];
@@ -53,7 +55,7 @@
                 var grant = await Admin.RequestGrantAsync(new AccessGrantRequest(Capability, purpose));
                 if (!grant.Ok) { Refuse(grant.Status, grant.Code); return; }
             }
-            var result = await Admin.IdImagesAsync(AccountId, ReviewId, purpose);
+            var result = await Admin.IdImagesAsync(AccountId, ReviewId, reason, detail);
             read = result.Value;
             if (!result.Ok) Refuse(result.Status, result.Code);
         }
@@ -63,5 +65,5 @@
         }
     }
     private void Refuse(int status, string? why) => (resultCode, message) = (why ?? status.ToString(),
-        why == "purpose-required" ? "Add why you need to see it." : status == 404 ? "This review isn't open any more." : AdminText.Refusal(status, why));
+        why == "reason-required" ? "Choose why you need to see it." : why == "purpose-required" ? "Add a detail for Other." : status == 404 ? "This review isn't open any more." : AdminText.Refusal(status, why));
 }

@@ -577,6 +577,7 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
         {
             access.ToTable("identity_accesses", "restricted");
             access.Property(a => a.Purpose).HasMaxLength(VerifiedIdentityPolicy.PurposeMax);
+            access.Property(a => a.ReasonCode).HasMaxLength(64);
             access.HasIndex(a => new { a.AccountId, a.At });
         });
         model.Entity<DobChangeGrant>(grant =>
