@@ -3,13 +3,23 @@
    the page; the badge adds "N unread notifications" for screen readers. *@
 @implements IDisposable
 @inject UnreadNotifications Unread
-@if (NotificationText.Badge(Unread.Count) is { } label)
+@if (Requests)
+{
+    @* Issue 540: connection requests waiting for this member's answer, in the same red badge, from the same answer. *@
+    @if (NotificationText.Badge(Unread.PendingRequests) is { } waiting)
+    {
+        <span class="unread-badge" data-unread-badge="@Where" data-pending-requests="@Unread.PendingRequests"><span aria-hidden="true">@waiting</span><span class="visually-hidden">, @Unread.PendingRequests @(Unread.PendingRequests == 1 ? "request" : "requests") waiting for you</span></span>
+    }
+}
+else if (NotificationText.Badge(Unread.Count) is { } label)
 {
     <span class="unread-badge" data-unread-badge="@Where" data-unread-count="@Unread.Count"><span aria-hidden="true">@label</span><span class="visually-hidden">, @Unread.Count unread @(Unread.Count == 1 ? "notification" : "notifications")</span></span>
 }
 @code {
     /// <summary>Where the badge sits ("tab" or "menu"), for tests and styling.</summary>
     [Parameter] public string Where { get; set; } = "";
+    /// <summary>Issue 540: count connection requests waiting for an answer instead of unread notifications.</summary>
+    [Parameter] public bool Requests { get; set; }
 
     protected override void OnInitialized()
     {

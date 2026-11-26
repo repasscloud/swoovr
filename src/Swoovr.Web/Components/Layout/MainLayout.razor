@@ -11,7 +11,7 @@
     {
     <nav class="tab-bar" aria-label="Main">
         @Tab("Explore", "search", "/explore", Path.StartsWith("/explore") || Path.StartsWith("/travel") || Path.StartsWith("/people/") || Path.StartsWith("/prototype/people"))
-        @Tab("Connections", "users", "/connections", Path.StartsWith("/connections"))
+        @Tab("Connections", "users", "/connections", Path.StartsWith("/connections"), RequestsBadge)
         @Tab("Chats", "chat", "/chats", Path.StartsWith("/chats") || Path.StartsWith("/prototype/conversation"))
         @* Issue 472: the Me tab carries the unread notification count. *@
         @Tab("Me", "user", "/account", MeActive, MeBadge)
@@ -44,4 +44,6 @@
 
     // Issue 472: the unread count on the Me tab (a WebAssembly island; the layout itself stays static).
     private static readonly RenderFragment MeBadge = @<Swoovr.Web.Client.Notifications.UnreadBadge Where="tab" @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />;
+    // Issue 540: requests waiting for an answer on the Connections tab, from the same shared poll.
+    private static readonly RenderFragment RequestsBadge = @<Swoovr.Web.Client.Notifications.UnreadBadge Where="connections" Requests="true" @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />;
 }

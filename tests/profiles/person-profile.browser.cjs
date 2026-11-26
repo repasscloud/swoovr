@@ -76,13 +76,21 @@ let checks = 0; const pass = () => checks++;
 
    // The request flow itself is unchanged: sent from the dialog, shown in the summary afterwards.
    await page.click('[data-open-connect]'); await page.click('[data-connect-mode=friends] button');
-   await page.waitForSelector('[data-connect-mode=friends][data-connection=sent]'); pass();
-   assert.equal(await page.locator('[data-connect-status]').innerText(), 'Request sent.'); pass();
+   // Issue 538: one short confirmation with a compact OK; the pending request (and Withdraw) shows when the dialog opens again.
+   await page.waitForSelector('[data-connect-sent]'); pass();
+   assert.equal((await page.locator('[data-connect-sent]').innerText()).trim(), 'Connection request sent.'); pass();
+   assert.equal(await page.locator('[data-connect-modes]').count(), 0, 'no second "Request sent" line'); pass();
    assert.ok(writes.some(w => w.endsWith('/api/requests')), writes.join(',')); pass();
    // Codex (PR 463): a click on the dimmed page behind keeps Escape working.
    await page.mouse.click(5, 5);
    assert.equal(await page.locator('[data-member-dialog=connect]').count(), 1, 'a backdrop click does not close or act'); pass();
    await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' }); pass();
+   await page.click('[data-open-connect]'); await page.waitForSelector('[data-connect-mode=friends][data-connection=sent]'); pass();
+   assert.equal(await page.locator('[data-connect-sent]').count(), 0, 'reopened: the pending state, not the confirmation'); pass();
+   const [withdraw, dialogWidth] = await page.evaluate(() => [document.querySelector('[data-connect-mode=friends] button').getBoundingClientRect().width, document.querySelector('[data-member-dialog=connect] [role=dialog]').getBoundingClientRect().width]);
+   assert.ok(withdraw < dialogWidth * 0.5, `Withdraw is compact (${withdraw} of ${dialogWidth})`); pass();
+   assert.equal(await page.locator('[data-connect-mode=friends] .chip').count(), (await page.locator('[data-connect-mode]').count()) > 1 ? 1 : 0, 'the mode is named only when there is a choice'); pass();
+   await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' });
    assert.ok((await page.locator('[data-connect-summary]').innerText()).includes('Friends: request sent')); pass();
    // Codex (PR 463): when Message fails (the connection ended meanwhile), the reason shows beside the button.
    const received = (await call(a, '/api/requests?box=received')).body.items.find(r => r.mode === 'friends');

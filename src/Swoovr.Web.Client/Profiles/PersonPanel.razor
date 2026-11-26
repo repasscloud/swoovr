@@ -1,6 +1,7 @@
 @* Another member's profile (D92, Interactive WebAssembly). The API returns it only in modes both people have on and
    the person shows themselves in; anything else reads as "not available", so the page never confirms who exists.
    Badges are the public ones the API returns, several at once in the configured order (Q11). *@
+@inject Swoovr.Web.Client.Notifications.UnreadNotifications Unread
 @inject MemberClient Members
 @inject NavigationManager Navigation
 <div class="page-heading" data-person="@(loaded ? (blockedNow ? "blocked" : person is null ? "unavailable" : "ready") : "loading")">
@@ -130,12 +131,21 @@
     </div>
     </div>
     <MemberDialog Kind="connect" Title="@($"Connect with {person.DisplayName}")" Open="@(dialog == Dialogs.Connect)" Closed="Close" ReturnFocus="connectButton" FocusRequest="connectFocus">
+        @if (connectStatus == "sent")
+        {
+            @* Issue 538: one short confirmation; withdrawing stays on the pending request here or in Connections. *@
+            <p role="status" data-connect-status="sent" data-connect-sent>Connection request sent.</p>
+            <div class="dialog-actions"><button type="button" class="button" @onclick="Close" data-connect-ok>OK</button></div>
+        }
+        else
+        {
         <p class="field-help">A request goes to one mode at a time. Nothing connects until they accept.</p>
-        <ul class="request-list" data-connect-modes>
+        <ul class="request-list connect-modes" data-connect-modes>
             @foreach (var mode in person.Modes)
             {
                 <li data-connect-mode="@mode.Id" data-connection="@mode.Connection">
-                    <span class="chip">@mode.Label</span>
+                    @* Issue 538: the mode is named only when there's more than one to choose from. *@
+                    @if (person.Modes.Count > 1) { <span class="chip">@mode.Label</span> }
                     @switch (mode.Connection)
                     {
                         case "connected":
@@ -152,7 +162,7 @@
                             }
                             break;
                         case "sent":
-                            <span class="field-help">Request sent</span>
+                            <span class="field-help" data-connect-pending>Request pending</span>
                             <button type="button" class="button button-secondary" disabled="@busy" @onclick='() => AnswerAsync(mode.RequestId!.Value, "withdraw")'>Withdraw</button>
                             break;
                         case "received":
@@ -175,6 +185,7 @@
             }
         </ul>
         <p role="status" aria-live="polite" class="field-help" data-connect-status="@connectStatus">@connectMessage</p>
+        }
     </MemberDialog>
     <MemberDialog Kind="block" Title="@($"Block {person.DisplayName}?")" Open="@(dialog == Dialogs.Block)" Closed="Close" ReturnFocus="safetyButton">
         <div data-block="confirm">
@@ -217,7 +228,7 @@
     private ElementReference connectButton, safetyButton;
 
     private void Open(Dialogs which) => (dialog, safetyOpen) = (which, false);
-    private void Close() => dialog = null;
+    private void Close() => (dialog, connectStatus, connectMessage) = (null, null, null);
 
     /// <summary>D203, issue 445: the main photo, then each shown mode's own approved photos, each once.</summary>
     private IReadOnlyList<PhotoText.GalleryPhoto>? Gallery => person is null ? null : PhotoText.Gallery(person.Photo, person.Modes.Select(m => (m.Id, m.Label, m.Photos)));
@@ -270,7 +281,7 @@
     {
         busy = true;
         var result = await Members.SendRequestAsync(Id, modeId);
-        (connectStatus, connectMessage) = result.Ok ? ("sent", "Request sent.") : (result.Code ?? "failed", MemberText.RequestProblem(result.Code));
+        (connectStatus, connectMessage) = result.Ok ? ("sent", null) : (result.Code ?? "failed", MemberText.RequestProblem(result.Code));
         await ReloadAsync();
     }
 
@@ -281,6 +292,7 @@
         (connectStatus, connectMessage) = result.Ok ? (answer, answer == "accept" ? "Connected." : answer == "decline" ? "Declined." : "Request withdrawn.")
             : ("failed", "That request isn't available any more.");
         await ReloadAsync();
+        await Unread.ChangedByMemberAsync(); // issue 540
     }
 
     private async Task DisconnectAsync(Guid connectionId)
