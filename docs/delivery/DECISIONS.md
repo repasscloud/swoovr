@@ -1690,3 +1690,45 @@ Builds the first part of D389's DEFAULT design. Independent of Q182: no chat del
 - **Private album uploads:** where "Adult content: private albums only" (`APPROVED_ALBUM_EXPLICIT`) is offered (an album upload by an ID Verified owner, #231), it is the first Approve reason, so **A** selects it, and **X** selects it directly. Neither saves; nothing is selected until a key or click; the reason resets when moving to another item, as before. X is ignored while typing and where the reason isn't offered. A non-explicit approval reason still clears a false positive deliberately.
 - **DEFAULT:** because A now lands on the albums-only reason for those uploads, the safe outcome of a hurried approval is the restricted one (explicit, album only); the server sets the explicit rating and album-only restriction exactly as before (D421).
 - The chat destination pill (D423) reuses this shape when chat review is built.
+
+### D427 — Photo Verified: retention, expiry, reviewers and attempts (Q190, #547, 26 November 2026)
+
+**CONFIRMED** by the owner on [#547](https://github.com/repasscloud/swoovr/issues/547): every A. Completes D424 for [#530](https://github.com/repasscloud/swoovr/issues/530). Not built yet.
+- **Evidence:** the photo of the member holding the code is deleted 30 days after the staff decision; the decision record (who, when, outcome, matched photos) is kept.
+- **Expiry:** Photo Verified lasts 12 months; the member can verify again.
+- **Reviewers:** Support and Admin (a comparison with public profile photos, not an ID document).
+- **Attempts:** up to 3 submissions in 30 days, each with a fresh code.
+- **Privacy Notice:** a sentence on the evidence photo, drafted for the owner's approval. 0.21 takes effect on 26 November 2026 (D432) before this is built, so it goes in **0.22**, which must be in force before Photo Verified reaches members.
+
+### D428 — Adult chat photos: the open points (Q191, #548, 26 November 2026)
+
+**CONFIRMED** by the owner on [#548](https://github.com/repasscloud/swoovr/issues/548): every A. Completes D423 for [#546](https://github.com/repasscloud/swoovr/issues/546). Not built yet.
+- **Rating without a reviewer:** for an eligible recipient, a photo the automatic check flags for nudity is rated **Explicit** when it is delivered, opens blurred with Show, and staff can overturn it. This amends D205 ("only a reviewer sets explicit") for that case alone; everywhere else a reviewer still decides.
+- **Sender's album:** a direct adult photo stays in the chat only; it is not filed into an album.
+- **Which switch:** the recipient's Receive explicit media must be on for at least one mode the pair is connected in.
+- **The rest of Q182 stays as its DEFAULTs (D389):** whole albums and single photos can be sent (182.3); opting out, an ID Verified lapse, a block or the end of the chat stops delivered explicit photos loading (182.4); explicit photos open blurred with Show even when opted in (182.6); the recipient's export lists "photo (explicit)" without the image (182.7).
+
+### D429 — Legal name differences against the ID (Q192, #549, 26 November 2026)
+
+**CONFIRMED** by the owner on [#549](https://github.com/repasscloud/swoovr/issues/549): A and A. Amends D416's DEFAULT (exact comparison) for [#533](https://github.com/repasscloud/swoovr/issues/533). Not built yet.
+- **Same name:** case, extra spaces, accents, hyphens and apostrophes are ignored. When the first and last names match and only middle names differ, the member is offered a one-time correction; it is never accepted automatically. Any other difference is a mismatch: the one-time correction, then admin review.
+- **The correction:** the member can only adopt the name as it appears on the ID (no free text), once, audited. Ban matching (D191) and the verified identity record are refreshed with it. The display name is never touched and legal names are never shown to other members.
+
+### D430 — Meet-up requests from chat: scope (Q193, #550, 26 November 2026)
+
+**CONFIRMED** by the owner on [#550](https://github.com/repasscloud/swoovr/issues/550) for [#545](https://github.com/repasscloud/swoovr/issues/545). Not built yet.
+- **Scope (A):** private 1-on-1 meet-ups from a chat (mockup section A): plan, send, accept, suggest changes, decline, withdraw, cancel, and "My meet-ups". Group meet-ups, discovery and events stay deferred (#36, #46, #59).
+- **Venues (B, owner's variant):** the venue field is free text with a lookup. As the member types, it matches venues that Swoovr admins have added or that business partners added through the partner application (still to be designed, [#42](https://github.com/repasscloud/swoovr/issues/42)); a match can be selected, anything else stays free text. No third-party venue provider. Until venue records exist, the field is free text only.
+- **Modes (A):** all four, each with its own categories.
+- **After acceptance (A):** an Add to calendar file and an optional prompt to start **I'm meeting someone**; meeting safety never starts automatically. No reminders at first.
+
+### D431 — Sharing a location in chat (Q194, #551, 26 November 2026)
+
+**CONFIRMED** by the owner on [#551](https://github.com/repasscloud/swoovr/issues/551): every A, for [#544](https://github.com/repasscloud/swoovr/issues/544). Not built yet.
+- **Privacy Notice:** a sentence on sharing an exact location with another member, drafted for the owner's approval, in **0.22** (0.21 takes effect before this is built, D432). It must be in force before the feature reaches UAT.
+- **Display:** no third-party map images in the chat; the card shows the place name or coordinates and opens the member's maps app or web maps when tapped.
+- **Retention:** kept and removed like any other message (unsend for both within 5 minutes, report evidence rules, D165).
+
+### D432 — Privacy Notice 0.21 takes effect on 26 November 2026 (26 November 2026)
+
+**CONFIRMED** by the owner (26 November 2026, in chat). 0.21 carries the location wording ([#283](https://github.com/repasscloud/swoovr/issues/283), D351), staff viewing an ID ([#513](https://github.com/repasscloud/swoovr/issues/513), D413) and online status ([#525](https://github.com/repasscloud/swoovr/issues/525), D422). With it in force, D413's release gate opens in production and `Explore:OnlineStatus` is turned on with the release (D422). The Photo Verified and chat location sentences (D427, D431) go in 0.22.

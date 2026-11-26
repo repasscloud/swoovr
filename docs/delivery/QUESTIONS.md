@@ -3016,20 +3016,20 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q188 — Privacy Notice 0.21 wording for staff viewing an ID
 
-- Issue: [#513](https://github.com/repasscloud/swoovr/issues/513) (for #488). Status: ANSWERED, owner 25 November 2026 (D413): approved word for word in the issue; published with [#283](https://github.com/repasscloud/swoovr/issues/283), effective date OPEN.
+- Issue: [#513](https://github.com/repasscloud/swoovr/issues/513) (for #488). Status: ANSWERED, owner 25 November 2026 (D413): approved word for word in the issue; published with [#283](https://github.com/repasscloud/swoovr/issues/283), effective 26 November 2026 (**D432**).
 
 ## Online status — [#499](https://github.com/repasscloud/swoovr/issues/499), 26 November 2026
 
 ### Q189 — Does online status need a Privacy Notice sentence before it's turned on?
 
-- Issue: [#525](https://github.com/repasscloud/swoovr/issues/525) (for #499). Status: ANSWERED A, owner 26 November 2026 (**D422**): the owner's wording goes into 0.21, and online status is turned on with that notice, UAT first and production together. Effective date OPEN.
+- Issue: [#525](https://github.com/repasscloud/swoovr/issues/525) (for #499). Status: ANSWERED A, owner 26 November 2026 (**D422**): the owner's wording goes into 0.21, and online status is turned on with that notice, UAT first and production together. Effective 26 November 2026 (**D432**).
 - The notice in force doesn't mention online status. Swoovr keeps the member's last activity, to about a minute, only while they have the switch on, and shows others a green dot, never a time. **A (recommended):** add one sentence to the 0.21 update (#283) and turn it on with that notice. **B:** the notice's "Other members see only the profile information your settings allow" already covers it; turn it on now, UAT first. **C:** turn it on in private UAT now and take A for production.
 
 ## UAT review, 26 November 2026 — [#530](https://github.com/repasscloud/swoovr/issues/530)–[#546](https://github.com/repasscloud/swoovr/issues/546)
 
 ### Q190 — Photo Verified: evidence retention, expiry, reviewers and attempts
 
-- Issue: [#547](https://github.com/repasscloud/swoovr/issues/547) (for #530, D424; #417, #372, D371). Status: OPEN. The schema can start on the DEFAULTs; the release waits.
+- Issue: [#547](https://github.com/repasscloud/swoovr/issues/547) (for #530, D424; #417, #372, D371). Status: ANSWERED, owner 26 November 2026: every A (**D427**); the notice sentence goes in 0.22.
 - **190.1 Evidence retention.** **A (recommended):** delete the evidence photo 30 days after the staff decision, keep the decision record. **B:** keep it while the badge is valid. **C:** delete it at the decision.
 - **190.2 Expiry.** **A (recommended):** 12 months, then verify again. **B:** none; only a changed matched photo or staff revocation removes it.
 - **190.3 Reviewers.** **A (recommended):** Support and Admin. **B:** Admin only (as D412).
@@ -3038,7 +3038,7 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q191 — Adult chat photos to opted-in recipients: open points
 
-- Issue: [#548](https://github.com/repasscloud/swoovr/issues/548) (for #546, D423; follows Q182). Status: OPEN. Earliest blocking phase: direct delivery to eligible recipients. The per-view gate and the review destination **Chat** proceed.
+- Issue: [#548](https://github.com/repasscloud/swoovr/issues/548) (for #546, D423; follows Q182). Status: ANSWERED, owner 26 November 2026: every A (**D428**).
 - **191.1 Marking explicit without a reviewer** (D205). **A (recommended):** a photo flagged for nudity is rated Explicit automatically on delivery, opens blurred with Show, and staff can overturn it. **B:** delivered as Standard.
 - **191.2 Sender's album.** **A (recommended):** stays in the chat only. **B:** also filed into the sender's private album.
 - **191.3 Which mode's switch.** **A (recommended):** on for at least one mode the pair is connected in. **B:** on for every connected mode.
@@ -3046,13 +3046,13 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q192 — Legal name differences against the ID
 
-- Issue: [#549](https://github.com/repasscloud/swoovr/issues/549) (for #533; D416, D317, D191). Status: OPEN. Blocks the name-correction build.
+- Issue: [#549](https://github.com/repasscloud/swoovr/issues/549) (for #533; D416, D317, D191). Status: ANSWERED, owner 26 November 2026: A and A (**D429**).
 - **192.1 Same name.** **A (recommended):** ignore case, spaces, accents, hyphens and apostrophes; a middle-name-only difference gets a one-time member correction; anything else is a mismatch (correction, then admin review). **B:** a middle-name-only difference is accepted automatically.
 - **192.2 The correction.** **A (recommended):** the member can only adopt the name on the ID, once, audited, refreshing ban and identity indexes. **B:** free text, then admin review.
 
 ### Q193 — Meet-up requests from chat: scope
 
-- Issue: [#550](https://github.com/repasscloud/swoovr/issues/550) (for #545; D176, #40, #59). Status: OPEN. Blocks the build.
+- Issue: [#550](https://github.com/repasscloud/swoovr/issues/550) (for #545; D176, #40, #59). Status: ANSWERED, owner 26 November 2026: A, B with the owner's variant (Swoovr's own venue lookup plus free text), A, A (**D430**).
 - **193.1 Scope.** **A (recommended):** private 1-on-1 meet-ups from chat only (mockup section A); groups, discovery and events stay deferred (#36, #46, #59). **B:** include group meet-ups.
 - **193.2 Venues.** **A (recommended):** free text, no venue-search provider. **B:** a named provider.
 - **193.3 Modes.** **A (recommended):** all four, with each mode's categories. **B:** Dating and Friends only.
@@ -3060,7 +3060,7 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q194 — Sharing a location in chat
 
-- Issue: [#551](https://github.com/repasscloud/swoovr/issues/551) (for #544; D351, #90). Status: OPEN. Blocks the build.
+- Issue: [#551](https://github.com/repasscloud/swoovr/issues/551) (for #544; D351, #90). Status: ANSWERED, owner 26 November 2026: every A (**D431**); the notice sentence goes in 0.22.
 - **194.1 Privacy Notice.** **A (recommended):** a sentence (0.22, or 0.21 if the dates line up) before UAT. **B:** the current notice covers it.
 - **194.2 Map display.** **A (recommended):** no third-party map images; the card opens the member's maps app or web maps. **B:** a provider's preview.
 - **194.3 Retention.** **A (recommended):** kept and removed like any message (D165). **B:** expires after a set time.
