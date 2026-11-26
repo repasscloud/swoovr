@@ -191,6 +191,10 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
       assert.deepEqual(await page.locator('[data-badges-held] [data-badge-row]').evaluateAll(a => a.map(x => x.dataset.badgeRow)), held); pass();
       assert.deepEqual(await page.locator('[data-badges-other] [data-badge-row]').evaluateAll(a => a.map(x => x.dataset.badgeRow)), ['bot']); pass();
       assert.deepEqual(await page.locator('[data-member-dialog=badges] .badge-date').allInnerTexts(), ['Checked 17 Oct 2026', 'Checked 18 Oct 2026']); pass();
+      // Issue 531: each icon is top-aligned with its own badge name, not centred on a multi-line explanation.
+      for (const offset of await page.locator('[data-member-dialog=badges] [data-badge-row]').evaluateAll(rows => rows.map(r => r.querySelector('svg').getBoundingClientRect().top - r.querySelector('strong').getBoundingClientRect().top)))
+        assert.ok(Math.abs(offset) <= 4, `icon top-aligned with its name (${offset}px)`);
+      pass();
       assert.equal(await page.locator('[data-safety-menu-list]').count(), 0); pass();
       if (output) await page.screenshot({ path: `${output}/person-badges-dialog-${theme}-${width}.png` });
       await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=badges]', { state: 'detached' });

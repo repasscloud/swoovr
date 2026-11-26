@@ -25,20 +25,22 @@
         <p data-id-status="@view.IdStatus" data-attempt-state="@(view.AttemptState ?? "none")">@StatusText</p>
         @if (view.Url is not null)
         {
-            <p><a class="button" href="@view.Url" target="_blank" rel="noopener noreferrer" data-verification-link>Continue on Didit</a></p>
-            <p class="field-help">When you're done, come back here and choose Check result.</p>
-            <button type="button" class="button button-secondary" disabled="@busy" @onclick="RefreshAsync" data-verification-refresh>Check result</button>
+            @* Issue 532: content-width actions, each with room above and below its explanation. *@
+            <div class="verification-actions"><a class="button" href="@view.Url" target="_blank" rel="noopener noreferrer" data-verification-link>Continue on Didit</a></div>
+            <p class="field-help verification-help">When you're done, come back here and choose Check result.</p>
+            <div class="verification-actions"><button type="button" class="button button-secondary" disabled="@busy" @onclick="RefreshAsync" data-verification-refresh>Check result</button></div>
         }
         else if (view.CanStart)
         {
-            <button type="button" class="button" disabled="@(busy || !view.Available)" @onclick="StartAsync" data-verification-start>Verify my ID</button>
+            <div class="verification-actions"><button type="button" class="button" disabled="@(busy || !view.Available)" @onclick="StartAsync" data-verification-start>Verify my ID</button></div>
             @if (!view.Available) { <p class="field-help" data-verification-unavailable>ID verification isn't available right now.</p> }
         }
         else if (view.Refusal == "attemptUsed")
         {
-            <p class="field-help" data-verification-used>You've used your ID check. Contact Swoovr support if you'd like another.</p>
+            @* Issue 534: the support link opens a request already filled in; nothing is sent until the member sends it. *@
+            <p class="field-help" data-verification-used>You've used your ID check. <a href="@AccountText.AnotherIdCheckHref" data-verification-support>Contact Swoovr support</a> if you'd like another.</p>
         }
-        <p role="status" aria-live="polite" class="field-help" data-verification-message="@messageCode">@message</p>
+        <p role="status" aria-live="polite" class="field-help verification-help" data-verification-message="@messageCode">@message</p>
     </section>
 }
 @if (account is not null)

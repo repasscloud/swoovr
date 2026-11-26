@@ -14,7 +14,7 @@
 }
 else
 {
-    <SupportPanel @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" Id="Id" New="@isNew" Reference="@Reference" />
+    <SupportPanel @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" Id="Id" New="@isNew" Reference="@Reference" Subject="@Subject" Body="@Body" />
 }
 </div>
 </SettingsShell>
@@ -22,6 +22,9 @@ else
     [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
     [Parameter] public long? Id { get; set; }
     [SupplyParameterFromQuery] public string? Reference { get; set; }
+    /// <summary>Issue 534: a new request may arrive filled in (?subject=…&amp;body=…), for example from ID verification.</summary>
+    [SupplyParameterFromQuery] public string? Subject { get; set; }
+    [SupplyParameterFromQuery] public string? Body { get; set; }
     private bool signedIn, isNew;
     protected override void OnInitialized()
     {

@@ -81,4 +81,10 @@ public static class AccountText
         ProblemCodes.TooManyAttempts => ("limited", "Too many attempts. Try again in an hour."),
         _ => ("invalid", "That code can't be used."),
     };
+
+    /// <summary>Issue 534 (owner wording): the support request for another ID check, filled in and editable; no identity
+    /// details or verification tokens ever go in the link.</summary>
+    public const string AnotherIdCheckSubject = "Request another ID verification check";
+    public const string AnotherIdCheckBody = "My ID verification was unsuccessful and I have used my available ID check. I'd like to request another ID verification attempt.";
+    public static string AnotherIdCheckHref => $"/me/support/new?subject={Uri.EscapeDataString(AnotherIdCheckSubject)}&body={Uri.EscapeDataString(AnotherIdCheckBody)}";
 }

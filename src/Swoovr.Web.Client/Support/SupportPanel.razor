@@ -164,6 +164,9 @@ else if (problem is null) { <p role="status" class="me-meta">Loading…</p> }
     [Parameter] public long? Id { get; set; }
     [Parameter] public bool New { get; set; }
     [Parameter] public string? Reference { get; set; }
+    /// <summary>Issue 534: the new request's starting title and message, used once when the form opens and then left to the member.</summary>
+    [Parameter] public string? Subject { get; set; }
+    [Parameter] public string? Body { get; set; }
     private string Mode => New ? "new" : Id is null ? "list" : "detail";
     private const string FilesInput = "support-files";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -220,7 +223,7 @@ else if (problem is null) { <p role="status" class="me-meta">Loading…</p> }
 
     protected override async Task OnInitializedAsync()
     {
-        if (New) { title = SupportTicketText.Subject(Reference); return; }
+        if (New) { (title, body) = SupportTicketText.Prefill(Reference, Subject, Body); return; }
         if ((await Members.TicketOptionsAsync()).Value is { } options) States = options.States;
         if (Id is long id) await LoadAsync(id); else await PageAsync(1);
     }
