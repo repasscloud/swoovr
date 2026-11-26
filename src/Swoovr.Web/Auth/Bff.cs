@@ -98,6 +98,8 @@ public static partial class Bff
             // Forward explicit dates unchanged, including invalid/duplicate values: the API owns rejection.
             if (context.Request.Headers.TryGetValue(ApiContract.Header, out var versions))
                 request.Headers.TryAddWithoutValidation(ApiContract.Header, versions.ToArray());
+            // PR 526 review: an automatic refresh stays marked as one on its way to the API (online status activity, D419).
+            if(BackgroundRequest.Marked(context.Request.Headers[BackgroundRequest.Header].ToString()))request.Headers.TryAddWithoutValidation(BackgroundRequest.Header,"1");
             if(path=="api/me/appearance"&&context.Request.Headers.TryGetValue(AppearanceOwner.Header,out var owner))request.Headers.TryAddWithoutValidation(AppearanceOwner.Header,owner.ToArray());
             // D181: the browser's address for the API's per-address limits (believed only from a trusted proxy).
             if (context.Connection.RemoteIpAddress is { } address) request.Headers.TryAddWithoutValidation("X-Forwarded-For", address.ToString());
