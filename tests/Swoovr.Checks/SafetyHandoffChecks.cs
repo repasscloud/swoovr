@@ -107,6 +107,12 @@ static class SafetyHandoffChecks
         await Job(true).RunAsync(now, default);
         row = await Fresh(first.Id);
         check("a lost answer leaves the item to reconcile", row is { State: SafetyHandoffState.Sending, Attempts: 1, TicketId: null } && zammad.Posts.Count == 1);
+        // PR 528 review: before reconciliation saves the case link, the item still answers to its case through the hand-off.
+        SupportTicket Item(long id, string operation) => new(id, "41001", SafetyHandoffPolicy.Title, 77, 5, 1, 1, 2, now, operation);
+        var waitingCases = await SafetyHandoffAccess.CasesAsync(db, Item(4100, first.Id.ToString("D")), default);
+        check("an unreconciled item answers to its case", waitingCases.SequenceEqual([item.Id]) && !SafetyHandoffAccess.Refused(true, waitingCases));
+        var stray = await SafetyHandoffAccess.CasesAsync(db, Item(4999, Guid.NewGuid().ToString("D")), default);
+        check("a system item tied to no case is refused; a member's isn't", stray.Length == 0 && SafetyHandoffAccess.Refused(true, stray) && !SafetyHandoffAccess.Refused(false, stray));
         // PR 528 review: a failed search while reconciling keeps it Sending, so the next pass searches again instead of creating.
         zammad.SearchFails = true; await Due(first.Id);
         await Job(true).RunAsync(now, default);

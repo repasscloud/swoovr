@@ -55,6 +55,7 @@ public sealed class TicketingRuntime(AccountResolver accounts,CurrentAccount cur
     {
         var member=await CustomerAccountAsync(ticket.CustomerId,ct);
         var subjects=new HashSet<Guid>();
+        var systemOnly=false;
         if(member is null)
         {
             // A customer that ever belonged to a member keeps the member rules (an inactive or deleted member stays refused).
@@ -63,13 +64,16 @@ public sealed class TicketingRuntime(AccountResolver accounts,CurrentAccount cur
             // account, so there are no member conflicts to apply; case links below still apply.
             var guest=await Db.Set<TicketingGuest>().Where(g=>g.ProviderUserId==ticket.CustomerId).Select(g=>new{g.State,g.DeactivatedAt}).SingleOrDefaultAsync(ct);
             if(guest is not null&&(guest.State!=TicketingOperationState.Applied||guest.DeactivatedAt!=null))throw Refuse(404);
+            systemOnly=guest is null&&ticket.Classification.GetValueOrDefault("swoovr_source")==TicketingPolicy.SystemSource;
         }
         else
         {
             if(!await Db.Accounts.AnyAsync(a=>a.Id==member&&a.Status==AccountStatus.Active,ct))throw Refuse(404);
             subjects.Add(member.Value);
         }
-        var links=await Db.Set<TicketingCaseLink>().Where(l=>l.ProviderTicketId==ticket.Id).Select(l=>l.CaseId).Distinct().ToArrayAsync(ct);
+        // PR 528 review (D420): the case links, plus a sensitive report's case through its hand-off (before its link is saved).
+        var links=await Swoovr.Api.Moderation.SafetyHandoffAccess.CasesAsync(Db,ticket,ct);
+        if(Swoovr.Api.Moderation.SafetyHandoffAccess.Refused(systemOnly,links))throw Refuse(404);
         var cases=await Db.ModerationCases.Where(c=>links.Contains(c.Id)).ToArrayAsync(ct);
         if(cases.Length!=links.Length||cases.Any(c=>c.Queue==CaseQueue.Admin&&current.StaffRole!=AccountRole.Admin))throw Refuse(404);
         foreach(var caseId in links)foreach(var subject in await Swoovr.Api.Retention.SafetyRetention.CaseAccountsAsync(Db,caseId,ct))subjects.Add(subject);

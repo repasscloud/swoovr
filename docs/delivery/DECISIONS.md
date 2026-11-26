@@ -1641,6 +1641,7 @@ Builds D411 (**CONFIRMED**, Q128). D308's routing is unchanged for members: the 
 - **Delivery:** every minute (`Safety:HandoffWorker`). The row id is the Zammad operation id: a create that may have reached Zammad is found again by search, never sent twice. Retries back off from a minute to an hour; after 24 attempts (about a day) the row is Failed, logged and audited (`safety-report.handoff-failed`). Without the token it waits and uses no attempts.
 - **UAT:** the token is empty in the env template, so an upgrade's check passes; provisioning fills it during the upgrade, and the API reads it on its next start (the next deployment, or `docker compose up -d api`). Reports made in between are delivered then.
 - **Not yet shown:** a run against a real Zammad. The provisioning script was syntax-checked only.
+- **PR 528 review:** Swoovr Admin ties a sensitive report's item to its case through its hand-off row (the ticket's operation reference) as well as the case link, so the case's queue and conflict-of-interest rules apply even while a lost create answer waits to be reconciled. A system-raised item with no member or guest behind it that can't be tied to a case is refused.
 
 ### D421 — Explicit media, slice 1: a stored rating on every photo (#431, 26 November 2026)
 
