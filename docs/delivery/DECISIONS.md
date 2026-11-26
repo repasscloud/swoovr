@@ -1732,3 +1732,17 @@ Builds the first part of D389's DEFAULT design. Independent of Q182: no chat del
 ### D432 — Privacy Notice 0.21 takes effect on 26 November 2026 (26 November 2026)
 
 **CONFIRMED** by the owner (26 November 2026, in chat). 0.21 carries the location wording ([#283](https://github.com/repasscloud/swoovr/issues/283), D351), staff viewing an ID ([#513](https://github.com/repasscloud/swoovr/issues/513), D413) and online status ([#525](https://github.com/repasscloud/swoovr/issues/525), D422). With it in force, D413's release gate opens in production and `Explore:OnlineStatus` is turned on with the release (D422). The Photo Verified and chat location sentences (D427, D431) go in 0.22.
+
+### D433 — Privacy Notice 0.21 is published (#283, #525, #513, 26 November 2026)
+
+Builds D432 (**CONFIRMED**). Version "0.21, 26 November 2026", label "approved 26 November 2026". Every approved paragraph is applied word for word; `PrivacyNotice021Checks` compares them with the owner's sources (#271 §2–§9, #513, #525).
+- **Where the wording goes (DEFAULT, placement only):**
+  - #271 §2 and §4 form a new **Location** section after "What we collect"; the old one-line "Location:" item there is removed, because §2 replaces it.
+  - §1 removes "area"; §3 joins "Why we collect and use it"; §6 follows the Zammad paragraph; §7 joins "How long we keep information"; §8 joins "Your choices and rights".
+  - §5's first paragraph replaces the last sentence of the "Discovery and contact" item ("…never your exact location or orientation"), which Near me no longer matches; its second paragraph is a new item in "Automated decisions".
+  - §9 replaces the California geolocation category (it ends with ";" inside that list) and adds "precise geolocation, when you use device-location features" to the sensitive categories.
+  - #525's patch and #513's wording are applied where they say.
+- **Kept unchanged:** the "modes" paragraph about home-city distance bands ("never your exact location") still describes Home City bands; GPS bands are described in Location. The owner may want to align it in 0.22.
+- **Not in 0.21:** the iOS/Android permission texts (§10–§11) wait for Flutter; the web texts (§12–§14) ship with #282; Photo Verified (D427) and chat location (D431) sentences go in 0.22.
+- **On with it:** `Explore:OnlineStatus` is on in UAT (D422). There is no production host yet; it is turned on there with the notice. D413's ID image gate now opens by date (`CoversIdReview`).
+- **Telling members:** after deployment, an operator stages and publishes the policy-update notice for version "0.21, 26 November 2026" with the existing CLI (`PolicyNoticePublisher`, #121). Nothing is sent by this change alone.

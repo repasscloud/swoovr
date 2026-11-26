@@ -220,9 +220,11 @@ services:
       Media__Store: r2
       Push__Provider: disabled
       Didit__TestMode: "false"
-      # #488 (D414): admins may open the ID in a date of birth review. Private UAT only; production waits for notice 0.21.
+      # #488 (D414): admins may open the ID in a date of birth review. Notice 0.21 (D432, effective 26 November 2026) covers it.
       # The exact image host is UAT_DIDIT_IMAGE_HOSTS; while it is empty every image is refused and the API log names the host.
       Didit__IdImages__Enabled: "true"
+      # D422/D432: online status is on with Privacy Notice 0.21 (effective 26 November 2026); opt-in, mutual, green dot only.
+      Explore__OnlineStatus: "true"
       # Issue 438: Didit returns the member here. Without it the API used to fall back to localhost.
       Didit__Callbacks__Web: https://uat.swoovr.app/me/verification/return
       Beta__Enabled: "true"

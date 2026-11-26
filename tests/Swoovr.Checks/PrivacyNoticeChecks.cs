@@ -14,7 +14,7 @@ static class PrivacyNoticeChecks
         string Text(string id) => string.Join(" ", PrivacyNotice.Sections.Single(s => s.Id == id).Paragraphs);
         var all = string.Join(" ", PrivacyNotice.Sections.SelectMany(s => s.Paragraphs));
 
-        Expect(!PrivacyNotice.StatusLabel.Contains("draft", StringComparison.OrdinalIgnoreCase) && PrivacyNotice.StatusLabel.Contains("approved 17 November 2026") && PrivacyNotice.Version == "0.20, 17 November 2026", "0.20 approved 17 November 2026 (issue 359, D377), never draft");
+        Expect(!PrivacyNotice.StatusLabel.Contains("draft", StringComparison.OrdinalIgnoreCase) && PrivacyNotice.StatusLabel.Contains("approved 26 November 2026") && PrivacyNotice.Version == "0.21, 26 November 2026", "0.21 effective 26 November 2026 (D432), never draft");
         // Issue 208 / D333–D334: helpdesk collection, self-hosted Zammad, support retention, customer retirement, logs and backups.
         Expect(Text("collect").Contains("Customer support: when you contact us") && Text("collect").Contains("internal case notes"), "support information collected (issue 208 §2)");
         Expect(Text("sharing").Contains("self-hosted customer support system using Zammad") && Text("sharing").Contains("not an independent recipient") && Text("sharing").Contains("email service provider"), "self-hosted Zammad, not a recipient (issue 208 §3)");
@@ -51,7 +51,7 @@ static class PrivacyNoticeChecks
         // D203: photos — private until checked, EXIF removed, fingerprint-only known-content matching, deletion unless held.
         // Issue 296 rewording keeps every D203 disclosure: private while checked, EXIF removed, fingerprint-only, deletion unless held.
         Expect(Text("photos").Contains("kept private while they are checked") && Text("photos").Contains("EXIF") && Text("photos").Contains("fingerprint")
-            && Text("photos").Contains("unless a safety or legal retention requirement applies") && Text("photos").Contains("stay with Didit"), "the photos section (D203)");
+            && Text("photos").Contains("unless a safety or legal retention requirement applies") && Text("photos").Contains("Didit holds them"), "the photos section (D203; #513 wording)");
 
         // APP 1.4 contents, APP 3.3 sensitive-information consent and APP 1.7–1.9 automated decisions (from 10 December 2026).
         Expect(Text("why").Contains("don't sell") && Text("why").Contains("required"), "purposes and the consequences of not providing information (APP 1.4(c), APP 5.2(f))");
@@ -71,11 +71,11 @@ static class PrivacyNoticeChecks
             && Text("photos").Contains("does not restart after scanning, processing, retries or review")
             && Text("photos").Contains("Original files are not published to other members")
             && Text("photos").Contains("receives only a digital fingerprint of the photo, not the photo itself")
-            && Text("photos").Contains("never go through this process; they stay with Didit"), "raw-original photo handling (issue 296)");
+            && Text("photos").Contains("never go through this process; Didit holds them"), "raw-original photo handling (issue 296)");
         Expect(Text("retention").Contains("Raw original uploaded photos are ordinarily deleted within 30 days of the initial upload")
             && Text("holds").Contains("suspends ordinary deletion only for the information it covers"), "30-day raw-original retention and hold scope (D374)");
         Expect(!all.Contains("never the original", StringComparison.OrdinalIgnoreCase) && !all.Contains("re-made copy", StringComparison.OrdinalIgnoreCase),
             "no contradictory claim that originals are never kept (issue 296)");
-        Console.WriteLine($"PASS: approved privacy notice 0.20 ({checks}).");
+        Console.WriteLine($"PASS: approved privacy notice 0.21 ({checks}).");
     }
 }
