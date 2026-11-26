@@ -18,7 +18,7 @@
     -->
     <SwoovrVersionMajor>1</SwoovrVersionMajor>
     <SwoovrVersionMinor>3</SwoovrVersionMinor>
-    <SwoovrVersionBuild Condition="'$(SwoovrVersionBuild)' == ''">7</SwoovrVersionBuild>
+    <SwoovrVersionBuild Condition="'$(SwoovrVersionBuild)' == ''">8</SwoovrVersionBuild>
     <SwoovrNativeBuild Condition="'$(SwoovrNativeBuild)' == ''">1</SwoovrNativeBuild>
     <SwoovrVersion>$(SwoovrVersionMajor).$(SwoovrVersionMinor).$(SwoovrVersionBuild)</SwoovrVersion>
     <Version>$(SwoovrVersion)</Version>
