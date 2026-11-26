@@ -423,6 +423,8 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             item.Property(i => i.Purpose).HasMaxLength(16);
             item.HasIndex(i => i.ConversationId);
             item.Property(i => i.AlbumOnly).HasDefaultValue(false);
+            // Issue 431 (D389): Standard unless a reviewer marks it explicit.
+            item.Property(i => i.ContentRating).HasConversion<string>().HasMaxLength(16).HasDefaultValue(ContentRating.Standard).HasSentinel(ContentRating.Standard);
         });
         model.Entity<MediaEscalationDelivery>(delivery =>
         {

@@ -16,7 +16,8 @@ public sealed record MyPhotosView(IReadOnlyList<MyPhotoView> Photos, Guid? Main,
     IReadOnlyList<PhotoAlbumView>? Albums = null, int MaxAlbums = 4, int MaxAlbumPhotos = 10, bool IdVerified = false);
 
 /// <summary>#231: a private album. Photos are library photo ids in order; Modes are the profiles it may be shared in.</summary>
-public sealed record PhotoAlbumView(Guid Id, string Name, IReadOnlyList<Guid> Photos, IReadOnlyList<string> Modes, DateTimeOffset CreatedAt);
+/// <param name="ContainsExplicit">Issue 431 (D389): the album holds at least one live explicit photo. Derived each time; shown to its owner.</param>
+public sealed record PhotoAlbumView(Guid Id, string Name, IReadOnlyList<Guid> Photos, IReadOnlyList<string> Modes, DateTimeOffset CreatedAt, bool ContainsExplicit = false);
 
 /// <summary>#231: create an album (name 1–40 characters) allowed in the given modes.</summary>
 public sealed record PhotoAlbumCreate(string? Name, IReadOnlyList<string>? Modes);

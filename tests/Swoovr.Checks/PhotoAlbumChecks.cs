@@ -27,6 +27,8 @@ static class PhotoAlbumChecks
         foreach (var status in Enum.GetValues<MediaStatus>().Where(s => s != MediaStatus.Passed))
             Expect(!PhotoAlbumPolicy.Addable(Item(status)), $"a {status} photo can't be added");
         Expect(!PhotoAlbumPolicy.Addable(Item(MediaStatus.Passed, albumOnly: true)), "an album-only photo can't be added to another album");
+        // Issue 431 (D389): the stored rating is checked as well as the album-only mark.
+        { var rated = Item(MediaStatus.Passed); rated.ContentRating = ContentRating.Explicit; Expect(!PhotoAlbumPolicy.Addable(rated), "an explicit photo can't be added to another album"); }
         Expect(!PhotoAlbumPolicy.Addable(Item(MediaStatus.Passed, purpose: "attachment")), "a chat photo can't be added");
         Expect(!PhotoAlbumPolicy.Addable(Item(MediaStatus.Passed, removed: now)), "a deleted photo can't be added");
         Expect(PhotoAlbumPolicy.Removable(Item(MediaStatus.Passed)) && !PhotoAlbumPolicy.Removable(Item(MediaStatus.Passed, albumOnly: true)),

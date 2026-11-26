@@ -651,3 +651,5 @@
 /* Issue 507: the text picture's rules wrap beside its buttons, or sit above them on a phone. */
 .rd-text-picture-foot { align-items: flex-start; }
 .rd-text-picture-foot > p.field-help { flex: 1 1 240px; }
+/* Issue 431 (D389): an album holding a live explicit photo says so to its owner. */
+.ph-explicit { display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px; margin-left: 6px; border: 1px solid var(--text); border-radius: 999px; font: 700 .625rem/1 var(--font); letter-spacing: .06em; text-transform: uppercase; vertical-align: middle; }

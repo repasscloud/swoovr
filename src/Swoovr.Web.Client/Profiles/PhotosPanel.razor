@@ -72,7 +72,7 @@
                 {
                     <li><a class="ph-album" href="/me/photos/albums/@album.Id" data-album="@album.Id">
                         <span class="ph-cover">@foreach (var photo in album.Photos.Take(4).Select(Photo).OfType<MyPhotoView>()) {<PhotoShot Photo="photo" Alt="" />}</span>
-                        <span class="ph-album-name">@album.Name</span>
+                        <span class="ph-album-name">@album.Name @if (album.ContainsExplicit) { <span class="ph-explicit" data-album-explicit>Explicit</span> }</span>
                         @* Issue 421: only the photo count; the album's modes are shown when it's opened. *@
                         <span class="field-help">@album.Photos.Count of @photos.MaxAlbumPhotos photos</span>
                     </a></li>

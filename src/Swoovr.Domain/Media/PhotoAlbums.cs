@@ -60,7 +60,7 @@ public static class PhotoAlbumPolicy
     /// Only approved library photos that aren't album-only can be added from the library; an album-only photo stays in
     /// the album it was uploaded into.
     /// </summary>
-    public static bool Addable(MediaItem item) => item is { Purpose: null, Status: MediaStatus.Passed, RemovedAt: null, AlbumOnly: false };
+    public static bool Addable(MediaItem item) => item is { Purpose: null, Status: MediaStatus.Passed, RemovedAt: null, AlbumOnly: false, ContentRating: ContentRating.Standard };
 
     /// <summary>A library photo can be removed from an album; an album-only one can only be deleted.</summary>
     public static bool Removable(MediaItem item) => !item.AlbumOnly;
