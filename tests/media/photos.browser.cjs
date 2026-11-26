@@ -237,10 +237,15 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 250;
     await adminPage.waitForSelector(`[data-media-item="${unsure}"]`); pass();
     await adminPage.locator(`[data-review-open="${unsure}"]`).click();
     assert.equal(await adminPage.locator('[data-media-image]').count(), 0, 'concealed before an explicit audited reveal'); pass();
+    // Issue 536: a library upload with a nudity signal shows its destination as the amber pill, concealed and revealed.
+    const destination = async () => [await adminPage.getAttribute('[data-media-destination] .destination-pill', 'data-destination-tone'), (await adminPage.textContent('[data-media-destination]')).trim()];
+    assert.deepEqual(await destination(), ['library', 'Photo library']); pass();
+    assert.equal(await adminPage.locator('[data-album-explicit-key]').count(), 0, 'X is only offered for a private album upload'); pass();
     await adminPage.locator('[data-reveal]').click();
     await adminPage.waitForSelector(`[data-media-image="${unsure}"]`);
     await adminPage.waitForFunction(id => document.querySelector(`[data-media-image="${id}"]`).naturalWidth > 0, unsure);
     assert.equal(await adminPage.$eval(`[data-media-image="${unsure}"]`, e => getComputedStyle(e).filter), 'none'); pass();
+    assert.deepEqual(await destination(), ['library', 'Photo library'], 'still shown after reveal'); pass();
     if (output) await adminPage.screenshot({ path: output + '/admin-photo-review.png', fullPage: true });
     await adminPage.selectOption('[data-photo-decision]', 'APPROVED_STANDARD'); await adminPage.locator('[data-photo-decide]').click();
     await waitFor(async () => (await mine('ana')).body.photos.find(p => p.id === unsure).state === 'approved'); pass();

@@ -3,6 +3,13 @@ namespace Swoovr.Admin;
 /// <summary>Short staff-facing labels for media review codes and decisions. Codes stay internal and are not displayed.</summary>
 public static class MediaText
 {
+    /// <summary>Issues 536 and 537: the Destination row. A private album is a green pill whatever the signal; a photo library upload
+    /// with a nudity signal is an amber pill, so it isn't mistaken for a main profile photo; anything else is plain text. It shows the
+    /// destination the API supplies, never one inferred from the signal. Tone null: plain text.</summary>
+    public static (string Label, string? Tone) Destination(string? destination, string? signal) => destination == "album"
+        ? ("Private album", "album")
+        : ("Photo library", signal == "nudity-signal" ? "library" : null);
+
     public static string Reason(string code) => code switch
     {
         "APPROVED_STANDARD" => "Meets photo rules",

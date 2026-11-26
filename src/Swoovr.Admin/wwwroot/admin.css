@@ -7,6 +7,13 @@
   /* Issue 440: the same unread red and white as the member app (D397) for a waiting count in the navigation. */
   --unread: #C8102E;
   --unread-text: #FFFFFF;
+  /* Issues 536/537 (owner, 26 November 2026): the media review destination. Amber for a photo library upload with a nudity
+     signal, green for a private album. The colour names the destination, not a decision; dark text on amber, white on green,
+     at least 4.5:1 (check_design.py), the same in both modes. */
+  --destination-library: #F2A900;
+  --destination-library-text: #1A1A1A;
+  --destination-album: #17733A;
+  --destination-album-text: #FFFFFF;
 }
 :root[data-theme="dark"] {
   --destructive: #FF9494;
@@ -922,3 +929,7 @@ a.ad-stat:hover { border-color: color-mix(in srgb, var(--muted) 55%, var(--borde
 /* Issue 506: a value on the ID and whether it matches, on one line. */
 .didit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
 .didit-row > span:first-child { overflow-wrap: anywhere; }
+/* Issues 536/537: one pill shape for the review destination, the size of a .ui-pill. */
+.destination-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 700; line-height: 18px; white-space: nowrap; }
+.destination-pill[data-destination-tone="library"] { background: var(--destination-library); color: var(--destination-library-text); }
+.destination-pill[data-destination-tone="album"] { background: var(--destination-album); color: var(--destination-album-text); }

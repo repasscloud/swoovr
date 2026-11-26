@@ -24,6 +24,7 @@
 
 // Media review keyboard flow (progressive enhancement; the server re-validates every decision).
 // V reveal/conceal · A/R/E choose decision (first reason auto-selected, focus moves to Reason)
+// X (issue 537, private album uploads only) approve with "Adult content: private albums only"; never saves by itself
 // ↑/↓ in Reason change reason · Enter in Reason saves · ←/→ previous/next item.
 (() => {
   const dialog = () => document.querySelector('[data-photo-dialog],[data-review-dialog]');
@@ -44,12 +45,14 @@
     const hint = field.querySelector('[data-notes-hint]'); if (hint) hint.textContent = opt?.notes ? '(required)' : '(optional)';
     d.querySelectorAll('[data-decide]').forEach(b => b.setAttribute('aria-pressed', String(!!opt && b.dataset.decide === opt.decision)));
   }
-  function choose(decision) {
+  function choose(decision, reason) {
     const sel = select(); if (!sel) return;
     snapshot(sel);
     const items = master.filter(o => o.decision === decision);
+    // Issue 537: X only applies where the server offered that reason for this item.
+    if (reason && !items.some(o => o.value === reason)) return;
     sel.replaceChildren(...items.map(o => { const el = document.createElement('option'); el.value = o.value; el.textContent = o.text; el.dataset.decision = o.decision; if (o.notes) el.dataset.notes = 'required'; return el; }));
-    sel.value = items[0]?.value ?? '';
+    sel.value = reason ?? items[0]?.value ?? '';
     syncNotes(sel);
     sel.focus();
   }
@@ -88,6 +91,7 @@
     const key = event.key.toLowerCase();
     if (key === 'v') { d.querySelector('[data-reveal]')?.click(); event.preventDefault(); }
     else if (key === 'a' || key === 'r' || key === 'e') { choose({ a: 'approve', r: 'reject', e: 'escalate' }[key]); event.preventDefault(); }
+    else if (key === 'x' && d.querySelector('[data-album-explicit-key]')) { choose('approve', 'APPROVED_ALBUM_EXPLICIT'); event.preventDefault(); }
     else if (event.key === 'ArrowRight') step(1);
     else if (event.key === 'ArrowLeft') step(-1);
   });

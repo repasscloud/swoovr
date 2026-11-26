@@ -190,6 +190,13 @@ for theme in data:
     for mode in ['light', 'dark']:
         low, high = sorted([luminance(dot[0]), luminance(theme[mode]['surface'])])
         assert (high + .05) / (low + .05) >= 3, f'--online contrast below 3:1 on {theme["id"]} {mode} surface'
+# Issues 536/537 (owner, 26 November 2026): the admin media review destination pills, amber and green, each with its text colour.
+destination = re.compile(r'^\s*--destination-(?:library|album)(?:-text)?:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
+pills = dict(re.findall(r'--(destination-(?:library|album)(?:-text)?):\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text()))
+assert set(pills) == {'destination-library', 'destination-library-text', 'destination-album', 'destination-album-text'}, 'admin.css must define the four destination pill tokens once'
+for pill in ['library', 'album']:
+    low, high = sorted([luminance(pills[f'destination-{pill}-text']), luminance(pills[f'destination-{pill}'])])
+    assert (high + .05) / (low + .05) >= 4.5, f'destination {pill} pill text contrast below 4.5:1'
 red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', app_css)
 assert len(red) == 2, 'app.css must define --destructive once for light (:root) and once for dark'
 admin_red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text())
@@ -204,7 +211,7 @@ for mode, value in zip(['light', 'dark'], red):
 for path in web_styles:
     text = path.read_text()
     if path.name == 'app.css': text = online.sub('', unread.sub('', destructive.sub('', emergency.sub('', text))))
-    if path.name == 'admin.css': text = unread.sub('', destructive.sub('', text))
+    if path.name == 'admin.css': text = destination.sub('', unread.sub('', destructive.sub('', text)))
     found = stray.search(re.sub(r'/\*.*?\*/', '', text, flags=re.S))
     assert not found, f'Stray colour/shadow/framework style in {path.relative_to(root)}: {found.group(0)}'
 
