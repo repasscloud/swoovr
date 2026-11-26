@@ -82,6 +82,13 @@ const text = {
     assert.equal(await sql(`SELECT count(*) FROM member_locations WHERE account_id = '${ids.web}'`), '0', 'nothing read before Share'); pass();
     await accessible(page, 'Near me before the prompt');
     if (output) await page.screenshot({ path: output + '/near-me-prompt-390.png', fullPage: true });
+    // PR 560 review: a reading that completes while the page is hidden is dropped (D434: visible page only).
+    await page.evaluate(() => Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }));
+    await page.click('[data-near-me-share]');
+    await page.waitForTimeout(1500);
+    assert.equal(await sql(`SELECT count(*) FROM member_locations WHERE account_id = '${ids.web}'`), '0', 'nothing sent while hidden'); pass();
+    await page.waitForSelector('[data-near-me=prompt]'); pass();
+    await page.evaluate(() => delete document.visibilityState);
     // Allow: the reading is stored (rounded, sealed) and Near me lists Adelaide's people, including the member appearing nearby.
     await page.click('[data-near-me-share]');
     await page.waitForSelector('[data-explore-market]');

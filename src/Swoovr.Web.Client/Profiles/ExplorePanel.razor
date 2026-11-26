@@ -270,8 +270,9 @@
             NearRead? read;
             try { read = await JS.InvokeAsync<NearRead>("swoovrLocation.readNearMe"); }
             catch (Exception error) when (error is JSException or InvalidOperationException) { read = new("unavailable", null); }
-            // PR 560 review: the member may have left Explore or Near me while the browser was reading.
-            if (disposed || scope != "nearMe") return;
+            // PR 560 review: the member may have left Explore or Near me, or hidden the page, while the browser was reading
+            // (up to 20 seconds). A reading that completes while the page is hidden is dropped (D434: visible page only).
+            if (disposed || scope != "nearMe" || !await VisibleAsync()) return;
             if (read is not { Status: "ok", Reading: { } reading }) { nearState = read?.Status ?? "unavailable"; return; }
             var saved = await Members.SaveLocationAsync(reading, background);
             if (disposed || scope != "nearMe") return;
@@ -302,14 +303,17 @@
         {
             while (await timer.WaitForNextTickAsync(token))
             {
-                bool shown;
-                try { shown = await JS.InvokeAsync<bool>("swoovrLocation.visible"); }
-                catch (Exception error) when (error is JSException or InvalidOperationException) { shown = false; }
-                if (!shown || disposed || scope != "nearMe") continue;
+                if (!await VisibleAsync() || disposed || scope != "nearMe") continue;
                 await InvokeAsync(async () => { await ShareAsync(true); StateHasChanged(); });
             }
         }
         catch (OperationCanceledException) { }
+    }
+
+    private async Task<bool> VisibleAsync()
+    {
+        try { return await JS.InvokeAsync<bool>("swoovrLocation.visible"); }
+        catch (Exception error) when (error is JSException or InvalidOperationException) { return false; }
     }
 
     private void StopRefresh() { nearRefresh?.Cancel(); nearRefresh?.Dispose(); nearRefresh = null; }
