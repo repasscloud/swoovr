@@ -37,7 +37,11 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.deepEqual(await order('friends'), before, 'the order does not change'); pass();
 
     // New members: for 14 days by default, then it ends on its own; the order never changes.
-    assert.ok((await explore('viv', 'friends')).every(p => p.newMember === true)); pass();
+    // Only this suite's people: an official bot another suite left in Adelaide is listed too, and is never new (D409).
+    const own = new Set(names.slice(1).map(n => pid[n]));
+    const ours = (await explore('viv', 'friends')).filter(p => own.has(p.id));
+    assert.equal(ours.length, own.size); assert.ok(ours.every(p => p.newMember === true)); pass();
+    assert.ok((await explore('viv', 'friends')).filter(p => p.badges?.some(b => b.badge === 'bot')).every(p => p.newMember === false), 'never for official bots'); pass();
     const listed = await order('friends');
     await sql(`UPDATE accounts SET created_at = now() - interval '14 days 1 minute' WHERE id = '${ids.out}'`);
     await sql(`UPDATE accounts SET created_at = now() - interval '13 days 23 hours' WHERE id = '${ids.inn}'`);

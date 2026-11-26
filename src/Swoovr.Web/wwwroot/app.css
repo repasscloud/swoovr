@@ -1044,6 +1044,33 @@ body:has(.public-layout) { padding-bottom: 0; }
 .dob-correction-form { display: grid; gap: 16px; margin-top: 16px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .dialog-actions .button { width: auto; min-height: 44px; padding: 0 20px; }
+/* Issue 539: Connections as navigable sections with compact rows (left navigation on wide screens, a switcher on narrow). */
+.cx-layout { display: grid; gap: 16px; }
+.cx-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.cx-nav-item { display: inline-flex; align-items: center; gap: 8px; flex: none; min-height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: 600 .875rem/1 var(--font); cursor: pointer; }
+.cx-nav-item[aria-pressed="true"] { background: var(--primary); color: var(--onPrimary); border-color: var(--primary); }
+.cx-count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--unread); color: var(--unread-text); font: 700 .6875rem/20px var(--font); text-align: center; }
+.cx-panel { min-width: 0; }
+.cx-panel h2 { margin: 0 0 12px; font-size: 1.125rem; }
+.cx-rows { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.cx-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.cx-row:first-child { border-top: 0; }
+.cx-person { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 14rem; }
+.cx-thumb { flex: none; width: 44px; height: 44px; border-radius: 50%; object-fit: cover; display: inline-flex; align-items: center; justify-content: center; background: var(--soft); color: var(--muted); font-weight: 700; }
+.cx-who { display: grid; gap: 4px; min-width: 0; }
+.cx-name { font-weight: 700; color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-name:hover { text-decoration: underline; }
+.cx-age { font-weight: 400; }
+.cx-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cx-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cx-button, .cx-more { width: auto; flex: none; min-height: 40px; padding: 0 16px; }
+.cx-more { margin-top: 12px; }
+.cx-confirm { flex-basis: 100%; }
+@media (min-width: 900px) {
+  .cx-layout { grid-template-columns: 220px minmax(0, 1fr); align-items: start; }
+  .cx-nav { flex-direction: column; overflow: visible; position: sticky; top: 24px; }
+  .cx-nav-item { justify-content: space-between; border-radius: 12px; }
+}
 /* Issue 282: the Explore scope switch, Near me's permission notice and the Travel pre-arrival switches. */
 .explore-scope { margin: 0 0 8px; }
 .near-me-notice p { max-width: none; }

@@ -1,7 +1,9 @@
 namespace Swoovr.Contracts;
 
 /// <summary>Another member as a request or block list shows them: public id, display name and public badges only.</summary>
-public sealed record PersonSummary(Guid Id, string? DisplayName, IReadOnlyList<BadgeView> Badges);
+/// <param name="Photo">Issue 539: the person's main photo for the row's mode (approved, short-lived link), as on Explore cards; null in single answers.</param>
+/// <param name="Age">Issue 539: age only where that mode shows it and the person allows it (D138, D418); never a date of birth.</param>
+public sealed record PersonSummary(Guid Id, string? DisplayName, IReadOnlyList<BadgeView> Badges, PhotoView? Photo = null, int? Age = null);
 
 /// <summary>
 /// A connection request as one of its two members sees it (D112). Direction is "received" or "sent"; status is

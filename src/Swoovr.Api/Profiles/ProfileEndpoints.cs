@@ -524,7 +524,7 @@ public static class ProfileEndpoints
         await db.ProfileOptions.Where(o => o.Kind == "gender" || o.Kind == "pronoun")
             .ToDictionaryAsync(o => o.Kind == "pronoun" ? PronounKey + o.Id : o.Id, o => o.Label, cancellationToken);
 
-    private static async Task<Dictionary<Guid, MemberIdentity>> IdentitiesAsync(SwoovrDbContext db, List<Guid> accounts, CancellationToken cancellationToken) =>
+    internal static async Task<Dictionary<Guid, MemberIdentity>> IdentitiesAsync(SwoovrDbContext db, List<Guid> accounts, CancellationToken cancellationToken) =>
         await db.MemberIdentities.Where(i => accounts.Contains(i.AccountId)).ToDictionaryAsync(i => i.AccountId, cancellationToken);
 
     /// <summary>
@@ -598,21 +598,36 @@ public static class ProfileEndpoints
     }
 
     /// <summary>The available modes in which the person is shown to the viewer (DiscoveryEligibility.ShownIn), in order.</summary>
-    public static async Task<List<ConnectionMode>> SharedModesAsync(SwoovrDbContext db, Guid viewer, Row person, CancellationToken cancellationToken)
+    public static async Task<List<ConnectionMode>> SharedModesAsync(SwoovrDbContext db, Guid viewer, Row person, CancellationToken cancellationToken) =>
+        (await SharedModesAsync(db, viewer, [person], cancellationToken))[person.Profile.AccountId];
+
+    /// <summary>
+    /// The same rule for several people at once (PR 561 review): the modes and settings load once, and the matching facts
+    /// once per mode for everyone eligible in it, instead of once per person and mode. Every person is a key.
+    /// </summary>
+    public static async Task<Dictionary<Guid, List<ConnectionMode>>> SharedModesAsync(SwoovrDbContext db, Guid viewer, IReadOnlyList<Row> people,
+        CancellationToken cancellationToken)
     {
+        var result = people.Select(p => p.Profile.AccountId).Distinct().ToDictionary(id => id, _ => new List<ConnectionMode>());
+        if (people.Count == 0) return result;
+        var ids = result.Keys.ToList();
         var modes = await db.ConnectionModes.Where(m => m.Available).OrderBy(m => m.SortOrder).ToListAsync(cancellationToken);
         var mine = await db.MemberModes.Where(m => m.AccountId == viewer).ToDictionaryAsync(m => m.ModeId, cancellationToken);
-        var theirs = await db.MemberModes.Where(m => m.AccountId == person.Profile.AccountId).ToDictionaryAsync(m => m.ModeId, cancellationToken);
-        var bots = person.Profile.Bot ? await BotModesAsync(db, [person.Profile.AccountId], cancellationToken) : [];
-        var eligible = modes.Where(m => DiscoveryEligibility.ShownIn(m.Id, m, mine.GetValueOrDefault(m.Id), theirs.GetValueOrDefault(m.Id), person.Candidate(bots))).ToList();
+        var theirs = (await db.MemberModes.Where(m => ids.Contains(m.AccountId)).ToListAsync(cancellationToken))
+            .GroupBy(m => m.AccountId).ToDictionary(g => g.Key, g => g.ToDictionary(m => m.ModeId));
+        var bots = await BotModesAsync(db, people.Where(p => p.Profile.Bot).Select(p => p.Profile.AccountId).Distinct().ToList(), cancellationToken);
         // D138, D140: a mode where the reciprocal rules fail (an excluded chip either way, Dating "show me" either way)
         // isn't shared: neither can find nor contact the other there. Date of birth is required by Candidates (D139).
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var result = new List<ConnectionMode>();
-        foreach (var mode in eligible)
+        foreach (var mode in modes)
         {
-            var facts = await FactsAsync(db, [viewer, person.Profile.AccountId], mode.Id, today, cancellationToken);
-            if (facts.Count == 2 && MatchPolicy.Reciprocal(mode.Id, facts[viewer], facts[person.Profile.AccountId])) result.Add(mode);
+            var eligible = people.Where(p => DiscoveryEligibility.ShownIn(mode.Id, mode, mine.GetValueOrDefault(mode.Id),
+                theirs.GetValueOrDefault(p.Profile.AccountId)?.GetValueOrDefault(mode.Id), p.Candidate(bots))).Select(p => p.Profile.AccountId).Distinct().ToList();
+            if (eligible.Count == 0) continue;
+            var facts = await FactsAsync(db, [viewer, .. eligible], mode.Id, today, cancellationToken);
+            if (!facts.TryGetValue(viewer, out var own)) continue;
+            foreach (var id in eligible)
+                if (id != viewer && facts.TryGetValue(id, out var other) && MatchPolicy.Reciprocal(mode.Id, own, other)) result[id].Add(mode);
         }
         return result;
     }

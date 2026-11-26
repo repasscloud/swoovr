@@ -182,7 +182,7 @@ public static class RequestEndpoints
         });
 
         // Pending requests received or sent, newest first, paged.
-        api.MapGet("/requests", async (string? box, int? page, ClaimsPrincipal user, AccountResolver accounts, CancellationToken cancellationToken) =>
+        api.MapGet("/requests", async (string? box, int? page, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
@@ -191,18 +191,18 @@ public static class RequestEndpoints
             var (me, db) = (current!.Profile!.AccountId, accounts.Db!);
             var query = db.ConnectionRequests.Where(r => r.Status == ConnectionRequestStatus.Pending
                 && (box == "received" ? r.ToAccountId == me : r.FromAccountId == me));
-            return Results.Ok(await PageAsync(db, query, me, page ?? 1, cancellationToken));
+            return Results.Ok(await PageAsync(db, query, me, page ?? 1, cancellationToken, accounts.Services, clock.GetUtcNow()));
         });
 
         // Accepted connections (a request each side has agreed to), newest first, paged.
-        api.MapGet("/connections", async (int? page, ClaimsPrincipal user, AccountResolver accounts, CancellationToken cancellationToken) =>
+        api.MapGet("/connections", async (int? page, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
             if (page is < 1 or > 1000) return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Check the page number.");
             var (me, db) = (current!.Profile!.AccountId, accounts.Db!);
             var query = db.ConnectionRequests.Where(r => r.Status == ConnectionRequestStatus.Accepted && (r.ToAccountId == me || r.FromAccountId == me));
-            return Results.Ok(await PageAsync(db, query, me, page ?? 1, cancellationToken));
+            return Results.Ok(await PageAsync(db, query, me, page ?? 1, cancellationToken, accounts.Services, clock.GetUtcNow()));
         });
 
         api.MapPost("/blocks", async (BlockRequest request, ClaimsPrincipal user, AccountResolver accounts, IHubContext<MessagesHub> hub, TimeProvider clock,
@@ -283,23 +283,76 @@ public static class RequestEndpoints
     public static Task<int> PendingReceivedAsync(SwoovrDbContext db, Guid me, CancellationToken cancellationToken) =>
         Listed(db, db.ConnectionRequests.Where(r => r.Status == ConnectionRequestStatus.Pending && r.ToAccountId == me), me).CountAsync(cancellationToken);
 
-    private static async Task<RequestPage> PageAsync(SwoovrDbContext db, IQueryable<ConnectionRequest> query, Guid me, int page, CancellationToken cancellationToken)
+    private static async Task<RequestPage> PageAsync(SwoovrDbContext db, IQueryable<ConnectionRequest> query, Guid me, int page, CancellationToken cancellationToken,
+        IServiceProvider services, DateTimeOffset now)
     {
         query = Listed(db, query, me);
         var rows = await query.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).Skip((page - 1) * PageSize).Take(PageSize + 1).ToListAsync(cancellationToken);
-        var views = new List<ConnectionRequestView>();
-        foreach (var row in rows.Take(PageSize)) views.Add(await ViewAsync(db, row, me, cancellationToken));
-        return new(views, page, rows.Count > PageSize);
+        var shown = rows.Take(PageSize).ToList();
+        var views = await ViewsAsync(db, shown, me, cancellationToken);
+        return new(await WithFacesAsync(db, services, shown, views, me, now, cancellationToken), page, rows.Count > PageSize);
     }
 
-    public static async Task<ConnectionRequestView> ViewAsync(SwoovrDbContext db, ConnectionRequest request, Guid me, CancellationToken cancellationToken)
+    /// <summary>
+    /// Issue 539: each row's thumbnail and age, for the whole page in one batch, exactly as an Explore card in that mode shows
+    /// them: the mode's main approved photo as a short-lived link (D203), and age only where the mode and the person allow it
+    /// (D138, D418). Nothing else about the person is added. PR 561 review: only while their profile would open in that mode
+    /// now (the profile endpoint's rule: still a candidate and the mode still shared, D175); a mode they turned off or hid
+    /// shows a name only.
+    /// </summary>
+    private static async Task<List<ConnectionRequestView>> WithFacesAsync(SwoovrDbContext db, IServiceProvider services, List<ConnectionRequest> rows,
+        List<ConnectionRequestView> views, Guid me, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        var otherId = request.FromAccountId == me ? request.ToAccountId : request.FromAccountId;
-        var other = await db.MemberProfiles.SingleAsync(p => p.AccountId == otherId, cancellationToken);
-        var alias = await db.MemberModes.Where(m => m.AccountId == other.AccountId && m.ModeId == request.ModeId).Select(m => m.DisplayName).SingleOrDefaultAsync(cancellationToken);
-        var person = new PersonSummary(other.PublicId, ModePrivacy.DisplayName(alias, other.DisplayName), ProfileEndpoints.Badges(other, await ProfileEndpoints.BadgeOrderAsync(db, cancellationToken)));
-        var visit = request.TripId is { } tripId ? await (from t in db.Trips join c in db.GeoCities on t.GeoNameId equals c.GeoNameId
-                                                         where t.Id == tripId select Travel.TravelEndpoints.Visit(t, c)).SingleOrDefaultAsync(cancellationToken) : null;
-        return new(request.Id, request.ModeId, request.FromAccountId == me ? "sent" : "received", Wire(request.Status), person, request.CreatedAt, visit);
+        if (rows.Count == 0) return views;
+        var others = rows.Select(r => r.FromAccountId == me ? r.ToAccountId : r.FromAccountId).Distinct().ToList();
+        var configuration = services.GetRequiredService<IConfiguration>();
+        // PR 561 review: one candidate query and one batched shared-modes check for the whole page, not one per person.
+        var people = await ProfileEndpoints.Candidates(db, configuration, me).Where(c => others.Contains(c.Profile.AccountId)).ToListAsync(cancellationToken);
+        var open = (await ProfileEndpoints.SharedModesAsync(db, me, people, cancellationToken))
+            .SelectMany(p => p.Value.Select(mode => (p.Key, mode.Id))).ToHashSet();
+        var links = services.GetService<Media.MediaLinks>();
+        var photos = links is null ? default : await Media.MediaEndpoints.PhotosAsync(db, links, others, rows.Select(r => r.ModeId).Distinct().ToList(), now, cancellationToken);
+        var identities = await ProfileEndpoints.IdentitiesAsync(db, others, cancellationToken);
+        var births = await db.MemberProfiles.Where(p => others.Contains(p.AccountId)).ToDictionaryAsync(p => p.AccountId, p => p.DateOfBirth, cancellationToken);
+        var today = DateOnly.FromDateTime(now.UtcDateTime);
+        return rows.Zip(views, (row, view) =>
+        {
+            var other = row.FromAccountId == me ? row.ToAccountId : row.FromAccountId;
+            if (!open.Contains((other, row.ModeId))) return view;
+            var age = births.GetValueOrDefault(other) is { } born ? AgePolicy.YearsOn(born, today) : (int?)null;
+            var shownAge = ModePrivacy.OnCard(row.ModeId, ProfileEndpoints.Public(identities.GetValueOrDefault(other), age, new Dictionary<string, string>()).Age, null, null).Age;
+            return view with { Person = view.Person with { Photo = photos.Main?.GetValueOrDefault((other, row.ModeId)), Age = shownAge } };
+        }).ToList();
+    }
+
+    public static async Task<ConnectionRequestView> ViewAsync(SwoovrDbContext db, ConnectionRequest request, Guid me, CancellationToken cancellationToken) =>
+        (await ViewsAsync(db, [request], me, cancellationToken))[0];
+
+    /// <summary>
+    /// The rows of a page in a few queries (PR 561 review), not several per row: the other people's profiles, their names in
+    /// each mode, the badge order and any trip visits load once for the whole page. Same order as <paramref name="requests"/>.
+    /// </summary>
+    public static async Task<List<ConnectionRequestView>> ViewsAsync(SwoovrDbContext db, IReadOnlyList<ConnectionRequest> requests, Guid me,
+        CancellationToken cancellationToken)
+    {
+        if (requests.Count == 0) return [];
+        Guid Other(ConnectionRequest r) => r.FromAccountId == me ? r.ToAccountId : r.FromAccountId;
+        var others = requests.Select(Other).Distinct().ToList();
+        var profiles = await db.MemberProfiles.Where(p => others.Contains(p.AccountId)).ToDictionaryAsync(p => p.AccountId, cancellationToken);
+        var aliases = (await db.MemberModes.Where(m => others.Contains(m.AccountId)).Select(m => new { m.AccountId, m.ModeId, m.DisplayName }).ToListAsync(cancellationToken))
+            .ToDictionary(m => (m.AccountId, m.ModeId), m => m.DisplayName);
+        var order = await ProfileEndpoints.BadgeOrderAsync(db, cancellationToken);
+        var tripIds = requests.Where(r => r.TripId is not null).Select(r => r.TripId!.Value).Distinct().ToList();
+        var visits = tripIds.Count == 0 ? [] : await (from t in db.Trips join c in db.GeoCities on t.GeoNameId equals c.GeoNameId
+                                                      where tripIds.Contains(t.Id) select new { t.Id, Visit = Travel.TravelEndpoints.Visit(t, c) })
+            .ToDictionaryAsync(v => v.Id, v => v.Visit, cancellationToken);
+        return requests.Select(request =>
+        {
+            var other = profiles[Other(request)];
+            var person = new PersonSummary(other.PublicId, ModePrivacy.DisplayName(aliases.GetValueOrDefault((other.AccountId, request.ModeId)), other.DisplayName),
+                ProfileEndpoints.Badges(other, order));
+            var visit = request.TripId is { } tripId ? visits.GetValueOrDefault(tripId) : null;
+            return new ConnectionRequestView(request.Id, request.ModeId, request.FromAccountId == me ? "sent" : "received", Wire(request.Status), person, request.CreatedAt, visit);
+        }).ToList();
     }
 }
