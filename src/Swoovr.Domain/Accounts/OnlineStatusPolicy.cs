@@ -16,9 +16,10 @@ public static class OnlineStatusPolicy
 
     /// <summary>
     /// Requests an open page makes on its own (the unread count every 30 seconds, meeting safety every 15) aren't the member
-    /// doing anything, so a tab left open doesn't keep them online.
+    /// doing anything, so a tab left open doesn't keep them online. Any other automatic refresh says so with the background
+    /// header (PR 526 review: a support ticket refreshing every 5 seconds while a file is checked), so opening it still counts.
     /// </summary>
-    public static bool Counts(string method, string path) => !(method == "GET"
+    public static bool Counts(string method, string path, bool background = false) => !background && !(method == "GET"
         && (path.EndsWith("/me/notifications", StringComparison.Ordinal)
             || path.EndsWith("/me/meeting-safety", StringComparison.Ordinal) || path.EndsWith("/session", StringComparison.Ordinal)));
 }
