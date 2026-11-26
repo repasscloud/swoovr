@@ -23,3 +23,13 @@ public static class ApiContract
 }
 
 public sealed record ApiContractSelection(string? Version, string? Code);
+
+/// <summary>
+/// PR 526 review (Codex): a request a page makes on its own, such as a support ticket refreshing while a file is checked, sends
+/// this header with "1". It changes nothing about the answer; it only keeps the request out of online status activity (D419).
+/// </summary>
+public static class BackgroundRequest
+{
+    public const string Header = "X-Swoovr-Background";
+    public static bool Marked(string? value) => value == "1";
+}

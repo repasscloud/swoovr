@@ -259,7 +259,8 @@ else if (problem is null) { <p role="status" class="me-meta">Loading…</p> }
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), token);
                 var before = detail;
-                var result = await Members.TicketAsync(id, token);
+                // PR 526 review: a background refresh, so an unattended tab doesn't keep the member online.
+                var result = await Members.TicketAsync(id, token, background: true);
                 // A reply or close that landed meanwhile is newer than this refresh; never put the older view back.
                 if (result.Ok) await InvokeAsync(() => { if (ReferenceEquals(detail, before)) { detail = result.Value; StateHasChanged(); } });
             }

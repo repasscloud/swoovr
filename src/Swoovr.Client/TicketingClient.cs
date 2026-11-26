@@ -6,7 +6,13 @@ public sealed partial class MemberClient
 {
     public Task<ApiResult<TicketMemberOptions>> TicketOptionsAsync(CancellationToken token=default)=>SendAsync<TicketMemberOptions>(new(HttpMethod.Get,"api/me/tickets/options"),token);
     public Task<ApiResult<TicketPage>> TicketsAsync(int page=1,int pageSize=25,CancellationToken token=default)=>SendAsync<TicketPage>(new(HttpMethod.Get,$"api/me/tickets?page={page}&pageSize={pageSize}"),token);
-    public Task<ApiResult<TicketDetail>> TicketAsync(long id,CancellationToken token=default)=>SendAsync<TicketDetail>(new(HttpMethod.Get,$"api/me/tickets/{id}"),token);
+    /// <param name="background">PR 526 review: an automatic refresh, not the member opening it (kept out of online status activity).</param>
+    public Task<ApiResult<TicketDetail>> TicketAsync(long id,CancellationToken token=default,bool background=false)
+    {
+        var request=new HttpRequestMessage(HttpMethod.Get,$"api/me/tickets/{id}");
+        if(background)request.Headers.TryAddWithoutValidation(BackgroundRequest.Header,"1");
+        return SendAsync<TicketDetail>(request,token);
+    }
     public Task<ApiResult<TicketSummary>> CreateTicketAsync(TicketCreate request,CancellationToken token=default)=>SendAsync<TicketSummary>(new(HttpMethod.Post,"api/me/tickets"){Content=JsonContent.Create(request)},token);
     public Task<ApiResult<TicketDetail>> ReplyTicketAsync(long id,TicketReply request,CancellationToken token=default)=>SendAsync<TicketDetail>(new(HttpMethod.Post,$"api/me/tickets/{id}/replies"){Content=JsonContent.Create(request)},token);
     public Task<ApiResult<TicketDownload>> TicketAttachmentAsync(long id,long article,long attachment,CancellationToken token=default)=>SendAsync<TicketDownload>(new(HttpMethod.Get,$"api/me/tickets/{id}/articles/{article}/attachments/{attachment}"),token);

@@ -23,7 +23,7 @@
         @if (Overlays is not null) { <div class="mc-overlays">@Overlays</div> }
     </div>
     <div class="mc-body">
-        <div class="mc-name"><h2><a href="@Href"><span class="mc-name-text">@Name</span>@(Age is { } years ? $", {years}" : "")</a></h2>@Badges</div>
+        <div class="mc-name"><h2>@if (Online) { <span class="mc-online" role="img" aria-label="Online" title="Online" data-tile-online></span> }<a href="@Href"><span class="mc-name-text">@Name</span>@(Age is { } years ? $", {years}" : "")</a></h2>@Badges</div>
         @if (!string.IsNullOrEmpty(Identity)) { <p class="mc-identity" data-tile-identity>@Identity</p> }
         @if (!string.IsNullOrEmpty(Status)) { <p class="mc-status" data-tile-status>@Status</p> }
         @if (Meta is not null)
@@ -53,6 +53,8 @@
     [Parameter] public IReadOnlyList<string> Intentions { get; set; } = [];
     /// <summary>One short line under the name: the distance band or "Visiting …" (D348, D352). Left out when empty.</summary>
     [Parameter] public string Detail { get; set; } = "";
+    /// <summary>Issue 499 (D410): a green dot and nothing else; the API decides.</summary>
+    [Parameter] public bool Online { get; set; }
     /// <summary>Issue 495: gender and orientation, as the API returned them for this mode. Left out when empty.</summary>
     [Parameter] public string Identity { get; set; } = "";
     /// <summary>Issue 497: where the viewer stands with them, before the detail line. Left out when empty.</summary>

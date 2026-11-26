@@ -55,6 +55,29 @@ public static class ProfileEndpoints
             }
             return Results.Ok(new LocationSettingsView(profile.AppearInNearby, profile.ShowDistance));
         });
+        // Issue 499 (D410): opt-in online status. Turning it off forgets the last activity at once.
+        api.MapGet("/me/online-status", async (ClaimsPrincipal user, AccountResolver accounts, IConfiguration configuration, CancellationToken cancellationToken) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
+            return denied ?? Results.Ok(new OnlineStatusView(OnlineStatus(configuration), current!.Profile!.ShowOnline));
+        });
+        api.MapPut("/me/online-status", async (OnlineStatusUpdate update, ClaimsPrincipal user, AccountResolver accounts, IConfiguration configuration, TimeProvider clock,
+            CancellationToken cancellationToken) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
+            if (denied is not null) return denied;
+            var available = OnlineStatus(configuration);
+            // Turning it off always works, so nobody is left on after the host stops offering it.
+            if (!available && update.ShowOnline) return Problem(StatusCodes.Status404NotFound, ProblemCodes.NotAvailable, "Online status isn't available.");
+            var (profile, db, now) = (current!.Profile!, accounts.Db!, clock.GetUtcNow());
+            if (profile.ShowOnline != update.ShowOnline)
+            {
+                (profile.ShowOnline, profile.ActiveAt) = (update.ShowOnline, update.ShowOnline ? now : null);
+                Audit.Record(db, now, profile.AccountId, "account", "online-status.changed", "account", profile.AccountId.ToString());
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            return Results.Ok(new OnlineStatusView(available, profile.ShowOnline));
+        });
         api.MapPut("/me/profile", async (ProfileUpdate update, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
@@ -428,6 +451,7 @@ public static class ProfileEndpoints
             .ToDictionaryAsync(m => m.AccountId, m => new { m.About, m.ShareCoreAbout, m.DisplayName }, cancellationToken);
         var order = await BadgeOrderAsync(db, cancellationToken);
         var genders = await GenderLabelsAsync(db, cancellationToken);
+        var online = OnlineStatus(configuration);
         // Issue 495: the labels once, and only where orientation can show.
         var orientations = selected.Id == ConnectionModeIds.Dating
             ? await db.ProfileOptions.Where(o => o.Kind == "orientation").ToDictionaryAsync(o => o.Id, o => o.Label, cancellationToken) : [];
@@ -459,7 +483,9 @@ public static class ProfileEndpoints
                 // Issue 496: the photos others see in this mode, each once (the main photo included).
                 photos.Modes?.GetValueOrDefault((c.Profile.AccountId, selected.Id))?.Select(p => p.Id).Distinct().Count() ?? 0,
                 standing.GetValueOrDefault(c.Profile.AccountId), !c.Profile.Bot && recent.Contains(c.Profile.AccountId),
-                OrientationIn(selected.Id, identity, orientations));
+                OrientationIn(selected.Id, identity, orientations),
+                // Issue 499 (D410): mutual, worked out after the list and its order are settled.
+                OnlineStatusPolicy.Shows(online, viewer, c.Profile, now));
         }).ToList();
     }
 
@@ -470,6 +496,9 @@ public static class ProfileEndpoints
     /// </summary>
     public static string? OrientationIn(string modeId, MemberIdentity? identity, IReadOnlyDictionary<string, string> labels) =>
         modeId == "dating" && identity is { ShowOrientation: true, OrientationId: { } id } ? labels.GetValueOrDefault(id) : null;
+
+    /// <summary>Issue 499 (D410): off until the owner turns it on for a host (`Explore:OnlineStatus`, Q189).</summary>
+    internal static bool OnlineStatus(IConfiguration configuration) => configuration.GetValue("Explore:OnlineStatus", false);
 
     internal static (int? Age, string? Gender, string? Pronouns) Public(MemberIdentity? identity, int? age, IReadOnlyDictionary<string, string> genders)
     {

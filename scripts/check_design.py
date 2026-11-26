@@ -182,6 +182,14 @@ low, high = sorted([luminance(badge['unread-text']), luminance(badge['unread'])]
 assert (high + .05) / (low + .05) >= 4.5, 'unread badge text contrast below 4.5:1'
 admin_badge = dict(re.findall(r'--(unread(?:-text)?):\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text()))
 assert admin_badge == badge, 'admin.css --unread and --unread-text must equal app.css'
+# Issue 499 (owner, 25 November 2026, D410): the online dot is green and nothing else, visible on every card surface.
+online = re.compile(r'^\s*--online:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
+dot = re.findall(r'--online:\s*(#[0-9A-Fa-f]{6})', app_css)
+assert len(dot) == 1, 'app.css must define --online once'
+for theme in data:
+    for mode in ['light', 'dark']:
+        low, high = sorted([luminance(dot[0]), luminance(theme[mode]['surface'])])
+        assert (high + .05) / (low + .05) >= 3, f'--online contrast below 3:1 on {theme["id"]} {mode} surface'
 red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', app_css)
 assert len(red) == 2, 'app.css must define --destructive once for light (:root) and once for dark'
 admin_red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text())
@@ -195,7 +203,7 @@ for mode, value in zip(['light', 'dark'], red):
             assert (high + .05) / (low + .05) >= 4.5, f'--destructive ({mode}) contrast below 4.5:1 on {theme["id"]} {key}'
 for path in web_styles:
     text = path.read_text()
-    if path.name == 'app.css': text = unread.sub('', destructive.sub('', emergency.sub('', text)))
+    if path.name == 'app.css': text = online.sub('', unread.sub('', destructive.sub('', emergency.sub('', text))))
     if path.name == 'admin.css': text = unread.sub('', destructive.sub('', text))
     found = stray.search(re.sub(r'/\*.*?\*/', '', text, flags=re.S))
     assert not found, f'Stray colour/shadow/framework style in {path.relative_to(root)}: {found.group(0)}'

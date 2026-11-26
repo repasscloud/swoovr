@@ -38,7 +38,7 @@
     </section>
     @if (settings is not null)
     {
-        <p class="field-help" data-notification-privacy>@NotificationText.PrivacyNote</p>
+        <p class="field-help" data-notification-privacy>@NotificationText.Privacy(onlineStatus)</p>
         <form class="rd-page" @onsubmit="SaveAsync" data-notification-settings>
             <div class="rd-grid rd-grid-wide">
                 <section class="rd-card rd-compact" aria-labelledby="kinds-heading">
@@ -111,6 +111,7 @@
         public List<string> Muted { get; set; } = [];
     }
 
+    private bool onlineStatus;
     protected override async Task OnInitializedAsync()
     {
         if (await Unread.LoadAsync()) centre = Unread.Centre ?? centre;
@@ -119,6 +120,7 @@
         barred = saved.Code is ProblemCodes.AccountRestricted or ProblemCodes.AccountSuspended;
         if (saved.Value is { } s) Show(s);
         modes = (await Members.ModesAsync()).Value ?? [];
+        onlineStatus = (await Members.OnlineStatusAsync()).Value is { Available: true };
         loaded = true;
     }
 

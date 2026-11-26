@@ -94,6 +94,10 @@ public sealed class MemberProfile
     public bool AppearInNearby { get; set; }
     /// <summary>D348: "Show my approximate distance". Off by default; a member sees others' bands only while this is on (Q152).</summary>
     public bool ShowDistance { get; set; }
+    /// <summary>Issue 499 (D410): "Show when I'm online". Off by default, and mutual (<see cref="OnlineStatusPolicy"/>).</summary>
+    public bool ShowOnline { get; set; }
+    /// <summary>The member's last activity, to about a minute. Kept only while <see cref="ShowOnline"/> is on and never returned to anyone else.</summary>
+    public DateTimeOffset? ActiveAt { get; set; }
     /// <summary>
     /// Issue 389 (D382, Q181.5 A): "What would you like your picture to say?" (up to 100 characters,
     /// <see cref="PictureTextPolicy"/>). Drawn by the app as a text tile on Explore while no main photo is approved; never an

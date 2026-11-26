@@ -2967,3 +2967,10 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 ### Q188 — Privacy Notice 0.21 wording for staff viewing an ID
 
 - Issue: [#513](https://github.com/repasscloud/swoovr/issues/513) (for #488). Status: ANSWERED, owner 25 November 2026 (D413): approved word for word in the issue; published with [#283](https://github.com/repasscloud/swoovr/issues/283), effective date OPEN.
+
+## Online status — [#499](https://github.com/repasscloud/swoovr/issues/499), 26 November 2026
+
+### Q189 — Does online status need a Privacy Notice sentence before it's turned on?
+
+- Issue: [#525](https://github.com/repasscloud/swoovr/issues/525) (for #499). Status: OPEN. Blocks turning on `Explore:OnlineStatus`; the build is merged off.
+- The notice in force doesn't mention online status. Swoovr keeps the member's last activity, to about a minute, only while they have the switch on, and shows others a green dot, never a time. **A (recommended):** add one sentence to the 0.21 update (#283) and turn it on with that notice. **B:** the notice's "Other members see only the profile information your settings allow" already covers it; turn it on now, UAT first. **C:** turn it on in private UAT now and take A for production.

@@ -174,6 +174,11 @@ public sealed class AccountResolver(IServiceProvider services, KeycloakOptions k
         if (facts.Realm == AccountRealm.Members)
         {
             profile = existingProfile ?? await CreateProfileAsync(account.Id, facts, email, now, cancellationToken);
+            // Issue 499 (D410): activity is kept only while the member shows it, at most once a minute, and never from a page's own polling.
+            if (profile.ShowOnline && (profile.ActiveAt is not { } active || now - active > OnlineStatusPolicy.WriteEvery)
+                && Profiles.ProfileEndpoints.OnlineStatus(configuration) && services.GetService<IHttpContextAccessor>()?.HttpContext?.Request is { } request
+                && OnlineStatusPolicy.Counts(request.Method, request.Path.Value ?? "", Swoovr.Contracts.BackgroundRequest.Marked(request.Headers[Swoovr.Contracts.BackgroundRequest.Header].ToString())))
+                await Db.MemberProfiles.Where(p => p.AccountId == account.Id && p.ShowOnline).ExecuteUpdateAsync(u => u.SetProperty(p => p.ActiveAt, now), cancellationToken);
         }
         else
         {

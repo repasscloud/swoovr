@@ -151,6 +151,11 @@ public sealed partial class MemberClient(HttpClient transport)
         SendAsync<MyProfileView>(new HttpRequestMessage(HttpMethod.Put, "api/me/profile") { Content = JsonContent.Create(update) }, cancellationToken);
 
     /// <summary>D348: "Appear in nearby searches" and "Show my approximate distance", both off by default.</summary>
+    /// <summary>Issue 499 (D410): the member's own online status choice.</summary>
+    public Task<ApiResult<OnlineStatusView>> OnlineStatusAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<OnlineStatusView>(new HttpRequestMessage(HttpMethod.Get, "api/me/online-status"), cancellationToken);
+    public Task<ApiResult<OnlineStatusView>> SaveOnlineStatusAsync(OnlineStatusUpdate update, CancellationToken cancellationToken = default) =>
+        SendAsync<OnlineStatusView>(new HttpRequestMessage(HttpMethod.Put, "api/me/online-status") { Content = JsonContent.Create(update) }, cancellationToken);
     public Task<ApiResult<LocationSettingsView>> LocationSettingsAsync(CancellationToken cancellationToken = default) =>
         SendAsync<LocationSettingsView>(new HttpRequestMessage(HttpMethod.Get, "api/me/location-settings"), cancellationToken);
 
