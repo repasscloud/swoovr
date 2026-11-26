@@ -50,3 +50,11 @@ The owner subsequently confirmed 141.2 Yes and directed removal of pre-approval 
 ## Privacy notice 0.20 approved — 17 November 2026 (D377)
 
 Owner, [#359](https://github.com/repasscloud/wanderconnect/issues/359) (Q179 **A**, effective 17 November 2026). Swoovr email now goes through Postmark (D368). Version 0.20 names "Postmark (email)" among service providers instead of MailerSend, and lists it with the providers that process information in the United States (MailerSend in the European Union is removed). Nothing else changes. `PrivacyNotice` reads "approved 17 November 2026", version "0.20, 17 November 2026", on web and mobile. The location wording approved in D351 (#271, publication #283) will be published as 0.21.
+
+## Privacy notice 0.21 — effective 26 November 2026 (D432, D433)
+
+Owner: wording approved on [#271](https://github.com/repasscloud/swoovr/issues/271) (location, D351, 8 November 2026), [#513](https://github.com/repasscloud/swoovr/issues/513) (staff viewing an ID, Q188, D413, 25 November 2026) and [#525](https://github.com/repasscloud/swoovr/issues/525) (online status, Q189, D422, 26 November 2026); effective date 26 November 2026 (in chat, D432). Each paragraph is applied word for word (curly quotes set straight, as in the rest of the notice); `PrivacyNotice021Checks` compares all 33 against the owner's sources. `PrivacyNotice` reads "approved 26 November 2026", version "0.21, 26 November 2026". With 0.21 in force, D413's release gate for staff viewing ID images opens. The iOS and Android permission texts (§10, §11) wait for the Flutter apps; the web permission and settings texts (§12–§14) ship with #282.
+
+| Source | SHA-256 |
+| --- | --- |
+| [src/Swoovr.Client/PrivacyNotice.cs](../../src/Swoovr.Client/PrivacyNotice.cs) | `8ec47f25c43af08eb9fa4e04fb650f7bbc5f0fcd8967a55f1d59fd450061ae87` |
