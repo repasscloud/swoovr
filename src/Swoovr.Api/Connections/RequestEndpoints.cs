@@ -273,12 +273,19 @@ public static class RequestEndpoints
         await db.Accounts.AnyAsync(a => a.Id == other && a.Status == AccountStatus.Active, cancellationToken)
         && !await db.Blocks.AnyAsync(b => b.BlockerAccountId == me && b.BlockedAccountId == other || b.BlockerAccountId == other && b.BlockedAccountId == me, cancellationToken);
 
-    private static async Task<RequestPage> PageAsync(SwoovrDbContext db, IQueryable<ConnectionRequest> query, Guid me, int page, CancellationToken cancellationToken)
-    {
-        // Leave out anyone in a blocked pair or with a closed account, so lists never show them.
-        query = query.Where(r => !db.Blocks.Any(b => b.BlockerAccountId == r.FromAccountId && b.BlockedAccountId == r.ToAccountId
+    /// <summary>Leave out anyone in a blocked pair or with a closed account, so lists (and the issue 540 count) never show them.</summary>
+    private static IQueryable<ConnectionRequest> Listed(SwoovrDbContext db, IQueryable<ConnectionRequest> query, Guid me) =>
+        query.Where(r => !db.Blocks.Any(b => b.BlockerAccountId == r.FromAccountId && b.BlockedAccountId == r.ToAccountId
                 || b.BlockerAccountId == r.ToAccountId && b.BlockedAccountId == r.FromAccountId)
             && db.Accounts.Any(a => a.Id == (r.FromAccountId == me ? r.ToAccountId : r.FromAccountId) && a.Status == AccountStatus.Active));
+
+    /// <summary>Issue 540: the received box's size, counted exactly as Connections lists it. Outgoing requests and connections never count.</summary>
+    public static Task<int> PendingReceivedAsync(SwoovrDbContext db, Guid me, CancellationToken cancellationToken) =>
+        Listed(db, db.ConnectionRequests.Where(r => r.Status == ConnectionRequestStatus.Pending && r.ToAccountId == me), me).CountAsync(cancellationToken);
+
+    private static async Task<RequestPage> PageAsync(SwoovrDbContext db, IQueryable<ConnectionRequest> query, Guid me, int page, CancellationToken cancellationToken)
+    {
+        query = Listed(db, query, me);
         var rows = await query.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).Skip((page - 1) * PageSize).Take(PageSize + 1).ToListAsync(cancellationToken);
         var views = new List<ConnectionRequestView>();
         foreach (var row in rows.Take(PageSize)) views.Add(await ViewAsync(db, row, me, cancellationToken));

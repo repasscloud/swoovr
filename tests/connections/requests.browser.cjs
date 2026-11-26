@@ -194,8 +194,9 @@ const { web, createMember, memberToken, rootAdminToken, cli, sql, call, claims, 
     assert.equal(await page.evaluate(() => document.activeElement?.id), 'connect-dialog-heading', 'focus moves into the dialog'); pass();
     assert.equal(await page.locator('[data-connect-mode=dating]').getAttribute('data-connection'), 'none', 'opening the dialog sent nothing'); pass();
     await page.click('[data-connect-mode=dating] button');
-    await page.waitForSelector('[data-connect-mode=dating][data-connection=sent]'); pass();
-    assert.equal(await page.locator('[data-connect-status]').innerText(), 'Request sent.'); pass();
+    await page.waitForSelector('[data-connect-sent]'); pass(); // issue 538: one confirmation
+    assert.equal((await page.locator('[data-connect-sent]').innerText()).trim(), 'Connection request sent.'); pass();
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'connect-dialog-heading', 'focus stays in the dialog'); pass();
     if (output) await page.screenshot({ path: output + '/person-request-390.png', fullPage: true });
     await page.keyboard.press('Escape');
     await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' });

@@ -6,7 +6,8 @@ namespace Swoovr.Contracts;
 /// </summary>
 public sealed record NotificationView(Guid Id, string Kind, string Title, string Link, int Count, DateTimeOffset At, bool Read);
 
-public sealed record NotificationCentre(IReadOnlyList<NotificationView> Items, int Unread);
+/// <param name="PendingRequests">Issue 540: connection requests waiting for this member's answer, as Connections lists them (0 for a barred member).</param>
+public sealed record NotificationCentre(IReadOnlyList<NotificationView> Items, int Unread, int PendingRequests = 0);
 
 /// <summary>
 /// The member's notification settings (#49): kinds on or off, push and email, private previews (on by default), quiet

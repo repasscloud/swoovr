@@ -69,7 +69,7 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     let r = await call(tokens.ana, '/api/me/notification-settings');
     assert.deepEqual(r.body, { messages: true, requests: true, connections: true, travel: true, push: true, email: true, privatePreviews: true,
       quietFrom: null, quietUntil: null, timeZone: 'Australia/Adelaide', mutedModes: [], chatPhotos: true, devices: 0, unansweredLimit: 0 }); pass(); // D380: the limit is Off by default
-    assert.deepEqual(await centre('ana'), { items: [], unread: 0 }); pass();
+    assert.deepEqual(await centre('ana'), { items: [], unread: 0, pendingRequests: 0 }); pass();
 
     // ---- Settings validation and tampered bodies.
     for (const bad of [{ quietFrom: '22:00' }, { quietUntil: '07:00' }, { quietFrom: '25:00', quietUntil: '07:00' }, { quietFrom: '9pm', quietUntil: '07:00' },
@@ -143,6 +143,8 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     let c = await centre('ana');
     assert.deepEqual(c.items.map(i => [i.kind, i.title, i.link, i.read]), [['request', 'Fictional Ntf bob sent you a Dating request', '/connections', false]]); pass();
     assert.equal(c.unread, 1); pass();
+    // Issue 540: the request waits for ana's answer; bob's own outgoing request never counts.
+    assert.deepEqual([c.pendingRequests, (await centre('bob')).pendingRequests], [1, 0]); pass();
     assert.ok(await waitFor(async () => (await mail(pushBox(anaDevice))).length === 1)); pass();
     let [push] = await mail(pushBox(anaDevice));
     assert.equal(push.subject, 'SIMULATED PUSH (not delivered)'); pass();
@@ -158,6 +160,7 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
 
     // ---- Accepting tells the sender (a link to the person in that mode); declining tells nobody.
     assert.equal((await call(tokens.ana, `/api/requests/${bobRequest}/accept`, { method: 'POST' })).status, 200);
+    assert.equal((await centre('ana')).pendingRequests, 0, 'answered: no longer waiting'); pass();
     c = await centre('bob');
     assert.deepEqual(c.items.map(i => [i.kind, i.title, i.link]), [['connection', 'Fictional Ntf ana accepted your Dating request', `/people/${pid.ana}?mode=dating`]]); pass();
     r = await request('cat', 'bob', 'friends');
@@ -322,16 +325,20 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     });
     await pollCaptured; // the 30-second poll, with the old count
     await page.$eval('[data-read-all]', el => el.click());
-    await page.waitForFunction(() => !document.querySelector('[data-unread-badge]'), null, { timeout: 10000 }); pass();
+    await page.waitForFunction(() => !document.querySelector('[data-unread-badge][data-unread-count]'), null, { timeout: 10000 }); pass();
     const latePoll = page.waitForResponse(r => centreUrl.test(r.url()));
     releasePoll(); await latePoll; await sleep(1000);
-    assert.equal(await page.locator('[data-unread-badge]').count(), 0, 'a late poll does not restore the badges'); pass();
+    assert.equal(await page.locator('[data-unread-badge][data-unread-count]').count(), 0, 'a late poll does not restore the badges'); pass();
     await page.unroute(centreUrl);
     if (output) await page.screenshot({ path: output + '/unread-cleared-390.png' });
     // A new notification shows up without reloading (polling, 30 seconds).
     assert.ok((await request('dee', 'bob', 'dating')).status < 300, 'a new request for bob'); pass();
     await page.waitForSelector('[data-unread-badge="tab"][data-unread-count="1"]', { timeout: 45000 }); pass();
     await page.waitForSelector('[data-unread-badge="menu"][data-unread-count="1"]', { state: 'attached', timeout: 5000 }); pass();
+    // Issue 540: the Connections tab counts requests waiting for bob's answer, from the same poll, with words for screen readers.
+    await page.waitForSelector('[data-unread-badge="connections"][data-pending-requests="1"]', { timeout: 5000 }); pass();
+    assert.match(await page.textContent('[data-unread-badge="connections"] .visually-hidden'), /1 request waiting for you/); pass();
+    if (output) await page.screenshot({ path: output + '/connections-badge-390.png' });
     assert.ok((await page.textContent('[data-notification-list]')).includes('Fictional Ntf ana accepted your Dating request')); pass();
     // PR 485 review: a refused read changes nothing; a read takes the server's count, not the page's older snapshot; and a
     // slower, older answer can't put the count back. Bob has one unread item (dee) after a reload.

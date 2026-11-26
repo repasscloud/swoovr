@@ -280,7 +280,7 @@ public static class NotificationEndpoints
             items.Add(new(n.Id, Wire(n.Kind), title, await NotificationLinks.ForAsync(db, n, cancellationToken), n.Count, n.UpdatedAt, n.ReadAt is not null));
             if (items.Count == NotificationPolicy.PageSize) break;
         }
-        return new(items, items.Count(i => !i.Read));
+        return new(items, items.Count(i => !i.Read), barred ? 0 : await RequestEndpoints.PendingReceivedAsync(db, me, cancellationToken));
     }
 
     private static string When(DateOnly arrival, string zone, DateTimeOffset now)

@@ -2,6 +2,7 @@
    (withdraw), accepted connections, and the people the member blocked (unblock). The API decides every list; blocked
    pairs and closed accounts never appear. Nothing connects until the recipient accepts. *@
 @inject MemberClient Members
+@inject Swoovr.Web.Client.Notifications.UnreadNotifications Unread
 <div class="page-heading" data-connections="@(loaded ? (refused is null ? "ready" : "refused") : "loading")">
     <h1>Connections</h1>
     @if (!loaded) { <p role="status">Loading…</p> }
@@ -122,6 +123,7 @@
             ? (answer, answer switch { "accept" => "Connected.", "decline" => "Declined. They won't be told why.", _ => "Request withdrawn." })
             : ("failed", "That request isn't available any more.");
         await LoadAsync();
+        await Unread.RefreshAsync(); // issue 540: the Connections badge follows at once, not at the next poll
         busy = false;
     }
 

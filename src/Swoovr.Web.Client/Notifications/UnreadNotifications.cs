@@ -26,6 +26,9 @@ public sealed class UnreadNotifications(MemberClient members, NavigationManager 
     /// <summary>The last known count, or null before the first answer (badges stay hidden until then).</summary>
     public int? Count => Centre?.Unread;
 
+    /// <summary>Issue 540: connection requests waiting for an answer, from the same answer (no second poll).</summary>
+    public int? PendingRequests => Centre?.PendingRequests;
+
     public event Action? Changed;
 
     /// <summary>
@@ -39,9 +42,9 @@ public sealed class UnreadNotifications(MemberClient members, NavigationManager 
         if ((await members.NotificationsAsync(cancellationToken)).Value is not { } centre) return false;
         if (order < applied) return true; // a newer answer is already in Centre
         applied = order;
-        var before = Count;
+        var before = (Count, PendingRequests);
         Centre = centre;
-        if (Count != before) Changed?.Invoke();
+        if ((Count, PendingRequests) != before) Changed?.Invoke();
         return true;
     }
 
