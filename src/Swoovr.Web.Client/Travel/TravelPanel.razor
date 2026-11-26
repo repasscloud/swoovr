@@ -30,8 +30,16 @@
                         }
                         @if (trip.State is not ("expired" or "cancelled"))
                         {
+                            @* Issue 282 (D352, issue 271 §14): the two independent pre-arrival choices, with the day each window opens. *@
+                            <div class="trip-switches">
+                                <label class="ph-switch-row"><span>@LocationText.BeDiscoveredLabel<span class="field-help">@LocationText.BeDiscoveredHelp</span>
+                                    <span class="field-help" data-opens-on>Opens @trip.OpensOn.ToString("d MMM yyyy")</span></span>
+                                    <input type="checkbox" class="ph-switch" checked="@trip.Visible" disabled="@busy" @onchange="e => ToggleAsync(trip, e.Value is true, trip.DiscoverBeforeArrival)" data-trip-visible="@trip.Id" /></label>
+                                <label class="ph-switch-row"><span>@LocationText.DiscoverLabel<span class="field-help">@LocationText.DiscoverHelp</span>
+                                    @if (trip.SearchOpensOn is { } searchOpens) { <span class="field-help" data-search-opens-on>Opens @searchOpens.ToString("d MMM yyyy")</span> }</span>
+                                    <input type="checkbox" class="ph-switch" checked="@trip.DiscoverBeforeArrival" disabled="@busy" @onchange="e => ToggleAsync(trip, trip.Visible, e.Value is true)" data-trip-discover="@trip.Id" /></label>
+                            </div>
                             <span class="request-actions">
-                                <label class="option"><input type="checkbox" checked="@trip.Visible" disabled="@busy" @onchange="e => ToggleAsync(trip, e.Value is true)" /> Visible to locals</label>
                                 <button type="button" class="button button-secondary" disabled="@busy" @onclick="() => CancelAsync(trip)">Cancel trip</button>
                             </span>
                             @if (trip.ActiveMarket)
@@ -40,10 +48,10 @@
                                 <span class="field-help" data-arrival="@trip.ArrivalState">@MemberText.ArrivalState(trip.ArrivalState)</span>
                                 <span class="request-actions">
                                     @if (trip.SearchOpen) { <a class="button button-secondary" href="@($"/travel/search/{trip.Id}")" data-search-trip="@trip.Id">Search @trip.City.Name</a> }
-                                    else if (trip.SearchOpensOn is { } opens) { <span class="field-help" data-search-opens>Search opens @opens.ToString("d MMM yyyy") while the trip is visible.</span> }
+                                    else if (trip.SearchOpensOn is { } opens) { <span class="field-help" data-search-opens>Search opens @opens.ToString("d MMM yyyy").</span> }
                                     @if (trip.ArrivalState != "arrived")
                                     {
-                                        <button type="button" class="button" disabled="@busy" @onclick="() => ArriveAsync(trip)" data-confirm-arrival="@trip.Id">I've arrived</button>
+                                        <button type="button" class="button" disabled="@busy" @onclick="() => ArriveAsync(trip)" data-confirm-arrival="@trip.Id">Check in</button>
                                     }
                                 </span>
                             }
@@ -74,7 +82,10 @@
                     <option value="new">Start a new itinerary</option>
                 </select>
             </div>
-            <label class="option"><input type="checkbox" @bind="visible" /> Visible to locals when the trip opens</label>
+            <label class="ph-switch-row"><span>@LocationText.BeDiscoveredLabel<span class="field-help">@LocationText.BeDiscoveredHelp</span></span>
+                <input type="checkbox" class="ph-switch" @bind="visible" data-new-trip-visible /></label>
+            <label class="ph-switch-row"><span>@LocationText.DiscoverLabel<span class="field-help">@LocationText.DiscoverHelp</span></span>
+                <input type="checkbox" class="ph-switch" @bind="discover" data-new-trip-discover /></label>
             <button type="submit" class="button" disabled="@(busy || city is null)">Save trip</button>
         </form>
     </section>
@@ -115,7 +126,7 @@
     </div>
 }
 @code {
-    private bool loaded, busy, more, visible = true;
+    private bool loaded, busy, more, visible = true, discover = true;
     private int page = 1;
     private string? refused, tripStatus, tripMessage, market, visitorStatus, visitorMessage, itinerary = "";
     private string visitorMode = "", visitorState = "loading";
@@ -161,17 +172,17 @@
         busy = true;
         Guid? group = Guid.TryParse(itinerary, out var existing) ? existing : null;
         if (itinerary == "new") group = (await Members.NewItineraryAsync()).Value?.Id;
-        var result = await Members.SaveTripAsync(null, new TripUpdate(city.Id, arrival.Value, departure.Value, visible, group));
+        var result = await Members.SaveTripAsync(null, new TripUpdate(city.Id, arrival.Value, departure.Value, visible, group, discover));
         (tripStatus, tripMessage) = result.Ok ? ("saved", "Trip saved.") : (result.Code ?? "failed", Problem(result.Code));
         if (result.Ok) { (city, arrival, departure, itinerary) = (null, null, null, ""); await ReloadTripsAsync(); }
         busy = false;
     }
 
-    private async Task ToggleAsync(TripView trip, bool on)
+    private async Task ToggleAsync(TripView trip, bool visibleThere, bool discoverThere)
     {
         busy = true;
-        var result = await Members.SaveTripAsync(trip.Id, new TripUpdate(trip.City.Id, trip.Arrival, trip.Departure, on, trip.ItineraryId));
-        (tripStatus, tripMessage) = result.Ok ? ("saved", on ? "Visible to locals once it opens." : "Hidden. The trip is kept.") : (result.Code ?? "failed", Problem(result.Code));
+        var result = await Members.SaveTripAsync(trip.Id, new TripUpdate(trip.City.Id, trip.Arrival, trip.Departure, visibleThere, trip.ItineraryId, discoverThere));
+        (tripStatus, tripMessage) = result.Ok ? ("saved", "Saved.") : (result.Code ?? "failed", Problem(result.Code));
         await ReloadTripsAsync();
         busy = false;
     }

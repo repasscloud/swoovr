@@ -1,0 +1,55 @@
+@* Issue 282 (D348, issue 271 §13): "Appear in nearby searches" and "Show my approximate distance" (both off by default,
+   independent) and "Stop sharing location", which deletes the stored Near me position at once. Approved descriptions. *@
+@inject MemberClient Members
+@if (settings is not null)
+{
+    <section class="me-card me-safety-location" aria-labelledby="location-heading" data-location-settings>
+        <h2 class="me-card-title" id="location-heading"><Icon Name="pin" Size="20" />Location</h2>
+        <form class="me-chat-form" @onsubmit="SaveAsync">
+            <div class="me-chat-grid">
+                <label class="ph-switch-row"><span>@LocationText.AppearLabel<span class="field-help">@LocationText.AppearHelp</span></span>
+                    <input type="checkbox" class="ph-switch" @bind="appear" data-setting="appear-nearby" /></label>
+                <label class="ph-switch-row"><span>@LocationText.DistanceLabel<span class="field-help">@LocationText.DistanceHelp</span></span>
+                    <input type="checkbox" class="ph-switch" @bind="distance" data-setting="show-distance" /></label>
+            </div>
+            <div class="me-card-foot">
+                <p role="status" aria-live="polite" class="field-help" data-location-status="@status">@message</p>
+                <button type="submit" class="button me-pill-button" disabled="@busy" data-save-location>Save location settings</button>
+            </div>
+        </form>
+        <div class="me-item location-stop">
+            <div class="me-item-main"><p class="me-item-title">@LocationText.StopLabel</p><p class="me-meta">@LocationText.StopHelp</p></div>
+            <button type="button" class="button button-secondary me-pill-button me-item-action" disabled="@busy" @onclick="StopAsync" data-stop-sharing>Stop sharing</button>
+        </div>
+    </section>
+}
+@code {
+    private LocationSettingsView? settings;
+    private bool busy, appear, distance;
+    private string? status, message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if ((await Members.LocationSettingsAsync()).Value is { } s) Show(s);
+    }
+
+    private void Show(LocationSettingsView s) => (settings, appear, distance) = (s, s.AppearInNearby, s.ShowDistance);
+
+    private async Task SaveAsync()
+    {
+        if (settings is null || busy) return;
+        busy = true;
+        var result = await Members.SaveLocationSettingsAsync(new LocationSettingsUpdate(appear, distance));
+        busy = false;
+        if (result.Value is { } s) { Show(s); (status, message) = ("saved", "Saved."); }
+        else (status, message) = (result.Code ?? "failed", "Those settings couldn't be saved.");
+    }
+
+    private async Task StopAsync()
+    {
+        busy = true;
+        var code = await Members.StopSharingLocationAsync();
+        busy = false;
+        (status, message) = code == 204 ? ("stopped", "Stopped. Your stored Near me position is deleted.") : ("failed", "That didn't work. Try again.");
+    }
+}

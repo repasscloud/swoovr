@@ -1746,3 +1746,13 @@ Builds D432 (**CONFIRMED**). Version "0.21, 26 November 2026", label "approved 2
 - **Not in 0.21:** the iOS/Android permission texts (§10–§11) wait for Flutter; the web texts (§12–§14) ship with #282; Photo Verified (D427) and chat location (D431) sentences go in 0.22.
 - **On with it:** `Explore:OnlineStatus` is on in UAT (D422). There is no production host yet; it is turned on there with the notice. D413's ID image gate now opens by date (`CoversIdReview`).
 - **Telling members:** after deployment, an operator stages and publishes the policy-update notice for version "0.21, 26 November 2026" with the existing CLI (`PolicyNoticePublisher`, #121). Nothing is sent by this change alone.
+
+### D434 — Location on the member web (#282, 27 November 2026)
+
+Builds #282 on D345, D348 and D352, with the wording approved on [#271](https://github.com/repasscloud/swoovr/issues/271) §12–§14 word for word (`LocationText`, curly quotes set straight).
+- **Explore:** an **Active location / Near me** switch, Active location first and by default ("Visiting {city}" while checked in). Near me reads location only when the member opens it with permission already granted, or chooses **Share my location**; then at most every 5 minutes while Near me is open and the page is visible, never in the background. A reading less accurate than 2 km is never sent. The Permissions API only picks the wording (before the prompt, blocked, unsupported, not accurate enough); the button stays after a denial, with **Use Home market** beside it.
+- **Privacy & safety:** a **Location** card with the two switches (saved together) and **Stop sharing location**, which deletes the stored position at once.
+- **Travel:** the two pre-arrival switches, each saved on its own, with the day each window opens; **Check in** is the arrival action. "Search opens … while the trip is visible" loses its last words, because D352 removed that requirement.
+- **DEFAULT:** the trip actions and **Save trip** become content width (no full-width buttons, D390).
+- The iOS and Android texts (§10–§11) wait for Flutter (#284).
+- **PR 560 review:** the page's 5-minute refresh is sent as a background request (`X-Swoovr-Background: 1`), and `PUT /api/me/location` lets a background reading only replace a stored one. After **Stop sharing** (the row is deleted), no open tab or device starts sharing again until the member chooses **Share my location**. A reading that finishes after the member left Explore or Near me, or while the page is hidden, is dropped.
