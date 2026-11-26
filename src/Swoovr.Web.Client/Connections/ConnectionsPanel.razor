@@ -125,7 +125,8 @@
 
     private IEnumerable<(string Id, string Title, int Count)> Sections =>
     [
-        ("received", "Requests for you", received.Count),
+        // PR 561 review: the server's total (as on the Connections tab), not the rows loaded so far.
+        ("received", "Requests for you", Unread.PendingRequests ?? received.Count),
         ("sent", "Requests you sent", 0),
         ("connected", "Connected", 0),
         ("blocked", "Blocked", 0),
@@ -156,6 +157,7 @@
         (received, sent, connected, blocked) = ([.. inbox.Value?.Items ?? []], [.. outbox.Value?.Items ?? []], [.. links.Value?.Items ?? []], (IReadOnlyList<BlockedPerson>?)blocks.Value ?? []);
         (moreReceived, moreSent, moreConnected) = (inbox.Value?.More == true, outbox.Value?.More == true, links.Value?.More == true);
         (pageReceived, pageSent, pageConnected) = (1, 1, 1);
+        await Unread.ChangedByMemberAsync();
     }
 
     /// <summary>Issue 539: the next page of a section, added below the rows already shown.</summary>
@@ -184,8 +186,7 @@
         (status, message) = result.Ok
             ? (answer, answer switch { "accept" => "Connected.", "decline" => "Declined. They won't be told why.", _ => "Request withdrawn." })
             : ("failed", "That request isn't available any more.");
-        await LoadAsync();
-        await Unread.ChangedByMemberAsync(); // issue 540: the Connections badge follows at once, even during a poll
+        await LoadAsync(); // issue 540: also refreshes the shared count at once, even during a poll
         busy = false;
     }
 

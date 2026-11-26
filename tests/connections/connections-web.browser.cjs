@@ -45,6 +45,12 @@ const MODES = ['dating', 'friends', 'activities', 'business'];
     assert.ok((await box('received')).every(r => r.person.age == null), 'the person hid their age'); pass();
     await call(tokens.ada, '/api/me/identity', { method: 'PUT', body: { gender: 'woman', showAge: true, showGender: true, showOrientation: false, showPronouns: false, pronounId: null, datingShowMe: ['man', 'woman', 'non-binary', 'another'] } });
     assert.ok(!JSON.stringify(received).match(/dateOfBirth|date_of_birth|email/i), 'no date of birth or email'); pass();
+    // PR 561 review: a mode the person no longer shows gives a name only (no photo link, no age), as their profile would 404.
+    assert.equal((await call(tokens.ada, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: false } })).status, 200);
+    const hidden = (await box('received')).find(r => r.mode === 'friends').person;
+    assert.deepEqual([hidden.photo ?? null, hidden.age ?? null], [null, null], 'hidden mode: name only'); pass();
+    assert.equal(typeof (await box('received')).find(r => r.mode === 'dating').person.age, 'number', 'other modes unchanged'); pass();
+    await call(tokens.ada, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true } });
     const blocks = (await call(tokens.me, '/api/blocks')).body;
     assert.deepEqual(Object.keys(blocks[0]).sort(), ['displayName', 'id', 'since'], 'blocked rows carry only the name'); pass();
 
@@ -58,6 +64,7 @@ const MODES = ['dating', 'friends', 'activities', 'business'];
     await page.waitForSelector('[data-connections=ready]');
     assert.equal(await page.getAttribute('[data-connections-section]', 'data-connections-section'), 'received', 'requests first while any wait'); pass();
     assert.equal(await page.textContent('[data-section=received] [data-section-count] [aria-hidden]'), '4'); pass();
+    assert.equal(String((await call(tokens.me, '/api/me/notifications')).body.pendingRequests), '4', 'the same total as the Connections tab'); pass();
     assert.deepEqual((await page.locator('[data-box=received] [data-request-mode]').evaluateAll(a => a.map(x => x.dataset.requestMode))).sort(), [...MODES].sort(), 'all four modes'); pass();
     const row = mode => page.locator(`[data-box=received] [data-request-mode=${mode}]`);
     assert.equal(await row('dating').locator('[data-row-age]').count(), 1); pass();

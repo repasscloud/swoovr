@@ -297,13 +297,23 @@ public static class RequestEndpoints
     /// <summary>
     /// Issue 539: each row's thumbnail and age, for the whole page in one batch, exactly as an Explore card in that mode shows
     /// them: the mode's main approved photo as a short-lived link (D203), and age only where the mode and the person allow it
-    /// (D138, D418). Nothing else about the person is added.
+    /// (D138, D418). Nothing else about the person is added. PR 561 review: only while their profile would open in that mode
+    /// now (the profile endpoint's rule: still a candidate and the mode still shared, D175); a mode they turned off or hid
+    /// shows a name only.
     /// </summary>
     private static async Task<List<ConnectionRequestView>> WithFacesAsync(SwoovrDbContext db, IServiceProvider services, List<ConnectionRequest> rows,
         List<ConnectionRequestView> views, Guid me, DateTimeOffset now, CancellationToken cancellationToken)
     {
         if (rows.Count == 0) return views;
         var others = rows.Select(r => r.FromAccountId == me ? r.ToAccountId : r.FromAccountId).Distinct().ToList();
+        var configuration = services.GetRequiredService<IConfiguration>();
+        var open = new HashSet<(Guid, string)>();
+        foreach (var other in others)
+        {
+            var person = await ProfileEndpoints.Candidates(db, configuration, me).SingleOrDefaultAsync(c => c.Profile.AccountId == other, cancellationToken);
+            if (person is null) continue;
+            foreach (var mode in await ProfileEndpoints.SharedModesAsync(db, me, person, cancellationToken)) open.Add((other, mode.Id));
+        }
         var links = services.GetService<Media.MediaLinks>();
         var photos = links is null ? default : await Media.MediaEndpoints.PhotosAsync(db, links, others, rows.Select(r => r.ModeId).Distinct().ToList(), now, cancellationToken);
         var identities = await ProfileEndpoints.IdentitiesAsync(db, others, cancellationToken);
@@ -312,6 +322,7 @@ public static class RequestEndpoints
         return rows.Zip(views, (row, view) =>
         {
             var other = row.FromAccountId == me ? row.ToAccountId : row.FromAccountId;
+            if (!open.Contains((other, row.ModeId))) return view;
             var age = births.GetValueOrDefault(other) is { } born ? AgePolicy.YearsOn(born, today) : (int?)null;
             var shownAge = ModePrivacy.OnCard(row.ModeId, ProfileEndpoints.Public(identities.GetValueOrDefault(other), age, new Dictionary<string, string>()).Age, null, null).Age;
             return view with { Person = view.Person with { Photo = photos.Main?.GetValueOrDefault((other, row.ModeId)), Age = shownAge } };
