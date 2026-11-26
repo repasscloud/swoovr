@@ -8,9 +8,10 @@
         <section class="card dialog" role="dialog" aria-modal="true" aria-labelledby="dob-correction-heading">
             <h2 id="dob-correction-heading">Your date of birth doesn't match your ID</h2>
             <p>Your ID check passed, but the date of birth on your ID is different from the one on your Swoovr account. Set your date of birth to the one shown on your ID to finish verification. You can do this once; if it still doesn't match, Swoovr's team will check it.</p>
-            <form class="stack" @onsubmit="SaveAsync" data-dob-correction-form>
+            <form class="stack dob-correction-form" @onsubmit="SaveAsync" data-dob-correction-form>
                 <div class="field"><label for="dob-correction">Date of birth on your ID</label><input id="dob-correction" type="date" required @bind="date" max="@DateTime.UtcNow.ToString("yyyy-MM-dd")" /></div>
-                <button type="submit" class="button" disabled="@(busy || date is null)">Confirm</button>
+                @* Issue 532: space between the date and Confirm, and a content-width button. *@
+                <div class="dialog-actions"><button type="submit" class="button" disabled="@(busy || date is null)">Confirm</button></div>
                 <p role="status" aria-live="polite" class="field-help" data-dob-correction-status="@status">@message</p>
             </form>
         </section>

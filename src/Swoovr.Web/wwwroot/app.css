@@ -372,6 +372,10 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 .badge-list li { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 /* Issue 439: the badge name is bold; when it was checked is ordinary text. */
 .badge-list .badge-checked { font-weight: 400; color: var(--muted); white-space: nowrap; }
+/* Issue 531: in the badge dialog each icon sits at the top of its own row, beside the badge name, however many lines the
+   explanation takes. The row rule above would centre it (same specificity, later). */
+.badge-list > li[data-badge-row] { align-items: flex-start; }
+.badge-list > li[data-badge-row] > svg { margin-top: 0; }
 .card.settings-list { margin-top: 26px; padding: 0; }
 .settings-list a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 0 20px; text-decoration: none; font-weight: 600; }
 .settings-list a .icon { transform: rotate(180deg); color: var(--muted); }
@@ -1028,3 +1032,11 @@ body:has(.public-layout) { padding-bottom: 0; }
   .mc-name h2 a { white-space: normal; }
 }
 .mc-initial { margin: auto; font: 700 3rem/1 var(--font); color: var(--on-primary-quiet); }
+/* Issue 532: ID verification actions are content width, with room around their explanations; the date of birth dialog
+   keeps its date and Confirm apart. */
+.verification-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 0; }
+.verification-actions .button { width: auto; min-height: 44px; padding: 0 20px; }
+.verification-help { margin-top: 12px; }
+.dob-correction-form { display: grid; gap: 16px; margin-top: 16px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.dialog-actions .button { width: auto; min-height: 44px; padding: 0 20px; }

@@ -303,8 +303,22 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     const link = page.locator('[data-verification-link]');
     assert.match(await link.getAttribute('href'), /^https:\/\/[a-z.]*didit\.me\//); pass();
     assert.equal(await link.getAttribute('target'), '_blank'); pass(); // opens outside the app, in a new browser tab
+    // Issue 532: content-width actions, never the card's full width.
+    for (const action of ['[data-verification-link]', '[data-verification-refresh]']) {
+      const [own, card] = await page.evaluate(sel => [document.querySelector(sel).getBoundingClientRect().width, document.querySelector(sel).closest('.card').getBoundingClientRect().width], action);
+      assert.ok(own < card * 0.8, `${action} is content width (${own} of ${card})`); pass();
+    }
     assert.equal(await page.locator('[data-attempt-state]').getAttribute('data-attempt-state'), 'created'); pass();
     if (output) await page.screenshot({ path: output + '/verification-open-390.png', fullPage: true });
+    // Issue 534: a link can fill in a new support request; the member can still edit it and nothing is sent.
+    await page.goto(web + '/me/support/new?subject=' + encodeURIComponent('Request another ID verification check') + '&body=' + encodeURIComponent('Fictional: another check, please.'));
+    await page.waitForSelector('[data-support-title]');
+    await page.waitForFunction(() => document.querySelector('[data-support-title]').value !== '');
+    assert.deepEqual([await page.inputValue('[data-support-title]'), await page.inputValue('[data-support-body]')], ['Request another ID verification check', 'Fictional: another check, please.']); pass();
+    await page.fill('[data-support-title]', 'Fictional: edited'); await page.waitForTimeout(300);
+    assert.equal(await page.inputValue('[data-support-title]'), 'Fictional: edited', 'the member\'s edit stays'); pass();
+    await page.goto(web + '/me/support/new'); await page.waitForSelector('[data-support-title]'); await page.waitForTimeout(500);
+    assert.deepEqual([await page.inputValue('[data-support-title]'), await page.inputValue('[data-support-body]')], ['', ''], 'a plain new request is blank'); pass();
     // Coming back: the return page re-reads through the API; a forged status in the address changes nothing.
     await page.goto(web + `/me/verification/return?verificationSessionId=${crypto.randomUUID()}&status=Approved`);
     await page.waitForSelector('[data-verification=ready]', { timeout: 20000 });
@@ -320,6 +334,10 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     await page.waitForSelector('[data-dob-correction=open]', { timeout: 20000 }); pass();
     assert.equal(await page.locator('[role=dialog][aria-modal=true]').count(), 1); pass();
     assert.ok(!(await page.locator('[data-dob-correction=open]').innerText()).includes('1970')); pass(); // the document's date is never shown
+    // Issue 532: the date and Confirm don't touch, and Confirm is content width.
+    const [gap, confirm, form] = await page.evaluate(() => { const f = document.querySelector('[data-dob-correction-form]'), i = f.querySelector('input').getBoundingClientRect(), b = f.querySelector('button[type=submit]').getBoundingClientRect(); return [b.top - i.bottom, b.width, f.getBoundingClientRect().width]; });
+    assert.ok(gap >= 12, `space between the date and Confirm (${gap}px)`); pass();
+    assert.ok(confirm < form * 0.6, `Confirm is content width (${confirm} of ${form})`); pass();
     if (output) await page.screenshot({ path: output + '/dob-correction-390.png', fullPage: true });
     await page.fill('#dob-correction', '1970-03-03');
     await page.click('[data-dob-correction-form] button[type=submit]');

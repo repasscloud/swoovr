@@ -125,6 +125,7 @@ await RegistryClientChecks.Run();
 await StaffSessionRenewalChecks.Run();
 StaffNameChecks.Run();
 MediaDestinationChecks.Run();
+SupportPrefillChecks.Run();
 await PersistenceChecks.Run();
 
 var expected = new FoundationStatus("Swoovr.Api", "foundation");

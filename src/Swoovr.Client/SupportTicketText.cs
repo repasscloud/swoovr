@@ -61,6 +61,14 @@ public static partial class SupportTicketText
     public static bool ValidReference(string? reference) => reference is not null && Reference().IsMatch(reference);
     /// <summary>A safe prefill: the reference alone, which staff look up in Swoovr. Nothing from the report is copied.</summary>
     public static string Subject(string? reference) => ValidReference(reference) ? $"About report {reference}" : "";
+    /// <summary>Issue 534: a new request's starting title and message. A report reference keeps its own title; otherwise the
+    /// link's subject and body, trimmed to the form's limits. Plain text, editable, never sent automatically.</summary>
+    public static (string Title, string? Body) Prefill(string? reference, string? subject, string? body)
+    {
+        static string? Clip(string? value, int max) => string.IsNullOrWhiteSpace(value) ? null : value.Trim() is var t && t.Length > max ? t[..max] : value.Trim();
+        var title = ValidReference(reference) ? Subject(reference) : Clip(subject, 200) ?? "";
+        return (title, Clip(body, 16000));
+    }
 
     public static string State(string? name) => name switch
     {
