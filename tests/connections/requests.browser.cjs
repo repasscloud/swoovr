@@ -212,8 +212,9 @@ const { web, createMember, memberToken, rootAdminToken, cli, sql, call, claims, 
     if (output) await halPage.screenshot({ path: output + '/connections-390.png', fullPage: true });
     await incoming.getByRole('button', { name: 'Accept' }).click();
     await halPage.waitForSelector('[data-connections-status=accept]'); pass();
-    assert.equal(await halPage.locator(`[data-box=connected] a[href^="/people/${pid.ann}"]`).count(), 1); pass();
     assert.equal(await halPage.locator(`[data-box=received] a[href^="/people/${pid.ann}"]`).count(), 0); pass();
+    await halPage.click('[data-section=connected]'); // issue 539: one section at a time
+    assert.equal(await halPage.locator(`[data-box=connected] a[href^="/people/${pid.ann}"]`).count(), 1); pass();
     await page.reload(); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
     await page.click('[data-open-connect]');
     assert.equal(await page.locator('[data-connect-mode=dating]').getAttribute('data-connection'), 'connected'); pass();
@@ -230,7 +231,7 @@ const { web, createMember, memberToken, rootAdminToken, cli, sql, call, claims, 
     assert.ok(!(await explore('ann')).includes(pid.hal) && !(await explore('hal')).includes(pid.ann)); pass();
     await halPage.reload(); await halPage.waitForSelector('[data-connections=ready]', { timeout: 20000 });
     assert.equal(await halPage.locator(`a[href^="/people/${pid.ann}"]`).count(), 0); pass(); // gone from Hal's lists too
-    await page.goto(web + '/connections');
+    await page.goto(web + '/connections#blocked-heading');
     await page.waitForSelector('[data-connections=ready]', { timeout: 20000 });
     await page.locator(`[data-blocked="${pid.hal}"]`).getByRole('button', { name: 'Unblock' }).click();
     await page.waitForSelector('[data-connections-status=unblocked]'); pass();

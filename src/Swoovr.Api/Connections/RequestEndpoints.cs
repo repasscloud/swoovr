@@ -182,7 +182,7 @@ public static class RequestEndpoints
         });
 
         // Pending requests received or sent, newest first, paged.
-        api.MapGet("/requests", async (string? box, int? page, ClaimsPrincipal user, AccountResolver accounts, CancellationToken cancellationToken) =>
+        api.MapGet("/requests", async (string? box, int? page, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
@@ -191,18 +191,18 @@ public static class RequestEndpoints
             var (me, db) = (current!.Profile!.AccountId, accounts.Db!);
             var query = db.ConnectionRequests.Where(r => r.Status == ConnectionRequestStatus.Pending
                 && (box == "received" ? r.ToAccountId == me : r.FromAccountId == me));
-            return Results.Ok(await PageAsync(db, query, me, page ?? 1, cancellationToken));
+            return Results.Ok(await PageAsync(db, query, me, page ?? 1, cancellationToken, accounts.Services, clock.GetUtcNow()));
         });
 
         // Accepted connections (a request each side has agreed to), newest first, paged.
-        api.MapGet("/connections", async (int? page, ClaimsPrincipal user, AccountResolver accounts, CancellationToken cancellationToken) =>
+        api.MapGet("/connections", async (int? page, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
             if (page is < 1 or > 1000) return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Check the page number.");
             var (me, db) = (current!.Profile!.AccountId, accounts.Db!);
             var query = db.ConnectionRequests.Where(r => r.Status == ConnectionRequestStatus.Accepted && (r.ToAccountId == me || r.FromAccountId == me));
-            return Results.Ok(await PageAsync(db, query, me, page ?? 1, cancellationToken));
+            return Results.Ok(await PageAsync(db, query, me, page ?? 1, cancellationToken, accounts.Services, clock.GetUtcNow()));
         });
 
         api.MapPost("/blocks", async (BlockRequest request, ClaimsPrincipal user, AccountResolver accounts, IHubContext<MessagesHub> hub, TimeProvider clock,
@@ -283,13 +283,39 @@ public static class RequestEndpoints
     public static Task<int> PendingReceivedAsync(SwoovrDbContext db, Guid me, CancellationToken cancellationToken) =>
         Listed(db, db.ConnectionRequests.Where(r => r.Status == ConnectionRequestStatus.Pending && r.ToAccountId == me), me).CountAsync(cancellationToken);
 
-    private static async Task<RequestPage> PageAsync(SwoovrDbContext db, IQueryable<ConnectionRequest> query, Guid me, int page, CancellationToken cancellationToken)
+    private static async Task<RequestPage> PageAsync(SwoovrDbContext db, IQueryable<ConnectionRequest> query, Guid me, int page, CancellationToken cancellationToken,
+        IServiceProvider services, DateTimeOffset now)
     {
         query = Listed(db, query, me);
         var rows = await query.OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id).Skip((page - 1) * PageSize).Take(PageSize + 1).ToListAsync(cancellationToken);
+        var shown = rows.Take(PageSize).ToList();
         var views = new List<ConnectionRequestView>();
-        foreach (var row in rows.Take(PageSize)) views.Add(await ViewAsync(db, row, me, cancellationToken));
-        return new(views, page, rows.Count > PageSize);
+        foreach (var row in shown) views.Add(await ViewAsync(db, row, me, cancellationToken));
+        return new(await WithFacesAsync(db, services, shown, views, me, now, cancellationToken), page, rows.Count > PageSize);
+    }
+
+    /// <summary>
+    /// Issue 539: each row's thumbnail and age, for the whole page in one batch, exactly as an Explore card in that mode shows
+    /// them: the mode's main approved photo as a short-lived link (D203), and age only where the mode and the person allow it
+    /// (D138, D418). Nothing else about the person is added.
+    /// </summary>
+    private static async Task<List<ConnectionRequestView>> WithFacesAsync(SwoovrDbContext db, IServiceProvider services, List<ConnectionRequest> rows,
+        List<ConnectionRequestView> views, Guid me, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (rows.Count == 0) return views;
+        var others = rows.Select(r => r.FromAccountId == me ? r.ToAccountId : r.FromAccountId).Distinct().ToList();
+        var links = services.GetService<Media.MediaLinks>();
+        var photos = links is null ? default : await Media.MediaEndpoints.PhotosAsync(db, links, others, rows.Select(r => r.ModeId).Distinct().ToList(), now, cancellationToken);
+        var identities = await ProfileEndpoints.IdentitiesAsync(db, others, cancellationToken);
+        var births = await db.MemberProfiles.Where(p => others.Contains(p.AccountId)).ToDictionaryAsync(p => p.AccountId, p => p.DateOfBirth, cancellationToken);
+        var today = DateOnly.FromDateTime(now.UtcDateTime);
+        return rows.Zip(views, (row, view) =>
+        {
+            var other = row.FromAccountId == me ? row.ToAccountId : row.FromAccountId;
+            var age = births.GetValueOrDefault(other) is { } born ? AgePolicy.YearsOn(born, today) : (int?)null;
+            var shownAge = ModePrivacy.OnCard(row.ModeId, ProfileEndpoints.Public(identities.GetValueOrDefault(other), age, new Dictionary<string, string>()).Age, null, null).Age;
+            return view with { Person = view.Person with { Photo = photos.Main?.GetValueOrDefault((other, row.ModeId)), Age = shownAge } };
+        }).ToList();
     }
 
     public static async Task<ConnectionRequestView> ViewAsync(SwoovrDbContext db, ConnectionRequest request, Guid me, CancellationToken cancellationToken)

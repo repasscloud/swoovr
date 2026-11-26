@@ -524,7 +524,7 @@ public static class ProfileEndpoints
         await db.ProfileOptions.Where(o => o.Kind == "gender" || o.Kind == "pronoun")
             .ToDictionaryAsync(o => o.Kind == "pronoun" ? PronounKey + o.Id : o.Id, o => o.Label, cancellationToken);
 
-    private static async Task<Dictionary<Guid, MemberIdentity>> IdentitiesAsync(SwoovrDbContext db, List<Guid> accounts, CancellationToken cancellationToken) =>
+    internal static async Task<Dictionary<Guid, MemberIdentity>> IdentitiesAsync(SwoovrDbContext db, List<Guid> accounts, CancellationToken cancellationToken) =>
         await db.MemberIdentities.Where(i => accounts.Contains(i.AccountId)).ToDictionaryAsync(i => i.AccountId, cancellationToken);
 
     /// <summary>

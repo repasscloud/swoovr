@@ -177,9 +177,9 @@ const waitFor = async (predicate, ms = 5000) => { for (let i = 0; i < ms / 100 &
     assert.equal(await page.locator('[data-shared-modes]').getAttribute('data-shared-modes'), 'dating'); pass();
     assert.equal((await page.content()).includes('consultant'), false); pass();
     const link = await connect('ana', 'bob', 'dating');
-    await page.goto(web + '/connections');
-    await page.waitForSelector(`[data-request="${link}"] [data-connection-label]`, { timeout: 20000 });
-    assert.equal(await page.locator(`[data-request="${link}"] [data-connection-label]`).innerText(), 'Match'); pass();
+    await page.goto(web + '/connections#connected-heading');
+    await page.waitForSelector(`[data-request="${link}"] [data-disconnect]`, { timeout: 20000 });
+    assert.ok(!(await page.locator(`[data-request="${link}"]`).innerText()).includes('Match'), 'issue 539: no "Match" label'); pass();
     await page.click(`[data-request="${link}"] [data-disconnect]`);
     await page.click(`[data-request="${link}"] [data-disconnect-confirm]`);
     await page.waitForSelector('[data-connections-status=disconnected]'); pass();
