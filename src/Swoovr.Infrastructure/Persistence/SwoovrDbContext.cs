@@ -72,6 +72,7 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
     public DbSet<IdVerificationAttempt> IdVerificationAttempts => Set<IdVerificationAttempt>();
     public DbSet<DiditWebhookEvent> DiditWebhookEvents => Set<DiditWebhookEvent>();
     public DbSet<ReportCategory> ReportCategories => Set<ReportCategory>();
+    public DbSet<SafetyHandoff> SafetyHandoffs => Set<SafetyHandoff>();
     public DbSet<Report> Reports => Set<Report>();
     public DbSet<ModerationCase> ModerationCases => Set<ModerationCase>();
     public DbSet<CaseEvidence> CaseEvidence => Set<CaseEvidence>();
@@ -980,6 +981,17 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             report.Property(r => r.SupportReference).HasMaxLength(9);
             report.HasIndex(r => r.SupportReference).IsUnique().HasFilter("support_reference IS NOT NULL");
             report.ToTable(t => t.HasCheckConstraint("ck_reports_not_self", "reporter_account_id <> subject_account_id"));
+        });
+        // Issue 188 (D420): ids, state and a failure code; gone with its report.
+        model.Entity<SafetyHandoff>(handoff =>
+        {
+            handoff.ToTable("safety_handoffs");
+            handoff.HasOne<Report>().WithMany().HasForeignKey(h => h.ReportId).OnDelete(DeleteBehavior.Cascade);
+            handoff.HasIndex(h => h.ReportId).IsUnique();
+            handoff.Property(h => h.CategoryId).HasMaxLength(32);
+            handoff.Property(h => h.State).HasConversion<string>().HasMaxLength(16);
+            handoff.Property(h => h.FailureCode).HasMaxLength(64);
+            handoff.HasIndex(h => new { h.State, h.NextAttemptAt });
         });
         model.Entity<CaseEvidence>(evidence =>
         {

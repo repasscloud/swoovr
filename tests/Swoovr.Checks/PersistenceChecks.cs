@@ -159,6 +159,8 @@ static class PersistenceChecks
             await MeetingSafetyContactVerificationPersistenceChecks.Run(options, Check);
             await TicketingPersistenceChecks.Run(options, Check);
             await TicketingOperationChecks.Run(options, Check);
+            // Issue 188 (D420): sensitive reports to the helpdesk.
+            await SafetyHandoffChecks.Run(options, Check);
             await StaffManagementPersistenceChecks.Run(options,Check);
             await MfaPersistenceChecks.Run(options,Check);
         }

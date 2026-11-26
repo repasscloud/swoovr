@@ -1631,3 +1631,13 @@ Builds D410 (**CONFIRMED**, Q183 B) for Explore cards: opt-in on `/me/profile`, 
 - Worked out after the list and its order are settled; nothing for official bots, and blocked or restricted members aren't listed at all. Opened profiles, chats and Traveller cards show no dot.
 - The promise on `/me/notifications` changes only where online status is offered. It still promises no last-seen time and no read receipts.
 - **DEFAULT:** offered per host by `Explore:OnlineStatus`, **off**, until Q189 ([#525](https://github.com/repasscloud/swoovr/issues/525)) says whether the Privacy Notice needs a sentence first. Turning it off in configuration hides every dot at once and stops writing.
+
+### D420 — How sensitive safety reports reach Trust & Safety in Zammad (#188, 26 November 2026)
+
+Builds D411 (**CONFIRMED**, Q128). D308's routing is unchanged for members: the report is still made in Swoovr and worked there.
+- **Which reports:** every report in a Serious Safety Incident category (D190). Its row in `safety_handoffs` is written in the report's own transaction, so a helpdesk outage never fails, loses or delays the report. Swoovr's own queue, legal hold and escalation email work as before.
+- **The item:** one per report, an internal note in the **Trust & Safety** group: "Sensitive safety report", the category, and a link to the case in Swoovr Admin. No names, report text, messages or evidence. It is linked to its case, so Swoovr Admin applies the case's queue and conflict-of-interest rules to it.
+- **Who raises it:** a new `swoovr-safety-reports` identity (custom role with `ticket.agent`; create and read in Trust & Safety only; never an Agent or owner), provisioned by `containers/zammad/provision.rb` with token `Ticketing:Zammad:SafetyReportToken`. **DEFAULT:** the item's customer is that identity, so no member is ever its customer, no member can see it, and no member notification is sent.
+- **Delivery:** every minute (`Safety:HandoffWorker`). The row id is the Zammad operation id: a create that may have reached Zammad is found again by search, never sent twice. Retries back off from a minute to an hour; after 24 attempts (about a day) the row is Failed, logged and audited (`safety-report.handoff-failed`). Without the token it waits and uses no attempts.
+- **UAT:** the token is empty in the env template, so an upgrade's check passes; provisioning fills it during the upgrade, and the API reads it on its next start (the next deployment, or `docker compose up -d api`). Reports made in between are delivered then.
+- **Not yet shown:** a run against a real Zammad. The provisioning script was syntax-checked only.
