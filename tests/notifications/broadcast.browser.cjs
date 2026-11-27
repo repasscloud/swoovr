@@ -61,6 +61,15 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     await page.setViewportSize({ width: 390, height: 844 });
     if (output) await page.screenshot({ path: `${output}/announcement-390.png`, fullPage: true });
 
+    // A recipient waiting on age verification still has the centre, so they can open what it lists (PR 601 review).
+    const annProfile = `(SELECT id FROM accounts WHERE subject = '${sub('ann')}')`;
+    const ageBefore = await sql(`SELECT age_status FROM member_profiles WHERE account_id = ${annProfile}`);
+    await sql(`UPDATE member_profiles SET age_status = 'NeedsVerification' WHERE account_id = ${annProfile}`);
+    assert.equal((await call(tokens.ann, '/api/me/notifications')).status, 200);
+    const gated = await call(tokens.ann, `/api/me/announcements/${id}`);
+    assert.equal(gated.status, 200, 'an age-gated recipient can read it: ' + JSON.stringify(gated.body)); pass();
+    await sql(`UPDATE member_profiles SET age_status = '${ageBefore}' WHERE account_id = ${annProfile}`);
+
     // Withdraw: gone from every centre, the page closes, and it can't be sent again or edited.
     const withdrawn = await call(st, `/api/admin/broadcasts/${id}/withdraw`, { method: 'POST' });
     assert.deepEqual([withdrawn.status, withdrawn.body.canWithdraw, !!withdrawn.body.withdrawnAt], [200, false, true]); pass();

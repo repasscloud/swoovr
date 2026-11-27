@@ -1,31 +1,43 @@
 @page "/appeals"
 @inject AdminClient Admin
 <PageTitle>Appeals — Swoovr admin</PageTitle>
-<h1>Appeals</h1>
-<p class="help">Decided by someone other than the original decider; staff-affiliated accounts and admins' actions only by admins.</p>
+@* Issue 587: the same page head, stats and table as the other Moderation pages (/media, /dob-reviews). *@
+<header class="ui-page-head">
+    <h1>Appeals</h1>
+    <p>Decided by someone other than the original decider. Only admins decide appeals about staff-affiliated accounts or admins' actions.</p>
+</header>
 @if (message is not null) { <p class="notice" role="status" data-result="@resultCode">@message</p> }
-@if (appeals.Count == 0) { <p data-appeals="none">No appeals waiting.</p> }
+<div class="ui-stats">
+    <div class="ui-stat"><strong>@appeals.Count</strong><span>Waiting</span></div>
+    <div class="ui-stat"><strong>@(appeals.Count == 0 ? "—" : Ago(appeals.Min(a => a.CreatedAt)))</strong><span>Oldest waiting</span></div>
+</div>
+@if (appeals.Count == 0) { <div class="ui-empty" data-appeals="none"><strong>Nothing waiting</strong>No appeals waiting.</div> }
 else
 {
-    <ul class="list" data-appeals="@appeals.Count">
-        @foreach (var a in appeals)
-        {
-            <li data-appeal="@a.Id">
-                <strong>@a.SanctionKind</strong> · <a href="/accounts/@a.AccountId">account</a> · @a.CreatedAt.ToString("d MMM HH:mm")
-                @if (a.Text is not null) { <blockquote>@a.Text</blockquote> }
-                <form method="post" @formname="@($"decide-{a.Id}")" @onsubmit="() => DecideAsync(a.Id)" class="row" data-enhance="true">
+    <div class="table-scroll ui-table" tabindex="0" role="region" aria-label="Appeals waiting">
+    <table data-appeals="@appeals.Count"><thead><tr><th scope="col">Sanction</th><th scope="col">Member's appeal</th><th scope="col">Waiting since</th><th scope="col"><span class="sr-only">Decision</span></th></tr></thead><tbody>
+    @foreach (var a in appeals.OrderBy(a => a.CreatedAt))
+    {
+        <tr data-appeal="@a.Id">
+            <td><strong>@a.SanctionKind</strong><span class="ui-sub"><a href="/accounts/@a.AccountId">Account</a> · <code>@a.AccountId.ToString()[..8]</code></span></td>
+            <td>@if (a.Text is not null) { <span class="appeal-text">@a.Text</span> } else { <span class="ui-sub">No statement</span> }</td>
+            <td>@a.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC<span class="ui-sub">@Ago(a.CreatedAt) ago</span></td>
+            <td class="ui-right">
+                <form method="post" @formname="@($"decide-{a.Id}")" @onsubmit="() => DecideAsync(a.Id)" class="appeal-decide" data-enhance="true">
                     <AntiforgeryToken />
-                    <button name="outcome" value="uphold" type="submit" class="secondary" data-decide="uphold">Uphold</button>
-                    <button name="outcome" value="overturn" type="submit" data-decide="overturn">Overturn (lift)</button>
+                    <button name="outcome" value="uphold" type="submit" class="ui-button-ghost" data-decide="uphold">Uphold</button>
+                    <button name="outcome" value="overturn" type="submit" class="ui-button-sm" data-decide="overturn">Overturn (lift)</button>
                 </form>
-            </li>
-        }
-    </ul>
+            </td>
+        </tr>
+    }
+    </tbody></table></div>
 }
 @code {
     [CascadingParameter] private HttpContext? Context { get; set; }
     private List<AppealAdminView> appeals = [];
     private string? message, resultCode;
+    private static string Ago(DateTimeOffset at) { var h = Math.Max(0, (DateTimeOffset.UtcNow - at).TotalHours); return h < 1 ? $"{(int)(h * 60)} min" : h < 48 ? $"{(int)h} h" : $"{(int)(h / 24)} days"; }
 
     protected override async Task OnInitializedAsync() => appeals = (await Admin.AppealsAsync()).Value ?? [];
 

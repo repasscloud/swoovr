@@ -1127,9 +1127,10 @@ body:has(.public-layout) { padding-bottom: 0; }
 /* D443 (issue 589): four fixed rows; a blank row keeps its height and nothing wraps, so every card is the same size. */
 .mc-row { flex: none; min-width: 0; height: 1.0125rem; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .mc-name.mc-row { height: 1.5rem; overflow: visible; }
-/* The name keeps at least ~7 characters and shortens with an ellipsis; the badges stay beside it on the same line. */
+/* The name shortens with an ellipsis as far as it needs to so every badge stays visible beside it on the same line
+   (narrow two-column cards cannot fit a ~7 character floor plus several badges; the card clips overflow). */
 .mc-name { display: flex; flex-wrap: nowrap; align-items: center; gap: 2px 5px; min-width: 0; }
-.mc-name h2 { display: flex; flex: 0 1 auto; min-width: min(100%, 7em); margin: 0; font: var(--type-tile-name); }
+.mc-name h2 { display: flex; flex: 0 1 auto; min-width: 0; margin: 0; font: var(--type-tile-name); }
 .mc-name h2 a { display: flex; min-width: 0; text-decoration: none; color: inherit; white-space: nowrap; }
 .mc-name h2 a::after { content: ""; position: absolute; inset: 0; border-radius: 16px; }
 .mc-name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
