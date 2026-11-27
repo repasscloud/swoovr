@@ -306,55 +306,22 @@ public static class ProfileEndpoints
     }
 
     /// <summary>
-    /// Issue 568 (D436): the day what the viewer can see of a profile last changed. Profile versions also hold settings
-    /// nobody sees (the raw mode name and About, Share my About, on/visible), so each one is reduced to what is shown before
-    /// it is compared with the one before it (PR 582 review): in a shown mode the name, About, "Looking for" chips and
-    /// photos shown there, core ones included; in core only the text picture, and only while that is what's shown. Gender,
-    /// pronouns and age as shown, and the orientation when Dating is shown, count from their own change times
-    /// (MemberIdentity), since profile versions never hold them.
+    /// Issue 568 (D436): the day what the viewer can see of a profile last changed: the profile versions as shown
+    /// (ProfileShownChange), and gender, pronouns and age as shown, and the orientation when Dating is shown, from their own
+    /// change times (MemberIdentity), since profile versions never hold them.
     /// </summary>
     private static async Task<DateOnly?> LastUpdatedAsync(SwoovrDbContext db, Guid account, IReadOnlyList<string> shownIds, string lead, MemberIdentity? identity,
         bool pictureTextShown, CancellationToken cancellationToken)
     {
-        var changes = new List<DateTimeOffset?> { identity?.PresentationChangedAt, shownIds.Contains(ConnectionModeIds.Dating) ? identity?.OrientationChangedAt : null };
-        foreach (var mode in shownIds)
-            changes.Add(await VisibleChangeAsync(db, account, mode, root => ShownInMode(root, mode == lead), countsFirst: _ => true, cancellationToken));
-        if (pictureTextShown)
-            changes.Add(await VisibleChangeAsync(db, account, ProfileVersions.Core, root => Shown(root, "pictureText", "null"), countsFirst: shown => shown != "null", cancellationToken));
-        return changes.Max() is { } at ? DateOnly.FromDateTime(at.UtcDateTime) : null;
-    }
-
-    /// <summary>
-    /// When the shown part of one mode's (or core's) versions last changed: newest first, stopping at the first older version
-    /// that showed something different. The oldest version counts when countsFirst says what it showed was something.
-    /// </summary>
-    private static async Task<DateTimeOffset?> VisibleChangeAsync(SwoovrDbContext db, Guid account, string mode, Func<System.Text.Json.JsonElement, string> shown,
-        Func<string, bool> countsFirst, CancellationToken cancellationToken)
-    {
-        (string Shown, DateTimeOffset At)? newer = null;
-        await foreach (var version in db.ProfileVersions.Where(v => v.AccountId == account && v.ModeId == mode).OrderByDescending(v => v.CapturedAt)
-            .Select(v => new { v.CapturedAt, v.ContentJson }).AsAsyncEnumerable().WithCancellation(cancellationToken))
+        var versions = await db.ProfileVersions.AsNoTracking()
+            .Where(v => v.AccountId == account && (shownIds.Contains(v.ModeId) || pictureTextShown && v.ModeId == ProfileVersions.Core)).ToListAsync(cancellationToken);
+        var changed = new[]
         {
-            string now;
-            try { using var document = System.Text.Json.JsonDocument.Parse(version.ContentJson); now = shown(document.RootElement); }
-            catch (System.Text.Json.JsonException) { continue; }
-            if (newer is { } n && n.Shown != now) return n.At;
-            newer = (now, version.CapturedAt);
-        }
-        return newer is { } first && countsFirst(first.Shown) ? first.At : null;
+            ProfileShownChange.Last(versions, shownIds, lead, pictureTextShown),
+            identity?.PresentationChangedAt, shownIds.Contains(ConnectionModeIds.Dating) ? identity?.OrientationChangedAt : null,
+        }.Max();
+        return changed is { } at ? DateOnly.FromDateTime(at.UtcDateTime) : null;
     }
-
-    /// <summary>
-    /// What one mode shows, as PersonPanel builds the gallery (PhotoText.Gallery): only the requested (lead) mode's main
-    /// photo leads it; every shown mode adds its photos in order. Another mode's main-photo choice shows nothing (PR 582 review).
-    /// </summary>
-    private static string ShownInMode(System.Text.Json.JsonElement root, bool lead) => string.Join('\u001f',
-        Shown(root, "shownName", "null"), Shown(root, "shownAbout", "null"), Shown(root, "intentions", "[]"),
-        lead && root.TryGetProperty("mainPhoto", out var main) && main.ValueKind == System.Text.Json.JsonValueKind.Object ? PhotoKey(main) : "null",
-        root.TryGetProperty("photos", out var photos) && photos.ValueKind == System.Text.Json.JsonValueKind.Array ? string.Join(',', photos.EnumerateArray().Select(PhotoKey)) : "");
-
-    /// <summary>A photo as seen: which image, never its main-photo flag.</summary>
-    private static string PhotoKey(System.Text.Json.JsonElement photo) => Shown(photo, "id", "null") + ":" + Shown(photo, "sha256", "null");
 
     /// <summary>
     /// Issue 568 (D436, PR 582 review): a date-of-birth change that changes the age others see moves "Profile updated"; a
