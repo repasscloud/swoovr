@@ -209,7 +209,9 @@
                 // A browser that closed it before issue 566 hands that over once, then forgets it.
                 if (await JS.InvokeAsync<string?>("localStorage.getItem", NoticeKey) is not null)
                 {
+                    // PR 580 review: moved to this account's key before the old one goes, so a failed save keeps it.
                     pending = true;
+                    await JS.InvokeVoidAsync("localStorage.setItem", PendingKey, "1");
                     await JS.InvokeVoidAsync("localStorage.removeItem", NoticeKey);
                 }
             }
@@ -337,22 +339,23 @@
 
     private void StopRefresh() { nearRefresh?.Cancel(); nearRefresh?.Dispose(); nearRefresh = null; }
 
+    // Remembered in this browser (for this account only) before the account is told, so leaving or reloading straight
+    // after closing it can't lose the dismissal; the key goes once the account has it.
     private async Task DismissNoticeAsync()
     {
         noticeOpen = false;
+        try { await JS.InvokeVoidAsync("localStorage.setItem", PendingKey, "1"); }
+        catch (Exception error) when (error is JSException or InvalidOperationException) { }
         await SaveDismissalAsync();
     }
 
-    // Best effort: if the account can't be told now, this browser remembers it for this account only and tells it on
-    // the next visit.
+    // Best effort: if the account can't be told now, the key stays and the next visit tells it.
     private async Task SaveDismissalAsync()
     {
         var saved = false;
         try { saved = await Members.DismissExploreNoticeAsync() == 204; }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException) { }
-        if (saved) { await ForgetPendingAsync(); return; }
-        try { await JS.InvokeVoidAsync("localStorage.setItem", PendingKey, "1"); }
-        catch (Exception error) when (error is JSException or InvalidOperationException) { }
+        if (saved) await ForgetPendingAsync();
     }
 
     private async Task ForgetPendingAsync()

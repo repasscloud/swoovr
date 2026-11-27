@@ -85,10 +85,26 @@ const { web, createMember, memberToken, cli, call, matchReady } = require('../au
     await page.waitForSelector(`${dialog} [data-filter-status=reset]`); assert.equal(await chip.isChecked(), wasChecked); assert.equal(await no.isChecked(), false); checks++;
     await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=filters]', { state: 'detached' });
     assert.equal(methods.filter(method => method !== 'GET').length, 0, 'Guidance must not write filters/modes/travel'); checks++;
+    // PR 580 review: the pre-566 browser key moves to this account's key first, so a failed save still keeps the notice
+    // closed on the next visit. Then put the notice back (nothing reached the account) for the checks below.
+    const dismissUrl = '**/bff/api/me/explore-notice/dismiss';
+    await page.route(dismissUrl, route => route.fulfill({ status: 503, body: '' }));
+    await page.evaluate(() => localStorage.setItem('swoovr.explore.notice-dismissed', '1'));
+    await page.reload(); await page.waitForSelector('[data-explore-empty]');
+    assert.equal(await page.locator('[data-discovery-guidance]').count(), 0, 'the old key closes it'); checks++;
+    const kept = await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('swoovr.explore.notice-dismissed')));
+    assert.ok(kept.length === 1 && kept[0].startsWith('swoovr.explore.notice-dismissed:'), 'moved to the account key: ' + kept); checks++;
+    await page.reload(); await page.waitForSelector('[data-explore-empty]');
+    assert.equal(await page.locator('[data-discovery-guidance]').count(), 0, 'still closed after the save failed'); checks++;
+    await page.unroute(dismissUrl);
+    await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('swoovr.explore.notice-dismissed')).forEach(k => localStorage.removeItem(k)));
+    await page.reload(); await page.waitForSelector('[data-explore-empty]'); await page.waitForSelector('[data-discovery-guidance]');
     // Issue 566: closing the notice is for good, on the account (not just this browser), and there's no About Explore link.
     await page.click('[data-explore-notice-close]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 0); checks++;
     await page.reload(); await page.waitForSelector('[data-explore-empty]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 0, 'dismissal remembered'); checks++;
-    // PR 576 review: a saved dismissal leaves nothing in this browser that another member signing in here would pick up.
+    // PR 576 review: a saved dismissal leaves nothing in this browser that another member signing in here would pick up
+    // (the account-scoped key is removed once the account has it).
+    await page.waitForFunction(() => !Object.keys(localStorage).some(k => k.startsWith('swoovr.explore.notice-dismissed')), null, { timeout: 15000 });
     assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('swoovr.explore.notice-dismissed'))), [], 'no browser dismissal key once the account knows'); checks++;
     assert.equal(await page.locator('[data-explore-about]').count(), 0, 'no About Explore link'); checks++;
     const scopeBackgrounds = await page.evaluate(() => [...document.querySelectorAll('.explore-scope .segment')].map(b => `${b.getAttribute('aria-pressed')}:${getComputedStyle(b).backgroundColor}`));
