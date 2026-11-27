@@ -107,6 +107,8 @@ public sealed class MemberProfile
     public Guid? PictureTextRevision { get; set; }
     /// <summary>Issue 389 (D382): when the first-sign-in profile steps were finished. Null keeps the member in onboarding (181.7 A).</summary>
     public DateTimeOffset? OnboardingCompletedAt { get; set; }
+    /// <summary>Issue 566: when the member closed the Explore notice. Once set it never shows again, on any device.</summary>
+    public DateTimeOffset? ExploreNoticeDismissedAt { get; set; }
     /// <summary>D382: the optional onboarding steps the member continued past (<see cref="ProfileOnboarding.About"/>, <see cref="ProfileOnboarding.Identity"/>).</summary>
     public List<string> OnboardingSteps { get; set; } = [];
     /// <summary>

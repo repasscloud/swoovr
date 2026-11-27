@@ -47,6 +47,10 @@ if(process.env.Media__Screening__Simulate!=='blocked')throw Error('Photo workflo
    assert.equal((await h.call(tokens.second,`/api/admin/media/${ids[0]}/reconsider`,{method:'POST',body:{outcome:'approve',reason:'Cannot bypass final appeal'}})).status,409);
    decisions=(await h.call(token,'/api/me/photos/decisions')).body;assert.equal(decisions.find(d=>d.id===decision.id).appealOutcome,'upheld');
    assert.equal(await h.sql(`SELECT count(*) FROM notifications WHERE account_id='${account}' AND kind='PhotoDecision'`),'2','one rejection and one final outcome notice');
+   // Issue 558: each photo decision notice opens its own decision on Your photos; the link carries only the decision id.
+   const photoLinks=(await h.call(token,'/api/me/notifications')).body.items.filter(n=>n.link.startsWith('/me/photos')).map(n=>n.link);
+   assert.equal(photoLinks.length,2,`two photo decision links: ${photoLinks}`);assert.ok(photoLinks.every(l=>/^\/me\/photos\?decision=[0-9a-f]{32}$/.test(l)),`links name a decision only: ${photoLinks}`);
+   assert.ok(photoLinks.includes(`/me/photos?decision=${decision.id.replaceAll('-','')}`),'the rejection notice links to its decision');
    // Specialist rows expose only generic wording and never an appeal action; no real illegal media is used.
    const protectedDecision=crypto.randomUUID();await h.sql(`UPDATE media_items SET status='Blocked' WHERE id='${ids[1]}';INSERT INTO media_decision_records(id,media_id,account_id,decision,code,at)VALUES('${protectedDecision}','${ids[1]}','${account}','escalate','SPECIALIST_RESTRICTED',now())`);
    decision=(await h.call(token,'/api/me/photos/decisions')).body.find(d=>d.id===protectedDecision);assert.equal(decision.canAppeal,false);assert.equal(decision.decision,'not-approved');assert.equal(decision.reason,'This photo cannot be used on Swoovr.');

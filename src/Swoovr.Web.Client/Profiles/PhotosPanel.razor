@@ -116,7 +116,7 @@
                     @foreach (var decision in decisions)
                     {
                         var photo = Photo(decision.MediaId);
-                        <li class="ph-item" data-photo-decision="@decision.Id">
+                        <li class="ph-item@(focusedDecision == decision.Id ? " ph-item-focused" : "")" id="@($"decision-{decision.Id:N}")" data-photo-decision="@decision.Id" data-photo-decision-focused="@(focusedDecision == decision.Id ? "true" : null)" tabindex="-1" @ref="decisionRows[decision.Id]">
                             <span class="ph-item-thumb">@if (photo is not null) {<button type="button" class="ph-open" @onclick="() => Open(photo.Id, Context.Library)" aria-label="Open the photo that wasn't approved"><PhotoShot Photo="photo" Alt="" /></button>}</span>
                             <div class="ph-item-main">
                                 <p><strong>A photo wasn't approved</strong> <span class="ph-tag">@(decision.AppealId is null ? decision.CanAppeal ? "Can appeal" : "Final" : decision.AppealOutcome is null ? "Appeal being reviewed" : "Appeal " + decision.AppealOutcome)</span></p>
@@ -153,6 +153,11 @@
                 <div><dt>Modes</dt><dd>@(ModesOf(shown) is { Length: > 0 } m ? m : "—")</dd></div>
                 <div><dt>Albums</dt><dd>@(AlbumsOf(shown) is { Length: > 0 } a ? a : "—")</dd></div>
                 <div><dt>Uploaded</dt><dd>@shown.CreatedAt.ToLocalTime().ToString("d MMM yyyy")</dd></div>
+                @* Issue 558: the decision's reason, so a notice that opens the photo explains it (the newest decision first). *@
+                @if (decisions.Where(d => d.MediaId == shown.Id).OrderByDescending(d => d.At).FirstOrDefault() is { } latest)
+                {
+                    <div data-photo-viewer-decision="@latest.Id"><dt>Decision</dt><dd>@latest.Reason</dd></div>
+                }
             </dl>
         </Facts>
         <Actions>
@@ -227,7 +232,7 @@
     private (Guid Id, Context Context)? viewing;
     private Dialog? dialog;
     private Guid deleteId;
-    private Guid? appealing, dragging;
+    private Guid? appealing, dragging, focusedDecision;
     private bool loaded, busy;
     private string? refused, message, status;
 
@@ -273,10 +278,36 @@
         if (result.Ok) photos = result.Value; else refused = result.Code ?? result.Status.ToString();
         if (await Members.ModesAsync() is { Ok: true } catalogue) modes = catalogue.Value!.ToList();
         if (modes.Count > 0 && modes.All(m => m.Id != selectedMode)) selectedMode = modes[0].Id;
+        FocusDecision();
         loaded = true;
     }
 
     private void Open(Guid id, Context context) => viewing = (id, context);
+
+    private bool decisionScrolled;
+    private readonly Dictionary<Guid, ElementReference> decisionRows = [];
+    // Issue 558: move to the linked decision once (focus scrolls it into view), when the notice didn't open the photo itself.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (decisionScrolled || focusedDecision is not { } id || viewing is not null) return;
+        decisionScrolled = true;
+        if (decisionRows.TryGetValue(id, out var row))
+            try { await row.FocusAsync(); }
+            catch (Exception error) when (error is Microsoft.JSInterop.JSException or InvalidOperationException) { }
+    }
+
+    /// <summary>Issue 558: a photo decision notice links here with ?decision=; open that photo with its reason, or, when the
+    /// photo is gone, highlight the decision and open its appeal form where an appeal is still allowed. An unknown id or
+    /// someone else's decision (the list is the member's own) does nothing.</summary>
+    private void FocusDecision()
+    {
+        var query = new Uri(Navigation.Uri).Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+        var raw = query.Select(p => p.Split('=', 2)).FirstOrDefault(p => p[0] == "decision" && p.Length == 2)?[1];
+        if (!Guid.TryParse(raw, out var id) || decisions.FirstOrDefault(d => d.Id == id) is not { } decision) return;
+        focusedDecision = decision.Id;
+        if (Photo(decision.MediaId) is { } photo) { filter = "all"; Open(photo.Id, Context.Library); }
+        else if (decision.CanAppeal) appealing = decision.Id;
+    }
     private void Step(List<Guid> list, int at, int by) { if (at + by >= 0 && at + by < list.Count) viewing = (list[at + by], viewing!.Value.Context); }
     private void Reveal(Guid id, bool on) { if (on) revealed.Add(id); else revealed.Remove(id); }
     private void AskDelete(Guid id) { deleteId = id; viewing = null; dialog = Dialog.Delete; }

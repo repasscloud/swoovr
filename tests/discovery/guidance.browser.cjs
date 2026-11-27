@@ -85,13 +85,19 @@ const { web, createMember, memberToken, cli, call, matchReady } = require('../au
     await page.waitForSelector(`${dialog} [data-filter-status=reset]`); assert.equal(await chip.isChecked(), wasChecked); assert.equal(await no.isChecked(), false); checks++;
     await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=filters]', { state: 'detached' });
     assert.equal(methods.filter(method => method !== 'GET').length, 0, 'Guidance must not write filters/modes/travel'); checks++;
-    // The notice is dismissed for this browser and comes back from About Explore.
+    // Issue 566: closing the notice is for good, on the account (not just this browser), and there's no About Explore link.
     await page.click('[data-explore-notice-close]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 0); checks++;
     await page.reload(); await page.waitForSelector('[data-explore-empty]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 0, 'dismissal remembered'); checks++;
-    await page.click('[data-explore-about]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 1); checks++;
+    // PR 576 review: a saved dismissal leaves nothing in this browser that another member signing in here would pick up.
+    assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('swoovr.explore.notice-dismissed'))), [], 'no browser dismissal key once the account knows'); checks++;
+    assert.equal(await page.locator('[data-explore-about]').count(), 0, 'no About Explore link'); checks++;
+    const scopeBackgrounds = await page.evaluate(() => [...document.querySelectorAll('.explore-scope .segment')].map(b => `${b.getAttribute('aria-pressed')}:${getComputedStyle(b).backgroundColor}`));
+    assert.notEqual(scopeBackgrounds[0].split(':')[1], scopeBackgrounds[1].split(':')[1], `the chosen scope is tinted: ${scopeBackgrounds}`); checks++;
+    await page.evaluate(() => localStorage.clear()); await page.reload(); await page.waitForSelector('[data-explore-empty]');
+    assert.equal(await page.locator('[data-discovery-guidance]').count(), 0, 'dismissal kept on the account'); checks++;
     if (process.env.SWOOVR_SCREENSHOTS) { await page.setViewportSize({ width: 1280, height: 900 }); await page.screenshot({ path: require('node:path').join(process.env.SWOOVR_SCREENSHOTS, 'explore-1280.png'), fullPage: true });
       await page.click('[data-discovery-filters]'); await page.waitForSelector('[data-member-dialog=filters] [data-filter-form]'); await page.screenshot({ path: require('node:path').join(process.env.SWOOVR_SCREENSHOTS, 'explore-filters-1280.png') }); await page.keyboard.press('Escape'); }
-    state = 'short'; await page.reload(); await page.waitForSelector('.people-grid'); assert.equal(await page.locator('[data-discovery-guidance]').count(),1); checks++;
+    state = 'short'; await page.reload(); await page.waitForSelector('.people-grid'); assert.equal(await page.locator('[data-discovery-guidance]').count(),0,'still dismissed'); checks++;
     assert.equal(await page.locator('[data-explore-empty]').count(),0); checks++;
     await page.setViewportSize({width:390,height:844});
     if(process.env.SWOOVR_SCREENSHOTS) { const fs=require('node:fs/promises'); await fs.mkdir(process.env.SWOOVR_SCREENSHOTS,{recursive:true}); await page.screenshot({path:require('node:path').join(process.env.SWOOVR_SCREENSHOTS,'explore-390.png'),fullPage:true}); }

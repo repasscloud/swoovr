@@ -19,6 +19,8 @@ public static class NotificationLinks
     {
         NotificationKind.Message or NotificationKind.ConversationEnded => $"/chats/{n.SubjectId}",
         NotificationKind.ReportOutcome => "/me/notices",
+        // Issue 558: opens the decided photo with its reason (and Appeal where allowed) on Your photos. Only the id goes in the link.
+        NotificationKind.PhotoDecision when n.SubjectId is { } decision => $"/me/photos?decision={decision:N}",
         NotificationKind.PhotoDecision => "/me/photos",
         NotificationKind.Support => SupportNotice.Ticket(n.SubjectId) is { } ticket ? $"/me/support/{ticket}" : "/me/support",
         NotificationKind.Request => "/connections",
