@@ -220,7 +220,7 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     await page.waitForSelector('[data-explore-mode=dating][data-explore-state=ready]');
     await page.click(`.member-card a[href^="/people/${pid.eli}"]`);
     await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
-    assert.equal(await page.locator('h1').innerText(), 'Fictional Eli'); pass();
+    assert.match(await page.locator('h1').innerText(), /^Fictional Eli(, \d+)?$/); pass(); // issue 568: the age follows the name
     assert.equal(await page.locator('[data-shared-modes]').getAttribute('data-shared-modes'), 'dating'); pass();
     assert.deepEqual(await page.locator('[data-shared-modes] .chip.is-on').allInnerTexts(), ['Long-term relationship', 'Open to exploring']); pass();
     await page.goto(web + `/people/${caiId}`);
