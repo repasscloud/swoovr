@@ -16,7 +16,7 @@ static partial class PhotoGuardChecks
         {
             ("src/Swoovr.Web.Client/Profiles/PersonPanel.razor", 2),        // lead and other gallery photos
             ("src/Swoovr.Web.Client/Profiles/PersonPhotoViewer.razor", 1),  // the viewer
-            ("src/Swoovr.Web.Client/Messaging/ConversationPanel.razor", 1), // chat photos (explicit media once revealed, issue 431)
+            ("src/Swoovr.Web.Client/Messaging/ConversationPanel.razor", 2), // chat photos (explicit media once revealed, issue 431) and the header thumbnail (issue 542)
         })
         {
             var images = ImagePattern().Matches(File.ReadAllText(Path.Combine(root, file))).Select(m => m.Value).ToList();

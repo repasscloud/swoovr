@@ -8,32 +8,68 @@
 @inject MemberClient Members
 @inject NavigationManager Navigation
 @inject UnreadNotifications Unread
+@inject IJSRuntime JS
 @implements IAsyncDisposable
-<div class="chat-head" data-conversation="@(loaded ? (conversation is null ? "unavailable" : "ready") : "loading")" data-live="@(live ? "on" : "off")">
+@* Issue 542 (26 November 2026 UAT review): a compact header (thumbnail, name and published age, the chat's mode, badges; it
+   opens their profile in that mode) with Report always visible and the other conversation actions in one menu; the thread
+   scrolls on its own between the sticky header and composer, opening at the first unread message or the newest; each
+   message's actions sit in its own menu (the ⋯ button, right-click, or a long press), not on every bubble; and a + menu for
+   attachments (today: a photo). Urgent safety actions stay one tap away: Report in the header, Block and Serious safety
+   incident first in the menu. *@
+<div class="chat-layout" @onkeydown="MenuKey" data-conversation="@(loaded ? (conversation is null ? "unavailable" : "ready") : "loading")" data-live="@(live ? "on" : "off")">
+<div class="chat-head">
     @if (conversation is not null)
     {
-        <div>
-            <p class="chat-name"><a href="@($"/people/{conversation.Person.Id}")">@(conversation.Person.DisplayName ?? "Someone")</a><BadgeRow Badges="conversation.Person.Badges" /></p>
-            <p class="chat-sub"><a class="link" href="/chats">Chats</a></p>
+        <a class="chat-icon-button chat-back" href="/chats" aria-label="Back to Chats" data-chat-back><Icon Name="back" Size="20" /></a>
+        @if (conversation.Person.Id != Guid.Empty)
+        {
+            <a class="chat-who" href="@ProfileLink" data-chat-profile>
+                @if (conversation.Person.Photo is { } photo) { <img class="cx-thumb" src="@PhotoText.Web(photo.Link)" alt="" loading="lazy" draggable="false" @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-head-photo /> }
+                else { <span class="cx-thumb" aria-hidden="true">@Initial(conversation.Person.DisplayName)</span> }
+                <span class="cx-who">
+                    <h1 class="chat-name">@(conversation.Person.DisplayName ?? "Someone")@if (conversation.Person.Age is { } age) { <span class="cx-age" data-head-age>, @age</span> }</h1>
+                    <span class="cx-meta">@if (conversation.ModeId is { } mode) { <span class="chip cx-mode" data-head-mode="@mode">@ModeLabel(mode)</span> }<BadgeRow Badges="conversation.Person.Badges" /></span>
+                </span>
+            </a>
+        }
+        else { <span class="chat-who"><span class="cx-thumb" aria-hidden="true">?</span><h1 class="chat-name">@conversation.Person.DisplayName</h1></span> }
+        <div class="chat-head-actions">
+            <button type="button" class="button button-secondary chat-head-button" @onclick="ReportConversation" data-report-conversation><Icon Name="flag" Size="16" />Report</button>
+            <button type="button" class="chat-icon-button" aria-label="More actions for this chat" aria-expanded="@(chatMenu ? "true" : "false")" aria-controls="chat-menu" @onclick="() => { chatMenu = !chatMenu; menuFor = null; attachMenu = false; }" data-chat-menu><Icon Name="more" Size="20" /></button>
+            @if (chatMenu)
+            {
+                <div class="chat-menu" id="chat-menu" data-chat-menu-open>
+                    @if (conversation.Person.Id != Guid.Empty)
+                    {
+                        @if (confirmBlock) { <button type="button" class="chat-menu-item button-destructive" @onclick="BlockAsync" data-block-confirm>Block @(conversation.Person.DisplayName ?? "them")</button> }
+                        else { <button type="button" class="chat-menu-item" @onclick="() => confirmBlock = true" data-block-conversation>Block</button> }
+                    }
+                    <a class="chat-menu-item" href="@($"/me/safety/report?type=conversation&id={Id}")" data-serious-link><Icon Name="shield" Size="16" />Serious safety incident</a>
+                    <button type="button" class="chat-menu-item" @onclick="HideConversationAsync" data-hide-conversation>Hide this chat</button>
+                    @if (conversation.CanSend) { <button type="button" class="chat-menu-item" @onclick="OpenEnding" data-end-open>End conversation</button> }
+                </div>
+            }
         </div>
     }
     else if (loaded) { <h1>Chat not available</h1> }
 </div>
 @if (conversation is not null)
 {
+    <div class="chat-scroll" @ref="thread" tabindex="0" role="region" aria-label="Messages" data-chat-scroll>
     @if (conversation.Closed)
     {
         <section class="card stack" role="status" data-closed-conversation>
-            <h1>@PhotoText.ClosedTitle</h1>
+            <h2>@PhotoText.ClosedTitle</h2>
             <p>@PhotoText.ClosedBody</p>
             <p class="field-help">@PhotoText.ClosedSafety</p>
         </section>
     }
-    @if (more) { <button type="button" class="link-button" @onclick="OlderAsync" data-older>Earlier messages</button> }
+    @if (more) { <button type="button" class="link-button chat-older" @onclick="OlderAsync" data-older>Earlier messages</button> }
     <ul class="chat-thread" aria-live="polite" data-messages="@messages.Count">
         @foreach (var m in messages)
         {
-            <li class="@(m.Kind == "system" ? "chat-system" : "bubble" + (m.Mine ? " mine" : "") + (m.Deleted ? " deleted" : ""))" data-message-kind="@m.Kind" data-message="@m.Id" data-mine="@(m.Mine ? "true" : "false")" data-deleted="@(m.Deleted ? "true" : "false")">
+            <li class="@(m.Kind == "system" ? "chat-system" : "bubble" + (m.Mine ? " mine" : "") + (m.Deleted ? " deleted" : "") + (menuFor == m.Id ? " has-menu" : ""))" data-message-kind="@m.Kind" data-message="@m.Id" data-mine="@(m.Mine ? "true" : "false")" data-deleted="@(m.Deleted ? "true" : "false")"
+                @oncontextmenu="() => OpenMessageMenu(m)" @oncontextmenu:preventDefault="@(m.Kind != "system")">
                 <span class="visually-hidden">@(m.Kind == "system" ? "Swoovr" : m.Mine ? "You" : conversation.Person.DisplayName): </span>
                 @if (m.Kind == "farewell") { <p class="field-help">Predefined farewell</p> }
                 @if (m.Deleted) { <p>This message was deleted</p> }
@@ -47,18 +83,23 @@
                 else { <p>@m.Text</p> }
                 @if (m.Kind != "system")
                 {
-                <span class="request-actions">
-                    @if (m.CanDelete) { <button type="button" class="link-button button-destructive" @onclick="() => DeleteAsync(m)" data-delete="@m.Id">Delete for both</button> }
-                    <button type="button" class="link-button" @onclick="() => HideAsync(m)" data-hide="@m.Id">Hide</button>
-                    @if (!m.Mine && !m.Deleted) { <button type="button" class="link-button" @onclick="() => reporting = m.Id" data-report-message="@m.Id">Report</button> }
-                </span>
+                    <span class="bubble-foot"><time class="bubble-time" datetime="@m.SentAt.ToString("O")">@m.SentAt.ToLocalTime().ToString("HH:mm")</time>
+                        <button type="button" class="bubble-more" aria-label="Options for this message" aria-expanded="@(menuFor == m.Id ? "true" : "false")" @onclick="() => ToggleMessageMenu(m)" data-message-menu="@m.Id"><Icon Name="more" Size="16" /></button></span>
+                    @if (menuFor == m.Id)
+                    {
+                        <span class="bubble-menu" data-message-menu-open="@m.Id">
+                            @if (m.CanDelete) { <button type="button" class="chat-menu-item button-destructive" @onclick="() => DeleteAsync(m)" data-delete="@m.Id">Delete for both</button> }
+                            <button type="button" class="chat-menu-item" @onclick="() => HideAsync(m)" data-hide="@m.Id">Hide for me</button>
+                            @if (!m.Mine && !m.Deleted) { <button type="button" class="chat-menu-item" @onclick="() => ReportMessage(m)" data-report-message="@m.Id">Report</button> }
+                        </span>
+                    }
                 }
             </li>
         }
     </ul>
     @if (reporting is { } reported)
     {
-        <ReportForm SubjectType="message" SubjectId="@reported.ToString()" Name="@(conversation.Person.DisplayName ?? "this person")" Submitted="() => reportSent=true" Blocked="Closed" />
+        <div data-chat-report-message><ReportForm SubjectType="message" SubjectId="@reported.ToString()" Name="@(conversation.Person.DisplayName ?? "this person")" Submitted="() => reportSent=true" Blocked="Closed" /></div>
     }
     @if (conversation.CanSend && messages.Count == 0 && starters.Count > 0)
     {
@@ -67,34 +108,6 @@
             @foreach (var s in starters) { <button type="button" class="chip" @onclick="() => draft = s.Text" data-starter="@s.Chip">@s.Text</button> }
         </div>
     }
-    @if (conversation.CanSend)
-    {
-        var awaiting = conversation.AwaitingReply;
-        if (awaiting) { <p class="field-help" role="status" data-awaiting-reply>@MessageText.AwaitingReply</p> }
-        <div class="composer-photo">
-            <label class="link-button" for="chat-photo" aria-disabled="@(awaiting ? "true" : "false")">Send a photo</label>
-            <InputFile id="chat-photo" class="visually-hidden" OnChange="SendPhotoAsync" accept="image/jpeg,image/png,image/webp" disabled="@(busy || awaiting)" data-chat-photo-input />
-            <span class="field-help">@PhotoText.ChatRules</span>
-        </div>
-        <form class="composer" @onsubmit="SendAsync" data-composer data-composer-state="@(awaiting ? "awaiting-reply" : "open")">
-            <label class="visually-hidden" for="message">Message</label>
-            <input id="message" class="composer-input" maxlength="2000" autocomplete="off" @bind="draft" @bind:event="oninput" placeholder="Message" disabled="@awaiting" data-message-input />
-            <button class="button" type="submit" disabled="@(busy || awaiting || string.IsNullOrWhiteSpace(draft))" data-send>Send</button>
-        </form>
-    }
-    else if (!conversation.Closed) { <p class="field-help" data-cannot-send>You can't send messages here right now.</p> }
-    @* Policy §7: Report and Block straight from the conversation, and the Serious Safety Incident pathway (D190). *@
-    <p class="account-actions">
-        <button type="button" class="button button-secondary" @onclick="HideConversationAsync" data-hide-conversation>Hide this chat</button>
-        <button type="button" class="button button-secondary" @onclick='() => reportingConversation = true' data-report-conversation>Report this chat</button>
-        @if (conversation.Person.Id != Guid.Empty)
-        {
-            @if (confirmBlock) { <button type="button" class="button" @onclick="BlockAsync" data-block-confirm>Block @(conversation.Person.DisplayName ?? "them")</button> }
-            else { <button type="button" class="button button-secondary" @onclick="() => confirmBlock = true" data-block-conversation>Block</button> }
-        }
-        <a class="button button-secondary" href="@($"/me/safety/report?type=conversation&id={Id}")" data-serious-link>Serious safety incident</a>
-        @if (conversation.CanSend) { <button type="button" class="button button-secondary" @onclick="() => ending = true" data-end-open>End conversation</button> }
-    </p>
     @if (ending)
     {
         <form class="card stack" @onsubmit="EndAsync" data-end-form>
@@ -108,7 +121,7 @@
                 }
                 <label class="check"><input type="radio" name="closing" checked="@(closing is null)" @onchange="() => closing = null" data-closing="none" /> No farewell message</label>
             </fieldset>
-            <p class="account-actions">
+            <p class="chat-form-actions">
                 <button type="submit" class="button" disabled="@busy" data-end-confirm>End conversation</button>
                 <button type="button" class="button button-secondary" @onclick="() => ending = false">Keep chatting</button>
             </p>
@@ -116,9 +129,33 @@
     }
     @if (reportingConversation)
     {
-        <ReportForm SubjectType="conversation" SubjectId="@Id.ToString()" Name="@(conversation.Person.DisplayName ?? "this person")" Submitted="() => reportSent=true" Blocked="Closed" />
+        <div data-chat-report-conversation><ReportForm SubjectType="conversation" SubjectId="@Id.ToString()" Name="@(conversation.Person.DisplayName ?? "this person")" Submitted="() => reportSent=true" Blocked="Closed" /></div>
     }
+    </div>
+    @if (conversation.CanSend)
+    {
+        var awaiting = conversation.AwaitingReply;
+        <div class="chat-compose">
+            @if (awaiting) { <p class="field-help" role="status" data-awaiting-reply>@MessageText.AwaitingReply</p> }
+            @if (attachMenu)
+            {
+                <div class="chat-menu attach-menu" id="attach-menu" data-attach-menu-open>
+                    <label class="chat-menu-item" for="chat-photo" aria-disabled="@(awaiting ? "true" : "false")" data-attach-photo><Icon Name="image" Size="16" />Send a photo</label>
+                    <p class="field-help">@PhotoText.ChatRules</p>
+                </div>
+            }
+            <InputFile id="chat-photo" class="visually-hidden" aria-label="Send a photo" OnChange="SendPhotoAsync" accept="image/jpeg,image/png,image/webp" disabled="@(busy || awaiting)" data-chat-photo-input />
+            <form class="composer" @onsubmit="SendAsync" data-composer data-composer-state="@(awaiting ? "awaiting-reply" : "open")">
+                <button type="button" class="chat-icon-button" aria-label="Attach" aria-expanded="@(attachMenu ? "true" : "false")" aria-controls="attach-menu" disabled="@awaiting" @onclick="() => { attachMenu = !attachMenu; chatMenu = false; menuFor = null; }" data-attach><Icon Name="plus" Size="20" /></button>
+                <label class="visually-hidden" for="message">Message</label>
+                <input id="message" class="composer-input" maxlength="2000" autocomplete="off" @bind="draft" @bind:event="oninput" placeholder="Message" disabled="@awaiting" data-message-input />
+                <button class="button composer-send" type="submit" disabled="@(busy || awaiting || string.IsNullOrWhiteSpace(draft))" data-send>Send</button>
+            </form>
+        </div>
+    }
+    else if (!conversation.Closed) { <p class="field-help chat-compose" data-cannot-send>You can't send messages here right now.</p> }
 }
+</div>
 @* Outside the conversation block, so "This chat is closed." still shows once a block or disconnect closes it (#82). *@
 <p role="status" aria-live="polite" class="field-help" data-chat-status="@status">@message</p>
 @if(reportSent && conversation is null){<p role="status">@ReportFollowUpText.Confirmation</p><ReportSupport />}
@@ -134,6 +171,15 @@
     private readonly HashSet<Guid> removedMessages=[];
     private MessageView Project(MessageView value)=>MessageText.ApplyKnownRemoval(value,removedMessages);
     private MessagesHubClient? hub;
+    // Issue 542: the thread's own scroll area, the open menus, and where to start reading.
+    private ElementReference thread;
+    private bool chatMenu, attachMenu, started, followNew;
+    private Guid? menuFor;
+    private int? keepFrom;
+    private string? firstUnread;
+    // PR 579 review: Report and End conversation add their form below the thread; scroll it into view and focus it.
+    private string? reveal;
+    private List<ConnectionModeView> modes = [];
     private bool reconciling,disposed;
     private readonly List<MessageView> refreshArrivals=[];
     private readonly SemaphoreSlim refreshGate=new(1,1);
@@ -143,11 +189,25 @@
         conversation = (await Members.ConversationAsync(Id)).Value;
         if (conversation is not null)
         {
+            if (await Members.ModesAsync() is { Ok: true } catalogue) modes = catalogue.Value!.ToList();
             var page = (await Members.MessagesAsync(Id)).Value;
             (messages, more, before) = (page?.Items.Reverse().Select(Project).ToList() ?? [], page?.More ?? false, page?.Before);
+            // Issue 542: open at the first message that was unread, else the newest. PR 579 review: the API names it (a
+            // photo that passed late can sit above messages already read); when it's on an earlier page, load earlier
+            // pages until it's in (up to MaxUnreadPages more); past that, open at the oldest loaded message.
+            var unreadId = page?.FirstUnread;
+            for (var pages = 0; unreadId is { } wanted && messages.All(m => m.Id != wanted) && more && pages < MaxUnreadPages; pages++)
+            {
+                var older = (await Members.MessagesAsync(Id, before)).Value;
+                if (older is null) break;
+                messages.InsertRange(0, older.Items.Reverse().Select(Project));
+                (more, before) = (older.More, older.Before);
+            }
+            firstUnread = unreadId is not { } found || messages.Count == 0 ? null
+                : messages.Any(m => m.Id == found) ? found.ToString() : messages[0].Id.ToString();
             hub = new MessagesHubClient(new Uri(Navigation.BaseUri + "bff/hubs/messages"));
             // A photo's state changes arrive as the same message again (#41): replace it in place.
-            hub.Message += m => { if (m.ConversationId == Id) { Upsert(m); Replied(m); if (!m.Mine) _ = ReadLiveAsync(); _ = InvokeAsync(StateHasChanged); } };
+            hub.Message += m => { if (m.ConversationId == Id) _ = InvokeAsync(async () => { followNew = await AtEndAsync(); Upsert(m); Replied(m); if (!m.Mine) _ = ReadLiveAsync(); StateHasChanged(); }); };
             hub.Deleted += d => { if (d.ConversationId == Id) { MarkDeleted(d.MessageId); _ = InvokeAsync(StateHasChanged); } };
             hub.Reconnected += () => _ = InvokeAsync(Closed);
             hub.Closed += c => { if (c.ConversationId == Id) _ = InvokeAsync(Closed); };
@@ -167,6 +227,39 @@
         loaded = true;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (conversation is null) return;
+        try
+        {
+            if (!started && loaded) { started = true; await JS.InvokeVoidAsync("SwoovrChat.start", thread, firstUnread); }
+            else if (keepFrom is { } height) { keepFrom = null; await JS.InvokeVoidAsync("SwoovrChat.keep", thread, height); }
+            else if (followNew) { followNew = false; await JS.InvokeVoidAsync("SwoovrChat.toEnd", thread); }
+            if (reveal is { } selector) { reveal = null; await JS.InvokeVoidAsync("SwoovrChat.reveal", thread, selector); }
+        }
+        catch (Exception error) when (error is JSException or InvalidOperationException or TaskCanceledException) { }
+    }
+
+    private async Task<bool> AtEndAsync()
+    {
+        try { return await JS.InvokeAsync<bool>("SwoovrChat.atEnd", thread); }
+        catch (Exception error) when (error is JSException or InvalidOperationException or TaskCanceledException) { return true; }
+    }
+
+    private const int MaxUnreadPages = 10;
+    private void ReportConversation() { (reportingConversation, chatMenu, reveal) = (true, false, "[data-chat-report-conversation]"); }
+    private void OpenEnding() { (ending, chatMenu, reveal) = (true, false, "[data-end-form]"); }
+    private void ReportMessage(MessageView m) { (reporting, menuFor, reveal) = (m.Id, null, "[data-chat-report-message]"); }
+
+    private string ProfileLink => conversation is { ModeId: { } mode } ? $"/people/{conversation.Person.Id}?mode={mode}" : $"/people/{conversation?.Person.Id}";
+    private string ModeLabel(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;
+    private static string Initial(string? name) => string.IsNullOrWhiteSpace(name) ? "?" : name.Trim()[..1].ToUpperInvariant();
+
+    // Issue 542: one message's actions at a time; right-click or a long press opens them too.
+    private void ToggleMessageMenu(MessageView m) { menuFor = menuFor == m.Id ? null : m.Id; chatMenu = attachMenu = false; }
+    private void OpenMessageMenu(MessageView m) { if (m.Kind == "system") return; menuFor = m.Id; chatMenu = attachMenu = false; }
+    private void MenuKey(KeyboardEventArgs e) { if (e.Key == "Escape") { menuFor = null; chatMenu = attachMenu = false; } }
+
     // Issue 541 DEFAULT: a message that arrives while this chat is open counts as read (the member's own count only).
     private async Task ReadLiveAsync()
     {
@@ -178,6 +271,8 @@
     {
         var page = (await Members.MessagesAsync(Id, before)).Value;
         if (page is null) return;
+        // Issue 542: stay on the message the member was reading while the older ones are added above it.
+        try { keepFrom = await JS.InvokeAsync<int>("SwoovrChat.height", thread); } catch (JSException) { }
         messages.InsertRange(0, page.Items.Reverse().Select(Project));
         (more, before) = (page.More, page.Before);
     }
@@ -190,6 +285,7 @@
         if (result.Value is { } sent)
         {
             if (messages.All(x => x.Id != sent.Id)) messages.Add(sent);
+            followNew = true;
             (draft, status, message) = (null, "sent", null);
             return;
         }
@@ -243,7 +339,7 @@
             await stream.CopyToAsync(buffer);
             var result = await Members.SendChatPhotoAsync(Id, buffer.ToArray(), e.File.Name, e.File.ContentType);
             // A live screening/deletion event may precede the older upload response. Preserve that event.
-        if (result.Value is { } sent) { if (messages.All(m => m.Id != sent.Id)) messages.Add(sent); (status, message) = ("photo-sent", null); }
+            if (result.Value is { } sent) { if (messages.All(m => m.Id != sent.Id)) messages.Add(sent); followNew = true; attachMenu = false; (status, message) = ("photo-sent", null); }
             else if (result.Code == ProblemCodes.UnansweredLimit) { AwaitReply(); await RecheckAwaitingAsync(); (status, message) = (result.Code, null); }
             else (status, message) = (result.Code ?? "failed", PhotoText.Refusal(result.Code));
         }
@@ -265,6 +361,7 @@
     {
         var code = await Members.DeleteMessageAsync(m.Id);
         if (code == 204) MarkDeleted(m.Id);
+        menuFor = null;
         (status, message) = code == 204 ? ("deleted", "Deleted for both of you.") : ("failed", "Messages can be deleted for both of you within five minutes.");
     }
 
@@ -278,6 +375,7 @@
     private async Task HideAsync(MessageView m)
     {
         if (await Members.HideMessageAsync(m.Id) == 204) messages.RemoveAll(x => x.Id == m.Id);
+        menuFor = null;
     }
 
     // The block closes the conversation; the API pushes "closed" (#82), and this window closes it at once either way.

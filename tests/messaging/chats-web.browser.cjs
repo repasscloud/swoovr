@@ -128,8 +128,117 @@ const MODES = ['dating', 'friends', 'activities', 'business'];
     if (output) await page.screenshot({ path: output + '/chats-1280.png', fullPage: true });
     for (const width of [390, 320]) { await page.setViewportSize({ width, height: 844 }); assert.deepEqual(await page.evaluate(audit), [], 'accessibility floor at ' + width); pass(); }
     if (output) { await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: output + '/chats-390.png', fullPage: true }); }
+
+    // Issue 542: the conversation. Twenty unread messages: it opens at the first unread one, with the header and composer on screen.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const unreadIds = [];
+    for (let i = 1; i <= 20; i++) unreadIds.push((await send('ada', withAda, `Fictional unread ${i}`)).body.id);
+    await page.goto(web + `/chats/${withAda}`);
+    await page.waitForSelector('[data-conversation=ready] [data-message]');
+    await page.waitForTimeout(300);
+    const view = async () => page.evaluate(first => {
+      const scroller = document.querySelector('[data-chat-scroll]'), box = scroller.getBoundingClientRect();
+      const target = document.querySelector(`[data-message="${first}"]`).getBoundingClientRect();
+      const composer = document.querySelector('[data-composer]').getBoundingClientRect();
+      return { scrolls: scroller.scrollHeight > scroller.clientHeight, firstVisible: target.top >= box.top - 1 && target.top < box.bottom,
+        composerOnScreen: composer.bottom <= innerHeight + 1, headOnScreen: document.querySelector('.chat-head').getBoundingClientRect().top >= 0,
+        sideways: document.documentElement.scrollWidth > innerWidth };
+    }, unreadIds[0]);
+    let v = await view();
+    assert.ok(v.scrolls, 'the thread scrolls on its own'); pass();
+    assert.ok(v.firstVisible, 'opens at the first unread message'); pass();
+    assert.ok(v.composerOnScreen && v.headOnScreen, 'header and composer stay on screen'); pass();
+    assert.match(await page.getAttribute('[data-chat-profile]', 'href'), new RegExp(`^/people/${pid.ada}\\?mode=dating$`), 'the header opens their profile in the chat\'s mode'); pass();
+    assert.equal(await page.textContent('[data-head-mode]'), 'Dating'); pass();
+    assert.equal(await page.locator('[data-head-age]').count(), 1, 'published age in the header'); pass();
+    // No per-bubble action links; each message's actions open from its own menu (button, right-click), and Escape closes it.
+    assert.equal(await page.locator('[data-delete], [data-hide], [data-report-message]').count(), 0, 'no always-visible message actions'); pass();
+    const received = `[data-message="${unreadIds[19]}"]`;
+    await page.click(`${received} [data-message-menu]`);
+    assert.equal(await page.locator(`${received} [data-report-message]`).count(), 1, 'Report a received message'); pass();
+    assert.equal(await page.locator(`${received} [data-delete]`).count(), 0, "can't delete their message"); pass();
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('[data-message-menu-open]').count(), 0, 'Escape closes it'); pass();
+    await page.click(`${received} p`, { button: 'right' });
+    assert.equal(await page.locator(`${received} [data-message-menu-open]`).count(), 1, 'right-click opens it'); pass();
+    // Safety stays one tap away: Report in the header; Block and Serious safety incident in the menu.
+    assert.equal(await page.locator('.chat-head [data-report-conversation]').count(), 1); pass();
+    await page.click('[data-chat-menu]');
+    for (const action of ['data-block-conversation', 'data-serious-link', 'data-hide-conversation', 'data-end-open'])
+      assert.equal(await page.locator(`[data-chat-menu-open] [${action}]`).count(), 1, action);
+    pass();
+    await page.click('[data-chat-menu]');
+    // Own message: Delete for both from its menu, within five minutes.
+    await page.fill('[data-message-input]', 'Fictional mine'); await page.click('[data-send]');
+    const mine = page.locator('[data-mine=true]', { hasText: 'Fictional mine' });
+    await mine.waitFor();
+    await mine.locator('[data-message-menu]').click();
+    await mine.locator('[data-message-menu-open]').waitFor();
+    assert.equal(await mine.locator('[data-delete]').count(), 1, 'Delete for both on my own message'); pass();
+    await page.keyboard.press('Escape');
+    v = await view();
+    assert.ok(await page.evaluate(() => { const s = document.querySelector('[data-chat-scroll]'); return s.scrollHeight - s.scrollTop - s.clientHeight < 80; }), 'sending follows to the newest'); pass();
+    // The + menu: a photo; no blanket nudity line.
+    await page.click('[data-attach]');
+    assert.equal(await page.locator('[data-attach-menu-open] [data-attach-photo]').count(), 1); pass();
+    assert.ok(!(await page.textContent('[data-chat-scroll]') + await page.textContent('.chat-compose')).includes('No nudity'), 'no blanket nudity line'); pass();
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await page.evaluate(audit), [], 'conversation accessibility floor at 1280'); pass();
+    if (output) await page.screenshot({ path: output + '/chat-1280.png' });
+    for (const width of [390, 320]) {
+      await page.setViewportSize({ width, height: 844 }); await page.waitForTimeout(200);
+      v = await view();
+      assert.ok(v.composerOnScreen && !v.sideways, `composer on screen, no sideways scroll at ${width}`); pass();
+      assert.deepEqual(await page.evaluate(audit), [], 'conversation accessibility floor at ' + width); pass();
+    }
+    if (output) { await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: output + '/chat-390.png' }); }
+    // PR 579 review: Report (header) and End conversation (menu) add their form below the thread; it comes into view with focus.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const revealed = selector => page.evaluate(sel => {
+      const form = document.querySelector(sel), box = document.querySelector('[data-chat-scroll]').getBoundingClientRect(), at = form?.getBoundingClientRect();
+      return !!at && at.top < box.bottom && at.bottom > box.top && form.contains(document.activeElement);
+    }, selector);
+    await page.evaluate(() => { const s = document.querySelector('[data-chat-scroll]'); s.scrollTop = 0; });
+    await page.click('[data-report-conversation]');
+    await page.waitForSelector('[data-chat-report-conversation] [data-report]');
+    assert.ok(await page.waitForFunction(() => document.querySelector('[data-chat-report-conversation]')?.contains(document.activeElement)).then(() => revealed('[data-chat-report-conversation]')), 'the report form is shown and focused'); pass();
+    await page.evaluate(() => { const s = document.querySelector('[data-chat-scroll]'); s.scrollTop = 0; });
+    await page.click('[data-chat-menu]'); await page.click('[data-end-open]');
+    await page.waitForSelector('[data-end-form]');
+    assert.ok(await page.waitForFunction(() => document.querySelector('[data-end-form]')?.contains(document.activeElement)).then(() => revealed('[data-end-form]')), 'the end form is shown and focused'); pass();
+
+    // PR 579 review: more unread than one page (50): earlier pages load so it still opens at the first unread message.
+    const beaId = await sql(`SELECT id FROM accounts WHERE subject = '${claims(tokens.bea).sub}'`);
+    await sql(`UPDATE conversation_reads SET read_at = now() - interval '31 minutes' WHERE conversation_id = '${withBea}'`);
+    await sql(`INSERT INTO messages (id, conversation_id, sender_account_id, kind, body, sent_at)
+      SELECT gen_random_uuid(), '${withBea}', '${beaId}', 'Text', 'Fictional backlog ' || i, now() - interval '30 minutes' + i * interval '1 second' FROM generate_series(0, 59) AS i`);
+    const oldestUnread = await sql(`SELECT id FROM messages WHERE conversation_id = '${withBea}' AND body = 'Fictional backlog 0'`);
+    assert.ok((await list('me')).find(c => c.id === withBea).unread > 50, 'more than a page unread'); pass();
+    await page.goto(web + `/chats/${withBea}`);
+    await page.waitForSelector(`[data-conversation=ready] [data-message="${oldestUnread}"]`); pass();
+    await page.waitForTimeout(300);
+    assert.ok(await page.evaluate(first => {
+      const box = document.querySelector('[data-chat-scroll]').getBoundingClientRect(), at = document.querySelector(`[data-message="${first}"]`).getBoundingClientRect();
+      return at.top >= box.top - 1 && at.top < box.bottom;
+    }, oldestUnread), 'opens at the first unread message, from an earlier page'); pass();
+    // PR 579 review: an old photo that passed after the member read on is the first unread, though read messages follow it
+    // (and it's more than a page back). Seeded in SQL: a passed attachment row, no object needed.
+    const oldPhotoMedia = require('node:crypto').randomUUID(), oldPhoto = require('node:crypto').randomUUID();
+    await sql(`INSERT INTO media_items (id, account_id, status, sha256, upload_sha256, content_type, width, height, bytes, created_at, screen_attempts, known_content_checked, purpose, screened_at, conversation_id)
+      VALUES ('${oldPhotoMedia}', '${beaId}', 'Passed', '\\x00', '\\x00', 'image/jpeg', 400, 400, 1000, now() - interval '31 minutes', 1, true, 'attachment', now() + interval '1 second', '${withBea}')`);
+    await sql(`INSERT INTO messages (id, conversation_id, sender_account_id, kind, body, sent_at, media_id)
+      VALUES ('${oldPhoto}', '${withBea}', '${beaId}', 'Photo', '', now() - interval '30 minutes' - interval '1 second', '${oldPhotoMedia}')`);
+    await new Promise(r => setTimeout(r, 1200));
+    assert.equal((await list('me')).find(c => c.id === withBea).unread, 1, 'only the late photo is unread'); pass();
+    await page.goto(web + `/chats/${withBea}`);
+    await page.waitForSelector(`[data-conversation=ready] [data-message="${oldPhoto}"]`); pass();
+    await page.waitForTimeout(300);
+    assert.ok(await page.evaluate(first => {
+      const box = document.querySelector('[data-chat-scroll]').getBoundingClientRect(), at = document.querySelector(`[data-message="${first}"]`).getBoundingClientRect();
+      return at.top >= box.top - 1 && at.top < box.bottom;
+    }, oldPhoto), 'opens at the late photo, not the last read message'); pass();
     await context.close();
-    console.log(`PASS: chats web (issue 541), ${passed} checks.`);
+    console.log(`PASS: chats web (issues 541, 542), ${passed} checks.`);
   } finally {
     await browser.close();
   }

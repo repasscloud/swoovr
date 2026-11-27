@@ -36,13 +36,8 @@ public static class MessagingEndpoints
                 .Take(100).ToListAsync(cancellationToken);
             var unread = await UnreadAsync(db, me, rows.Select(c => c.Id).ToList(), cancellationToken);
             var views = new List<ConversationView>();
-            foreach (var c in rows) views.Add((await ViewAsync(db, c, me, cancellationToken)) with { Unread = unread.GetValueOrDefault(c.Id), ModeId = c.OriginModeId });
-            // Issue 541: the thumbnail and published age for the mode the chat started in, only where the profile is still
-            // open to this member in that mode (Connections' rule); otherwise the row shows the name only.
-            var faces = await RequestEndpoints.FacesAsync(db, accounts.Services, me,
-                rows.Where(c => c.OriginModeId is not null).Select(c => (c.PairLow == me ? c.PairHigh : c.PairLow, c.OriginModeId!)).ToList(), now, cancellationToken);
-            return Results.Ok(views.Zip(rows, (view, c) => c.OriginModeId is { } mode && faces.TryGetValue((c.PairLow == me ? c.PairHigh : c.PairLow, mode), out var face)
-                ? view with { Person = view.Person with { Photo = face.Photo, Age = face.Age } } : view).ToList());
+            foreach (var c in rows) views.Add((await ViewAsync(db, c, me, cancellationToken)) with { Unread = unread.GetValueOrDefault(c.Id) });
+            return Results.Ok(await SummarizeAsync(db, accounts.Services, me, rows, views, now, cancellationToken));
         });
 
         // Opens the conversation with a connected member (or returns the open one); anything else is "not available".
@@ -85,13 +80,18 @@ public static class MessagingEndpoints
             return created ? Results.Created($"/api/conversations/{conversation!.Id}", view) : Results.Ok(view);
         });
 
-        api.MapGet("/conversations/{id:guid}", async (Guid id, ClaimsPrincipal user, AccountResolver accounts, CancellationToken cancellationToken) =>
+        api.MapGet("/conversations/{id:guid}", async (Guid id, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
             var (db, me) = (accounts.Db!, current!.Account!.Id);
             var conversation = await ReadableAsync(db, id, me, cancellationToken);
-            return conversation is null ? NotAvailable() : Results.Ok(await ViewAsync(db, conversation, me, cancellationToken, unanswered: true));
+            if (conversation is null) return NotAvailable();
+            // Issue 542: the header shows the same summary as the Chats row (thumbnail, published age, mode).
+            // Read before the messages are opened, so the thread can start at the first unread one.
+            var view = (await ViewAsync(db, conversation, me, cancellationToken, unanswered: true))
+                with { Unread = (await UnreadAsync(db, me, [conversation.Id], cancellationToken)).GetValueOrDefault(conversation.Id) };
+            return Results.Ok((await SummarizeAsync(db, accounts.Services, me, [conversation], [view], clock.GetUtcNow(), cancellationToken))[0]);
         });
 
         api.MapGet("/conversations/{id:guid}/messages", async (Guid id, DateTimeOffset? before, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock,
@@ -114,9 +114,13 @@ public static class MessagingEndpoints
                         || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null)))
                 .OrderByDescending(m => m.SentAt).ThenByDescending(m => m.Kind == MessageKind.System).ThenByDescending(m => m.Id).Take(MessagingPolicy.PageSize + 1).ToListAsync(cancellationToken);
             var page = rows.Take(MessagingPolicy.PageSize).ToList();
+            Guid? firstUnread = null;
             // #49: reading the conversation reads its message notifications (the member's own state; no read receipts).
             if (before is null)
             {
+                // PR 579 review: where the member's reading starts, found before this read moves their position.
+                firstUnread = await UnreadMessages(db, me).Where(m => m.ConversationId == id)
+                    .OrderBy(m => m.SentAt).ThenBy(m => m.Id).Select(m => (Guid?)m.Id).FirstOrDefaultAsync(cancellationToken);
                 // Issue 541: this member has now read the conversation (their own unread count; the sender is never told).
                 await MarkReadAsync(db, id, me, now, cancellationToken);
                 await db.Notifications.Where(n => n.AccountId == me && (n.Kind == NotificationKind.Message || n.Kind == NotificationKind.ConversationEnded) && n.SubjectId == id && n.ReadAt == null)
@@ -125,7 +129,7 @@ public static class MessagingEndpoints
             var media = await MediaForAsync(db, page, cancellationToken);
             var links = accounts.Services.GetRequiredService<Media.MediaLinks>();
             return Results.Ok(new MessagePage(page.Select(m => View(m, me, now, media.GetValueOrDefault(m.MediaId ?? Guid.Empty), links)).ToList(),
-                rows.Count > MessagingPolicy.PageSize, page.LastOrDefault()?.SentAt));
+                rows.Count > MessagingPolicy.PageSize, page.LastOrDefault()?.SentAt, firstUnread));
         });
 
         // Issue 541: a message that arrived live while the member had the conversation open is read too.
@@ -567,6 +571,24 @@ public static class MessagingEndpoints
         let delivered = passed != null && passed > m.SentAt ? passed.Value : m.SentAt
         where (read == null || delivered > read) && (hidden == null || delivered > hidden)
         select m;
+
+    /// <summary>
+    /// Issue 541/542: the mode the chat started in, and the thumbnail and published age for that mode, only where the
+    /// profile is still open to this member in that mode (Connections' rule); otherwise the person is a name only.
+    /// </summary>
+    private static async Task<List<ConversationView>> SummarizeAsync(SwoovrDbContext db, IServiceProvider services, Guid me, IReadOnlyList<Conversation> rows,
+        IReadOnlyList<ConversationView> views, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        Guid Other(Conversation c) => c.PairLow == me ? c.PairHigh : c.PairLow;
+        var faces = await RequestEndpoints.FacesAsync(db, services, me,
+            rows.Where(c => c.OriginModeId is not null).Select(c => (Other(c), c.OriginModeId!)).ToList(), now, cancellationToken);
+        return views.Zip(rows, (view, c) =>
+        {
+            view = view with { ModeId = c.OriginModeId };
+            return c.OriginModeId is { } mode && view.Person.Id != Guid.Empty && faces.TryGetValue((Other(c), mode), out var face)
+                ? view with { Person = view.Person with { Photo = face.Photo, Age = face.Age } } : view;
+        }).ToList();
+    }
 
     /// <summary>Issue 541: the member has read the conversation up to now. Never moves back (two tabs racing keep the later time).</summary>
     private static Task MarkReadAsync(SwoovrDbContext db, Guid conversation, Guid me, DateTimeOffset now, CancellationToken cancellationToken) =>

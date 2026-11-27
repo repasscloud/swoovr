@@ -22,7 +22,9 @@ public sealed record MessageView(Guid Id, Guid ConversationId, bool Mine, string
     PhotoView? Photo = null, string? PhotoState = null);
 
 /// <summary>Newest first; Before is the cursor for the next page (the oldest message's time).</summary>
-public sealed record MessagePage(IReadOnlyList<MessageView> Items, bool More, DateTimeOffset? Before);
+/// <param name="FirstUnread">PR 579 review: on the newest page only, the first message that was unread before this read
+/// (the unread count's own rule), which may be on an earlier page; null when nothing was unread.</param>
+public sealed record MessagePage(IReadOnlyList<MessageView> Items, bool More, DateTimeOffset? Before, Guid? FirstUnread = null);
 
 /// <summary>Opens (or returns) the conversation with a connected member, by their public profile id.</summary>
 public sealed record StartConversation(Guid To, string? Mode = null);

@@ -51,7 +51,8 @@ public static class PhotoText
         _ => "",
     };
 
-    public const string ChatRules = "Photos are checked before the other person sees them. No nudity or sexual content.";
+    /// <summary>Issue 542: the blanket "No nudity or sexual content" line is gone (explicit media has its own rules, #431).</summary>
+    public const string ChatRules = "Photos are checked before the other person sees them.";
 
     /// <summary>#41, Q85: the fixed closing messages offered when ending a conversation.</summary>
     public static readonly IReadOnlyList<(string Id, string Label)> Closings =
