@@ -3067,5 +3067,5 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 
 ### Q195 — Favourite from an Explore card
 
-- Issue: [#596](https://github.com/repasscloud/swoovr/issues/596) (for #572; D398, D443, D448). Status: OPEN. DEFAULT A applies until answered.
+- Issue: [#596](https://github.com/repasscloud/swoovr/issues/596) (for #572; D398, D443, D448). Status: ANSWERED, owner 28 November 2026: B, and a star on the profile too (**D449**).
 - **195.1 Explore cards.** **A (recommended):** favourite from the profile's ⋯ menu only; cards stay action-free (D398). **B:** a small star over the photo. **C:** a long-press / right-click card menu.

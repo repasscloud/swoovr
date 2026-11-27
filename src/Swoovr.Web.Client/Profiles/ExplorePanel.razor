@@ -135,7 +135,8 @@
                     @* D348: a band only when both members show their distance; never a distance. *@
                     @* Issue 443 (D398): one card shape for photo and quote cards; issue 476 fills its overlay and detail slots. *@
                     <MemberCard Name="@person.DisplayName" Age="@person.Age" Identity="@MemberText.CardIdentity(person)" Online="@(person.Online && !onlineExpired)" Href="@($"/people/{person.Id}?mode={selected}")" Detail="@(person.Visiting is { } where ? $"Visiting {where}" : MemberText.Distance(person.Distance) ?? "")"
-                                Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)" Overlays="@Overlays(person)" Status="@MemberText.CardStatus(person)">
+                                Quote="@(person.PictureText ?? Quote(person.About))" Photo="@(person.Photo is { } photo ? TilePhoto(photo, person.DisplayName) : null)" Overlays="@Overlays(person)" Status="@MemberText.CardStatus(person)"
+                                Favourite="@person.Favourite" FavouriteBusy="@(favouriteBusy == person.Id)" FavouriteToggled="() => FavouriteAsync(person)">
                         <Badges><CardBadges Badges="person.Badges" /></Badges>
                     </MemberCard>
                 }
@@ -391,6 +392,20 @@
     // only stops casual saving.
     /// <summary>Issue 496 (D407): over a photo only. Explore lists nobody with an upcoming trip, so travel here is always a check-in.</summary>
     // D443 (issue 589): "New member" and the photo count sit over the media block; "Visiting …" is the location row.
+    /// <summary>D449 (Q195): the card's gold star. Private: the member is never told and no count exists.</summary>
+    private Guid? favouriteBusy;
+    private async Task FavouriteAsync(ProfileCard person)
+    {
+        if (favouriteBusy is not null) return;
+        favouriteBusy = person.Id;
+        try
+        {
+            var result = await Members.FavouriteAsync(person.Id, !person.Favourite);
+            if (result.Ok) people = people.Select(p => p.Id == person.Id ? p with { Favourite = result.Value!.Favourite } : p).ToList();
+        }
+        finally { favouriteBusy = null; }
+    }
+
     private static RenderFragment? Overlays(ProfileCard person) => !person.NewMember && (person.Photo is null || person.PhotoCount < 2) ? null
         : @<text>@if (person.NewMember) { <span class="mc-pill mc-pill-new" data-tile-new>New member</span> }
             @if (person.Photo is not null && person.PhotoCount > 1) { <span class="mc-pill mc-pill-count" data-tile-photos="@person.PhotoCount"><Icon Name="image" Size="12" /><span class="visually-hidden">@person.PhotoCount photos</span><span aria-hidden="true">@person.PhotoCount</span></span> }</text>;

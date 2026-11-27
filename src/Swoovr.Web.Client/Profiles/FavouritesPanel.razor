@@ -5,7 +5,7 @@
     <p>Members you saved. Only you can see this list; nobody is told you saved them.</p>
 </div>
 @if (items is null) { <p role="status">@(loaded ? "Favourites aren't available right now." : "Loading…")</p> }
-else if (items.Count == 0) { <section class="card notice" data-favourites="none"><p>No favourites yet. Open a member's profile and choose ⋯ › Add to favourites.</p></section> }
+else if (items.Count == 0) { <section class="card notice" data-favourites="none"><p>No favourites yet. Tap the star on a member's card or profile to save them here.</p></section> }
 else
 {
     <ul class="favourite-list" data-favourites="@items.Count">

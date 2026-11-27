@@ -1897,7 +1897,15 @@ Closes the OPEN point in D440 for [#586](https://github.com/repasscloud/swoovr/i
 ### D448 — Private favourites (#572, 28 November 2026)
 
 Builds [#572](https://github.com/repasscloud/swoovr/issues/572) (from #568 §11, §12):
-- **Save:** **Add to favourites** / **Remove from favourites** (star icon) in a member's profile ⋯ menu. Saving needs that profile to be open to you (the same rules as opening it: no block either way, a shared visible mode, market reach). It's private: the other member is never told, nothing shows on their side, and no count exists anywhere.
+- **Save:** a star button on the member's profile and on their Explore card (D449 moved it out of the ⋯ menu). Saving needs that profile to be open to you (the same rules as opening it: no block either way, a shared visible mode, market reach). It's private: the other member is never told, nothing shows on their side, and no count exists anywhere.
 - **List:** **Favourites** in the Me menu (`/me/favourites`), newest first, with Remove. Anyone whose profile isn't open to you now (for example they hid the mode) drops out of the list while that lasts. **DEFAULT:** up to 500 favourites, of which the list shows the latest 100 open ones.
 - **Blocks and deletion:** a block either way removes both members' favourites of each other; deleting an account removes its favourites and every favourite of it. The data export lists the members you saved and when.
-- **OPEN, Q195 ([#596](https://github.com/repasscloud/swoovr/issues/596)):** favouriting from an Explore card. Cards have no action buttons (D398, D443), so DEFAULT A applies: profile menu only.
+- Q195 ([#596](https://github.com/repasscloud/swoovr/issues/596)) is answered by D449: favourite from the Explore card too.
+
+### D449 — Favourite with a gold star on Explore cards and the profile (Q195, 28 November 2026)
+
+**CONFIRMED** (owner, 28 November 2026, answering Q195 on [#596](https://github.com/repasscloud/swoovr/issues/596)): "a profile can get a favourite button on the profile and explore cards - it should be a gold star on the card and somewhere on the profile". Amends D448, and D398/D443's "no action buttons on cards".
+- **Explore card:** a star button at the top-right of the photo or quote block, on a dark round chip: a white outline when not saved, **filled gold** when saved. It saves or removes the private favourite without opening the profile; the rest of the card still opens the profile. "New member" stays top-left and the photo count bottom-right, and the four rows (D443) are unchanged, so every card stays the same size.
+- **Profile:** the same gold star as a button beside ⋯ in the action bar (gold on the dark chip when saved). It replaces the ⋯ menu's "Add to favourites" row, so the menu is back to report, block, serious incident and manage connection (D441).
+- **Still private (D448):** the member is never told, nothing shows on their side, and there is no count. The star's label says "Only you can see this". Explore returns `favourite` per card for the viewer only, in one query.
+- The gold (`--favourite`, `#F2B21B`) and the chip (`--favourite-chip`) are the same in every scheme; check_design.py checks the gold and the white outline are at least 3:1 on the chip. **DEFAULT:** the onboarding preview of your own card shows no star.

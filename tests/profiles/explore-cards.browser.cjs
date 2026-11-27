@@ -118,7 +118,10 @@ const output = process.env.SWOOVR_SCREENSHOTS;
       assert.ok(await page.locator('[data-tile-online]').evaluate(e => { const d = e.getBoundingClientRect(), n = e.parentElement.querySelector('a').getBoundingClientRect(); return d.top >= n.top && d.bottom <= n.bottom && d.right <= n.left; }), 'beside the name'); pass();
       const sizes = await page.locator('.member-card').evaluateAll(els => [...new Set(els.map(e => { const r = e.getBoundingClientRect(); return Math.round(r.width) + 'x' + Math.round(r.height); }))]);
       assert.equal(sizes.length, 1, 'one card size: ' + sizes); pass();
-      assert.equal(await page.locator('.member-card button:not([data-card-badges])').count(), 0, 'no action buttons on cards'); pass();
+      // D449 (Q195): the favourite star is the only action on a card, one per card, top-right of the media block.
+      assert.equal(await page.locator('.member-card button:not([data-card-badges]):not([data-card-favourite])').count(), 0, 'no other action buttons on cards'); pass();
+      assert.equal(await page.locator('.member-card [data-card-favourite]').count(), await page.locator('.member-card').count()); pass();
+      assert.ok(await page.locator('[data-card-favourite]').first().evaluate(e => { const s = e.getBoundingClientRect(), m = e.closest('.mc-media').getBoundingClientRect(); return s.right <= m.right && s.top >= m.top && s.left > m.left + m.width / 2 && s.bottom < m.top + m.height / 2; }), 'top right of the media'); pass();
       if (output) await page.screenshot({ path: `${output}/explore-status-${theme}-${width}.png`, fullPage: true });
     }
     for (const [mode, identity, aged] of [['dating', 'Woman · ' + orientation.label, true], ['friends', 'Woman', true], ['activities', null, false], ['business', null, false]]) for (const [theme, width] of [['light', 390], ['dark', 1280]]) {

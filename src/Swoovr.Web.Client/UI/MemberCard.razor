@@ -4,6 +4,8 @@
    the online dot inline) → gender · sexuality → connection → location ("Visiting …" when travelling). A row with nothing
    to show stays as blank space, never invented text, so every card in every mode is exactly the same size. Intentions
    are on the profile page, not the card.
+   D449 (Q195, owner 28 November 2026): a gold star button at the media block's top-right saves the member as a private
+   favourite without opening the profile. Shown only when Favourite is set (never on the member's own preview).
    Slots for issue 476: Overlays sits over the media block's corners (travel, photo count), Meta replaces the detail line
    (presence, distance, connection), Badges follows the name. The whole card is the name link's target. *@
 <article class="member-card @(Photo is null ? "is-quote" : "is-photo")" data-tile="@(Photo is null ? "quote" : "photo")">
@@ -23,6 +25,12 @@
             <span class="mc-initial" aria-hidden="true" data-tile-initial>@Initial</span>
         }
         @if (Overlays is not null) { <div class="mc-overlays">@Overlays</div> }
+        @if (Favourite is { } saved)
+        {
+            <button type="button" class="mc-favourite favourite-star" aria-pressed="@(saved ? "true" : "false")" disabled="@FavouriteBusy"
+                    aria-label="@(saved ? $"Remove {Name} from favourites" : $"Add {Name} to favourites")" title="@(saved ? "In your favourites. Only you can see this." : "Add to favourites. Only you can see this.")"
+                    @onclick="FavouriteToggled" data-card-favourite="@(saved ? "on" : "off")"><Icon Name="star" Size="18" /></button>
+        }
     </div>
     <div class="mc-body">
         <div class="mc-name mc-row"><h2>@if (Online) { <span class="mc-online" role="img" aria-label="Online" title="Online" data-tile-online></span> }<a href="@Href"><span class="mc-name-text">@Name</span>@(Age is { } years ? $", {years}" : "")</a></h2>@Badges</div>
@@ -63,6 +71,11 @@
     [Parameter] public RenderFragment? Overlays { get; set; }
     /// <summary>Issue 476: a richer detail line (presence, distance, connection). Replaces Detail when set.</summary>
     [Parameter] public RenderFragment? Meta { get; set; }
+
+    /// <summary>D449 (Q195): the viewer's private favourite of this member; null shows no star.</summary>
+    [Parameter] public bool? Favourite { get; set; }
+    [Parameter] public bool FavouriteBusy { get; set; }
+    [Parameter] public EventCallback FavouriteToggled { get; set; }
 
     private string Initial => Name.Trim() is { Length: > 0 } name ? char.ToUpperInvariant(name[0]).ToString() : "";
 }

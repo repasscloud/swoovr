@@ -35,6 +35,11 @@
   /* Issue 588 (D445): the Warning site banner, amber with dark text in every scheme (Info uses --primary, Critical --emergency). */
   --banner-warning: #F2B21B;
   --banner-warning-text: #111111;
+  /* D449 (Q195, owner 28 November 2026): the favourite star is gold in every scheme, on a dark round chip so it reads
+     on photos, quote cards and light surfaces alike (at least 3:1, check_design.py). */
+  --favourite: #F2B21B;
+  --favourite-chip: #111111;
+  --favourite-off: #FFFFFF;
   /* Issue 420 (owner, 22 November 2026): every delete action has red text in every scheme and mode, so it isn't
      pressed by accident. Contrast at least 4.5:1 on each theme's bg, surface and soft (checked by check_design.py). */
   --destructive: #B0102A;
@@ -946,6 +951,12 @@ body:has(.public-layout) { padding-bottom: 0; }
 .person-more { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); cursor: pointer; }
 .person-more:hover { border-color: var(--text); }
 .person-more:focus-visible { outline: 3px solid var(--text); outline-offset: 1px; }
+/* D449 (Q195): the profile's favourite star sits beside ⋯; saved, it turns gold on the dark chip. */
+.person-favourite { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); cursor: pointer; }
+.person-favourite:hover { border-color: var(--text); }
+.person-favourite:focus-visible { outline: 3px solid var(--text); outline-offset: 1px; }
+.person-favourite[aria-pressed=true] { border-color: var(--favourite-chip); background: var(--favourite-chip); color: var(--favourite); }
+.favourite-star[aria-pressed=true] svg { fill: var(--favourite); }
 .person-header .safety-menu-list { left: 0; right: auto; }
 .safety-menu-item .icon { margin-right: 8px; }
 .person-basics { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); gap: 12px 24px; margin: 0; }
@@ -1102,6 +1113,14 @@ body:has(.public-layout) { padding-bottom: 0; }
 .mc-quote { margin-top: 2px !important; font: 400 1.125rem/1.25 var(--font-quote); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; }
 .mc-overlays { position: absolute; inset: 8px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; pointer-events: none; }
 .mc-pill .icon { flex: none; }
+/* D449 (Q195): the card's gold star, top-right over the media block and above the card's link. Off, a white outline;
+   saved, filled gold. 36 px round, with a 44 px tap area. */
+.mc-favourite { position: absolute; z-index: 2; top: 4px; right: 4px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: none; cursor: pointer; }
+.mc-favourite::before { content: ""; position: absolute; inset: 4px; border-radius: 50%; background: var(--favourite-chip); }
+.mc-favourite .icon { position: relative; color: var(--favourite-off); }
+.mc-favourite[aria-pressed=true] .icon { color: var(--favourite); }
+.mc-favourite:focus-visible { outline: none; }
+.mc-favourite:focus-visible::before { outline: 3px solid var(--favourite); outline-offset: 1px; }
 .mc-pill-count { margin-top: auto; align-self: flex-end; font-variant-numeric: tabular-nums; }
 .mc-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--text); font: 600 .6875rem/1.3 var(--font); }
 .mc-body { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; min-width: 0; }

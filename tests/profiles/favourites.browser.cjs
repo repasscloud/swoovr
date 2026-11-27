@@ -53,15 +53,38 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.equal((await fav('viv', 'tam', false)).status, 200);
     await page.goto(web + '/account/sign-in?intro=done'); await page.fill('#username', members.viv.email); await page.fill('#password', members.viv.password);
     await Promise.all([page.waitForURL(u => !u.href.includes('/realms/')), page.click('#kc-login')]);
+    // D449 (Q195): the gold star beside ⋯ on the profile; no longer a menu row.
     await page.goto(`${web}/people/${pid.tam}?mode=friends`);
+    const star = page.locator('[data-person-actions] .person-favourite');
+    await star.waitFor({ timeout: 20000 });
+    assert.deepEqual([await star.getAttribute('aria-pressed'), await star.getAttribute('aria-label')], ['false', 'Add to favourites']); pass();
     await page.click('[data-safety-menu]');
-    assert.equal((await page.locator('[data-favourite=off]').innerText()).trim(), 'Add to favourites'); pass();
-    if (output) await page.screenshot({ path: `${output}/favourite-menu-1280.png` });
-    await page.click('[data-favourite=off]');
-    await page.locator('[data-safety-menu-list]').waitFor({ state: 'detached', timeout: 10000 }); // saved, then the menu closes
+    assert.equal(await page.locator('[data-safety-menu-list] [data-favourite]').count(), 0, 'not in the menu'); pass();
     await page.click('[data-safety-menu]');
-    await page.locator('[data-favourite=on]').waitFor({ timeout: 10000 });
-    assert.equal((await page.locator('[data-favourite=on]').innerText()).trim(), 'Remove from favourites'); pass();
+    await star.click();
+    await page.locator('[data-person-actions] .person-favourite[aria-pressed=true]').waitFor({ timeout: 10000 });
+    assert.equal(await star.getAttribute('aria-label'), 'Remove from favourites'); pass();
+    assert.equal(await star.evaluate(e => getComputedStyle(e.querySelector('svg')).fill), 'rgb(242, 178, 27)', 'gold when saved'); pass();
+    if (output) await page.screenshot({ path: `${output}/favourite-profile-1280.png` });
+    assert.deepEqual(await list('viv'), [pid.tam]); pass();
+    // The Explore card's star: top-right, gold when saved, and pressing it doesn't open the profile.
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${web}/explore?mode=friends`);
+      const cardStar = page.locator(`.member-card:has(a[href^="/people/${pid.tam}"]) [data-card-favourite]`);
+      await cardStar.waitFor({ timeout: 20000 });
+      assert.deepEqual([await cardStar.getAttribute('aria-pressed'), await cardStar.getAttribute('aria-label')], ['true', 'Remove Fictional Fav tam from favourites']); pass();
+      assert.equal(await cardStar.evaluate(e => getComputedStyle(e.querySelector('svg')).fill), 'rgb(242, 178, 27)'); pass();
+      if (output) await page.screenshot({ path: `${output}/favourite-cards-${width}.png` });
+      await cardStar.click();
+      await page.locator(`.member-card:has(a[href^="/people/${pid.tam}"]) [data-card-favourite=off]`).waitFor({ timeout: 10000 });
+      assert.equal(new URL(page.url()).pathname, '/explore', 'stays on Explore'); pass();
+      assert.deepEqual(await list('viv'), []); pass();
+      await cardStar.click();
+      await page.locator(`.member-card:has(a[href^="/people/${pid.tam}"]) [data-card-favourite=on]`).waitFor({ timeout: 10000 });
+      assert.deepEqual(await list('viv'), [pid.tam]); pass();
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
     assert.deepEqual(await list('viv'), [pid.tam]); pass();
     await page.goto(web + '/me/favourites');
     await page.locator(`[data-favourite-person="${pid.tam}"]`).waitFor({ timeout: 20000 });

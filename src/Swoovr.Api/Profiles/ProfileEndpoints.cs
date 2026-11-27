@@ -527,6 +527,8 @@ public static class ProfileEndpoints
         // Issue 498: informational only, after the order is settled; never for official bots.
         var newFrom = NewMemberPolicy.From(configuration.GetValue("Explore:NewMemberDays", NewMemberPolicy.DefaultDays), now);
         var recent = newFrom is { } from ? (await db.Accounts.Where(a => shownIds.Contains(a.Id) && a.CreatedAt > from).Select(a => a.Id).ToListAsync(cancellationToken)).ToHashSet() : [];
+        // D449 (Q195): the gold star on the card. Only the viewer's own favourites, in one query.
+        var favourites = (await db.MemberFavourites.Where(f => f.AccountId == me && shownIds.Contains(f.TargetAccountId)).Select(f => f.TargetAccountId).ToListAsync(cancellationToken)).ToHashSet();
         return shown.Select(c =>
         {
             var identity = identities.GetValueOrDefault(c.Profile.AccountId);
@@ -545,7 +547,7 @@ public static class ProfileEndpoints
                 standing.GetValueOrDefault(c.Profile.AccountId), !c.Profile.Bot && recent.Contains(c.Profile.AccountId),
                 OrientationIn(selected.Id, identity, orientations),
                 // Issue 499 (D410): mutual, worked out after the list and its order are settled.
-                OnlineStatusPolicy.Shows(online, viewer, c.Profile, now));
+                OnlineStatusPolicy.Shows(online, viewer, c.Profile, now), favourites.Contains(c.Profile.AccountId));
         }).ToList();
     }
 

@@ -188,6 +188,13 @@ warning = dict(re.findall(r'--(banner-warning(?:-text)?):\s*(#[0-9A-Fa-f]{6})', 
 assert set(warning) == {'banner-warning', 'banner-warning-text'}, 'app.css must define --banner-warning and --banner-warning-text once'
 low, high = sorted([luminance(warning['banner-warning-text']), luminance(warning['banner-warning'])])
 assert (high + .05) / (low + .05) >= 4.5, 'warning banner text contrast below 4.5:1'
+# D449 (Q195, owner 28 November 2026): the favourite star is gold on a dark chip in every scheme; off, white on the chip.
+favourite_star = re.compile(r'^\s*--favourite(?:-chip|-off)?:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
+star = dict(re.findall(r'--(favourite(?:-chip|-off)?):\s*(#[0-9A-Fa-f]{6})', app_css))
+assert set(star) == {'favourite', 'favourite-chip', 'favourite-off'}, 'app.css must define --favourite, --favourite-chip and --favourite-off once'
+for colour in [star['favourite'], star['favourite-off']]:
+    low, high = sorted([luminance(colour), luminance(star['favourite-chip'])])
+    assert (high + .05) / (low + .05) >= 3, f'favourite star {colour} contrast below 3:1 on --favourite-chip'
 # Issue 499 (owner, 25 November 2026, D410): the online dot is green and nothing else, visible on every card surface.
 online = re.compile(r'^\s*--online:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
 dot = re.findall(r'--online:\s*(#[0-9A-Fa-f]{6})', app_css)
@@ -216,7 +223,7 @@ for mode, value in zip(['light', 'dark'], red):
             assert (high + .05) / (low + .05) >= 4.5, f'--destructive ({mode}) contrast below 4.5:1 on {theme["id"]} {key}'
 for path in web_styles:
     text = path.read_text()
-    if path.name == 'app.css': text = banner_warning.sub('', online.sub('', unread.sub('', destructive.sub('', emergency.sub('', text)))))
+    if path.name == 'app.css': text = favourite_star.sub('', banner_warning.sub('', online.sub('', unread.sub('', destructive.sub('', emergency.sub('', text))))))
     if path.name == 'admin.css': text = destination.sub('', unread.sub('', destructive.sub('', text)))
     found = stray.search(re.sub(r'/\*.*?\*/', '', text, flags=re.S))
     assert not found, f'Stray colour/shadow/framework style in {path.relative_to(root)}: {found.group(0)}'

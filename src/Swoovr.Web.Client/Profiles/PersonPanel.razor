@@ -54,14 +54,16 @@
             {
                 <button type="button" class="button person-action person-action-main" @ref="connectButton" @onclick="() => dialog = Dialogs.Connect" data-open-connect>@ConnectLabel</button>
             }
+            @* D448 (issue 572), D449 (Q195): a private favourite, the gold star beside the menu; the member is never told. *@
+            <button type="button" class="person-favourite favourite-star" aria-pressed="@(person.Favourite ? "true" : "false")" disabled="@busy" @onclick="FavouriteAsync"
+                    aria-label="@(person.Favourite ? "Remove from favourites" : "Add to favourites")" title="@(person.Favourite ? "In your favourites. Only you can see this." : "Add to favourites. Only you can see this.")"
+                    data-favourite="@(person.Favourite ? "on" : "off")"><Icon Name="star" Size="20" /></button>
             <div class="safety-menu">
                 <button type="button" class="person-more" @ref="safetyButton" aria-expanded="@(safetyOpen ? "true" : "false")" aria-controls="person-safety-menu"
-                        aria-label="More: favourite, report, block or manage this member" @onclick="() => safetyOpen = !safetyOpen" data-safety-menu><Icon Name="more" Size="20" /></button>
+                        aria-label="More: report, block or manage this member" @onclick="() => safetyOpen = !safetyOpen" data-safety-menu><Icon Name="more" Size="20" /></button>
                 @if (safetyOpen)
                 {
                     <ul id="person-safety-menu" class="safety-menu-list" data-safety-menu-list>
-                        @* D448 (issue 572): a private favourite; the member is never told. *@
-                        <li><button type="button" class="safety-menu-item" disabled="@busy" @onclick="FavouriteAsync" data-favourite="@(person.Favourite ? "on" : "off")"><Icon Name="star" Size="16" />@(person.Favourite ? "Remove from favourites" : "Add to favourites")</button></li>
                         <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Report)" data-report-open><Icon Name="flag" Size="16" />Report member</button></li>
                         <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Block)" data-block-open><Icon Name="ban" Size="16" />Block member</button></li>
                         @* D190: the separate Serious Safety Incident pathway, its own page. D441 (issue 591): every row has an icon and says
@@ -361,7 +363,6 @@
         {
             var result = await Members.FavouriteAsync(person.Id, !person.Favourite);
             if (result.Ok) person = person with { Favourite = result.Value!.Favourite };
-            safetyOpen = false;
         }
         finally { busy = false; }
     }

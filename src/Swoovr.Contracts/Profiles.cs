@@ -34,10 +34,11 @@ public sealed record ModeUpdate(bool Enabled, bool Visible, IReadOnlyList<Guid>?
 /// Orientation in Dating only, when they show it. Never the date of birth.</remarks>
 /// <param name="Distance">D348: a band, never a distance or coordinates.</param>
 /// <param name="PictureText">Issue 389 (D382): the person's text picture, only while the tile has no approved photo.</param>
+/// <param name="Favourite">D449 (Q195): the viewer's own private favourite of this person; never anyone else's.</param>
 public sealed record ProfileCard(Guid Id, string DisplayName, string? About, IReadOnlyList<string> Intentions, IReadOnlyList<BadgeView> Badges,
     int? Age = null, string? Gender = null, string? Pronouns = null, DistanceView? Distance = null, PhotoView? Photo = null, string? Visiting = null,
     string? PictureText = null, int PhotoCount = 0, string? Connection = null, bool NewMember = false,
-    string? Orientation = null, bool Online = false);
+    string? Orientation = null, bool Online = false, bool Favourite = false);
 
 /// <summary>
 /// D348: what another member may learn about distance. Band is hidden, nearby (0–2 km), within10Km, km10To20, km20To30,
