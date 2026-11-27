@@ -200,6 +200,16 @@ public sealed partial class AdminClient(HttpClient transport)
     public Task<ApiResult<EscalationView>> ResolveEscalationAsync(Guid id, string note, CancellationToken cancellationToken = default) =>
         SendAsync<EscalationView>(HttpMethod.Post, $"api/admin/escalations/{id}/resolve", new EscalationResolution(note), cancellationToken);
 
+    /// <summary>Issue 588 (D445): site banners. Support reads; Admin creates, edits and switches them on or off.</summary>
+    public Task<ApiResult<List<SiteBannerView>>> SiteBannersAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<List<SiteBannerView>>(HttpMethod.Get, "api/admin/site-banners", null, cancellationToken);
+    public Task<ApiResult<SiteBannerView>> CreateSiteBannerAsync(SiteBannerRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<SiteBannerView>(HttpMethod.Post, "api/admin/site-banners", request, cancellationToken);
+    public Task<ApiResult<SiteBannerView>> UpdateSiteBannerAsync(Guid id, SiteBannerRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<SiteBannerView>(HttpMethod.Put, $"api/admin/site-banners/{id}", request, cancellationToken);
+    public Task<ApiResult<SiteBannerView>> SwitchSiteBannerAsync(Guid id, bool on, CancellationToken cancellationToken = default) =>
+        SendAsync<SiteBannerView>(HttpMethod.Post, $"api/admin/site-banners/{id}/{(on ? "enable" : "disable")}", null, cancellationToken);
+
     /// <summary>Issue 456 (D403): the member's Didit decision, read live with a recorded purpose (Admin with didit-decision-open access).</summary>
     public Task<ApiResult<StaffDiditDecision>> DiditDecisionAsync(Guid accountId, string? purpose, Guid? reviewId = null, string? reason = null, CancellationToken cancellationToken = default) =>
         SendAsync<StaffDiditDecision>(HttpMethod.Post, $"api/admin/accounts/{accountId}/didit-decision", new DiditDecisionRequest(purpose, reviewId, reason), cancellationToken);

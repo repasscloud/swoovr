@@ -32,6 +32,9 @@
   /* D315 (owner, issue 181): the only colour outside black and white, so emergency calls stand out in every theme. */
   --emergency: #C8102E;
   --emergency-text: #FFFFFF;
+  /* Issue 588 (D445): the Warning site banner, amber with dark text in every scheme (Info uses --primary, Critical --emergency). */
+  --banner-warning: #F2B21B;
+  --banner-warning-text: #111111;
   /* Issue 420 (owner, 22 November 2026): every delete action has red text in every scheme and mode, so it isn't
      pressed by accident. Contrast at least 4.5:1 on each theme's bg, surface and soft (checked by check_design.py). */
   --destructive: #B0102A;
@@ -301,6 +304,11 @@ a.tab:hover { color: var(--text); }
 .unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--unread); color: var(--unread-text); font: 700 .6875rem/1 var(--font); font-variant-numeric: tabular-nums; letter-spacing: 0; white-space: nowrap; }
 .tab-icon .unread-badge { position: absolute; top: -7px; left: calc(100% - 9px); border: 2px solid var(--surface); height: 20px; min-width: 20px; }
 .settings-nav a .unread-badge { margin-left: auto; }
+/* D445 (issue 588): the site-wide banner above the top bar. It can't be dismissed; each tone is a fixed, checked pair. */
+.site-banner { padding: 10px max(var(--gutter), calc((100vw - 1100px) / 2)); background: var(--primary); color: var(--onPrimary); font: 600 .875rem/1.4 var(--font); text-align: center; }
+.site-banner p { max-width: none; margin: 0; overflow-wrap: anywhere; }
+.site-banner[data-tone=warning] { background: var(--banner-warning); color: var(--banner-warning-text); }
+.site-banner[data-tone=critical] { background: var(--emergency); color: var(--emergency-text); }
 /* D442 (issue 584): signed in, the top bar never slides up; pages scroll behind it. --header-offset keeps sticky panels
    (settings menu, previews, contents lists) and in-page anchors below it. Signed-out pages keep a scrolling header. */
 :root { --header-offset: 0px; }

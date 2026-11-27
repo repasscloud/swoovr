@@ -22,6 +22,12 @@ builder.Services.AddHttpClient<Swoovr.Client.SessionClient>(http => {
     http.BaseAddress = new Uri(builder.Configuration["Api:BaseUrl"] ?? "http://127.0.0.1:5080/");
     http.Timeout = TimeSpan.FromSeconds(5);
 });
+// Issue 588 (D445): the site banner, read server-side from the API's public endpoint.
+builder.Services.AddHttpClient(Swoovr.Web.Components.Layout.SiteBannerSource.Client, http => {
+    http.BaseAddress = new Uri(builder.Configuration["Api:BaseUrl"] ?? "http://127.0.0.1:5080/");
+    http.Timeout = TimeSpan.FromSeconds(2);
+});
+builder.Services.AddSingleton<Swoovr.Web.Components.Layout.SiteBannerSource>();
 builder.Services.AddMemberSignIn(builder.Configuration, builder.Environment);
 builder.Services.AddBff(builder.Configuration);
 builder.Services.AddBffTransfers(builder.Configuration);

@@ -182,6 +182,12 @@ low, high = sorted([luminance(badge['unread-text']), luminance(badge['unread'])]
 assert (high + .05) / (low + .05) >= 4.5, 'unread badge text contrast below 4.5:1'
 admin_badge = dict(re.findall(r'--(unread(?:-text)?):\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text()))
 assert admin_badge == badge, 'admin.css --unread and --unread-text must equal app.css'
+# Issue 588 (D445): the Warning site banner is amber with dark text in every scheme.
+banner_warning = re.compile(r'^\s*--banner-warning(?:-text)?:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
+warning = dict(re.findall(r'--(banner-warning(?:-text)?):\s*(#[0-9A-Fa-f]{6})', app_css))
+assert set(warning) == {'banner-warning', 'banner-warning-text'}, 'app.css must define --banner-warning and --banner-warning-text once'
+low, high = sorted([luminance(warning['banner-warning-text']), luminance(warning['banner-warning'])])
+assert (high + .05) / (low + .05) >= 4.5, 'warning banner text contrast below 4.5:1'
 # Issue 499 (owner, 25 November 2026, D410): the online dot is green and nothing else, visible on every card surface.
 online = re.compile(r'^\s*--online:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
 dot = re.findall(r'--online:\s*(#[0-9A-Fa-f]{6})', app_css)
@@ -210,7 +216,7 @@ for mode, value in zip(['light', 'dark'], red):
             assert (high + .05) / (low + .05) >= 4.5, f'--destructive ({mode}) contrast below 4.5:1 on {theme["id"]} {key}'
 for path in web_styles:
     text = path.read_text()
-    if path.name == 'app.css': text = online.sub('', unread.sub('', destructive.sub('', emergency.sub('', text))))
+    if path.name == 'app.css': text = banner_warning.sub('', online.sub('', unread.sub('', destructive.sub('', emergency.sub('', text)))))
     if path.name == 'admin.css': text = destination.sub('', unread.sub('', destructive.sub('', text)))
     found = stray.search(re.sub(r'/\*.*?\*/', '', text, flags=re.S))
     assert not found, f'Stray colour/shadow/framework style in {path.relative_to(root)}: {found.group(0)}'
