@@ -3,7 +3,7 @@
 // and the Favourites page add and remove it. Fictional members only.
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
-const { web, createMember, memberToken, call, sql, matchReady } = require('../auth/local-tokens.cjs');
+const { web, createMember, memberToken, cli, call, sql, matchReady } = require('../auth/local-tokens.cjs');
 const output = process.env.SWOOVR_SCREENSHOTS;
 
 (async () => {
@@ -12,6 +12,7 @@ const output = process.env.SWOOVR_SCREENSHOTS;
   try {
     const names = ['viv', 'tam', 'bob'];
     const members = Object.fromEntries(await Promise.all(names.map(async n => [n, await createMember('fav-' + n)])));
+    await cli('beta', 'add', ...Object.values(members).map(m => m.email));
     const tokens = {}, pid = {};
     for (const n of names) {
       tokens[n] = await memberToken(browser, members[n]);
