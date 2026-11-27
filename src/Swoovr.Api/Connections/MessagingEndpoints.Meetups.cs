@@ -85,7 +85,10 @@ public static partial class MessagingEndpoints
             Status = MeetupStatus.Pending, SupersedesId = previous?.Id, CreatedAt = now,
         };
         message.MeetupId = meetup.Id;
-        if (note is not null) accounts.Services.GetRequiredService<Moderation.TextHarmQueue>().Enqueue(me, TextHarmSource.Message, message.Id, null, note, now);
+        var harm = accounts.Services.GetRequiredService<Moderation.TextHarmQueue>();
+        if (note is not null) harm.Enqueue(me, TextHarmSource.Message, message.Id, null, note, now);
+        // Issue 586 (D444): the place is screened too, under its own source, so review can tell it from the note.
+        harm.Enqueue(me, TextHarmSource.MeetupVenue, meetup.Id, null, meetup.Venue, now);
         if (previous is not null) (previous.Status, previous.AnsweredAt, previous.AnsweredBy) = (MeetupStatus.Superseded, now, me);
         db.Messages.Add(message);
         db.Meetups.Add(meetup);
@@ -184,10 +187,13 @@ public static partial class MessagingEndpoints
 
     /// <summary>One meet-up as <paramref name="viewer"/> sees it. The note is the carrying message's visible text.</summary>
     private static MeetupView Card(Meetup m, Message message, Guid viewer, DateTimeOffset now, bool open) => new(
-        m.Id, m.ConversationId, m.ModeId, m.Category, MeetupPolicy.Label(m.ModeId, m.Category) ?? "Meet-up", m.Venue, m.StartsAt, m.DurationMinutes,
+        m.Id, m.ConversationId, m.ModeId, m.Category, MeetupPolicy.Label(m.ModeId, m.Category) ?? "Meet-up", VisibleVenue(m), m.StartsAt, m.DurationMinutes,
         MessagingPolicy.VisibleText(message) is { Length: > 0 } note ? note : null, MeetupPolicy.State(m, now), m.ProposerAccountId == viewer,
         open && MeetupPolicy.MayAccept(m, viewer, now), open && MeetupPolicy.MayDecline(m, viewer), open && MeetupPolicy.MaySuggest(m, viewer, now),
         open && MeetupPolicy.MayWithdraw(m, viewer), open && MeetupPolicy.MayCancel(m, viewer, now));
+
+    /// <summary>Issue 586 (D444): staff removed the place; it never comes back, on the card, in My meet-ups or in a calendar file.</summary>
+    public static string VisibleVenue(Meetup m) => m.Venue.Length == 0 ? ContentRemovalPolicy.RemovedVenue : m.Venue;
 
     /// <summary>PR 583 review: staff removed a meet-up's note; open chats get the card (note "Removed by Swoovr.") with its controls.</summary>
     public static async Task SendMeetupCardAsync(IServiceProvider services, SwoovrDbContext db, Guid meetupId, DateTimeOffset now, CancellationToken cancellationToken)

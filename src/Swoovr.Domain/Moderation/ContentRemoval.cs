@@ -25,6 +25,8 @@ public sealed class ContentRemoval
 public static class ContentRemovalPolicy
 {
     public const int ReasonMax=1000;
+    /// <summary>Issue 586 (D444): what both members see in place of a meet-up's removed place.</summary>
+    public const string RemovedVenue="Removed by Swoovr.";
     public static string Hash(string source)=>Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
     public static bool SameSource(string source,string? expected)
     {
@@ -39,6 +41,8 @@ public static class ContentRemovalPolicy
         "picture-text"=>mode is null&&message is null,
         "mode-about"=>mode is not null&&ConnectionModeIds.All.Contains(mode)&&message is null,
         "message"=>mode is null&&message is{}id&&id!=Guid.Empty,
+        // Issue 586 (D444): a meet-up's place, named by the message that carries the meet-up card.
+        "meetup-venue"=>mode is null&&message is{}plan&&plan!=Guid.Empty,
         _=>false,
     };
     // DEFAULT under D133: ordinary support queue/non-affiliated content; admins also handle admin/affiliated cases.

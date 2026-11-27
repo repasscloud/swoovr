@@ -63,6 +63,8 @@ public sealed class TextHarmCandidateReviewService(SwoovrDbContext db,EvidenceKe
                 ? await db.Sanctions.AsNoTracking().AnyAsync(s=>s.Id==sanction&&s.CaseId==caseId&&s.AccountId==subject&&s.StartsAt>=row.CreatedAt,token)
                 : await db.Set<ContentRemoval>().AsNoTracking().AnyAsync(r=>r.Id==removalId&&r.CaseId==caseId&&r.SubjectAccountId==subject&&r.RemovedAt>=row.CreatedAt
                     &&(row.Source==TextHarmSource.Message?r.Field=="message"&&r.MessageId==row.SourceId:
+                       // Issue 586 (D444): a place is removed by the message that carries its meet-up.
+                       row.Source==TextHarmSource.MeetupVenue?r.Field=="meetup-venue"&&db.Meetups.Any(m=>m.Id==row.SourceId&&m.MessageId==r.MessageId):
                        row.Source==TextHarmSource.ModeAbout?r.Field=="mode-about"&&r.ModeId==row.ModeId:
                        row.Source==TextHarmSource.ProfilePicture?r.Field=="picture-text":r.Field=="about"),token);
             if(!actual)throw Refuse(409,"text-review-action-required");

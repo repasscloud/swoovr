@@ -67,9 +67,9 @@ public sealed class TextHarmProcessor(SwoovrDbContext db,EvidenceKeys keys,Evide
         item.Queue=ReportPolicy.QueueFor(employee||item.Queue==CaseQueue.Admin,urgent);
         item.UpdatedAt=now;
         var people=new List<Guid>{intent.AccountId};var conversations=new List<Guid>();
-        if(source.Message is{}sourceMessage)
+        if((source.Message?.ConversationId??source.ConversationId) is{}sourceConversation)
         {
-            var conversation=await db.Conversations.AsNoTracking().SingleAsync(c=>c.Id==sourceMessage.ConversationId,token);
+            var conversation=await db.Conversations.AsNoTracking().SingleAsync(c=>c.Id==sourceConversation,token);
             people.Add(conversation.PairLow==intent.AccountId?conversation.PairHigh:conversation.PairLow);conversations.Add(conversation.Id);
         }
         var review=new TextHarmReview{Id=Guid.NewGuid(),IntentId=intent.Id,CaseId=item.Id,SubjectAccountId=intent.AccountId,
@@ -94,7 +94,7 @@ public sealed class TextHarmProcessor(SwoovrDbContext db,EvidenceKeys keys,Evide
         // Caller invokes/retries EscalateAsync only AFTER this method returns and all leases have disposed.
         return new("created",review.Id,item.Id,urgent);
     }
-    private sealed record CurrentSource(Message? Message);
+    private sealed record CurrentSource(Message? Message,Guid? ConversationId=null);
     private async Task<CurrentSource?> CurrentAsync(TextHarmIntent intent,string text,CancellationToken token)
     {
         if(intent.Revision==Guid.Empty)return null;
@@ -105,6 +105,14 @@ public sealed class TextHarmProcessor(SwoovrDbContext db,EvidenceKeys keys,Evide
             return intent.SourceId==intent.AccountId&&intent.ModeId is null&&await db.MemberProfiles.AnyAsync(p=>p.AccountId==intent.AccountId&&p.PictureTextRevision==intent.Revision&&p.PictureText==text,token)?new(null):null;
         if(intent.Source==TextHarmSource.ModeAbout)
             return intent.SourceId==intent.AccountId&&intent.ModeId is not null&&await db.MemberModes.AnyAsync(m=>m.AccountId==intent.AccountId&&m.ModeId==intent.ModeId&&m.TextRevision==intent.Revision&&m.About==text,token)?new(null):null;
+        // Issue 586 (D444): a meet-up's place, while the plan still shows it. No message history: a place isn't a message.
+        if(intent.Source==TextHarmSource.MeetupVenue)
+        {
+            if(intent.ModeId is not null||intent.Revision!=intent.SourceId)return null;
+            var plan=await db.Meetups.AsNoTracking().Where(m=>m.Id==intent.SourceId&&m.ProposerAccountId==intent.AccountId&&m.Venue==text)
+                .Select(m=>new{m.ConversationId,m.MessageId}).SingleOrDefaultAsync(token);
+            return plan is not null&&await db.Messages.AnyAsync(m=>m.Id==plan.MessageId&&m.DeletedAt==null,token)?new(null,plan.ConversationId):null;
+        }
         if(intent.Source!=TextHarmSource.Message||intent.ModeId is not null||intent.Revision!=intent.SourceId)return null;
         var message=await db.Messages.AsNoTracking().SingleOrDefaultAsync(m=>m.Id==intent.SourceId&&m.SenderAccountId==intent.AccountId
             // PR 583 review: a meet-up's optional note is the carrying message's body, screened like any message.

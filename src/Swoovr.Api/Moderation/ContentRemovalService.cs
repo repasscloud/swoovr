@@ -58,8 +58,21 @@ public sealed class ContentRemovalService(SwoovrDbContext db,EvidenceKeys keys,E
             return new(prior.Id,caseId,prior.Field,prior.RemovedAt,true);
         }
         if(review.Status==CaseStatus.Closed||review.EvidencePurgedAt is not null)throw Refuse(409,"content-review-closed");
-        MemberMode? mode=null;Message? message=null;string? text;
-        if(request.Field=="message")
+        MemberMode? mode=null;Message? message=null;Meetup? plan=null;string? text;
+        if(request.Field=="meetup-venue")
+        {
+            // Issue 586 (D444): a meet-up's place, only for a plan whose card is in this report's evidence.
+            if(report.SubjectType is not(ReportSubject.Message or ReportSubject.Conversation))throw Refuse(409,"message-not-in-report");
+            var carrier=await db.Messages.AsNoTracking().SingleOrDefaultAsync(m=>m.Id==request.MessageId&&m.SenderAccountId==subject.Value&&m.Kind==MessageKind.Meetup&&m.MeetupId!=null,token);
+            if(carrier is null||carrier.DeletedAt!=null)throw Refuse(404,"content-not-available");
+            plan=await db.Meetups.SingleOrDefaultAsync(m=>m.Id==carrier.MeetupId&&m.MessageId==carrier.Id&&m.ProposerAccountId==subject.Value,token);
+            if(plan is null||plan.Venue.Length==0)throw Refuse(404,"content-not-available");
+            await db.Entry(plan).ReloadAsync(token);
+            var snapshots=await db.CaseEvidence.AsNoTracking().Where(e=>e.CaseId==caseId&&e.ReportId==request.ReportId).ToListAsync(token);
+            if(!snapshots.Any(e=>ContentRemovalPolicy.ReportContainsMessage(e.Kind,e.Snapshot,carrier.Id)))throw Refuse(409,"message-not-in-report");
+            text=plan.Venue;
+        }
+        else if(request.Field=="message")
         {
             if(report.SubjectType is not(ReportSubject.Message or ReportSubject.Conversation))throw Refuse(409,"message-not-in-report");
             message=await db.Messages.SingleOrDefaultAsync(m=>m.Id==request.MessageId&&m.SenderAccountId==subject.Value&&(m.Kind==MessageKind.Text||m.Kind==MessageKind.Meetup&&m.Body!=""),token);
@@ -94,7 +107,13 @@ public sealed class ContentRemovalService(SwoovrDbContext db,EvidenceKeys keys,E
         try{metadata=await ModerationTransparencyRecorder.ChoiceAsync(db,caseId,request.Reporting,token);}
         catch(ArgumentException){throw Refuse(400,"invalid-reporting-metadata");}
         await reporting.StageContentRemovalAsync(removal,now,metadata,token);
-        if(message is not null){message.Body="";message.ModerationRemovedAt=now;message.ModerationRemovalId=request.CommandId;}
+        if(plan is not null)
+        {
+            // CONFIRMED (owner, 28 November 2026): a plan without a place can't happen, so an open one is called off.
+            plan.Venue="";
+            if(plan.Status is MeetupStatus.Pending or MeetupStatus.Accepted)(plan.Status,plan.AnsweredAt,plan.AnsweredBy)=(MeetupStatus.Cancelled,now,null);
+        }
+        else if(message is not null){message.Body="";message.ModerationRemovedAt=now;message.ModerationRemovalId=request.CommandId;}
         else if(mode is not null){mode.About=null;mode.ShareCoreAbout=false;mode.UpdatedAt=now;}
         else if(request.Field=="picture-text")profile!.PictureText=null;
         else profile!.About=null;
@@ -106,7 +125,7 @@ public sealed class ContentRemovalService(SwoovrDbContext db,EvidenceKeys keys,E
         review.UpdatedAt=now;
         Audit.Record(db,now,actor,"account","content.removed","content-removal",request.CommandId.ToString(),request.Field);
         await db.SaveChangesAsync(token);
-        if(message is null)await Swoovr.Api.Profiles.ProfilePrivacy.CaptureAsync(db,subject.Value,now,token);
+        if(message is null&&plan is null)await Swoovr.Api.Profiles.ProfilePrivacy.CaptureAsync(db,subject.Value,now,token);
         // Original removal/evidence/notice sources are saved under the existing state/barrier/case authority.
         await ReportOutcomeCapture.InTransactionAsync(db,caseId,now,token);
         await transaction.CommitAsync(token);
@@ -159,6 +178,14 @@ public sealed class ContentRemovalService(SwoovrDbContext db,EvidenceKeys keys,E
                     catch(JsonException){ }
                 foreach(var message in await db.Messages.AsNoTracking().Where(m=>m.SenderAccountId==subject&&reportedIds.Contains(m.Id)&&(m.Kind==MessageKind.Text||m.Kind==MessageKind.Meetup&&m.Body!="")&&m.DeletedAt==null&&m.ModerationRemovedAt==null).OrderByDescending(m=>m.SentAt).ToListAsync(token))
                     if(snapshots.Any(e=>ContentRemovalPolicy.ReportContainsMessage(e.Kind,e.Snapshot,message.Id)))Add("message",null,message.Id,message.Body);
+                // Issue 586 (D444): the place of each of their meet-ups whose card is in the report.
+                var places=await (from m in db.Messages.AsNoTracking()
+                                  join p in db.Meetups.AsNoTracking() on m.MeetupId equals p.Id
+                                  where m.SenderAccountId==subject&&reportedIds.Contains(m.Id)&&m.Kind==MessageKind.Meetup&&m.DeletedAt==null&&p.ProposerAccountId==subject&&p.Venue!=""
+                                  orderby m.SentAt descending
+                                  select new{m.Id,p.Venue}).ToListAsync(token);
+                foreach(var place in places)
+                    if(snapshots.Any(e=>ContentRemovalPolicy.ReportContainsMessage(e.Kind,e.Snapshot,place.Id)))Add("meetup-venue",null,place.Id,place.Venue);
             }
         }
         return result;

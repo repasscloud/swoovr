@@ -19,6 +19,10 @@ public static class ContentRemovalEndpoints
             Staff(user,accounts,context,token,async actor=>
             {
                 var result=await removals.RemoveAsync(actor,id,request,clock.GetUtcNow(),token);
+                // Issue 586 (D444): the place is gone and the plan called off; both members get the card again at once.
+                if(!result.AlreadyApplied&&request.Field=="meetup-venue"&&request.MessageId is{}carrier
+                    &&await accounts.Db!.Messages.AsNoTracking().Where(m=>m.Id==carrier).Select(m=>m.MeetupId).SingleOrDefaultAsync(token) is{}placePlan)
+                {await MessagingEndpoints.SendMeetupCardAsync(accounts.Services,accounts.Db,placePlan,clock.GetUtcNow(),token);return Results.Ok(result);}
                 if(!result.AlreadyApplied&&request.Field=="message"&&request.MessageId is{}messageId)
                 {
                     var message=await accounts.Db!.Messages.AsNoTracking().SingleAsync(m=>m.Id==messageId,token);
