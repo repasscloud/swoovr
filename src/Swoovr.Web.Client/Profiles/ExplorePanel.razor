@@ -209,7 +209,9 @@
                 // A browser that closed it before issue 566 hands that over once, then forgets it.
                 if (await JS.InvokeAsync<string?>("localStorage.getItem", NoticeKey) is not null)
                 {
+                    // PR 580 review: moved to this account's key before the old one goes, so a failed save keeps it.
                     pending = true;
+                    await JS.InvokeVoidAsync("localStorage.setItem", PendingKey, "1");
                     await JS.InvokeVoidAsync("localStorage.removeItem", NoticeKey);
                 }
             }
