@@ -536,7 +536,7 @@ public static class MessagingEndpoints
 
     /// <summary>
     /// Issue 541: the other person's messages this member hasn't read, per conversation. Counts text, photos and farewells
-    /// the member can see (a photo only once it passed screening, as the thread shows it); never their own messages, system
+    /// the member can see (a photo only once it passed screening, as the thread shows it, and from the time it passed); never their own messages, system
     /// lines, deleted or moderation-removed messages, ones they hid, or anything from before they hid the chat.
     /// </summary>
     public static async Task<Dictionary<Guid, int>> UnreadAsync(SwoovrDbContext db, Guid me, IReadOnlyCollection<Guid> conversations, CancellationToken cancellationToken)
@@ -549,7 +549,11 @@ public static class MessagingEndpoints
                             && (m.Kind != MessageKind.Photo || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null))
                       let read = db.ConversationReads.Where(r => r.ConversationId == m.ConversationId && r.AccountId == me).Select(r => (DateTimeOffset?)r.ReadAt).FirstOrDefault()
                       let hidden = db.ConversationHides.Where(h => h.ConversationId == m.ConversationId && h.AccountId == me).Select(h => (DateTimeOffset?)h.HiddenAt).FirstOrDefault()
-                      where (read == null || m.SentAt > read) && (hidden == null || m.SentAt > hidden)
+                      // PR 578 review: a photo reaches the member when it passes (an admin's approval or the screener),
+                      // not when it was sent, so reading the chat while it was in review doesn't count it as read.
+                      let passed = m.Kind == MessageKind.Photo ? db.MediaItems.Where(i => i.Id == m.MediaId).Select(i => i.ReviewedAt ?? i.ScreenedAt).FirstOrDefault() : null
+                      let delivered = passed != null && passed > m.SentAt ? passed.Value : m.SentAt
+                      where (read == null || delivered > read) && (hidden == null || delivered > hidden)
                       group m by m.ConversationId into g
                       select new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
     }

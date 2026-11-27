@@ -100,6 +100,16 @@ const MODES = ['dating', 'friends', 'activities', 'business'];
     await page.goto(web + '/chats');
     await page.waitForSelector('[data-chats=ready]');
     assert.equal(await page.locator('[data-chat-unread-count]').count(), 0, 'nothing unread'); pass();
+    // PR 578 review: one chat read elsewhere while another gets a message leaves the total at 1; the rows still follow.
+    assert.equal((await send('bea', withBea, 'Fictional business two')).status, 201);
+    await page.waitForSelector(`[data-chat="${withBea}"][data-chat-unread="1"]`, { timeout: 45000 }); pass();
+    assert.equal((await call(tokens.me, `/api/conversations/${withBea}/messages`)).status, 200);
+    assert.equal((await send('ada', withAda, 'Fictional same total')).status, 201);
+    await page.waitForSelector(`[data-chat="${withAda}"][data-chat-unread="1"]`, { timeout: 75000 }); pass();
+    await page.waitForSelector(`[data-chat="${withBea}"][data-chat-unread="0"]`, { timeout: 5000 }); pass();
+    assert.equal(await page.locator('[data-chat]').first().getAttribute('data-chat'), withAda, 'newest activity first'); pass();
+    assert.equal((await call(tokens.me, `/api/conversations/${withAda}/messages`)).status, 200);
+    await page.waitForSelector('[data-chat-unread-count]', { state: 'detached', timeout: 45000 }); pass();
     assert.deepEqual(await page.evaluate(audit), [], 'accessibility floor at 1280'); pass();
     if (output) await page.screenshot({ path: output + '/chats-1280.png', fullPage: true });
     for (const width of [390, 320]) { await page.setViewportSize({ width, height: 844 }); assert.deepEqual(await page.evaluate(audit), [], 'accessibility floor at ' + width); pass(); }

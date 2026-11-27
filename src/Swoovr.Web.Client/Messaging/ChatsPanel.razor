@@ -2,7 +2,7 @@
    between connected people; a block closes one at once. No read receipts or presence.
    Issue 541 (with issue 567's points): each row is one link to the chat, with the person's thumbnail, name and published age,
    the mode the chat started in, their badges, "Last updated" (the latest conversation activity; creation for an empty
-   chat) and this member's own unread count. The list reloads when the shared unread poll changes. *@
+   chat) and this member's own unread count. The list reloads when the shared unread total changes and every 30 seconds. *@
 @implements IDisposable
 @inject MemberClient Members
 @inject UnreadNotifications Unread
@@ -44,6 +44,7 @@
     private List<ConversationView> conversations = [];
     private List<ConnectionModeView> modes = [];
     private int? lastTotal;
+    private CancellationTokenSource? polling;
 
     protected override async Task OnInitializedAsync()
     {
@@ -51,6 +52,20 @@
         await LoadAsync();
         Unread.Changed += OnUnreadChanged;
         Unread.Watch();
+        polling = new CancellationTokenSource();
+        _ = PollAsync(polling.Token);
+    }
+
+    // PR 578 review: the total can stay the same while one chat is read and another gets a message, so the list reloads
+    // on the same 30-second rhythm as the badges too, not only when the total moves.
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(UnreadNotifications.Interval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken)) await InvokeAsync(ReloadAsync);
+        }
+        catch (OperationCanceledException) { }
     }
 
     private async Task LoadAsync()
@@ -64,12 +79,15 @@
     private void OnUnreadChanged()
     {
         if (disposed || Unread.UnreadChats is not { } total || total == lastTotal) return;
-        _ = InvokeAsync(async () =>
-        {
-            try { await LoadAsync(); }
-            catch (Exception error) when (error is HttpRequestException or TaskCanceledException) { return; }
-            if (!disposed) StateHasChanged();
-        });
+        _ = InvokeAsync(ReloadAsync);
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (disposed) return;
+        try { await LoadAsync(); }
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException) { return; }
+        if (!disposed) StateHasChanged();
     }
 
     private string Label(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;
@@ -92,6 +110,8 @@
     public void Dispose()
     {
         disposed = true;
+        polling?.Cancel();
+        polling?.Dispose();
         Unread.Changed -= OnUnreadChanged;
         Unread.Unwatch();
     }
