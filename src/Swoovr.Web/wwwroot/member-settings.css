@@ -156,7 +156,7 @@
 .me-banner-text { flex: 1 1 260px; min-width: 0; display: grid; gap: 4px; }
 .me-banner-text p { margin: 0; color: var(--muted); font: 400 .9375rem/1.5 var(--font); }
 .me-banner-text .me-banner-title { color: var(--text); font: 700 1.125rem/1.3 var(--font); }
-@container me-page (max-width: 520px) { .me-banner { padding: 18px; } .me-banner .me-actions { flex: 1 1 100%; } .me-banner .me-pill-button { width: 100%; min-height: 48px; } }
+@container me-page (max-width: 520px) { .me-banner { padding: 18px; } .me-banner .me-actions { flex: 1 1 100%; } .me-banner .me-pill-button { min-height: 48px; } }
 /* Actions in force */
 .me-sanctions { display: grid; gap: 16px; }
 .me-sanction { display: grid; gap: 14px; }
@@ -172,7 +172,6 @@
 .me-appeal-text strong { font: 700 .9375rem/1.4 var(--font); }
 .me-appeal-text span { font: 400 .875rem/1.4 var(--font); color: var(--muted); }
 .me-appeal .button { width: auto; min-height: 44px; padding: 0 24px; }
-@container me-card (max-width: 479px) { .me-appeal .button { width: 100%; } }
 /* Uniform rows: title and pills, then date and detail, then the outcome; the action sits right, or below on narrow cards. */
 .me-items { list-style: none; margin: 0; padding: 0; }
 .me-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px 16px; padding: 16px 0; border-top: 1px solid var(--border); }
@@ -189,7 +188,7 @@
 @container me-card (max-width: 479px) {
   .me-items:not(.me-items-compact) .me-item { grid-template-columns: minmax(0, 1fr); }
   .me-items:not(.me-items-compact) .me-item-action { justify-self: start; }
-  .me-card-foot .me-pill-button { width: 100%; }
+  .me-card-foot .me-pill-button { width: auto; }
 }
 .me-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--border); }
 .me-pager .button:disabled { opacity: .45; }
@@ -516,7 +515,6 @@
 .data-actions .button, .data-download.button { width: auto; min-height: 44px; padding: 0 20px; font-size: .9375rem; flex: none; }
 @media (max-width: 599px) {
   .data-card-top { flex-direction: column; }
-  .data-download.button, .data-actions .button { width: 100%; }
   .data-inline { grid-template-columns: 20px minmax(0, 1fr); }
   .data-inline .button { grid-column: 2; justify-self: start; }
 }

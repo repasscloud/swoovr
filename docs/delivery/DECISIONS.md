@@ -1885,3 +1885,11 @@ Closes the OPEN point in D440 for [#586](https://github.com/repasscloud/swoovr/i
 - **Its page:** `/me/notifications/announcements/{id}` shows the title, the date and the message, with its paragraphs kept. Only a member who received it can open it, and opening it marks it read.
 - **After sending:** it can't be edited, only withdrawn. Withdrawing removes it from every centre and closes its page.
 - Title up to 80 characters on one line; message up to 2,000 characters.
+
+### D447 — Natural-width buttons everywhere (#574, 28 November 2026)
+
+**CONFIRMED** (owner, 27 November 2026, #565: "we do NOT use wide buttons"; #533: "SPACE BETWEEN BUTTONS!"); built for [#574](https://github.com/repasscloud/swoovr/issues/574):
+- Every app button (`.button`, `.primary-button`, `.primary-link`, `.quiet-button`) is as wide as its label, on desktop and phone. The global `width: 100%` rule is gone, and in grids a button starts at the line instead of stretching.
+- Rows of buttons (`.account-actions`, `.button-row`) are wrapping flex rows with 10–12 px between buttons. The page-level full-width overrides are removed.
+- **DEFAULT:** these stay full width, because they are rows of a list or an owner-confirmed pair, not buttons in a row: menu items (profile and chat ⋯ menus, the photo viewer's actions, city results), the phone tab bar, and the two equal Sign in / Create account buttons on the welcome page (issue 187). The Keycloak sign-in card keeps its single full-card submit button (a one-action form in a 476 px card); say if you want it changed too.
+- **Guard:** the owned suite `button-widths` signs in a fictional member and renders 17 member pages at 1280 and 390 px. It fails if a button is wider than 320 px on desktop, or if two buttons in a row touch.
