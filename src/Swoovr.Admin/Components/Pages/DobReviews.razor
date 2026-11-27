@@ -6,7 +6,7 @@
 <PageTitle>Date of birth reviews — Swoovr admin</PageTitle>
 <header class="ui-page-head">
     <h1>Date of birth reviews</h1>
-    <p>ID checks where the member's date of birth couldn't be confirmed automatically.</p>
+    <p>ID checks that need a date of birth decision.</p>
 </header>
 <nav class="ui-tabs" aria-label="Date of birth sections">
     <a href="/dob-reviews" aria-current="@(Resolved?null:"page")">Waiting <span class="ui-tab-count">@waiting.Count</span></a>
@@ -28,7 +28,7 @@
             <div class="beta-filter-actions"><a class="ui-button-ghost" href="/dob-reviews">Clear</a><button type="submit">Apply filters</button></div>
         </form>
     </section>
-    <div class="ui-results-head"><p><strong>@Filtered.Count</strong> waiting</p><p>Oldest first</p></div>
+    <div class="ui-results-head"><p><strong>@Filtered.Count</strong> waiting for review</p></div>
     @if (Filtered.Count == 0) { <div class="ui-empty" data-dob-reviews="none"><strong>Nothing waiting</strong>New date of birth reviews appear here.</div> }
     else
     {

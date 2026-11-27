@@ -16,7 +16,12 @@
 @if (message is not null && Selected is null) { <p class="notice" role="status" data-result="@resultCode">@message</p> }
 @if (!Resolved)
 {
-    <div class="ui-results-head"><p><strong>@waiting.Count</strong> waiting</p><p>Oldest first</p></div>
+    @* Issue 587: stats like the other Moderation pages instead of a bare "0 waiting / Oldest first" line. *@
+    <div class="ui-stats">
+        <div class="ui-stat"><strong>@waiting.Count</strong><span>Waiting</span></div>
+        <div class="ui-stat"><strong>@(waiting.Count == 0 ? "—" : Ago(waiting.Min(r => r.CreatedAt)))</strong><span>Oldest waiting</span></div>
+        <div class="ui-stat"><strong>@resolved.Count(r => r.ResolvedAt > DateTimeOffset.UtcNow.AddDays(-30))</strong><span>Resolved, last 30 days</span></div>
+    </div>
     @if (waiting.Count == 0) { <div class="ui-empty" data-name-reviews="none"><strong>Nothing waiting</strong>Name changes by ID-verified members appear here.</div> }
     else
     {
