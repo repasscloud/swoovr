@@ -292,6 +292,26 @@ public sealed partial class MemberClient(HttpClient transport)
         SendAsync<MessageView>(new HttpRequestMessage(HttpMethod.Post, $"api/conversations/{conversationId}/messages") { Content = JsonContent.Create(new NewMessage(text)) }, cancellationToken);
 
     /// <summary>Delete for both, within five minutes of sending (D143).</summary>
+    /// <summary>Issue 545 (D430): the meet-up categories of a mode.</summary>
+    public Task<ApiResult<List<MeetupCategoryView>>> MeetupCategoriesAsync(string? mode, CancellationToken token = default) =>
+        SendAsync<List<MeetupCategoryView>>(new HttpRequestMessage(HttpMethod.Get, "api/meetups/categories" + (mode is null ? "" : "?mode=" + Uri.EscapeDataString(mode))), token);
+
+    /// <summary>Issue 545: invite the other member of a chat to a meet-up.</summary>
+    public Task<ApiResult<MessageView>> ProposeMeetupAsync(Guid conversation, MeetupRequest request, CancellationToken token = default) =>
+        SendAsync<MessageView>(new HttpRequestMessage(HttpMethod.Post, $"api/conversations/{conversation}/meetups") { Content = JsonContent.Create(request) }, token);
+
+    /// <summary>Issue 545: the invited member suggests changes (a new invitation the other way).</summary>
+    public Task<ApiResult<MessageView>> SuggestMeetupAsync(Guid meetup, MeetupRequest request, CancellationToken token = default) =>
+        SendAsync<MessageView>(new HttpRequestMessage(HttpMethod.Post, $"api/meetups/{meetup}/suggest") { Content = JsonContent.Create(request) }, token);
+
+    /// <summary>Issue 545: "accept", "decline", "withdraw" or "cancel".</summary>
+    public Task<ApiResult<MessageView>> AnswerMeetupAsync(Guid meetup, string action, CancellationToken token = default) =>
+        SendAsync<MessageView>(new HttpRequestMessage(HttpMethod.Post, $"api/meetups/{meetup}/{action}"), token);
+
+    /// <summary>Issue 545: My meet-ups.</summary>
+    public Task<ApiResult<List<MeetupView>>> MeetupsAsync(CancellationToken token = default) =>
+        SendAsync<List<MeetupView>>(new HttpRequestMessage(HttpMethod.Get, "api/me/meetups"), token);
+
     /// <summary>Issue 541: marks the conversation read up to now (the member's own unread count only).</summary>
     public Task<int> ReadConversationAsync(Guid id, CancellationToken cancellationToken = default) =>
         StatusAsync(new HttpRequestMessage(HttpMethod.Post, $"api/conversations/{id}/read"), cancellationToken);

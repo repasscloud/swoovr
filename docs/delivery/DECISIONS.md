@@ -1811,3 +1811,23 @@ Builds D429 (Q192 A, A) for [#533](https://github.com/repasscloud/swoovr/issues/
     - Photos count as the gallery shows them: the viewed mode's main photo first, then each shown mode's photos in order, each photo once. A reorder or repeat that the gallery hides never counts, and nor does another mode's main-photo choice. A date-of-birth correction counts when it changes the age shown, and not when the age is hidden or comes out the same.
 - Only populated sections render; nothing shows "Not specified".
 - **Phone:** one column; the actions stay fixed above the tab bar, and the privacy-choices pill moves above them.
+
+### D440 — Private meet-ups from chat, slice 1: built (#545, 27 November 2026)
+
+Builds D430 (Q193) for [#545](https://github.com/repasscloud/swoovr/issues/545), following mockup section A.
+- **Plan:** **+ → Plan a meet-up** in an open chat opens one form:
+  - what (the chat mode's own categories)
+  - where (free text, up to 120 characters; the venue lookup waits for venue records, #42)
+  - when (from 15 minutes to 90 days ahead, in the member's own time zone)
+  - an optional length and an optional note (up to 280 characters, moderated like a message)
+- **How it travels:** the plan is a `meetup` message in the chat with its state on a `meetups` row. It follows every chat send rule (connected, open, restrictions, the rate and unanswered limits), arrives live, notifies, counts as unread, and can be reported or hidden like any message. Delete for both doesn't apply; the proposer withdraws it instead.
+- **Lifecycle:**
+  - The invited member can **accept**, **suggest changes** (the plan is superseded and a new one goes the other way) or **decline**.
+  - The proposer can **withdraw**.
+  - Either member can **call off** an accepted plan.
+  - A pending plan past its time reads as expired, and an accepted one as past.
+  - **DEFAULT:** one invitation waits per chat at a time.
+- **After acceptance (A):** **Add to calendar** makes an `.ics` file on the device; nothing is sent. **I'm meeting someone** is offered as a link and never starts by itself. There are no reminders.
+- **My meet-ups** (`/me/meetups`, in the Me menu): Upcoming, Waiting for a reply, and Past and closed. Each row opens its chat, where every action lives.
+- **DEFAULT:** a block, a disconnect, ending the chat or deleting an account calls off every pending or accepted plan in that chat. Plans are deleted with the messages that carried them and included in the data export. The audit names the action only, never the place, time or note.
+- Group meet-ups, discovery and events stay deferred (#36, #46, #59).

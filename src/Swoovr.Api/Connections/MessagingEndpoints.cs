@@ -20,7 +20,7 @@ namespace Swoovr.Api.Connections;
 /// Delete for both within five minutes; hide a message or a conversation for oneself. Moderators have no route to
 /// conversations: only report evidence reaches a case. The audit holds ids only, never message text.
 /// </summary>
-public static class MessagingEndpoints
+public static partial class MessagingEndpoints
 {
     public static void Map(WebApplication app)
     {
@@ -128,7 +128,9 @@ public static class MessagingEndpoints
             }
             var media = await MediaForAsync(db, page, cancellationToken);
             var links = accounts.Services.GetRequiredService<Media.MediaLinks>();
-            return Results.Ok(new MessagePage(page.Select(m => View(m, me, now, media.GetValueOrDefault(m.MediaId ?? Guid.Empty), links)).ToList(),
+            // Issue 545: each meet-up card with its current state.
+            var meetups = await MeetupsForAsync(db, conversation, page, me, now, cancellationToken);
+            return Results.Ok(new MessagePage(page.Select(m => View(m, me, now, media.GetValueOrDefault(m.MediaId ?? Guid.Empty), links, meetups.GetValueOrDefault(m.Id))).ToList(),
                 rows.Count > MessagingPolicy.PageSize, page.LastOrDefault()?.SentAt, firstUnread));
         });
 
@@ -339,6 +341,7 @@ public static class MessagingEndpoints
                     Audit.Record(db, now, me, "account", "request.disconnected", "connection-request", accepted.Id.ToString(), accepted.ModeId);
             (conversation.ClosedAt, conversation.ClosedReason, conversation.LastMessageAt) = (now, ClosedReasons.MemberEnded, now);
             Audit.Record(db, now, me, "account", "conversation.ended", "conversation", id.ToString(), "MemberEnded");
+            await CallOffMeetupsAsync(db, id, now, cancellationToken); // issue 545
             var notifier = accounts.Services.GetRequiredService<Notifications.Notifier>();
             var queuedNotification = await notifier.QueueClosureAsync(other, me, id, now, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
@@ -462,7 +465,7 @@ public static class MessagingEndpoints
     /// A message for one viewer. A photo message carries a short-lived link once it passed (never after delete for both),
     /// and its state for the sender only (a blocked photo reads as not approved, procedure §4).
     /// </summary>
-    public static MessageView View(Message message, Guid viewer, DateTimeOffset now, MediaItem? media = null, Media.MediaLinks? links = null)
+    public static MessageView View(Message message, Guid viewer, DateTimeOffset now, MediaItem? media = null, Media.MediaLinks? links = null, MeetupView? meetup = null)
     {
         if(message.ModerationRemovedAt!=null)return new(message.Id,message.ConversationId,message.SenderAccountId==viewer,"removed-by-moderation","Removed by Swoovr.",message.SentAt,false);
         if (message.Kind == MessageKind.System)
@@ -475,7 +478,7 @@ public static class MessagingEndpoints
             if (message.SenderAccountId == viewer) state = media.RemovedAt is not null ? "removed" : MediaPolicy.MemberState(media.Status);
         }
         return new(message.Id, message.ConversationId, message.SenderAccountId == viewer, Wire(message.Kind), MessagingPolicy.VisibleText(message), message.SentAt,
-            MessagingPolicy.MayDeleteForBoth(message, viewer, now), message.DeletedAt is not null, photo, state);
+            MessagingPolicy.MayDeleteForBoth(message, viewer, now), message.DeletedAt is not null, photo, state, meetup);
     }
 
     private static async Task<Dictionary<Guid, MediaItem>> MediaForAsync(SwoovrDbContext db, IEnumerable<Message> messages, CancellationToken cancellationToken)
@@ -631,6 +634,7 @@ public static class MessagingEndpoints
         {
             (open.ClosedAt, open.ClosedReason) = (now, ClosedReasons.Blocked);
             Audit.Record(db, now, null, "system", "conversation.closed", "conversation", open.Id.ToString(), "block");
+            await CallOffMeetupsAsync(db, open.Id, now, cancellationToken); // issue 545
         }
         return open;
     }
@@ -678,6 +682,7 @@ public static class MessagingEndpoints
         if (open is null) return null;
         (open.ClosedAt, open.ClosedReason) = (now, ClosedReasons.Disconnected);
         Audit.Record(db, now, null, "system", "conversation.closed", "conversation", open.Id.ToString(), "disconnect");
+        await CallOffMeetupsAsync(db, open.Id, now, cancellationToken); // issue 545
         return open;
     }
 }

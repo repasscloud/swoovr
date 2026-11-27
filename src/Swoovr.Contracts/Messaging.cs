@@ -19,7 +19,22 @@ public sealed record ConversationView(Guid Id, PersonSummary Person, DateTimeOff
 /// in-review, approved or not-approved (a blocked photo reads as not-approved). The recipient never sees a photo message before it passed.
 /// </summary>
 public sealed record MessageView(Guid Id, Guid ConversationId, bool Mine, string Kind, string Text, DateTimeOffset SentAt, bool CanDelete, bool Deleted = false,
-    PhotoView? Photo = null, string? PhotoState = null);
+    PhotoView? Photo = null, string? PhotoState = null, MeetupView? Meetup = null);
+
+/// <summary>
+/// Issue 545 (D430): a private 1-on-1 meet-up invitation as one of its two members sees it (the card of a "meetup" message).
+/// State is pending, accepted, declined, withdrawn, superseded, cancelled, expired (pending past its time) or past (accepted
+/// and over). Mine: this member proposed it. The Can… flags are what this member may do now; the API checks again.
+/// </summary>
+public sealed record MeetupView(Guid Id, Guid ConversationId, string ModeId, string Category, string CategoryLabel, string Venue, DateTimeOffset StartsAt,
+    int? DurationMinutes, string? Note, string State, bool Mine, bool CanAccept, bool CanDecline, bool CanSuggest, bool CanWithdraw, bool CanCancel,
+    string? WithName = null);
+
+/// <summary>Issue 545: a proposal (or suggested changes). StartsAt carries the member's own offset; Note is optional.</summary>
+public sealed record MeetupRequest(string? Category, string? Venue, DateTimeOffset StartsAt, int? DurationMinutes, string? Note);
+
+/// <summary>Issue 545: the categories offered in a mode, in order.</summary>
+public sealed record MeetupCategoryView(string Id, string Label);
 
 /// <summary>Newest first; Before is the cursor for the next page (the oldest message's time).</summary>
 /// <param name="FirstUnread">PR 579 review: on the newest page only, the first message that was unread before this read

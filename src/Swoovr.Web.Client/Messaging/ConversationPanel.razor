@@ -68,7 +68,7 @@
     <ul class="chat-thread" aria-live="polite" data-messages="@messages.Count">
         @foreach (var m in messages)
         {
-            <li class="@(m.Kind == "system" ? "chat-system" : "bubble" + (m.Mine ? " mine" : "") + (m.Deleted ? " deleted" : "") + (menuFor == m.Id ? " has-menu" : ""))" data-message-kind="@m.Kind" data-message="@m.Id" data-mine="@(m.Mine ? "true" : "false")" data-deleted="@(m.Deleted ? "true" : "false")"
+            <li class="@(m.Kind == "system" ? "chat-system" : "bubble" + (m.Mine ? " mine" : "") + (m.Kind == "meetup" ? " meetup" : "") + (m.Deleted ? " deleted" : "") + (menuFor == m.Id ? " has-menu" : ""))" data-message-kind="@m.Kind" data-message="@m.Id" data-mine="@(m.Mine ? "true" : "false")" data-deleted="@(m.Deleted ? "true" : "false")"
                 @oncontextmenu="() => OpenMessageMenu(m)" @oncontextmenu:preventDefault="@(m.Kind != "system")">
                 <span class="visually-hidden">@(m.Kind == "system" ? "Swoovr" : m.Mine ? "You" : conversation.Person.DisplayName): </span>
                 @if (m.Kind == "farewell") { <p class="field-help">Predefined farewell</p> }
@@ -79,6 +79,15 @@
                        (issue 431, which renders through this element); it only stops casual saving. *@
                     @if (m.Photo is { } photo) { <img class="chat-photo" src="@PhotoText.Web(photo.Link)" alt="Photo from @(m.Mine ? "you" : conversation.Person.DisplayName)" loading="lazy" draggable="false" @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-chat-photo="@photo.Id" /> }
                     @if (m.Mine && m.PhotoState is { } state && state != "approved") { <p class="field-help" data-photo-state="@state">@PhotoText.ChatState(state)</p> }
+                }
+                else if (m.Kind == "meetup")
+                {
+                    @* Issue 545 (D430): the invitation's card; its note is part of the card. *@
+                    @if (m.Meetup is { } plan)
+                    {
+                        <MeetupCard Meetup="plan" Busy="busy" Answer="a => AnswerMeetupAsync(plan, a)" Suggest="() => OpenPlan(plan)" Calendar="() => CalendarAsync(plan)" />
+                    }
+                    else { <p class="field-help" data-meetup-gone>This meet-up is no longer available.</p> }
                 }
                 else { <p>@m.Text</p> }
                 @if (m.Kind != "system")
@@ -141,6 +150,8 @@
             {
                 <div class="chat-menu attach-menu" id="attach-menu" data-attach-menu-open>
                     <label class="chat-menu-item" for="chat-photo" aria-disabled="@(awaiting ? "true" : "false")" data-attach-photo><Icon Name="image" Size="16" />Send a photo</label>
+                    @* Issue 545 (D430): a private 1-on-1 meet-up. *@
+                    <button type="button" class="chat-menu-item" disabled="@awaiting" @onclick="() => OpenPlan(null)" data-attach-meetup><Icon Name="calendar" Size="16" />Plan a meet-up</button>
                     <p class="field-help">@PhotoText.ChatRules</p>
                 </div>
             }
@@ -154,6 +165,12 @@
         </div>
     }
     else if (!conversation.Closed) { <p class="field-help chat-compose" data-cannot-send>You can't send messages here right now.</p> }
+    <MemberDialog Kind="meetup" Title="@(suggesting is null ? $"Plan a meet-up with {conversation.Person.DisplayName}" : "Suggest changes")" Open="planning" Closed="() => planning = false">
+        @if (planning)
+        {
+            <MeetupForm Mode="@conversation.ModeId" Initial="suggesting" Busy="busy" Message="@planMessage" Submit="PlanAsync" Cancel="() => planning = false" />
+        }
+    </MemberDialog>
 }
 </div>
 @* Outside the conversation block, so "This chat is closed." still shows once a block or disconnect closes it (#82). *@
@@ -173,6 +190,10 @@
     private MessagesHubClient? hub;
     // Issue 542: the thread's own scroll area, the open menus, and where to start reading.
     private ElementReference thread;
+    // Issue 545: the meet-up form (a new plan, or suggested changes to one).
+    private bool planning;
+    private MeetupView? suggesting;
+    private string? planMessage;
     private bool chatMenu, attachMenu, started, followNew;
     private Guid? menuFor;
     private int? keepFrom;
@@ -254,6 +275,42 @@
     private string ProfileLink => conversation is { ModeId: { } mode } ? $"/people/{conversation.Person.Id}?mode={mode}" : $"/people/{conversation?.Person.Id}";
     private string ModeLabel(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;
     private static string Initial(string? name) => string.IsNullOrWhiteSpace(name) ? "?" : name.Trim()[..1].ToUpperInvariant();
+
+    private void OpenPlan(MeetupView? plan) => (planning, suggesting, planMessage, attachMenu, chatMenu, menuFor) = (true, plan, null, false, false, null);
+
+    private async Task PlanAsync(MeetupRequest request)
+    {
+        busy = true;
+        var result = suggesting is { } plan ? await Members.SuggestMeetupAsync(plan.Id, request) : await Members.ProposeMeetupAsync(Id, request);
+        busy = false;
+        if (result.Value is { } sent) { Upsert(sent); followNew = true; planning = false; suggesting = null; return; }
+        if (result.Code == ProblemCodes.UnansweredLimit) { planning = false; AwaitReply(); await RecheckAwaitingAsync(); return; }
+        planMessage = result.Code switch
+        {
+            ProblemCodes.MeetupPending => "There's already an invitation waiting in this chat.",
+            ProblemCodes.MeetupNotOpen => "This invitation can't be changed any more.",
+            ProblemCodes.InvalidMeetup => "Check what, where and when (from 15 minutes to 90 days from now).",
+            ProblemCodes.TooManyRequests => "That's a lot of messages. Slow down a little.",
+            _ => "That couldn't be sent.",
+        };
+    }
+
+    private async Task AnswerMeetupAsync(MeetupView plan, string action)
+    {
+        busy = true;
+        var result = await Members.AnswerMeetupAsync(plan.Id, action);
+        busy = false;
+        if (result.Value is { } updated) Upsert(updated);
+        else (status, message) = ("failed", "This invitation can't be changed any more.");
+    }
+
+    // Issue 545 (D430 After acceptance A): the calendar file is made here and saved by the browser; nothing is sent.
+    private async Task CalendarAsync(MeetupView plan)
+    {
+        var file = MeetupText.Calendar(plan, conversation?.Person.DisplayName, DateTimeOffset.UtcNow);
+        try { await JS.InvokeAsync<bool>("swoovrDownload.save", "swoovr-meetup.ics", "text/calendar", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(file))); }
+        catch (Exception error) when (error is JSException or InvalidOperationException) { (status, message) = ("failed", "The calendar file couldn't be saved."); }
+    }
 
     // Issue 542: one message's actions at a time; right-click or a long press opens them too.
     private void ToggleMessageMenu(MessageView m) { menuFor = menuFor == m.Id ? null : m.Id; chatMenu = attachMenu = false; }

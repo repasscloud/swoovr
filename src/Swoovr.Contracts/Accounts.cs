@@ -227,6 +227,9 @@ public static class ProblemCodes
     public const string DobCorrectionNotOpen = "dob-correction-not-open";
     public const string NameCorrectionNotOpen = "name-correction-not-open";
     public const string NameCheckOpen = "name-check-open";
+    public const string InvalidMeetup = "invalid-meetup";
+    public const string MeetupPending = "meetup-pending";
+    public const string MeetupNotOpen = "meetup-not-open";
     /// <summary>Issue 533: the name on the ID isn't a valid registered name as it is; ask Swoovr to check it instead.</summary>
     public const string IdNameNotUsable = "id-name-not-usable";
     /// <summary>D166: the date of birth is changed through the one-time correction prompt, not the ordinary form.</summary>

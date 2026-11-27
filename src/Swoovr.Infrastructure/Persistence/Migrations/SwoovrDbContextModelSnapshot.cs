@@ -4657,6 +4657,96 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Swoovr.Domain.Meetup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AnsweredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("answered_at");
+
+                    b.Property<Guid?>("AnsweredBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("answered_by");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("category");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int?>("DurationMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("duration_minutes");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<string>("ModeId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("mode_id");
+
+                    b.Property<Guid>("ProposerAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposer_account_id");
+
+                    b.Property<Guid>("RecipientAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipient_account_id");
+
+                    b.Property<DateTimeOffset>("StartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("SupersedesId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supersedes_id");
+
+                    b.Property<string>("Venue")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("venue");
+
+                    b.HasKey("Id")
+                        .HasName("pk_meetups");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_meetups_message_id");
+
+                    b.HasIndex("ProposerAccountId")
+                        .HasDatabaseName("ix_meetups_proposer_account_id");
+
+                    b.HasIndex("RecipientAccountId")
+                        .HasDatabaseName("ix_meetups_recipient_account_id");
+
+                    b.HasIndex("ConversationId", "Status")
+                        .HasDatabaseName("ix_meetups_conversation_id_status");
+
+                    b.ToTable("meetups");
+                });
+
             modelBuilder.Entity("Swoovr.Domain.MemberAppearance", b =>
                 {
                     b.Property<Guid>("AccountId")
@@ -5217,6 +5307,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("MediaId")
                         .HasColumnType("uuid")
                         .HasColumnName("media_id");
+
+                    b.Property<Guid?>("MeetupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("meetup_id");
 
                     b.Property<Guid?>("ModerationRemovalId")
                         .HasColumnType("uuid")
@@ -10026,6 +10120,37 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_meeting_safety_recipients_trusted_contacts_trusted_contact_id");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.Meetup", b =>
+                {
+                    b.HasOne("Swoovr.Domain.Conversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_meetups_conversations_conversation_id");
+
+                    b.HasOne("Swoovr.Domain.Message", null)
+                        .WithMany()
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_meetups_messages_message_id");
+
+                    b.HasOne("Swoovr.Domain.Account", null)
+                        .WithMany()
+                        .HasForeignKey("ProposerAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_meetups_accounts_proposer_account_id");
+
+                    b.HasOne("Swoovr.Domain.Account", null)
+                        .WithMany()
+                        .HasForeignKey("RecipientAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_meetups_accounts_recipient_account_id");
                 });
 
             modelBuilder.Entity("Swoovr.Domain.MemberAppearance", b =>

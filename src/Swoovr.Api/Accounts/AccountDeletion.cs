@@ -258,6 +258,9 @@ public sealed class AccountDeletion(IServiceProvider services, IIdentityAdmin id
         await db.MessageHides.Where(h => h.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.ConversationHides.Where(h => h.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.ConversationReads.Where(r => r.AccountId == id).ExecuteDeleteAsync(cancellationToken);
+        // Issue 545: plans with a deleted member are called off (their own proposals go with their messages).
+        await db.Meetups.Where(m => (m.ProposerAccountId == id || m.RecipientAccountId == id) && (m.Status == MeetupStatus.Pending || m.Status == MeetupStatus.Accepted))
+            .ExecuteUpdateAsync(u => u.SetProperty(m => m.Status, MeetupStatus.Cancelled).SetProperty(m => m.AnsweredAt, now), cancellationToken);
         await db.Messages.Where(m => m.SenderAccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.ConnectionRequests.Where(r => r.FromAccountId == id || r.ToAccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.Blocks.Where(b => b.BlockerAccountId == id || b.BlockedAccountId == id).ExecuteDeleteAsync(cancellationToken);

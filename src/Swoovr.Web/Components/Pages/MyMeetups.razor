@@ -1,0 +1,20 @@
+@page "/me/meetups"
+<PageTitle>Meet-ups — Swoovr</PageTitle>
+<SettingsShell Current="meetups">
+<div class="collection-page member-settings">
+@if (!signedIn)
+{
+    <div class="page-heading"><h1>Meet-ups</h1><p>Sign in to see your meet-ups.</p></div>
+    <p class="account-actions"><a class="primary-link" href="/account/sign-in" data-enhance-nav="false">Sign in</a></p>
+}
+else
+{
+    <Swoovr.Web.Client.Messaging.MeetupsPanel @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+}
+</div>
+</SettingsShell>
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    private bool signedIn;
+    protected override void OnInitialized() => signedIn = HttpContext.User.Identity?.IsAuthenticated == true;
+}
