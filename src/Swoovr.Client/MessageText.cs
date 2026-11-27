@@ -18,7 +18,11 @@ public static class MessageText
     /// <summary>A delayed page/send response cannot undo a removal already observed by this client.</summary>
     public static MessageView ApplyKnownRemoval(MessageView message,ISet<Guid> removed)
     {
-        if(message.Kind==RemovedKind)removed.Add(message.Id);
-        return removed.Contains(message.Id)?message with{Kind=RemovedKind,Text=RemovedBody,CanDelete=false,Deleted=false,Photo=null,PhotoState=null}:message;
+        // PR 583 review: a meet-up whose note staff removed arrives as its card with the note "Removed by Swoovr.".
+        if(message.Kind==RemovedKind||message.Meetup is{Note:RemovedBody})removed.Add(message.Id);
+        if(!removed.Contains(message.Id))return message;
+        // The card and its controls stay (the plan can still be answered); a delayed response can't bring the note back.
+        return message.Meetup is{}plan?message with{Text=RemovedBody,CanDelete=false,Meetup=plan with{Note=RemovedBody}}
+            :message with{Kind=RemovedKind,Text=RemovedBody,CanDelete=false,Deleted=false,Photo=null,PhotoState=null};
     }
 }

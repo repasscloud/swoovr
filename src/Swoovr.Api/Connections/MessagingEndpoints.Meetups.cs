@@ -189,6 +189,14 @@ public static partial class MessagingEndpoints
         open && MeetupPolicy.MayAccept(m, viewer, now), open && MeetupPolicy.MayDecline(m, viewer), open && MeetupPolicy.MaySuggest(m, viewer, now),
         open && MeetupPolicy.MayWithdraw(m, viewer), open && MeetupPolicy.MayCancel(m, viewer, now));
 
+    /// <summary>PR 583 review: staff removed a meet-up's note; open chats get the card (note "Removed by Swoovr.") with its controls.</summary>
+    public static async Task SendMeetupCardAsync(IServiceProvider services, SwoovrDbContext db, Guid meetupId, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var meetup = await db.Meetups.AsNoTracking().SingleOrDefaultAsync(m => m.Id == meetupId, cancellationToken);
+        var conversation = meetup is null ? null : await db.Conversations.AsNoTracking().SingleOrDefaultAsync(c => c.Id == meetup.ConversationId, cancellationToken);
+        if (meetup is not null && conversation is not null) await SendCardAsync(services, db, meetup, conversation, now, cancellationToken);
+    }
+
     /// <summary>Re-sends a meet-up's card to both members, so open chats show the new state at once.</summary>
     private static async Task SendCardAsync(IServiceProvider services, SwoovrDbContext db, Meetup meetup, Conversation conversation, DateTimeOffset now, CancellationToken cancellationToken)
     {

@@ -177,6 +177,7 @@ public static class ModerationEndpoints
         Guid? subjectId = null;
         MemberProfile? subject = null;
         object? snapshot = null;
+        object? meetupPlans = null;
         var pairConversations = new List<Guid>();
         var retainedMedia = new List<Guid>();
         if (subjectType is ReportSubject.Profile or ReportSubject.Bot && Guid.TryParse(request.SubjectId, out var publicId))
@@ -235,17 +236,21 @@ public static class ModerationEndpoints
                 retainedMedia.AddRange(photoIds);
                 var hashes = await db.MediaItems.Where(i => photoIds.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => Convert.ToHexStringLower(i.Sha256), cancellationToken);
                 // PR 583 review: a meet-up card keeps its plan (what, where, when, state) in the case, not only its note, so
-                // the evidence survives retention deleting the carrying message.
+                // the evidence survives retention deleting the carrying message. Kept as its own compact item, so the
+                // message snapshot stays within its size.
                 var meetupIds = kept.Where(m => m.MeetupId is not null).Select(m => m.MeetupId!.Value).ToList();
-                var meetups = meetupIds.Count == 0 ? [] : await db.Meetups.AsNoTracking().Where(x => meetupIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
+                if (meetupIds.Count > 0)
+                    meetupPlans = new
+                    {
+                        Conversation = conversation.Id,
+                        Plans = await db.Meetups.AsNoTracking().Where(x => meetupIds.Contains(x.Id)).OrderBy(x => x.CreatedAt)
+                            .Select(x => new { x.MessageId, x.Category, x.Venue, x.StartsAt, x.DurationMinutes, Status = x.Status.ToString() }).ToListAsync(cancellationToken),
+                    };
                 snapshot = new
                 {
                     Conversation = conversation.Id, Reported = message?.Id, Chosen = chosen is not null, conversation.ClosedReason,
                     Messages = kept.Select(m => new { m.Id, Kind = Wire(m.Kind), FromSubject = m.Kind == MessageKind.System ? (bool?)null : m.SenderAccountId != me, m.SentAt, Deleted = m.DeletedAt is not null, Text = m.Kind == MessageKind.System ? ConversationEnding.ByOther : m.Body,
-                        Photo = m.MediaId, PhotoSha256 = m.MediaId is { } p ? hashes.GetValueOrDefault(p) : null,
-                        Meetup = m.MeetupId is { } x && meetups.TryGetValue(x, out var plan)
-                            ? new { plan.Id, plan.ModeId, plan.Category, plan.Venue, plan.StartsAt, plan.DurationMinutes, Status = plan.Status.ToString(), plan.ProposerAccountId, plan.SupersedesId, plan.CreatedAt, plan.AnsweredAt }
-                            : null }).ToList(),
+                        Photo = m.MediaId, PhotoSha256 = m.MediaId is { } p ? hashes.GetValueOrDefault(p) : null }).ToList(),
                 };
             }
         }
@@ -275,6 +280,9 @@ public static class ModerationEndpoints
         await using var reportTransaction = await db.Database.BeginTransactionAsync(cancellationToken);
         db.CaseEvidence.Add(new CaseEvidence { Id = Guid.NewGuid(), CaseId = item.Id, ReportId = report.Id, Kind = Wire(subjectType),
             Snapshot = JsonSerializer.Serialize(snapshot, SnapshotJson), MediaIds = retainedMedia.Distinct().ToArray(), CapturedAt = now });
+        if (meetupPlans is not null)
+            db.CaseEvidence.Add(new CaseEvidence { Id = Guid.NewGuid(), CaseId = item.Id, ReportId = report.Id, Kind = "meetup-plans", MediaIds = [], CapturedAt = now,
+                Snapshot = JsonSerializer.Serialize(meetupPlans, SnapshotJson) });
         if(meetingContext is{}meeting)
         {
             var checkIns=await db.MeetingSafetyCheckIns.AsNoTracking().Where(c=>c.SessionId==meeting.Id).OrderBy(c=>c.DueAt).Select(c=>new{c.DueAt,c.GraceEndsAt,c.RespondedAt,c.Response,c.EscalatedAt}).ToListAsync(cancellationToken);

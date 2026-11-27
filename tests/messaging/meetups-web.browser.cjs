@@ -4,7 +4,7 @@
 // is a file made on the device; I'm meeting someone is offered, never started. Owned stack; every person is fictional.
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
-const { web, createMember, memberToken, cli, call, sql, matchReady } = require('../auth/local-tokens.cjs');
+const { web, createMember, createStaff, memberToken, staffToken, rootAdminToken, cli, call, sql, matchReady } = require('../auth/local-tokens.cjs');
 const audit = require('../accessibility/audit.cjs');
 const output = process.env.SWOOVR_SCREENSHOTS;
 const ADELAIDE = 2078025;
@@ -89,9 +89,11 @@ const ADELAIDE = 2078025;
     // PR 583 review: a reported card keeps its plan in the case, even with no note.
     const reported = await call(tokens.me, '/api/reports', { method: 'POST', body: { subjectType: 'message', subjectId: fourthMessage, category: 'harassment', text: null, block: false } });
     assert.equal(reported.status, 201);
-    const evidence = JSON.parse(await sql(`SELECT snapshot FROM case_evidence WHERE report_id = '${reported.body.id}'`));
-    const kept = evidence.messages.find(m => m.id === fourthMessage);
-    assert.deepEqual([kept.kind, kept.meetup?.venue, kept.meetup?.category, kept.meetup?.status], ['meetup', 'Fictional Reported Cafe', 'coffee', 'Declined'], JSON.stringify(kept)); pass();
+    const evidence = JSON.parse(await sql(`SELECT snapshot FROM case_evidence WHERE report_id = '${reported.body.id}' AND kind = 'message'`));
+    assert.equal(evidence.messages.find(m => m.id === fourthMessage)?.kind, 'meetup'); pass();
+    const plans = JSON.parse(await sql(`SELECT snapshot FROM case_evidence WHERE report_id = '${reported.body.id}' AND kind = 'meetup-plans'`)).plans;
+    const kept = plans.find(x => x.messageId === fourthMessage);
+    assert.deepEqual([kept?.venue, kept?.category, kept?.status], ['Fictional Reported Cafe', 'coffee', 'Declined'], 'plan kept: ' + JSON.stringify(plans)); pass();
     // PR 583 review: invitations count toward the other member's unanswered limit, and one sent back is a reply.
     const limit = n => call(tokens.ada, '/api/me/notification-settings', { method: 'PUT', body: { unansweredLimit: n } });
     const text = () => call(tokens.me, `/api/conversations/${chat}/messages`, { method: 'POST', body: { text: 'Fictional line' } });
@@ -188,6 +190,27 @@ const ADELAIDE = 2078025;
     assert.equal((await answer('ada', webId, 'cancel')).status, 200);
     await page.waitForTimeout(4000);
     assert.equal(await page.locator(`li[data-message="${hiddenId}"]`).count(), 0, 'stays hidden after Ada calls it off'); pass();
+    // PR 583 review: staff removing a note while the chat is open keeps the card and its controls, live.
+    const root = await rootAdminToken(browser);
+    const adm = await createStaff('mtw-adm');
+    assert.equal((await call(root, '/api/admin/invitations', { method: 'POST', body: { email: adm.email, role: 'admin' } })).status, 201);
+    const st = await staffToken(browser, adm); await call(st, '/api/session');
+    r = await propose('ada', chat, { ...plan, startsAt: soon(20), note: 'Fictional note to remove' });
+    const liveId = r.body.meetup.id, liveMessage = r.body.id;
+    const liveCard = page.locator(`[data-meetup="${liveId}"]`);
+    await liveCard.locator('[data-meetup-note]', { hasText: 'Fictional note to remove' }).waitFor({ timeout: 15000 });
+    const liveReport = await call(tokens.me, '/api/reports', { method: 'POST', body: { subjectType: 'message', subjectId: liveMessage, category: 'harassment', text: null, block: false } });
+    assert.equal(liveReport.status, 201);
+    const liveCase = await sql(`SELECT case_id FROM reports WHERE id = '${liveReport.body.id}'`);
+    const source = (await call(st, `/api/admin/cases/${liveCase}/content-sources`)).body.find(x => x.reportId === liveReport.body.id && x.field === 'message' && x.messageId === liveMessage);
+    assert.equal(source?.text, 'Fictional note to remove', 'the note is offered for removal'); pass();
+    const removal = await call(st, `/api/admin/cases/${liveCase}/content-removals`, { method: 'POST', body: { commandId: crypto.randomUUID(), reportId: source.reportId, field: 'message', modeId: null, messageId: liveMessage, expectedSourceSha256: source.sha256, reason: 'Fictional note review' } });
+    assert.equal(removal.status, 200, JSON.stringify(removal.body));
+    await liveCard.locator('[data-meetup-note]', { hasText: 'Removed by Swoovr.' }).waitFor({ timeout: 15000 }); pass();
+    assert.equal(await liveCard.locator('[data-meetup-accept]').count(), 1, 'the controls stay, without a reload'); pass();
+    await liveCard.locator('[data-meetup-accept]').click();
+    await page.locator(`[data-meetup="${liveId}"][data-meetup-state=accepted]`).waitFor({ timeout: 15000 }); pass();
+    assert.equal(await liveCard.locator('[data-meetup-note]').innerText(), 'Removed by Swoovr.', 'answering never brings the note back'); pass();
     await context.close();
     console.log(`PASS: private meet-ups (issue 545), ${passed} checks.`);
   } finally {
