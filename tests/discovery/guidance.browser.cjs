@@ -88,7 +88,9 @@ const { web, createMember, memberToken, cli, call, matchReady } = require('../au
     // Issue 566: closing the notice is for good, on the account (not just this browser), and there's no About Explore link.
     await page.click('[data-explore-notice-close]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 0); checks++;
     await page.reload(); await page.waitForSelector('[data-explore-empty]'); assert.equal(await page.locator('[data-discovery-guidance]').count(), 0, 'dismissal remembered'); checks++;
-    // PR 576 review: a saved dismissal leaves nothing in this browser that another member signing in here would pick up.
+    // PR 576 review: a saved dismissal leaves nothing in this browser that another member signing in here would pick up
+    // (the account-scoped key is removed once the account has it).
+    await page.waitForFunction(() => !Object.keys(localStorage).some(k => k.startsWith('swoovr.explore.notice-dismissed')), null, { timeout: 15000 });
     assert.deepEqual(await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('swoovr.explore.notice-dismissed'))), [], 'no browser dismissal key once the account knows'); checks++;
     assert.equal(await page.locator('[data-explore-about]').count(), 0, 'no About Explore link'); checks++;
     const scopeBackgrounds = await page.evaluate(() => [...document.querySelectorAll('.explore-scope .segment')].map(b => `${b.getAttribute('aria-pressed')}:${getComputedStyle(b).backgroundColor}`));
