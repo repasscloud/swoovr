@@ -18,7 +18,7 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     const support = await staffToken(browser, sup); await call(support, '/api/session');
     const members = { ann: await createMember('bcast-ann'), del: await createMember('bcast-del') };
     const tokens = { ann: await memberToken(browser, members.ann), del: await memberToken(browser, members.del) };
-    for (const n of Object.keys(tokens)) await call(tokens[n], '/api/me');
+    for (const n of Object.keys(tokens)) assert.equal((await call(tokens[n], '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional Bcast ' + n, homeCityId: 2078025 } })).status, 200, n);
     const sub = n => JSON.parse(Buffer.from(tokens[n].split('.')[1], 'base64url')).sub;
     await sql(`UPDATE accounts SET status = 'PendingDeletion' WHERE subject = '${sub('del')}'`);
     const send = body => call(st, '/api/admin/broadcasts', { method: 'POST', body: { title: 'Fictional maintenance', body: 'Fictional first paragraph.\n\nFictional second paragraph.', confirm: true, ...body } });
@@ -36,9 +36,12 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     const id = sent.body.id;
     assert.equal(sent.body.recipients, active, 'every active member'); pass();
     assert.equal(await sql(`SELECT count(*) FROM notifications WHERE kind = 'Announcement' AND subject_id = '${id}' AND account_id = (SELECT id FROM accounts WHERE subject = '${sub('del')}')`), '0', 'never a pending-deletion account'); pass();
-    const centre = (await call(tokens.ann, '/api/me/notifications')).body.items.find(i => i.kind === 'announcement');
+    const centreRead = await call(tokens.ann, '/api/me/notifications');
+    assert.equal(centreRead.status, 200, JSON.stringify(centreRead.body));
+    const centre = centreRead.body.items.find(i => i.kind === 'announcement');
     assert.deepEqual([centre?.title, centre?.link, centre?.read], ['From Swoovr: Fictional maintenance', `/me/notifications/announcements/${id}`, false]); pass();
-    const late = await createMember('bcast-late'); const lateToken = await memberToken(browser, late); await call(lateToken, '/api/me');
+    const late = await createMember('bcast-late'); const lateToken = await memberToken(browser, late);
+    assert.equal((await call(lateToken, '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional Bcast late', homeCityId: 2078025 } })).status, 200);
     assert.equal((await call(lateToken, `/api/me/announcements/${id}`)).status, 404, 'only a recipient can open it'); pass();
 
     // The member opens it from the centre: its own read-only page, paragraphs kept, then read.
