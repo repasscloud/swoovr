@@ -352,6 +352,8 @@
 .ph-items > .ph-item:first-child { border-top: 0; padding-top: 2px; }
 @media (max-width: 559px) { .ph-item { grid-template-columns: 56px minmax(0, 1fr); } .ph-item > .ph-row { grid-column: 2; } }
 .ph-item-thumb { display: block; width: 56px; flex: none; }
+/* Issue 558: the decision a notice linked to. */
+.ph-item-focused { margin-inline: -12px; padding-inline: 12px; border-radius: 12px; background: var(--soft); }
 .ph-item-thumb .ph-shot, .ph-item-thumb .ph-open { border-radius: 10px; }
 .ph-item-main { display: grid; gap: 4px; min-width: 0; }
 .ph-item-main p { margin: 0; }
