@@ -228,7 +228,8 @@
                 : messages.Any(m => m.Id == found) ? found.ToString() : messages[0].Id.ToString();
             hub = new MessagesHubClient(new Uri(Navigation.BaseUri + "bff/hubs/messages"));
             // A photo's state changes arrive as the same message again (#41): replace it in place.
-            hub.Message += m => { if (m.ConversationId == Id) _ = InvokeAsync(async () => { followNew = await AtEndAsync(); Upsert(m); Replied(m); if (!m.Mine) _ = ReadLiveAsync(); StateHasChanged(); }); };
+            // PR 583 review: a meet-up card re-sent for a state change isn't a new reply; only a card new to this chat ends the wait.
+            hub.Message += m => { if (m.ConversationId == Id) _ = InvokeAsync(async () => { followNew = await AtEndAsync(); var fresh = m.Kind != "meetup" || !messages.Any(x => x.Id == m.Id); Upsert(m); if (fresh) Replied(m); if (!m.Mine) _ = ReadLiveAsync(); StateHasChanged(); }); };
             hub.Deleted += d => { if (d.ConversationId == Id) { MarkDeleted(d.MessageId); _ = InvokeAsync(StateHasChanged); } };
             hub.Reconnected += () => _ = InvokeAsync(Closed);
             hub.Closed += c => { if (c.ConversationId == Id) _ = InvokeAsync(Closed); };

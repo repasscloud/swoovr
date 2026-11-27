@@ -92,6 +92,17 @@ const ADELAIDE = 2078025;
     const evidence = JSON.parse(await sql(`SELECT snapshot FROM case_evidence WHERE report_id = '${reported.body.id}'`));
     const kept = evidence.messages.find(m => m.id === fourthMessage);
     assert.deepEqual([kept.kind, kept.meetup?.venue, kept.meetup?.category, kept.meetup?.status], ['meetup', 'Fictional Reported Cafe', 'coffee', 'Declined'], JSON.stringify(kept)); pass();
+    // PR 583 review: invitations count toward the other member's unanswered limit, and one sent back is a reply.
+    const limit = n => call(tokens.ada, '/api/me/notification-settings', { method: 'PUT', body: { unansweredLimit: n } });
+    const text = () => call(tokens.me, `/api/conversations/${chat}/messages`, { method: 'POST', body: { text: 'Fictional line' } });
+    assert.equal((await limit(3)).status, 200);
+    for (let i = 0; i < 3; i++) assert.equal((await answer('me', (await propose('me', chat, { ...plan, startsAt: soon(10 + i) })).body.meetup.id, 'withdraw')).status, 200);
+    assert.deepEqual(code(await text()), [409, 'unanswered-limit'], 'three invitations in a row reach the limit'); pass();
+    assert.deepEqual(code(await propose('me', chat, { ...plan, startsAt: soon(13) })), [409, 'unanswered-limit'], 'and so does a fourth invitation'); pass();
+    const back = (await propose('ada', chat, { ...plan, startsAt: soon(14) })).body.meetup;
+    assert.equal((await text()).status, 201, 'their invitation is a reply'); pass();
+    assert.equal((await answer('ada', back.id, 'withdraw')).status, 200);
+    assert.equal((await limit(0)).status, 200);
 
     // A block calls every open plan off and nobody can answer any more.
     const blkPlan = (await propose('blk', blkChat, { category: 'networking', venue: 'Fictional Hub', startsAt: soon(5, 9) })).body.meetup;
@@ -103,6 +114,18 @@ const ADELAIDE = 2078025;
     // The audit names the action, never the place, time or note.
     assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE action LIKE 'meetup.%' AND (detail ILIKE '%Bistro%' OR detail ILIKE '%Fictional%')`), '0'); pass();
     assert.ok(Number(await sql(`SELECT count(*) FROM audit_entries WHERE action LIKE 'meetup.%'`)) >= 8, 'each step audited'); pass();
+
+    // PR 583 review: a long history never crowds current plans out of My meet-ups (210 fictional old plans).
+    await sql(`WITH src AS (SELECT conversation_id, mode_id, proposer_account_id p, recipient_account_id r FROM meetups WHERE id = '${second.id}'),
+      ids AS (SELECT gen_random_uuid() mid, gen_random_uuid() eid, g FROM generate_series(1, 210) g),
+      msg AS (INSERT INTO messages (id, conversation_id, sender_account_id, kind, body, sent_at, meetup_id)
+        SELECT mid, conversation_id, p, 'Meetup', '', now() - interval '400 days' - g * interval '1 hour', eid FROM ids, src RETURNING id)
+      INSERT INTO meetups (id, conversation_id, message_id, mode_id, proposer_account_id, recipient_account_id, category, venue, starts_at, status, created_at)
+      SELECT eid, conversation_id, mid, mode_id, p, r, 'coffee', 'Fictional Old Cafe', now() - interval '300 days' - g * interval '1 hour', 'Cancelled', now() - interval '400 days' FROM ids, src`);
+    const crowded = (await call(tokens.me, '/api/me/meetups')).body;
+    assert.equal(crowded.filter(m => !['pending', 'accepted'].includes(m.state)).length, 100, 'history is bounded to the latest 100'); pass();
+    assert.ok(crowded.some(m => m.id === fourth.id), 'the latest closed plans stay in the history'); pass();
+    // The web plan below, sent after these, must still show under Upcoming.
 
     // Web: plan from the + menu; the other member accepts; the card follows live; calendar and I'm meeting someone.
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });

@@ -142,18 +142,24 @@ public static partial class MessagingEndpoints
         return Results.Ok(View(message, me, now, meetup: Card(meetup, message, me, now, true)));
     }
 
-    /// <summary>Issue 545: "My meet-ups": every plan in a chat the member still lists, soonest first; never another's, never a blocked pair's.</summary>
+    /// <summary>Issue 545: "My meet-ups": every plan in a chat the member still lists; never another's, never a blocked pair's.</summary>
     private static async Task<IResult> ListAsync(ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken)
     {
         var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
         if (denied is not null) return denied;
         var (db, me, now) = (accounts.Db!, current!.Account!.Id, clock.GetUtcNow());
-        var rows = await (from m in db.Meetups
-                          join c in Listed(db, me) on m.ConversationId equals c.Id
-                          join msg in db.Messages on m.MessageId equals msg.Id
-                          where (m.ProposerAccountId == me || m.RecipientAccountId == me) && m.Status != MeetupStatus.Superseded
-                          orderby m.StartsAt
-                          select new { m, msg, Open = c.ClosedAt == null }).Take(200).ToListAsync(cancellationToken);
+        var all = from m in db.Meetups
+                  join c in Listed(db, me) on m.ConversationId equals c.Id
+                  join msg in db.Messages on m.MessageId equals msg.Id
+                  where (m.ProposerAccountId == me || m.RecipientAccountId == me) && m.Status != MeetupStatus.Superseded
+                  select new { m, msg, Open = c.ClosedAt == null };
+        // PR 583 review: upcoming and waiting plans are fetched apart from the history (latest first), so old plans never
+        // crowd current ones out. Each part is bounded on its own.
+        var upcoming = await all.Where(r => (r.m.Status == MeetupStatus.Pending || r.m.Status == MeetupStatus.Accepted) && r.m.StartsAt > now)
+            .OrderBy(r => r.m.StartsAt).Take(200).ToListAsync(cancellationToken);
+        var history = await all.Where(r => !((r.m.Status == MeetupStatus.Pending || r.m.Status == MeetupStatus.Accepted) && r.m.StartsAt > now))
+            .OrderByDescending(r => r.m.StartsAt).Take(100).ToListAsync(cancellationToken);
+        var rows = upcoming.Concat(history.OrderBy(r => r.m.StartsAt)).ToList();
         var others = rows.Select(r => r.m.ProposerAccountId == me ? r.m.RecipientAccountId : r.m.ProposerAccountId).Distinct().ToList();
         var names = await db.MemberProfiles.Where(p => others.Contains(p.AccountId)).ToDictionaryAsync(p => p.AccountId, p => p.DisplayName, cancellationToken);
         var aliases = await db.MemberModes.Where(m => others.Contains(m.AccountId)).Select(m => new { m.AccountId, m.ModeId, m.DisplayName }).ToListAsync(cancellationToken);

@@ -410,14 +410,14 @@ public static partial class MessagingEndpoints
         return limit is { } cap ? (cap, await UnansweredCountAsync(db, conversation, sender, recipient, cap, cancellationToken)) : (null, 0);
     }
 
-    /// <summary>#300: the sender's consecutive text and photo messages after the recipient's last one, counted up to cap (index conversation_id, sent_at).</summary>
+    /// <summary>#300: the sender's consecutive text, photo and meet-up messages after the recipient's last one, counted up to cap (index conversation_id, sent_at). PR 583 review: a meet-up invitation counts and resets the run like any message.</summary>
     public static async Task<int> UnansweredCountAsync(SwoovrDbContext db, Guid conversation, Guid sender, Guid recipient, int cap, CancellationToken cancellationToken)
     {
         var lastReply = await db.Messages.Where(m => m.ConversationId == conversation && m.SenderAccountId == recipient
-                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo))
+                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo || m.Kind == MessageKind.Meetup))
             .MaxAsync(m => (DateTimeOffset?)m.SentAt, cancellationToken);
         return await db.Messages.Where(m => m.ConversationId == conversation && m.SenderAccountId == sender
-                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo) && (lastReply == null || m.SentAt > lastReply))
+                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo || m.Kind == MessageKind.Meetup) && (lastReply == null || m.SentAt > lastReply))
             .Take(cap).CountAsync(cancellationToken);
     }
 
