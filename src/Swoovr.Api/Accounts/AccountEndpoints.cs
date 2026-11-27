@@ -132,6 +132,7 @@ public static class AccountEndpoints
                     db.DobReviews.Add(new DobReview{Id=Guid.NewGuid(),AccountId=account.Id,AttemptId=attempt?.Id??Guid.Empty,Reason="admin-correction-mismatch",CreatedAt=now});
                 }
             }
+            await Profiles.ProfileEndpoints.AgeChangedAsync(db, profile.AccountId, profile.DateOfBirth, update.DateOfBirth, now, cancellationToken);
             profile.DateOfBirth = update.DateOfBirth;
             profile.DeclaredAge = update.DateOfBirth is null ? update.Age : null;
             profile.DeclaredOn = profile.DeclaredAge is null ? null : DateOnly.FromDateTime(now.UtcDateTime);

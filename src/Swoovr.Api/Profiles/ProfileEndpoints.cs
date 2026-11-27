@@ -298,7 +298,7 @@ public static class ProfileEndpoints
                     // Issue 568: the green dot as on Explore cards (D410, D422), and the day what the viewer can see last changed.
                     Online = OnlineStatusPolicy.Shows(OnlineStatus(configuration), current.Profile!, person.Profile, clock.GetUtcNow()),
                     // The text picture shows only while the whole gallery is empty, as PersonPanel renders it (PR 582 review).
-                    LastUpdated = await LastUpdatedAsync(db, person.Profile.AccountId, shownIds, identity,
+                    LastUpdated = await LastUpdatedAsync(db, person.Profile.AccountId, shownIds, mode ?? shownIds[0], identity,
                         photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null
                         && shownIds.All(m => photos.Modes.GetValueOrDefault((person.Profile.AccountId, m)) is not { Count: > 0 }), cancellationToken),
                 });
@@ -313,12 +313,12 @@ public static class ProfileEndpoints
     /// pronouns and age as shown, and the orientation when Dating is shown, count from their own change times
     /// (MemberIdentity), since profile versions never hold them.
     /// </summary>
-    private static async Task<DateOnly?> LastUpdatedAsync(SwoovrDbContext db, Guid account, IReadOnlyList<string> shownIds, MemberIdentity? identity,
+    private static async Task<DateOnly?> LastUpdatedAsync(SwoovrDbContext db, Guid account, IReadOnlyList<string> shownIds, string lead, MemberIdentity? identity,
         bool pictureTextShown, CancellationToken cancellationToken)
     {
         var changes = new List<DateTimeOffset?> { identity?.PresentationChangedAt, shownIds.Contains(ConnectionModeIds.Dating) ? identity?.OrientationChangedAt : null };
         foreach (var mode in shownIds)
-            changes.Add(await VisibleChangeAsync(db, account, mode, ShownInMode, countsFirst: _ => true, cancellationToken));
+            changes.Add(await VisibleChangeAsync(db, account, mode, root => ShownInMode(root, mode == lead), countsFirst: _ => true, cancellationToken));
         if (pictureTextShown)
             changes.Add(await VisibleChangeAsync(db, account, ProfileVersions.Core, root => Shown(root, "pictureText", "null"), countsFirst: shown => shown != "null", cancellationToken));
         return changes.Max() is { } at ? DateOnly.FromDateTime(at.UtcDateTime) : null;
@@ -344,8 +344,32 @@ public static class ProfileEndpoints
         return newer is { } first && countsFirst(first.Shown) ? first.At : null;
     }
 
-    private static string ShownInMode(System.Text.Json.JsonElement root) => string.Join('\u001f',
-        Shown(root, "shownName", "null"), Shown(root, "shownAbout", "null"), Shown(root, "intentions", "[]"), Shown(root, "mainPhoto", "null"), Shown(root, "photos", "[]"));
+    /// <summary>
+    /// What one mode shows, as PersonPanel builds the gallery (PhotoText.Gallery): only the requested (lead) mode's main
+    /// photo leads it; every shown mode adds its photos in order. Another mode's main-photo choice shows nothing (PR 582 review).
+    /// </summary>
+    private static string ShownInMode(System.Text.Json.JsonElement root, bool lead) => string.Join('\u001f',
+        Shown(root, "shownName", "null"), Shown(root, "shownAbout", "null"), Shown(root, "intentions", "[]"),
+        lead && root.TryGetProperty("mainPhoto", out var main) && main.ValueKind == System.Text.Json.JsonValueKind.Object ? PhotoKey(main) : "null",
+        root.TryGetProperty("photos", out var photos) && photos.ValueKind == System.Text.Json.JsonValueKind.Array ? string.Join(',', photos.EnumerateArray().Select(PhotoKey)) : "");
+
+    /// <summary>A photo as seen: which image, never its main-photo flag.</summary>
+    private static string PhotoKey(System.Text.Json.JsonElement photo) => Shown(photo, "id", "null") + ":" + Shown(photo, "sha256", "null");
+
+    /// <summary>
+    /// Issue 568 (D436, PR 582 review): a date-of-birth change that changes the age others see moves "Profile updated"; a
+    /// hidden age, or one that comes out the same, doesn't. A member without identity settings gets the defaults, which are
+    /// what a missing row already means (age shown). Unsaved.
+    /// </summary>
+    internal static async Task AgeChangedAsync(SwoovrDbContext db, Guid account, DateOnly? before, DateOnly? after, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(now.UtcDateTime);
+        int? Age(DateOnly? date) => date is { } d ? AgePolicy.YearsOn(d, today) : null;
+        if (Age(before) == Age(after)) return;
+        var identity = await db.MemberIdentities.FindAsync([account], cancellationToken);
+        if (identity is null) db.MemberIdentities.Add(new MemberIdentity { AccountId = account, UpdatedAt = now, PresentationChangedAt = now });
+        else if (identity.ShowAge) identity.PresentationChangedAt = now;
+    }
 
     /// <summary>One property's JSON, or the given empty value when an older snapshot shape has none.</summary>
     private static string Shown(System.Text.Json.JsonElement root, string name, string missing) =>

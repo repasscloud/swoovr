@@ -196,6 +196,13 @@ let checks = 0; const pass = () => checks++;
     orientation: 'straight', showOrientation: false, showAge: true, datingShowMe: ['woman'] } })).status, 200);
    assert.equal(await updated('friends'), before, '"show me" is never shown'); pass();
    assert.equal((await identity(true)).status, 200);
+   // PR 582 review: another mode's main-photo choice shows nothing; only the viewed mode's main photo leads the gallery.
+   await shift();
+   const [datingBefore, friendsBefore] = [await updated('dating'), await updated('friends')];
+   assert.equal((await call(a, '/api/me/photos/placement', { method: 'PUT', body: { scope: 'friends', mediaIds: ids, mainMediaId: ids[1] } })).status, 200);
+   assert.equal(await updated('dating'), datingBefore, "Friends' main photo isn't shown on the Dating view"); pass();
+   assert.notEqual(await updated('friends'), friendsBefore, 'it leads the Friends view'); pass();
+   assert.equal((await call(a, '/api/me/photos/placement', { method: 'PUT', body: { scope: 'friends', mediaIds: ids, mainMediaId: ids[0] } })).status, 200);
    // ---- Issue 467: the photo viewer (open, step, keyboard, swipe, focus), Report photo and the save deterrent.
    await page.setViewportSize({ width: 1280, height: 900 });
    await page.goto(`${web}/people/${id}?mode=friends`); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });

@@ -132,6 +132,7 @@ public static class VerificationEndpoints
             if(profile.DateOfBirth!=corrected&&profile.DateOfBirth is not null&&keys.CurrentVersion is null)
                 return Problem(503,ProblemCodes.NotConfigured,"Date correction is temporarily unavailable.");
             DobChangeEndpoints.PreservePrevious(db,keys,profile,corrected,null,now);
+            await Profiles.ProfileEndpoints.AgeChangedAsync(db, profile.AccountId, profile.DateOfBirth, corrected, now, cancellationToken);
             profile.DateOfBirth = corrected;
             profile.DeclaredAge = null;
             var age=AgePolicy.Evaluate(profile.AgeStatus,corrected,null,DateOnly.FromDateTime(now.UtcDateTime));

@@ -134,8 +134,14 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     assert.equal(await sql(`SELECT dob_check FROM member_profiles WHERE account_id = '${ids.ana}'`), 'CorrectionNeeded'); pass(); // refused tries don't use it
     // The correction: the API reads Didit's decision again. This real test-mode session was never completed, so Didit has no
     // date to compare and the date goes to an admin's review (a matching date is verified; see the checks and the owner's run).
+    const anaBorn = await sql(`SELECT coalesce(date_of_birth::text, '') FROM member_profiles WHERE account_id = '${ids.ana}'`);
+    await sql(`UPDATE member_identities SET presentation_changed_at = NULL WHERE account_id = '${ids.ana}'`);
     r = await call(tokens.ana, '/api/me/verification/date-of-birth', { method: 'POST', body: { dateOfBirth: '1985-05-05', dateOfBirthVerified: true, dobCheck: 'none' } });
     assert.deepEqual([r.status, r.body.dateOfBirth, r.body.dateOfBirthVerified, r.body.dobCheck], [200, '1985-05-05', false, 'manualReview']); pass();
+    // Issue 568 (PR 582 review): a correction that changes the age others see moves "Profile updated"; a time only.
+    const years = born => { const [y, m, d] = born.split('-').map(Number), t = new Date(); return t.getUTCFullYear() - y - ((t.getUTCMonth() + 1 < m || t.getUTCMonth() + 1 === m && t.getUTCDate() < d) ? 1 : 0); };
+    assert.equal(await sql(`SELECT (presentation_changed_at IS NOT NULL)::text FROM member_identities WHERE account_id = '${ids.ana}'`),
+      String(!anaBorn || years(anaBorn) !== years('1985-05-05')), `age ${anaBorn} -> 1985-05-05`); pass();
     assert.ok((await call(tokens.ana, '/api/me')).body.badges.some(b => b.badge === 'idVerified')); pass(); // ID Verified kept
     assert.deepEqual(code(await call(tokens.ana, '/api/me/verification/date-of-birth', { method: 'POST', body: { dateOfBirth: '1985-05-05' } })), [409, 'dob-correction-not-open']); pass(); // once
     assert.deepEqual(code(await call(tokens.ana, '/api/me/age', { method: 'PUT', body: { dateOfBirth: '1990-01-01' } })), [409, 'dob-under-review']); pass();
