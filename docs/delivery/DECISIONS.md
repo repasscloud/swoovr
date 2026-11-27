@@ -1780,3 +1780,19 @@ Builds #282 on D345, D348 and D352, with the wording approved on [#271](https://
 - **Messages:** no always-visible Delete / Hide / Report links. Each bubble has a ⋯ button (also opened by right-click or a long press; Escape closes it) with **Delete for both** (own, within five minutes, unchanged), **Hide for me** and **Report** (received). Times show inside the bubble.
 - **Composer:** a **+** menu for attachments; today it offers only **Send a photo** (#543–#545 add the rest). The blanket "No nudity or sexual content" line is removed, because explicit media has its own rules (#431). "Photos are checked before the other person sees them." stays in the + menu.
 - Delete-for-both evidence retention, authorisation and reporting are unchanged.
+
+### D436 — Member profile v2: header, sections and layout (#568, 27 November 2026)
+
+**CONFIRMED** by the owner on [#568](https://github.com/repasscloud/swoovr/issues/568) (the layout part; the rest of the brief is split into #569–#573, #448–#452 and #545). Replaces D417's **top-right** badge placement; the one dialog explaining every badge stays.
+- **Header card:**
+  - the name with the published age; the badges **beside the name**, each with its meaning on hover; the online dot (D410/D422; never a time)
+  - gender and pronouns, then the distance line
+  - where the two stand as a status line ("Connected in Friends"), replacing "Friends: connected"
+  - **Message** (when connected) or **Connect**, and a ⋯ menu with Report, Block, Serious safety incident and, when connected in every shared mode, Manage connection. Meet up joins once #545 is built.
+- **Body:** the gallery beside the details from 760px; the lead photo is at most 440px tall on wide screens. The details are:
+  - **About me** (once, when every shown mode says the same)
+  - **The basics** (gender, and Dating's orientation only when shown, D175)
+  - one block per shared mode with its state, "Looking for" chips, its own words, and "Goes by … here"
+  - **Profile updated {date}**: the day what the viewer can see last changed (profile versions, #91), never activity
+- Only populated sections render; nothing shows "Not specified".
+- **Phone:** one column; the actions stay fixed above the tab bar, and the privacy-choices pill moves above them.

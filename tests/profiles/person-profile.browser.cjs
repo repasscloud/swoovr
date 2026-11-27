@@ -91,7 +91,7 @@ let checks = 0; const pass = () => checks++;
    assert.ok(withdraw < dialogWidth * 0.5, `Withdraw is compact (${withdraw} of ${dialogWidth})`); pass();
    assert.equal(await page.locator('[data-connect-mode=friends] .chip').count(), (await page.locator('[data-connect-mode]').count()) > 1 ? 1 : 0, 'the mode is named only when there is a choice'); pass();
    await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' });
-   assert.ok((await page.locator('[data-connect-summary]').innerText()).includes('Friends: request sent')); pass();
+   assert.ok((await page.locator('[data-connect-summary]').innerText()).includes('Request sent in Friends')); pass();
    // Codex (PR 463): when Message fails (the connection ended meanwhile), the reason shows beside the button.
    const received = (await call(a, '/api/requests?box=received')).body.items.find(r => r.mode === 'friends');
    assert.equal((await call(a, `/api/requests/${received.id}/accept`, { method: 'POST' })).status, 200);
@@ -128,10 +128,19 @@ let checks = 0; const pass = () => checks++;
    for (const [mode, width] of [['friends', 390], ['friends', 1280], ['dating', 390], ['dating', 1280]]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${web}/people/${id}?mode=${mode}`); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
+    // Issue 568: age with the name; gender and pronouns under it.
     const facts = await page.locator('[data-person-facts]').innerText();
-    assert.ok(facts.includes('Woman') && facts.includes('xe/xem') && /\b3\d\b/.test(facts), facts); pass();
+    assert.ok(facts.includes('Woman') && facts.includes('xe/xem'), facts); pass();
+    assert.match(await page.locator('[data-person-age]').innerText(), /^, 3\d$/); pass();
     assert.deepEqual(await page.locator(`[data-person-details] [data-person-mode=${mode}] .chip.is-on`).allInnerTexts(), chips(mode).map(c => c.label)); pass();
-    assert.equal(await page.locator('[data-person-orientation]').count(), mode === 'dating' ? 1 : 0); pass();
+    // Issue 568: orientation sits in The basics, still Dating's only (D175).
+    assert.equal(await page.locator('[data-person-basics] [data-basic=orientation]').count(), mode === 'dating' ? 1 : 0); pass();
+    // D436: the badges beside the name, not at the far right; the page says when the profile last changed.
+    if (await page.locator('[data-open-badges]').count()) {
+     const [name, badges] = await page.evaluate(() => ['#person-name', '[data-open-badges]'].map(q => document.querySelector(q).getBoundingClientRect()));
+     assert.ok(badges.left - name.right < 24 || badges.top > name.top, 'badges beside the name'); pass();
+    }
+    assert.match(await page.locator('[data-person-updated]').innerText(), /^Profile updated \d{1,2} [A-Z][a-z]{2} \d{4}$/); pass();
     // The pending Friends request keeps Friends (and its photos) on the Dating view too (D175); Dating never shows on Friends.
     assert.equal(await page.locator('[data-person-photos]').getAttribute('data-person-photos'), '2'); pass();
     assert.equal(await page.locator('[data-shared-modes]').getAttribute('data-shared-modes'), mode === 'friends' ? 'friends' : 'dating friends'); pass();

@@ -84,4 +84,7 @@ public sealed record ProfileAtReport(DateTimeOffset ReportedAt, List<ProfileVers
 /// <summary>Whether the member wants to hear when Swoovr opens where they live (D125 rule 37).</summary>
 public sealed record MarketInterestUpdate(bool Interested);
 public sealed record PersonProfile(Guid Id, string DisplayName, string? About, IReadOnlyList<SharedModeView> Modes, IReadOnlyList<BadgeView> Badges,
-    int? Age = null, string? Gender = null, string? Pronouns = null, PhotoView? Photo = null, DistanceView? Distance = null, string? PictureText = null);
+    int? Age = null, string? Gender = null, string? Pronouns = null, PhotoView? Photo = null, DistanceView? Distance = null, string? PictureText = null,
+    bool Online = false, DateOnly? LastUpdated = null);
+// Issue 568: Online is the D410/D422 green dot (both members chose to show it; never a time). LastUpdated is the day the
+// profile the viewer can see last changed (its captured versions, #91): a date only, never activity.

@@ -293,7 +293,13 @@ public static class ProfileEndpoints
                 photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])),
                 await HomeDistanceAsync(db, current.Profile!, person.Profile, reach.SameMarket && !reach.ByPresence, clock.GetUtcNow(), cancellationToken))
                 // Issue 389 (D382): the text picture stands in only while no approved main photo shows.
-                { PictureText = photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null ? person.Profile.PictureText : null });
+                {
+                    PictureText = photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null ? person.Profile.PictureText : null,
+                    // Issue 568: the green dot as on Explore cards (D410, D422), and the day what the viewer can see last changed.
+                    Online = OnlineStatusPolicy.Shows(OnlineStatus(configuration), current.Profile!, person.Profile, clock.GetUtcNow()),
+                    LastUpdated = await db.ProfileVersions.Where(v => v.AccountId == person.Profile.AccountId && (v.ModeId == ProfileVersions.Core || shownIds.Contains(v.ModeId)))
+                        .MaxAsync(v => (DateTimeOffset?)v.CapturedAt, cancellationToken) is { } changed ? DateOnly.FromDateTime(changed.UtcDateTime) : null,
+                });
         });
     }
 
