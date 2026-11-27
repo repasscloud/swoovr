@@ -69,6 +69,26 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     const gated = await call(tokens.ann, `/api/me/announcements/${id}`);
     assert.equal(gated.status, 200, 'an age-gated recipient can read it: ' + JSON.stringify(gated.body)); pass();
     await sql(`UPDATE member_profiles SET age_status = '${ageBefore}' WHERE account_id = ${annProfile}`);
+    // The same for the other onboarding steps the centre lets through (PR 602 review): here, unconfirmed registered names.
+    const namesBefore = await sql(`SELECT registered_names_confirmed_at::text FROM accounts WHERE subject = '${sub('ann')}'`);
+    await sql(`UPDATE accounts SET registered_names_confirmed_at = NULL WHERE subject = '${sub('ann')}'`);
+    assert.equal((await call(tokens.ann, '/api/me/notifications')).status, 200);
+    assert.equal((await call(tokens.ann, `/api/me/announcements/${id}`)).status, 200, 'names still to confirm: still readable'); pass();
+    await sql(`UPDATE accounts SET registered_names_confirmed_at = '${namesBefore}' WHERE subject = '${sub('ann')}'`);
+    // A suspended member's centre doesn't list it, and its page doesn't open for them (D446).
+    const [caseId, sanctionId, staffId] = [crypto.randomUUID(), crypto.randomUUID(), await sql(`SELECT id FROM accounts WHERE email = '${adm.email}'`)];
+    await sql(`INSERT INTO moderation_cases(id,subject_account_id,status,queue,priority,created_at,updated_at) VALUES('${caseId}',${annProfile},'Open','Admin','High',now(),now())`);
+    await sql(`INSERT INTO sanctions(id,account_id,case_id,kind,reason,starts_at,created_by,created_by_role,hide_from_discovery,no_new_requests,no_messages) VALUES('${sanctionId}',${annProfile},'${caseId}','Suspension','Fictional suspension',now(),'${staffId}','Admin',true,true,true)`);
+    assert.equal((await call(tokens.ann, '/api/me/notifications')).body.items.some(i => i.kind === 'announcement'), false);
+    assert.equal((await call(tokens.ann, `/api/me/announcements/${id}`)).status, 404, 'suspended: not readable'); pass();
+    await sql(`DELETE FROM sanctions WHERE id = '${sanctionId}'`); await sql(`DELETE FROM moderation_cases WHERE id = '${caseId}'`);
+    assert.equal((await call(tokens.ann, `/api/me/announcements/${id}`)).status, 200); pass();
+
+    // An unwithdrawn announcement stays in the admin list (to withdraw) however many have been sent since (PR 601 review).
+    await sql(`INSERT INTO broadcasts(id,title,body,recipients,sent_by,sent_at) SELECT gen_random_uuid(),'Fictional filler','Fictional.',0,'${staffId}',now()+make_interval(secs => g) FROM generate_series(1,101) g`);
+    const managed = (await call(st, '/api/admin/broadcasts')).body;
+    assert.deepEqual([managed.some(b => b.id === id && b.canWithdraw), managed.filter(b => b.title === 'Fictional filler').length], [true, 101]); pass();
+    await sql(`DELETE FROM broadcasts WHERE title = 'Fictional filler'`);
 
     // Withdraw: gone from every centre, the page closes, and it can't be sent again or edited.
     const withdrawn = await call(st, `/api/admin/broadcasts/${id}/withdraw`, { method: 'POST' });

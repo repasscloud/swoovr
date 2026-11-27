@@ -23,8 +23,12 @@ public static class BroadcastEndpoints
         {
             var (current, denied) = await AdminEndpoints.StaffAsync(user, accounts, AccountRole.Support, token);
             if (denied is not null) return denied;
-            var rows = await accounts.Db!.Broadcasts.AsNoTracking().OrderByDescending(b => b.SentAt).Take(100).ToListAsync(token);
-            return Results.Ok(await ViewsAsync(accounts.Db, rows, current!.Allows(AccountRole.Admin), token));
+            // Every announcement still live (so an admin can always withdraw it), plus the latest 100 for history.
+            var db = accounts.Db!;
+            var recent = db.Broadcasts.OrderByDescending(b => b.SentAt).Take(100).Select(b => b.Id);
+            var rows = await db.Broadcasts.AsNoTracking().Where(b => b.WithdrawnAt == null || recent.Contains(b.Id))
+                .OrderByDescending(b => b.SentAt).ToListAsync(token);
+            return Results.Ok(await ViewsAsync(db, rows, current!.Allows(AccountRole.Admin), token));
         });
         staff.MapPost("", async (BroadcastRequest request, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken token) =>
         {
@@ -68,13 +72,14 @@ public static class BroadcastEndpoints
             return Results.Ok((await ViewsAsync(db, [broadcast], true, token)).Single());
         });
 
-        // The member's page for one announcement: only if it reached their centre and hasn't been withdrawn. Age-gated like
-        // the centre itself (a member waiting on age verification can read what's in their centre); barred members stay
-        // locked out, and their centres don't list announcements (D446).
+        // The member's page for one announcement: only if it reached their centre and hasn't been withdrawn. It opens exactly
+        // when the centre lists it: the centre's gates (so a member still finishing age, phone, names, policy or MFA steps can
+        // read it), and never for a suspended or closed member, whose centre doesn't list announcements (D446).
         app.MapGet("/api/me/announcements/{id:guid}", async (Guid id, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken token) =>
         {
-            var (current, denied) = await MemberAsync(user, accounts, token, ageGateExempt: true);
+            var (current, denied) = await MemberAsync(user, accounts, token, ageGateExempt: true, barredExempt: true);
             if (denied is not null) return denied;
+            if (current!.Enforcement.Barred) return Problem(StatusCodes.Status404NotFound, ProblemCodes.NotAvailable, "This announcement isn't available.");
             var (db, me) = (accounts.Db!, current!.Account!.Id);
             var found = await (from b in db.Broadcasts
                                where b.Id == id && b.WithdrawnAt == null
