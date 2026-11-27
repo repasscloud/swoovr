@@ -136,7 +136,13 @@
 .me-safety-grid { display: grid; gap: 16px; align-items: stretch; }
 .me-safety-grid > .me-card { margin: 0; }
 /* Issue 416: on the full-width Receive explicit media card, the profile switches sit in columns, not one long list. */
-.me-explicit-modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 0 32px; }
+.me-explicit-modes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 32px; }
+/* Issue 564: a divider only between rows of a column, never above the first row of either column. */
+.me-explicit-modes > .ph-switch-row:first-child { border-top: 0; }
+@container me-page (min-width: 560px) {
+  .me-explicit-modes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .me-explicit-modes > .ph-switch-row:nth-child(2) { border-top: 0; }
+}
 .me-col { display: grid; gap: 16px; min-width: 0; }
 @container me-page (min-width: 720px) {
   .me-two-col { grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 20px; }
@@ -638,7 +644,8 @@
 .me-chat-grid .ph-switch-row { border-top: 0; }
 .me-chat-limit { display: grid; gap: 8px; }
 .me-chat-form .me-card-foot .me-pill-button { width: auto; }
-@container me-page (min-width: 720px) { .me-safety-grid > .me-safety-chat { grid-column: 1 / -1; } }
+/* Issue 563: Location, like Chat, spans the full width of the page. */
+@container me-page (min-width: 720px) { .me-safety-grid > .me-safety-chat, .me-safety-grid > .me-safety-location { grid-column: 1 / -1; } }
 /* Selects in the redesigned settings show their chevron level with the box (labels sit above the box here). */
 .member-settings .field > .field-chevron, .me-chat-form .field > .field-chevron { top: auto; bottom: 19px; transform: rotate(-90deg); }
 .member-settings .field > select, .me-chat-form .field > select { appearance: none; padding-right: 40px; }

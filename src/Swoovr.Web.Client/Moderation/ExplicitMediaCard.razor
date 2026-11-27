@@ -17,7 +17,6 @@
                     <input type="checkbox" class="ph-switch" checked="@on" disabled="@(busy || !settings.IdVerified && !on)" @onchange="e => SetAsync(mode, e.Value is true)" data-explicit-mode="@mode" /></label>
             }
         </div>
-        <p class="field-help">@PhotoText.ExplicitBlocked</p>
         <p role="status" aria-live="polite" class="ph-status">@message</p>
     }
 </section>
