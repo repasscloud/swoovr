@@ -5026,6 +5026,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasColumnName("employee");
 
+                    b.Property<DateTimeOffset?>("ExploreNoticeDismissedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("explore_notice_dismissed_at");
+
                     b.Property<DateTimeOffset?>("FounderEligibleAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("founder_eligible_at");

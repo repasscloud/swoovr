@@ -121,6 +121,9 @@ public sealed partial class MemberClient(HttpClient transport)
     public Task<ApiResult<OnboardingView>> CompleteOnboardingAsync(CancellationToken token = default) =>
         SendAsync<OnboardingView>(new HttpRequestMessage(HttpMethod.Post, "api/me/onboarding/complete"), token);
     /// <summary>D382: "What would you like your picture to say?" (blank removes it).</summary>
+    /// <summary>Issue 566: closes the Explore notice for good.</summary>
+    public Task<int> DismissExploreNoticeAsync(CancellationToken cancellationToken = default) =>
+        StatusAsync(new HttpRequestMessage(HttpMethod.Post, "api/me/explore-notice/dismiss"), cancellationToken);
     public Task<ApiResult<MyProfileView>> SavePictureTextAsync(string? text, CancellationToken token = default) =>
         SendAsync<MyProfileView>(new HttpRequestMessage(HttpMethod.Put, "api/me/picture-text") { Content = JsonContent.Create(new PictureTextUpdate(text)) }, token);
 

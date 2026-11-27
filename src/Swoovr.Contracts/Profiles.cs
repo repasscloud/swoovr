@@ -17,7 +17,7 @@ public sealed record MyModeView(string Id, bool Enabled, bool Visible, IReadOnly
 /// Swoovr opens where they live (D125 rule 37).</summary>
 /// <param name="PictureText">Issue 389 (D382): "What would you like your picture to say?", drawn as a text tile while no main photo is approved.</param>
 public sealed record MyProfileView(Guid PublicId, string? DisplayName, string? About, IReadOnlyList<MyModeView> Modes, PlaceView? HomeCity = null,
-    bool MarketInterest = false, string? PictureText = null);
+    bool MarketInterest = false, string? PictureText = null, bool ExploreNoticeDismissed = false);
 
 /// <summary>Issue 389 (D382): sets the text picture (up to 100 characters, one line, no contact details); blank removes it.</summary>
 public sealed record PictureTextUpdate(string? Text);
