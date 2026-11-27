@@ -165,8 +165,9 @@ const MODES = ['dating', 'friends', 'activities', 'business'];
     assert.equal(await page.locator('.chat-head [data-report-conversation]').count(), 1); pass();
     await page.click('[data-chat-menu]');
     for (const action of ['data-block-conversation', 'data-serious-link', 'data-hide-conversation', 'data-end-open'])
-      assert.equal(await page.locator(`[data-chat-menu-open] [${action}]`).count(), 1, action);
+      assert.equal(await page.locator(`[data-chat-menu-open] [${action}] svg[data-icon]`).count(), 1, `${action} has an icon (issue 592)`);
     pass();
+    assert.deepEqual(await page.locator('[data-chat-menu-open] [data-block-conversation] svg').getAttribute('data-icon'), 'ban'); pass();
     await page.click('[data-chat-menu]');
     // Own message: Delete for both from its menu, within five minutes.
     await page.fill('[data-message-input]', 'Fictional mine'); await page.click('[data-send]');

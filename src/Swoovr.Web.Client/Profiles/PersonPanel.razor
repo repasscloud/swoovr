@@ -56,17 +56,18 @@
             }
             <div class="safety-menu">
                 <button type="button" class="person-more" @ref="safetyButton" aria-expanded="@(safetyOpen ? "true" : "false")" aria-controls="person-safety-menu"
-                        aria-label="@($"More: report, block or manage {person.DisplayName}")" @onclick="() => safetyOpen = !safetyOpen" data-safety-menu><Icon Name="more" Size="20" /></button>
+                        aria-label="More: report, block or manage this member" @onclick="() => safetyOpen = !safetyOpen" data-safety-menu><Icon Name="more" Size="20" /></button>
                 @if (safetyOpen)
                 {
                     <ul id="person-safety-menu" class="safety-menu-list" data-safety-menu-list>
-                        <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Report)" data-report-open><Icon Name="flag" Size="16" />Report @person.DisplayName</button></li>
-                        <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Block)" data-block-open>Block @person.DisplayName</button></li>
-                        @* D190: the separate Serious Safety Incident pathway, its own page. *@
+                        <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Report)" data-report-open><Icon Name="flag" Size="16" />Report member</button></li>
+                        <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Block)" data-block-open><Icon Name="ban" Size="16" />Block member</button></li>
+                        @* D190: the separate Serious Safety Incident pathway, its own page. D441 (issue 591): every row has an icon and says
+                           "member", never the name; the dialogs they open keep the name. *@
                         <li><a class="safety-menu-item" href="@($"/me/safety/report?type=profile&id={Id}")" data-serious-link><Icon Name="shield" Size="16" />Report a serious safety incident</a></li>
                         @if (AllConnected)
                         {
-                            <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Connect)" data-manage-connection>Manage connection</button></li>
+                            <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Connect)" data-manage-connection><Icon Name="users" Size="16" />Manage connection</button></li>
                         }
                     </ul>
                 }

@@ -41,12 +41,12 @@
                 <div class="chat-menu" id="chat-menu" data-chat-menu-open>
                     @if (conversation.Person.Id != Guid.Empty)
                     {
-                        @if (confirmBlock) { <button type="button" class="chat-menu-item button-destructive" @onclick="BlockAsync" data-block-confirm>Block @(conversation.Person.DisplayName ?? "them")</button> }
-                        else { <button type="button" class="chat-menu-item" @onclick="() => confirmBlock = true" data-block-conversation>Block</button> }
+                        @if (confirmBlock) { <button type="button" class="chat-menu-item button-destructive" @onclick="BlockAsync" data-block-confirm><Icon Name="ban" Size="16" />Block @(conversation.Person.DisplayName ?? "them")</button> }
+                        else { <button type="button" class="chat-menu-item" @onclick="() => confirmBlock = true" data-block-conversation><Icon Name="ban" Size="16" />Block</button> }
                     }
                     <a class="chat-menu-item" href="@($"/me/safety/report?type=conversation&id={Id}")" data-serious-link><Icon Name="shield" Size="16" />Serious safety incident</a>
-                    <button type="button" class="chat-menu-item" @onclick="HideConversationAsync" data-hide-conversation>Hide this chat</button>
-                    @if (conversation.CanSend) { <button type="button" class="chat-menu-item" @onclick="OpenEnding" data-end-open>End conversation</button> }
+                    <button type="button" class="chat-menu-item" @onclick="HideConversationAsync" data-hide-conversation><Icon Name="eye-off" Size="16" />Hide this chat</button>
+                    @if (conversation.CanSend) { <button type="button" class="chat-menu-item" @onclick="OpenEnding" data-end-open><Icon Name="x" Size="16" />End conversation</button> }
                 </div>
             }
         </div>

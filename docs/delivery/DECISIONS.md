@@ -1835,3 +1835,10 @@ Builds D430 (Q193) for [#545](https://github.com/repasscloud/swoovr/issues/545),
 - **My meet-ups (PR 583 review):** upcoming and waiting plans are always listed (up to 200), apart from the history, which shows the latest 100.
 - **OPEN ([#586](https://github.com/repasscloud/swoovr/issues/586)):** the free-text place isn't screened or removable on its own yet; staff see it in report evidence. **CONFIRMED** (owner, 28 November 2026): once it's removable, removing the place calls off a pending or accepted plan.
 - Group meet-ups, discovery and events stay deferred (#36, #46, #59).
+
+### D441 — Member and chat ⋯ menus: an icon on every row, "member" instead of the name (#591, #592, 28 November 2026)
+
+**CONFIRMED** (owner, 28 November 2026) for [#591](https://github.com/repasscloud/swoovr/issues/591) and [#592](https://github.com/repasscloud/swoovr/issues/592):
+- **Profile ⋯ menu:** **Report member** (`flag`), **Block member** (`ban`), **Report a serious safety incident** (`shield`) and **Manage connection** (`users`). The menu never shows the member's name, and its button reads "More: report, block or manage this member". The dialogs these rows open keep the name (for example "Block Fictional Sam?") so you can confirm who you're acting on.
+- **Chat ⋯ menu:** **Block** (`ban`), **Serious safety incident** (`shield`), **Hide this chat** (`eye-off`) and **End conversation** (`x`). The Block confirmation row keeps the name, like the profile dialogs.
+- Both menus use the same icons, from the one outline set (`UI/Icon.razor`, Lucide). `ban` is new.
