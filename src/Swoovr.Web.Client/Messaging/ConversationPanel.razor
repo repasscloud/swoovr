@@ -192,20 +192,19 @@
             if (await Members.ModesAsync() is { Ok: true } catalogue) modes = catalogue.Value!.ToList();
             var page = (await Members.MessagesAsync(Id)).Value;
             (messages, more, before) = (page?.Items.Reverse().Select(Project).ToList() ?? [], page?.More ?? false, page?.Before);
-            // Issue 542: open at the first message that was unread (the API counted before this read), else the newest.
-            // PR 579 review: when it's older than the newest page, load earlier pages until it's in (up to
-            // MaxUnreadPages more); past that, open at the oldest loaded message, which is unread too.
-            var received = messages.Where(Received).ToList();
-            for (var pages = 0; conversation.Unread > received.Count && more && pages < MaxUnreadPages; pages++)
+            // Issue 542: open at the first message that was unread, else the newest. PR 579 review: the API names it (a
+            // photo that passed late can sit above messages already read); when it's on an earlier page, load earlier
+            // pages until it's in (up to MaxUnreadPages more); past that, open at the oldest loaded message.
+            var unreadId = page?.FirstUnread;
+            for (var pages = 0; unreadId is { } wanted && messages.All(m => m.Id != wanted) && more && pages < MaxUnreadPages; pages++)
             {
                 var older = (await Members.MessagesAsync(Id, before)).Value;
                 if (older is null) break;
                 messages.InsertRange(0, older.Items.Reverse().Select(Project));
                 (more, before) = (older.More, older.Before);
-                received = messages.Where(Received).ToList();
             }
-            firstUnread = conversation.Unread <= 0 || received.Count == 0 ? null
-                : conversation.Unread <= received.Count ? received[^conversation.Unread].Id.ToString() : messages[0].Id.ToString();
+            firstUnread = unreadId is not { } found || messages.Count == 0 ? null
+                : messages.Any(m => m.Id == found) ? found.ToString() : messages[0].Id.ToString();
             hub = new MessagesHubClient(new Uri(Navigation.BaseUri + "bff/hubs/messages"));
             // A photo's state changes arrive as the same message again (#41): replace it in place.
             hub.Message += m => { if (m.ConversationId == Id) _ = InvokeAsync(async () => { followNew = await AtEndAsync(); Upsert(m); Replied(m); if (!m.Mine) _ = ReadLiveAsync(); StateHasChanged(); }); };
@@ -251,7 +250,6 @@
     private void ReportConversation() { (reportingConversation, chatMenu, reveal) = (true, false, "[data-chat-report-conversation]"); }
     private void OpenEnding() { (ending, chatMenu, reveal) = (true, false, "[data-end-form]"); }
     private void ReportMessage(MessageView m) { (reporting, menuFor, reveal) = (m.Id, null, "[data-chat-report-message]"); }
-    private static bool Received(MessageView m) => !m.Mine && m.Kind != "system" && !m.Deleted;
 
     private string ProfileLink => conversation is { ModeId: { } mode } ? $"/people/{conversation.Person.Id}?mode={mode}" : $"/people/{conversation?.Person.Id}";
     private string ModeLabel(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;

@@ -114,9 +114,13 @@ public static class MessagingEndpoints
                         || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null)))
                 .OrderByDescending(m => m.SentAt).ThenByDescending(m => m.Kind == MessageKind.System).ThenByDescending(m => m.Id).Take(MessagingPolicy.PageSize + 1).ToListAsync(cancellationToken);
             var page = rows.Take(MessagingPolicy.PageSize).ToList();
+            Guid? firstUnread = null;
             // #49: reading the conversation reads its message notifications (the member's own state; no read receipts).
             if (before is null)
             {
+                // PR 579 review: where the member's reading starts, found before this read moves their position.
+                firstUnread = await UnreadMessages(db, me).Where(m => m.ConversationId == id)
+                    .OrderBy(m => m.SentAt).ThenBy(m => m.Id).Select(m => (Guid?)m.Id).FirstOrDefaultAsync(cancellationToken);
                 // Issue 541: this member has now read the conversation (their own unread count; the sender is never told).
                 await MarkReadAsync(db, id, me, now, cancellationToken);
                 await db.Notifications.Where(n => n.AccountId == me && (n.Kind == NotificationKind.Message || n.Kind == NotificationKind.ConversationEnded) && n.SubjectId == id && n.ReadAt == null)
@@ -125,7 +129,7 @@ public static class MessagingEndpoints
             var media = await MediaForAsync(db, page, cancellationToken);
             var links = accounts.Services.GetRequiredService<Media.MediaLinks>();
             return Results.Ok(new MessagePage(page.Select(m => View(m, me, now, media.GetValueOrDefault(m.MediaId ?? Guid.Empty), links)).ToList(),
-                rows.Count > MessagingPolicy.PageSize, page.LastOrDefault()?.SentAt));
+                rows.Count > MessagingPolicy.PageSize, page.LastOrDefault()?.SentAt, firstUnread));
         });
 
         // Issue 541: a message that arrived live while the member had the conversation open is read too.

@@ -221,6 +221,22 @@ const MODES = ['dating', 'friends', 'activities', 'business'];
       const box = document.querySelector('[data-chat-scroll]').getBoundingClientRect(), at = document.querySelector(`[data-message="${first}"]`).getBoundingClientRect();
       return at.top >= box.top - 1 && at.top < box.bottom;
     }, oldestUnread), 'opens at the first unread message, from an earlier page'); pass();
+    // PR 579 review: an old photo that passed after the member read on is the first unread, though read messages follow it
+    // (and it's more than a page back). Seeded in SQL: a passed attachment row, no object needed.
+    const oldPhotoMedia = require('node:crypto').randomUUID(), oldPhoto = require('node:crypto').randomUUID();
+    await sql(`INSERT INTO media_items (id, account_id, status, sha256, upload_sha256, content_type, width, height, bytes, created_at, screen_attempts, known_content_checked, purpose, screened_at, conversation_id)
+      VALUES ('${oldPhotoMedia}', '${beaId}', 'Passed', '\\x00', '\\x00', 'image/jpeg', 400, 400, 1000, now() - interval '31 minutes', 1, true, 'attachment', now() + interval '1 second', '${withBea}')`);
+    await sql(`INSERT INTO messages (id, conversation_id, sender_account_id, kind, body, sent_at, media_id)
+      VALUES ('${oldPhoto}', '${withBea}', '${beaId}', 'Photo', '', now() - interval '30 minutes' - interval '1 second', '${oldPhotoMedia}')`);
+    await new Promise(r => setTimeout(r, 1200));
+    assert.equal((await list('me')).find(c => c.id === withBea).unread, 1, 'only the late photo is unread'); pass();
+    await page.goto(web + `/chats/${withBea}`);
+    await page.waitForSelector(`[data-conversation=ready] [data-message="${oldPhoto}"]`); pass();
+    await page.waitForTimeout(300);
+    assert.ok(await page.evaluate(first => {
+      const box = document.querySelector('[data-chat-scroll]').getBoundingClientRect(), at = document.querySelector(`[data-message="${first}"]`).getBoundingClientRect();
+      return at.top >= box.top - 1 && at.top < box.bottom;
+    }, oldPhoto), 'opens at the late photo, not the last read message'); pass();
     await context.close();
     console.log(`PASS: chats web (issues 541, 542), ${passed} checks.`);
   } finally {
