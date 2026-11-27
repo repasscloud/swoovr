@@ -4,7 +4,8 @@ namespace Swoovr.Domain;
 /// What a notification is about (#49). Account notices (D135) can't be turned off; the rest follow the member's settings.
 /// Message requests in Swoovr are connection requests: people can only message once connected (D143).
 /// </summary>
-public enum NotificationKind { Message, Request, Connection, Travel, Account, ConversationEnded, MeetingSafety, ReportOutcome, PolicyChange, PhotoDecision, Support }
+/// <remarks>Issue 588 (D446): Announcement is a notification Swoovr sends to every member; it opens its own read-only page.</remarks>
+public enum NotificationKind { Message, Request, Connection, Travel, Account, ConversationEnded, MeetingSafety, ReportOutcome, PolicyChange, PhotoDecision, Support, Announcement }
 
 /// <summary>
 /// A reply from Swoovr support to the member's own request (helpdesk ticket). Ids only: the ticket number is packed into the

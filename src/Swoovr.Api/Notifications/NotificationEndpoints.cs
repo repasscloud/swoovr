@@ -31,6 +31,8 @@ public static class NotificationLinks
         NotificationKind.Travel => "/travel",
         NotificationKind.MeetingSafety => "/me/meeting-safety",
         NotificationKind.PolicyChange => await PolicyLinkAsync(db,n.SubjectId,cancellationToken),
+        // Issue 588 (D446): the announcement's own page, reachable only from here.
+        NotificationKind.Announcement when n.SubjectId is { } announcement => $"/me/notifications/announcements/{announcement}",
         _ => "/me/notices",
     };
 
@@ -251,9 +253,12 @@ public static class NotificationEndpoints
         var publicationIds=rows.Where(n=>n.Kind==NotificationKind.PolicyChange&&n.SubjectId!=null).Select(n=>n.SubjectId!.Value).ToList();
         var publications=await db.Set<PolicyNoticePublication>().AsNoTracking().Where(p=>publicationIds.Contains(p.Id)).ToDictionaryAsync(p=>p.Id,cancellationToken);
         var ownPublicationIds=await db.Set<PolicyNoticeRecipient>().Where(r=>r.AccountId==me&&r.Status=="centre-recorded"&&publicationIds.Contains(r.PublicationId)).Select(r=>r.PublicationId).ToListAsync(cancellationToken);
+        var broadcastIds = rows.Where(n => n.Kind == NotificationKind.Announcement && n.SubjectId != null).Select(n => n.SubjectId!.Value).ToList();
+        var broadcasts = await db.Broadcasts.AsNoTracking().Where(b => broadcastIds.Contains(b.Id) && b.WithdrawnAt == null).ToDictionaryAsync(b => b.Id, b => b.Title, cancellationToken);
         var items = new List<NotificationView>();
         foreach (var n in rows)
         {
+            if (n.Kind == NotificationKind.Announcement && (n.SubjectId is not { } broadcast || !broadcasts.ContainsKey(broadcast))) continue;
             if(n.Kind==NotificationKind.ReportOutcome&&(n.SubjectId is not{}source||!ownOutcomes.Contains(source)||n.ActorAccountId!=null||n.ModeId!=null))continue;
             if(n.Kind==NotificationKind.PolicyChange&&(n.ActorAccountId!=null||n.ModeId!=null||n.SubjectId is not{}publicationId
                 ||!ownPublicationIds.Contains(publicationId)||!publications.TryGetValue(publicationId,out var publication)
@@ -266,6 +271,7 @@ public static class NotificationEndpoints
             string? title = n.Kind switch
             {
                 NotificationKind.PolicyChange => "Safety policy update: "+publications[n.SubjectId!.Value].Title,
+                NotificationKind.Announcement => "From Swoovr: " + broadcasts[n.SubjectId!.Value],
                 NotificationKind.PhotoDecision => "There is an update to one of your photos. Open Your photos to review it.",
                 NotificationKind.Support => "Swoovr support replied to your request. Open Support to read it.",
                 NotificationKind.ReportOutcome => "There is an update to a report you submitted. Open Notices and reports to review it.",

@@ -1,0 +1,22 @@
+@page "/me/notifications/announcements/{Id:guid}"
+@* Issue 588 (D446): an announcement's own page, reached only from its notification. *@
+<PageTitle>From Swoovr — Swoovr</PageTitle>
+<SettingsShell Current="notifications">
+<div class="reading-page member-settings">
+@if (!signedIn)
+{
+    <div class="page-heading"><h1>From Swoovr</h1><p>Sign in to read it.</p></div>
+    <p class="account-actions"><a class="primary-link" href="/account/sign-in" data-enhance-nav="false">Sign in</a></p>
+}
+else
+{
+    <Swoovr.Web.Client.Notifications.AnnouncementPanel Id="Id" @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+}
+</div>
+</SettingsShell>
+@code {
+    [Parameter] public Guid Id { get; set; }
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    private bool signedIn;
+    protected override void OnInitialized() => signedIn = HttpContext.User.Identity?.IsAuthenticated == true;
+}
