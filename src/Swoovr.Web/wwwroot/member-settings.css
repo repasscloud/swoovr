@@ -665,3 +665,4 @@
 /* Issue 588 (D446): an announcement's text keeps its paragraphs. */
 .announcement-body p { margin: 0 0 12px; white-space: pre-line; }
 .announcement-body p:last-child { margin-bottom: 0; }
+.announcement-body + p { margin-top: 16px; }
