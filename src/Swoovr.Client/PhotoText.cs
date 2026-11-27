@@ -78,8 +78,6 @@ public static class PhotoText
     public const string AlbumsNeedId = "Adult photos need ID verification. Your albums can hold non-explicit photos now.";
     public const string ExplicitIntro = "Choose, for each profile, whether people can send you explicit photos in chat. It's off until you turn it on.";
     public const string ExplicitNeedsId = "Only ID Verified members can send or receive explicit media. Verify your ID to turn this on.";
-    /// <summary>Issue 416 (owner, 22 November 2026): no promise that nothing explicit can get through; say what to do if it does.</summary>
-    public const string ExplicitBlocked = "Where this is off, explicit media isn't delivered to that profile. Every photo is checked before it's sent, and we make every effort to stop nudity getting through. If you receive something you shouldn't have, report the message it came in and our safety team will look into it.";
 
     /// <summary>#231: a member's own photo, as the library shows it.</summary>
     public static string Short(string state, bool albumOnly) => state switch

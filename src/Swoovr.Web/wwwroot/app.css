@@ -342,7 +342,9 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 .mode-choices { max-width: 420px; }
 .save-area { padding-top: 22px; border-top: 1px solid var(--border); }
 .save-area [role=status] { margin-bottom: 4px; }
-.save-area .quiet-button { max-width: 420px; margin-top: 14px; }
+/* Issue 565: appearance actions are natural-width buttons in a row, never full width. */
+.appearance-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.appearance-actions > .button, .appearance-actions > .quiet-button { width: auto; min-height: 44px; padding: 0 18px; font-size: .9375rem; }
 .appearance-preview { position: sticky; top: 24px; }
 .preview-title { font: var(--type-section); margin-bottom: 2px; }
 .sample-profile { padding-top: 16px; }
