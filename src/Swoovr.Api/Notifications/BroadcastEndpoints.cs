@@ -68,10 +68,12 @@ public static class BroadcastEndpoints
             return Results.Ok((await ViewsAsync(db, [broadcast], true, token)).Single());
         });
 
-        // The member's page for one announcement: only if it reached their centre and hasn't been withdrawn.
+        // The member's page for one announcement: only if it reached their centre and hasn't been withdrawn. Age-gated like
+        // the centre itself (a member waiting on age verification can read what's in their centre); barred members stay
+        // locked out, and their centres don't list announcements (D446).
         app.MapGet("/api/me/announcements/{id:guid}", async (Guid id, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken token) =>
         {
-            var (current, denied) = await MemberAsync(user, accounts, token);
+            var (current, denied) = await MemberAsync(user, accounts, token, ageGateExempt: true);
             if (denied is not null) return denied;
             var (db, me) = (accounts.Db!, current!.Account!.Id);
             var found = await (from b in db.Broadcasts
