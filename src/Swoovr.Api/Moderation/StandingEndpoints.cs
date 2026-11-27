@@ -99,7 +99,7 @@ public static class StandingEndpoints
         decisions.AddRange(refused.Select(at => new StandingDecision("photo-not-approved", at, null, null, null, null)));
 
         var removals=await db.Set<ContentRemoval>().AsNoTracking().Where(r=>r.SubjectAccountId==me).OrderByDescending(r=>r.RemovedAt).Take(100).Select(r=>new{r.Field,r.RemovedAt}).ToListAsync(cancellationToken);
-        decisions.AddRange(removals.Select(r=>new StandingDecision(r.Field=="message"?"message-removed":"profile-text-removed",r.RemovedAt,null,null,null,null)));
+        decisions.AddRange(removals.Select(r=>new StandingDecision(r.Field is "message" or "meetup-venue"?"message-removed":"profile-text-removed",r.RemovedAt,null,null,null,null)));
         var mine = await (from r in db.Reports join c in db.ModerationCases on r.CaseId equals c.Id join k in db.ReportCategories on r.CategoryId equals k.Id
                           where r.ReporterAccountId == me orderby r.CreatedAt descending
                           select new { Report = r, c.Status, k.Serious, Action = db.Sanctions.Any(s => s.CaseId == c.Id && s.StartsAt >= r.CreatedAt)||db.Set<ContentRemoval>().Any(a=>a.CaseId==c.Id&&a.RemovedAt>=r.CreatedAt) })
