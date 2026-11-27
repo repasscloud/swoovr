@@ -121,6 +121,21 @@ static class TextHarmRuntimeChecks
         var unsent=Message(unsentSubject,unsentConversation,"Fictional send me money unsent message",clock.Now);
         var unsentIntent=await MessageIntent(unsent);unsent.Body="";unsent.DeletedAt=clock.Now;await db.SaveChangesAsync();
         check("member-unsent source is skipped before candidate creation",(await processor.ProcessAsync(unsentIntent,default)).Result=="stale"&&!await db.Set<TextHarmReview>().AnyAsync(r=>r.SubjectAccountId==unsentSubject));
+        // PR 583 review: a meet-up card's note is the carrying message's body and is inspected, not skipped as stale.
+        var meetupSubject=await Member();var meetupPeer=await Member();var meetupConversation=await Conversation(meetupSubject,meetupPeer);
+        var meetupNote=Message(meetupSubject,meetupConversation,"Fictional send me money before our meet-up",clock.Now);meetupNote.Kind=MessageKind.Meetup;
+        var meetupResult=await processor.ProcessAsync(await MessageIntent(meetupNote),default);
+        check("meet-up note is inspected like a text message",meetupResult.Result=="created"&&await db.Set<TextHarmReview>().AnyAsync(r=>r.SubjectAccountId==meetupSubject));
+        // PR 583 review: earlier meet-up notes count in the repetition and recipient history; a card with no note doesn't.
+        var noteSubject=await Member();var notePeers=new[]{await Member(),await Member(),await Member(),await Member()};
+        var noteChats=new[]{await Conversation(noteSubject,notePeers[0]),await Conversation(noteSubject,notePeers[1]),await Conversation(noteSubject,notePeers[2]),await Conversation(noteSubject,notePeers[3])};
+        const string noteText="Fictional repeated meet-up note for the reading group";
+        Message Note(Guid chat,string text,int minutes){var m=Message(noteSubject,chat,text,clock.Now.AddMinutes(-minutes));m.Kind=MessageKind.Meetup;return m;}
+        db.Messages.AddRange(Note(noteChats[0],noteText,30),Note(noteChats[1],noteText,20),Note(noteChats[3],"",10));
+        await db.SaveChangesAsync();
+        await processor.ProcessAsync(await MessageIntent(Message(noteSubject,noteChats[2],noteText,clock.Now)),default);
+        var noteHistory=detector.Inputs.Last(i=>i.AccountId==noteSubject).History;
+        check("meet-up notes count in text-harm history, note-less cards don't",noteHistory.Complete&&noteHistory.SameTextMessagesLastHour==2&&noteHistory.DistinctRecipientsLastHour==3);
 
         // Actual server history: no supplied client counts. UUID tie order, future/old rows and current count are checked.
         var repeatedSubject=await Member();var peers=new[]{await Member(),await Member(),await Member(),await Member()};

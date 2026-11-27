@@ -1,0 +1,51 @@
+@* Issue 545 (D430): My meet-ups. Upcoming plans both accepted, invitations waiting, then past and closed ones; each opens
+   its chat, where every action lives. Only chats the member still has (never across a block). *@
+@inject MemberClient Members
+<div class="page-heading" data-meetups="@(loaded ? "ready" : "loading")"><h1>Meet-ups</h1></div>
+@if (!loaded) { <p role="status">Loading…</p> }
+else if (all.Count == 0)
+{
+    <p class="field-help" data-meetups-empty>No meet-ups yet. Plan one from a chat with + then Plan a meet-up.</p>
+}
+else
+{
+    @foreach (var (key, title, list) in Sections)
+    {
+        @if (list.Count > 0)
+        {
+            <section class="card meetups-section" aria-labelledby="@($"meetups-{key}")" data-meetups-section="@key">
+                <h2 id="@($"meetups-{key}")">@title</h2>
+                <ul class="meetups-list">
+                    @foreach (var m in list)
+                    {
+                        <li class="meetups-row" data-meetups-row="@m.Id">
+                            <div class="meetups-main">
+                                <p class="meetups-title">@m.CategoryLabel with @m.WithName</p>
+                                <p class="field-help">@MeetupText.When(m) · @m.Venue</p>
+                            </div>
+                            <span class="chip" data-meetups-state="@m.State">@MeetupText.State(m)</span>
+                            <a class="button button-secondary me-pill-button" href="@($"/chats/{m.ConversationId}")" data-meetups-open>Open chat</a>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    }
+}
+@code {
+    private bool loaded;
+    private List<MeetupView> all = [];
+
+    private IEnumerable<(string, string, List<MeetupView>)> Sections =>
+    [
+        ("upcoming", "Upcoming", all.Where(m => m.State == "accepted").ToList()),
+        ("waiting", "Waiting for a reply", all.Where(m => m.State == "pending").ToList()),
+        ("past", "Past and closed", all.Where(m => m.State is not ("accepted" or "pending")).OrderByDescending(m => m.StartsAt).ToList()),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        all = (await Members.MeetupsAsync()).Value ?? [];
+        loaded = true;
+    }
+}

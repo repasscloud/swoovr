@@ -68,6 +68,7 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageHide> MessageHides => Set<MessageHide>();
     public DbSet<ConversationHide> ConversationHides => Set<ConversationHide>();
+    public DbSet<Meetup> Meetups => Set<Meetup>();
     public DbSet<ConversationRead> ConversationReads => Set<ConversationRead>();
     public DbSet<Itinerary> Itineraries => Set<Itinerary>();
     public DbSet<IdVerificationAttempt> IdVerificationAttempts => Set<IdVerificationAttempt>();
@@ -871,6 +872,21 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             message.HasIndex(m => new { m.ConversationId, m.SentAt });
             message.HasIndex(m => new { m.SenderAccountId, m.SentAt });
             message.HasIndex(m => m.MediaId);
+        });
+        // Issue 545 (D430): private meet-up proposals; they go with the conversation, the message that carried them, and either member.
+        model.Entity<Meetup>(meetup =>
+        {
+            meetup.HasOne<Conversation>().WithMany().HasForeignKey(m => m.ConversationId).OnDelete(DeleteBehavior.Cascade);
+            meetup.HasOne<Message>().WithMany().HasForeignKey(m => m.MessageId).OnDelete(DeleteBehavior.Cascade);
+            meetup.HasOne<Account>().WithMany().HasForeignKey(m => m.ProposerAccountId).OnDelete(DeleteBehavior.Cascade);
+            meetup.HasOne<Account>().WithMany().HasForeignKey(m => m.RecipientAccountId).OnDelete(DeleteBehavior.Cascade);
+            meetup.Property(m => m.ModeId).HasMaxLength(32);
+            meetup.Property(m => m.Category).HasMaxLength(32);
+            meetup.Property(m => m.Venue).HasMaxLength(MeetupPolicy.VenueMax);
+            meetup.HasIndex(m => new { m.ConversationId, m.Status });
+            meetup.HasIndex(m => m.ProposerAccountId);
+            meetup.HasIndex(m => m.RecipientAccountId);
+            meetup.HasIndex(m => m.MessageId).IsUnique();
         });
         model.Entity<MessageHide>(hide =>
         {

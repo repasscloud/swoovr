@@ -1,0 +1,34 @@
+@* Issue 545 (Q193, D430; mockup section A): a private meet-up invitation as a card in the chat. What, when and where, the
+   note, and its state; the actions are the ones this member may take now (the API checks again). After acceptance: Add to
+   calendar (a file made on this device) and an optional link to start I'm meeting someone; nothing starts by itself. *@
+<div class="meetup-card" data-meetup="@Meetup.Id" data-meetup-state="@Meetup.State">
+    <p class="meetup-kicker"><Icon Name="calendar" Size="14" />Meet-up · <span data-meetup-status>@MeetupText.State(Meetup)</span></p>
+    <p class="meetup-title">@Meetup.CategoryLabel@(WithName is { Length: > 0 } ? $" with {WithName}" : "")</p>
+    <p class="meetup-line"><Icon Name="clock" Size="14" /><span data-meetup-when>@MeetupText.When(Meetup)@(MeetupText.Duration(Meetup.DurationMinutes) is { } d ? $" · {d}" : "")</span></p>
+    <p class="meetup-line"><Icon Name="pin" Size="14" /><span data-meetup-venue>@Meetup.Venue</span></p>
+    @if (Meetup.Note is { } note) { <p class="meetup-note" data-meetup-note>@note</p> }
+    @if (Meetup.CanAccept || Meetup.CanSuggest || Meetup.CanDecline || Meetup.CanWithdraw || Meetup.CanCancel || Meetup.State == "accepted")
+    {
+        <div class="meetup-actions">
+            @if (Meetup.CanAccept) { <button type="button" class="button meetup-button" disabled="@Busy" @onclick='() => Answer.InvokeAsync("accept")' data-meetup-accept>Accept</button> }
+            @if (Meetup.CanSuggest) { <button type="button" class="button button-secondary meetup-button" disabled="@Busy" @onclick="() => Suggest.InvokeAsync()" data-meetup-suggest>Suggest changes</button> }
+            @if (Meetup.CanDecline) { <button type="button" class="button button-secondary meetup-button" disabled="@Busy" @onclick='() => Answer.InvokeAsync("decline")' data-meetup-decline>Decline</button> }
+            @if (Meetup.CanWithdraw) { <button type="button" class="button button-secondary meetup-button" disabled="@Busy" @onclick='() => Answer.InvokeAsync("withdraw")' data-meetup-withdraw>Withdraw</button> }
+            @if (Meetup.State == "accepted")
+            {
+                <button type="button" class="button meetup-button" @onclick="() => Calendar.InvokeAsync()" data-meetup-calendar>Add to calendar</button>
+                <a class="button button-secondary meetup-button" href="/me/meeting-safety" data-meetup-safety>I'm meeting someone</a>
+            }
+            @if (Meetup.CanCancel) { <button type="button" class="button button-secondary button-destructive meetup-button" disabled="@Busy" @onclick='() => Answer.InvokeAsync("cancel")' data-meetup-cancel>Call off</button> }
+        </div>
+    }
+    @if (Meetup.State is "pending" or "accepted") { <p class="field-help meetup-private">@MeetupText.Private</p> }
+</div>
+@code {
+    [Parameter, EditorRequired] public MeetupView Meetup { get; set; } = default!;
+    [Parameter] public string? WithName { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<string> Answer { get; set; }
+    [Parameter] public EventCallback Suggest { get; set; }
+    [Parameter] public EventCallback Calendar { get; set; }
+}

@@ -1,0 +1,63 @@
+@* Issue 545 (D430): plan a meet-up, or suggest changes to one. What (the chat mode's categories), where (free text: venue
+   records and their lookup come later, #42), when (the member's own time zone), an optional length and an optional note.
+   One compact form; nothing is sent until Send. *@
+@inject MemberClient Members
+<form class="stack meetup-form" @onsubmit="SubmitAsync" data-meetup-form>
+    <fieldset class="meetup-categories">
+        <legend>What would you like to do?</legend>
+        <div class="chip-row">
+            @foreach (var c in categories)
+            {
+                <label class="chip meetup-chip@(category == c.Id ? " is-on" : "")"><input type="radio" class="visually-hidden" name="meetup-category" value="@c.Id" checked="@(category == c.Id)" @onchange="() => category = c.Id" data-meetup-category="@c.Id" />@c.Label</label>
+            }
+        </div>
+    </fieldset>
+    <div class="field"><label for="meetup-venue">Where</label><input id="meetup-venue" maxlength="120" required placeholder="Venue, or suburb to decide together" @bind="venue" @bind:event="oninput" data-meetup-venue-input /></div>
+    <div class="meetup-when">
+        <div class="field"><label for="meetup-date">Date</label><input id="meetup-date" type="date" required min="@DateTime.Now.ToString("yyyy-MM-dd")" max="@DateTime.Now.AddDays(90).ToString("yyyy-MM-dd")" @bind="date" data-meetup-date /></div>
+        <div class="field"><label for="meetup-time">Time</label><input id="meetup-time" type="time" required step="900" @bind="time" data-meetup-time /></div>
+        <div class="field"><label for="meetup-duration">How long (optional)</label>
+            <select id="meetup-duration" @bind="duration" data-meetup-duration><option value="0">Not set</option>@foreach (var d in MeetupText.Durations) { <option value="@d.Minutes">@d.Label</option> }</select></div>
+    </div>
+    <div class="field"><label for="meetup-note">Message (optional)</label><textarea id="meetup-note" maxlength="280" rows="2" @bind="note" @bind:event="oninput" data-meetup-note-input></textarea></div>
+    <p class="field-help">@MeetupText.Private</p>
+    <div class="dialog-actions">
+        <button type="button" class="button button-secondary" @onclick="() => Cancel.InvokeAsync()">Cancel</button>
+        <button type="submit" class="button" disabled="@(busy || category is null || string.IsNullOrWhiteSpace(venue) || date is null || time is null)" data-meetup-send>@(Initial is null ? "Send invitation" : "Send suggestion")</button>
+    </div>
+    <p role="status" aria-live="polite" class="field-help" data-meetup-form-status>@Message</p>
+</form>
+@code {
+    [Parameter] public string? Mode { get; set; }
+    /// <summary>The invitation being changed (suggest changes), to start from its details.</summary>
+    [Parameter] public MeetupView? Initial { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public EventCallback<MeetupRequest> Submit { get; set; }
+    [Parameter] public EventCallback Cancel { get; set; }
+    private List<MeetupCategoryView> categories = [];
+    private string? category, venue, note;
+    private DateOnly? date;
+    private TimeOnly? time;
+    private int duration;
+    private bool busy => Busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = (await Members.MeetupCategoriesAsync(Initial?.ModeId ?? Mode)).Value ?? [];
+        if (Initial is { } m)
+        {
+            var local = m.StartsAt.ToLocalTime();
+            (category, venue, date, time, duration) = (m.Category, m.Venue, DateOnly.FromDateTime(local.DateTime), TimeOnly.FromDateTime(local.DateTime), m.DurationMinutes ?? 0);
+        }
+    }
+
+    private Task SubmitAsync()
+    {
+        if (category is null || date is not { } day || time is not { } at) return Task.CompletedTask;
+        // The member's own clock: the offset of that local moment, so the other member sees it in their own time zone.
+        var local = day.ToDateTime(at);
+        var starts = new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local));
+        return Submit.InvokeAsync(new MeetupRequest(category, venue, starts, duration == 0 ? null : duration, string.IsNullOrWhiteSpace(note) ? null : note));
+    }
+}

@@ -37,6 +37,16 @@ static class ContentRemovalChecks
         Check(MessageText.ApplyKnownRemoval(mark,removed).Text==MessageText.RemovedBody,"typed removal is recognised");
         var delayed=MessageText.ApplyKnownRemoval(original,removed);
         Check(delayed.Kind==MessageText.RemovedKind&&delayed.Text==MessageText.RemovedBody&&!delayed.CanDelete&&!delayed.Deleted,"delayed response cannot revive removed text or relabel it as an unsend");
+        // PR 583 review: a removed meet-up note keeps the card and its controls, and a delayed response can't revive the note.
+        var plan=new MeetupView(Guid.NewGuid(),Guid.NewGuid(),"dating","dinner","Dinner","Fictional Bistro",DateTimeOffset.UtcNow.AddDays(2),null,"Fictional note","pending",false,true,true,true,false,false);
+        var card=new MessageView(Guid.NewGuid(),plan.ConversationId,false,"meetup","Fictional note",DateTimeOffset.UtcNow,false,Meetup:plan);
+        var cardRemoved=new HashSet<Guid>();
+        var sanitized=MessageText.ApplyKnownRemoval(card with{Text=MessageText.RemovedBody,Meetup=plan with{Note=MessageText.RemovedBody}},cardRemoved);
+        Check(sanitized.Kind=="meetup"&&sanitized.Meetup is{CanAccept:true,CanDecline:true}&&cardRemoved.Contains(card.Id),"removed meet-up note keeps the card and its controls");
+        var revived=MessageText.ApplyKnownRemoval(card,cardRemoved);
+        Check(revived.Kind=="meetup"&&revived.Meetup?.Note==MessageText.RemovedBody&&revived.Text==MessageText.RemovedBody&&revived.Meetup.CanAccept,"delayed meet-up response can't revive the removed note");
+        var legacy=MessageText.ApplyKnownRemoval(card with{Kind=MessageText.RemovedKind,Text=MessageText.RemovedBody,Meetup=null},new HashSet<Guid>());
+        Check(legacy.Kind==MessageText.RemovedKind,"a card-less removal still reads as removed");
         Console.WriteLine($"PASS: {count} content-removal policy cases.");
     }
 }

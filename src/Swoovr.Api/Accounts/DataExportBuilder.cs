@@ -51,6 +51,9 @@ public static class DataExportBuilder
         // #41: photo messages appear as they do in the chat: the member's own with their state, the other person's once passed.
         var mediaIds = messages.SelectMany(g => g).Where(m => m.MediaId is not null).Select(m => m.MediaId!.Value).ToList();
         var media = await db.MediaItems.Where(i => mediaIds.Contains(i.Id)).ToDictionaryAsync(i => i.Id, cancellationToken);
+        // Issue 545: the member's meet-up plans, each with its state (the note is in the chat's messages).
+        var meetups = (await db.Meetups.Where(m => conversationIds.Contains(m.ConversationId)).OrderBy(m => m.CreatedAt).ToListAsync(cancellationToken))
+            .ToLookup(m => m.ConversationId);
         var chats = conversations.Select(c => new
         {
             with = Name(c.PairLow == id ? c.PairHigh : c.PairLow, c.OriginModeId), c.OriginModeId, c.CreatedAt, c.ClosedAt,
@@ -62,6 +65,7 @@ public static class DataExportBuilder
                     removedByModeration = m.ModerationRemovedAt is not null, deleted = m.DeletedAt is not null, photo = m.DeletedAt is null ? m.MediaId : null,
                     photoState = m.SenderAccountId == id && m.DeletedAt is null && m.MediaId is { } p && media.TryGetValue(p, out var item) ? MediaPolicy.MemberState(item.Status) : null,
                 }),
+            meetups = meetups[c.Id].Select(m => new { proposedBy = m.ProposerAccountId == id ? "you" : "them", m.Category, m.Venue, m.StartsAt, m.DurationMinutes, status = m.Status.ToString().ToLowerInvariant(), m.CreatedAt }),
         });
 
         var reports = await db.Reports.Where(r => r.ReporterAccountId == id).OrderBy(r => r.CreatedAt)

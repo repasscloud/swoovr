@@ -1190,3 +1190,29 @@ body:has(.public-layout) { padding-bottom: 0; }
 .trip-list .request-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 [data-trip-form] > .button { justify-self: start; }
 .location-stop { margin-top: 16px; }
+/* Issue 545 (D430): private meet-up cards in a chat, the plan form, and My meet-ups. Content-width buttons only. */
+.chat-thread .bubble.meetup { width: min(100%, 22rem); max-width: min(100%, 22rem); padding: 12px 14px 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.chat-thread .bubble.meetup.mine { background: var(--surface); color: var(--text); }
+.chat-thread .bubble.meetup .field-help { color: var(--muted); }
+.meetup-card { display: grid; gap: 6px; flex: 1 1 100%; min-width: 0; }
+.meetup-card p { margin: 0; }
+.meetup-kicker { display: flex; align-items: center; gap: 6px; color: var(--muted); font: var(--type-small); }
+.meetup-title { font: 700 1rem/1.3 var(--font); }
+.meetup-line { display: flex; align-items: center; gap: 6px; font: var(--type-body); }
+.meetup-note { padding: 8px 10px; border-radius: 10px; background: var(--soft); color: var(--softText); font: var(--type-body); }
+.meetup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.meetup-actions .meetup-button { width: auto; min-height: 38px; padding: 0 14px; font-size: .875rem; text-decoration: none; }
+.meetup-private { font: var(--type-small); }
+.meetup-form .chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; padding: 0; }
+.meetup-categories { margin: 0; padding: 0; border: 0; }
+.meetup-categories legend { font-weight: 600; margin-bottom: 4px; }
+.meetup-chip { cursor: pointer; }
+.meetup-chip:has(input:focus-visible) { outline: 3px solid var(--text); outline-offset: 1px; }
+.meetup-when { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 10px; }
+.meetups-section { margin: 0 0 16px; }
+.meetups-list { list-style: none; margin: 0; padding: 0; }
+.meetups-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+.meetups-row:first-child { border-top: 0; }
+.meetups-main { flex: 1 1 14rem; min-width: 0; }
+.meetups-main p { margin: 0; }
+.meetups-title { font-weight: 700; }

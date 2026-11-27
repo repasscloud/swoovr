@@ -20,7 +20,7 @@ namespace Swoovr.Api.Connections;
 /// Delete for both within five minutes; hide a message or a conversation for oneself. Moderators have no route to
 /// conversations: only report evidence reaches a case. The audit holds ids only, never message text.
 /// </summary>
-public static class MessagingEndpoints
+public static partial class MessagingEndpoints
 {
     public static void Map(WebApplication app)
     {
@@ -128,7 +128,9 @@ public static class MessagingEndpoints
             }
             var media = await MediaForAsync(db, page, cancellationToken);
             var links = accounts.Services.GetRequiredService<Media.MediaLinks>();
-            return Results.Ok(new MessagePage(page.Select(m => View(m, me, now, media.GetValueOrDefault(m.MediaId ?? Guid.Empty), links)).ToList(),
+            // Issue 545: each meet-up card with its current state.
+            var meetups = await MeetupsForAsync(db, conversation, page, me, now, cancellationToken);
+            return Results.Ok(new MessagePage(page.Select(m => View(m, me, now, media.GetValueOrDefault(m.MediaId ?? Guid.Empty), links, meetups.GetValueOrDefault(m.Id))).ToList(),
                 rows.Count > MessagingPolicy.PageSize, page.LastOrDefault()?.SentAt, firstUnread));
         });
 
@@ -339,6 +341,7 @@ public static class MessagingEndpoints
                     Audit.Record(db, now, me, "account", "request.disconnected", "connection-request", accepted.Id.ToString(), accepted.ModeId);
             (conversation.ClosedAt, conversation.ClosedReason, conversation.LastMessageAt) = (now, ClosedReasons.MemberEnded, now);
             Audit.Record(db, now, me, "account", "conversation.ended", "conversation", id.ToString(), "MemberEnded");
+            await CallOffMeetupsAsync(db, id, now, cancellationToken); // issue 545
             var notifier = accounts.Services.GetRequiredService<Notifications.Notifier>();
             var queuedNotification = await notifier.QueueClosureAsync(other, me, id, now, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
@@ -407,14 +410,14 @@ public static class MessagingEndpoints
         return limit is { } cap ? (cap, await UnansweredCountAsync(db, conversation, sender, recipient, cap, cancellationToken)) : (null, 0);
     }
 
-    /// <summary>#300: the sender's consecutive text and photo messages after the recipient's last one, counted up to cap (index conversation_id, sent_at).</summary>
+    /// <summary>#300: the sender's consecutive text, photo and meet-up messages after the recipient's last one, counted up to cap (index conversation_id, sent_at). PR 583 review: a meet-up invitation counts and resets the run like any message.</summary>
     public static async Task<int> UnansweredCountAsync(SwoovrDbContext db, Guid conversation, Guid sender, Guid recipient, int cap, CancellationToken cancellationToken)
     {
         var lastReply = await db.Messages.Where(m => m.ConversationId == conversation && m.SenderAccountId == recipient
-                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo))
+                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo || m.Kind == MessageKind.Meetup))
             .MaxAsync(m => (DateTimeOffset?)m.SentAt, cancellationToken);
         return await db.Messages.Where(m => m.ConversationId == conversation && m.SenderAccountId == sender
-                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo) && (lastReply == null || m.SentAt > lastReply))
+                && (m.Kind == MessageKind.Text || m.Kind == MessageKind.Photo || m.Kind == MessageKind.Meetup) && (lastReply == null || m.SentAt > lastReply))
             .Take(cap).CountAsync(cancellationToken);
     }
 
@@ -462,9 +465,12 @@ public static class MessagingEndpoints
     /// A message for one viewer. A photo message carries a short-lived link once it passed (never after delete for both),
     /// and its state for the sender only (a blocked photo reads as not approved, procedure §4).
     /// </summary>
-    public static MessageView View(Message message, Guid viewer, DateTimeOffset now, MediaItem? media = null, Media.MediaLinks? links = null)
+    public static MessageView View(Message message, Guid viewer, DateTimeOffset now, MediaItem? media = null, Media.MediaLinks? links = null, MeetupView? meetup = null)
     {
-        if(message.ModerationRemovedAt!=null)return new(message.Id,message.ConversationId,message.SenderAccountId==viewer,"removed-by-moderation","Removed by Swoovr.",message.SentAt,false);
+        // PR 583 review: removing a meet-up's note keeps its card and controls (the note reads "Removed by Swoovr."), so the plan
+        // can still be answered and never blocks the chat's next invitation.
+        if(message.ModerationRemovedAt!=null&&!(message.Kind==MessageKind.Meetup&&meetup is not null))
+            return new(message.Id,message.ConversationId,message.SenderAccountId==viewer,"removed-by-moderation","Removed by Swoovr.",message.SentAt,false);
         if (message.Kind == MessageKind.System)
             return new(message.Id, message.ConversationId, false, "system", ConversationEnding.SystemText(message.SenderAccountId == viewer), message.SentAt, false);
         PhotoView? photo = null;
@@ -475,7 +481,7 @@ public static class MessagingEndpoints
             if (message.SenderAccountId == viewer) state = media.RemovedAt is not null ? "removed" : MediaPolicy.MemberState(media.Status);
         }
         return new(message.Id, message.ConversationId, message.SenderAccountId == viewer, Wire(message.Kind), MessagingPolicy.VisibleText(message), message.SentAt,
-            MessagingPolicy.MayDeleteForBoth(message, viewer, now), message.DeletedAt is not null, photo, state);
+            MessagingPolicy.MayDeleteForBoth(message, viewer, now), message.DeletedAt is not null, photo, state, meetup);
     }
 
     private static async Task<Dictionary<Guid, MediaItem>> MediaForAsync(SwoovrDbContext db, IEnumerable<Message> messages, CancellationToken cancellationToken)
@@ -631,6 +637,7 @@ public static class MessagingEndpoints
         {
             (open.ClosedAt, open.ClosedReason) = (now, ClosedReasons.Blocked);
             Audit.Record(db, now, null, "system", "conversation.closed", "conversation", open.Id.ToString(), "block");
+            await CallOffMeetupsAsync(db, open.Id, now, cancellationToken); // issue 545
         }
         return open;
     }
@@ -678,6 +685,7 @@ public static class MessagingEndpoints
         if (open is null) return null;
         (open.ClosedAt, open.ClosedReason) = (now, ClosedReasons.Disconnected);
         Audit.Record(db, now, null, "system", "conversation.closed", "conversation", open.Id.ToString(), "disconnect");
+        await CallOffMeetupsAsync(db, open.Id, now, cancellationToken); // issue 545
         return open;
     }
 }

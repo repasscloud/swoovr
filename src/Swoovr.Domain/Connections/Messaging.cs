@@ -30,7 +30,7 @@ public static class ClosedReasons
 }
 
 /// <summary>What a message carries: text, or one photo through the media quarantine (#41, D203; policy §5).</summary>
-public enum MessageKind { Text, Photo, Farewell, System }
+public enum MessageKind { Text, Photo, Farewell, System, Meetup }
 
 /// <summary>
 /// A message. Deleting for both (within five minutes, rule 8) shows it to both members as deleted at once; its text
@@ -50,6 +50,8 @@ public sealed class Message
     public Guid? ModerationRemovalId { get; set; }
     /// <summary>A photo message's media item (purpose "attachment"); the recipient sees it only once it passed screening.</summary>
     public Guid? MediaId { get; set; }
+    /// <summary>Issue 545 (D430): a meet-up invitation's card in the thread; its state lives on the <see cref="Meetup"/>.</summary>
+    public Guid? MeetupId { get; set; }
 }
 
 /// <summary>A message one member hid from their own view (rule 9); the other member still sees it.</summary>

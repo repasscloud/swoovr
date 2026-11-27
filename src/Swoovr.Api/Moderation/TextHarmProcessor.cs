@@ -106,7 +106,9 @@ public sealed class TextHarmProcessor(SwoovrDbContext db,EvidenceKeys keys,Evide
         if(intent.Source==TextHarmSource.ModeAbout)
             return intent.SourceId==intent.AccountId&&intent.ModeId is not null&&await db.MemberModes.AnyAsync(m=>m.AccountId==intent.AccountId&&m.ModeId==intent.ModeId&&m.TextRevision==intent.Revision&&m.About==text,token)?new(null):null;
         if(intent.Source!=TextHarmSource.Message||intent.ModeId is not null||intent.Revision!=intent.SourceId)return null;
-        var message=await db.Messages.AsNoTracking().SingleOrDefaultAsync(m=>m.Id==intent.SourceId&&m.SenderAccountId==intent.AccountId&&m.Kind==MessageKind.Text
+        var message=await db.Messages.AsNoTracking().SingleOrDefaultAsync(m=>m.Id==intent.SourceId&&m.SenderAccountId==intent.AccountId
+            // PR 583 review: a meet-up's optional note is the carrying message's body, screened like any message.
+            &&(m.Kind==MessageKind.Text||m.Kind==MessageKind.Meetup)
             &&m.DeletedAt==null&&m.ModerationRemovedAt==null&&m.Body==text,token);
         return message is null?null:new(message);
     }
@@ -116,7 +118,7 @@ public sealed class TextHarmProcessor(SwoovrDbContext db,EvidenceKeys keys,Evide
         var rows=await db.Database.SqlQuery<HistoryRow>($"""
             SELECT m.id AS "Id", m.body AS "Body", CASE WHEN c.pair_low={message.SenderAccountId} THEN c.pair_high ELSE c.pair_low END AS "Recipient"
             FROM messages m JOIN conversations c ON c.id=m.conversation_id
-            WHERE m.sender_account_id={message.SenderAccountId} AND m.kind='Text'
+            WHERE m.sender_account_id={message.SenderAccountId} AND (m.kind='Text' OR (m.kind='Meetup' AND m.body<>''))
               AND m.deleted_at IS NULL AND m.moderation_removed_at IS NULL
               AND m.sent_at>={lower} AND (m.sent_at<{message.SentAt} OR (m.sent_at={message.SentAt} AND m.id<{message.Id}))
               AND (c.pair_low={message.SenderAccountId} OR c.pair_high={message.SenderAccountId})

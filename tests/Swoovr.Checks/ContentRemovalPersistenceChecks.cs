@@ -97,9 +97,18 @@ static class ContentRemovalPersistenceChecks
         check("removed source deletion cannot erase independent case evidence",(await service.EvidenceAsync(actor,review,messageCommand.CommandId,default)).Text=="Fictional reported message");
 
         var closed=await db.ModerationCases.SingleAsync(c=>c.Id==review);closed.Status=CaseStatus.Closed;closed.ClosedAt=DateTimeOffset.UtcNow.AddMonths(-13);closed.ClosedBy=actor;await db.SaveChangesAsync();
+        // PR 583 review: a held meet-up message keeps its plan (place, time, state), not only its note, before any cascade deletes it.
+        var meetupMessage=Guid.NewGuid();var meetup=Guid.NewGuid();
+        db.Messages.Add(new(){Id=meetupMessage,ConversationId=conversation,SenderAccountId=subject,Kind=MessageKind.Meetup,Body="",SentAt=now,MeetupId=meetup});
+        db.Meetups.Add(new(){Id=meetup,ConversationId=conversation,MessageId=meetupMessage,ModeId="dating",ProposerAccountId=subject,RecipientAccountId=reporter,
+            Category="dinner",Venue="Fictional Held Bistro",StartsAt=now.AddDays(3),Status=MeetupStatus.Accepted,CreatedAt=now});
+        await db.SaveChangesAsync();
         var hold=new LegalHold{Id=Guid.NewGuid(),CaseId=review,Status=LegalHoldStatus.Active,PlacedAt=now,ReviewDue=DateTimeOffset.UtcNow.AddDays(30),PlacedByRole=AccountRole.Legal,Reason="Fictional content preservation",RelatedAccountIds=[subject,reporter],RetentionCaseIds=[review]};db.LegalHolds.Add(hold);await db.SaveChangesAsync();
         db.LegalHoldScopes.AddRange(new LegalHoldScope{HoldId=hold.Id,Kind=HoldScopeKind.Account,TargetId=subject},new LegalHoldScope{HoldId=hold.Id,Kind=HoldScopeKind.Account,TargetId=reporter});await db.SaveChangesAsync();
         await scope.ServiceProvider.GetRequiredService<EvidencePreservation>().CaptureAsync(hold,actor,now,default);
+        var heldMeetup=await db.EvidenceItems.AsNoTracking().SingleAsync(e=>e.HoldId==hold.Id&&e.Kind=="message"&&e.RecordId==meetupMessage.ToString());
+        var heldPlan=EvidenceSeal.Open(scope.ServiceProvider.GetRequiredService<EvidenceKeys>().Encryption,heldMeetup.Sealed);
+        check("held meet-up message evidence carries its plan",heldPlan.Contains("Fictional Held Bistro")&&heldPlan.Contains("\"category\":\"dinner\"")&&heldPlan.Contains("\"status\":\"Accepted\"")&&heldPlan.Contains(meetup.ToString()));
         check("a later hold captures independent removed evidence after the message source disappeared",await db.EvidenceItems.AnyAsync(e=>e.HoldId==hold.Id&&e.Kind=="content-removal"&&e.RecordId==messageCommand.CommandId.ToString()));
         var retention=new Swoovr.Api.Retention.SafetyRetention(db,scope.ServiceProvider.GetRequiredService<EvidencePreservation>());
         await retention.PurgeAsync(DateTimeOffset.UtcNow,default,onlyCase:review);

@@ -22,6 +22,8 @@ public static class ContentRemovalEndpoints
                 if(!result.AlreadyApplied&&request.Field=="message"&&request.MessageId is{}messageId)
                 {
                     var message=await accounts.Db!.Messages.AsNoTracking().SingleAsync(m=>m.Id==messageId,token);
+                    // PR 583 review: a meet-up keeps its card and controls; only the note reads "Removed by Swoovr.".
+                    if(message.Kind==MessageKind.Meetup&&message.MeetupId is{}plan){await MessagingEndpoints.SendMeetupCardAsync(accounts.Services,accounts.Db,plan,clock.GetUtcNow(),token);return Results.Ok(result);}
                     var conversation=await accounts.Db.Conversations.AsNoTracking().SingleAsync(c=>c.Id==message.ConversationId,token);
                     // Reuse the existing typed upsert event; never describe staff removal as a member unsend.
                     foreach(var member in new[]{conversation.PairLow,conversation.PairHigh})
