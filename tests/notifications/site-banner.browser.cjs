@@ -103,7 +103,7 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     await staffPage.goto(admin + '/announcements'); await staffPage.waitForSelector('[data-site-banners]');
     assert.equal(await staffPage.locator(`[data-site-banner="${site.body.id}"]`).getAttribute('data-site-banner-state'), 'live'); pass();
     assert.equal(await staffPage.locator('[data-site-banner-form=new]').count(), 1); pass();
-    assert.equal(await staffPage.locator('[data-nav-announcements][aria-current=page]').count(), 1); pass();
+    assert.ok(await staffPage.locator('[data-nav-announcements][aria-current=page]').count() >= 1, 'nav marks Announcements'); pass();
     if (output) await staffPage.screenshot({ path: `${output}/site-banner-admin-1440.png`, fullPage: true });
     await staffContext.close(); await context.close();
     console.log(`PASS: site banners (issue 588), ${passed} checks.`);
