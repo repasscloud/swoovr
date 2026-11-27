@@ -64,6 +64,7 @@ AccountPolicyChecks.Run();
 AccountSearchChecks.Run();
 RegistrationPolicyChecks.Run();
 RegisteredNameChecks.Run();
+ProfileShownChangeChecks.Run();
 ContactChangeEvidenceChecks.Run();
 DiscoveryPolicyChecks.Run();
 ConnectionModeChecks.Run();

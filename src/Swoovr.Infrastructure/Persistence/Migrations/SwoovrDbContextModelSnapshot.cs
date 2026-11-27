@@ -4717,10 +4717,18 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("gender_id");
 
+                    b.Property<DateTimeOffset?>("OrientationChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("orientation_changed_at");
+
                     b.Property<string>("OrientationId")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("orientation_id");
+
+                    b.Property<DateTimeOffset?>("PresentationChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("presentation_changed_at");
 
                     b.Property<string>("PronounId")
                         .HasMaxLength(32)

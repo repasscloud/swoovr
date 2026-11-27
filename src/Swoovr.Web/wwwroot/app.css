@@ -191,10 +191,11 @@ button.segment:focus-visible { outline: 3px solid var(--text); outline-offset: 1
 .badge-date { color: var(--muted); font-size: .75rem; margin-right: 4px; }
 .person-name { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .person-name h1 { margin: 0; }
-/* Issue 509: the name on the left, larger badges on the right; a long name wraps beside them. */
-.person-head { justify-content: space-between; align-items: flex-start; flex-wrap: nowrap; }
-.person-head h1 { min-width: 0; overflow-wrap: anywhere; }
-.person-badges { flex: none; flex-wrap: nowrap; gap: 8px; min-height: 44px; min-width: 44px; justify-content: flex-end; margin: 0 -6px 0 0; padding: 4px 6px; border: 0; border-radius: 12px; background: none; color: inherit; cursor: pointer; }
+/* Issue 568 (D436, replaces D417's top right): the badges beside the name, then the online dot; a long name wraps. */
+.person-head { justify-content: flex-start; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
+.person-head h1 { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.person-age { font-weight: 400; }
+.person-badges { flex: none; flex-wrap: nowrap; gap: 4px; min-height: 40px; min-width: 40px; justify-content: flex-start; margin: 0; padding: 4px 6px; border: 0; border-radius: 12px; background: none; color: inherit; cursor: pointer; }
 .person-badges:hover { background: var(--soft); }
 .person-badges:focus-visible { outline: 2px solid var(--text); outline-offset: 0; }
 .badge-list { display: grid; gap: 14px; margin: 0 0 20px; padding: 0; list-style: none; }
@@ -860,8 +861,7 @@ body:has(.public-layout) { padding-bottom: 0; }
 .safety-menu-item { display: flex; align-items: center; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 8px; background: none; color: var(--text); font: 500 .9375rem/1.2 var(--font); text-align: left; text-decoration: none; cursor: pointer; }
 .safety-menu-item:hover, .safety-menu-item:focus-visible { background: var(--soft); }
 .safety-menu-item:focus-visible { outline: 3px solid var(--text); outline-offset: -3px; }
-.person-connect-summary { margin: -12px 0 20px; }
-.person-message-status { margin: -12px 0 16px; }
+.person-message-status { margin: 8px 0 0; }
 .person-message-status:empty { display: none; }
 .dialog-backdrop[data-member-dialog]:focus { outline: none; }
 /* On a phone the menu spans the action bar, wherever the button wrapped to, so it never runs off the screen. */
@@ -914,6 +914,44 @@ body:has(.public-layout) { padding-bottom: 0; }
 .person-mode-name, .person-mode-fact { margin: 0 0 8px; }
 @media (min-width: 760px) {
   .person-layout-447 { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 32px; }
+  /* Issue 568: on a wide screen the lead photo no longer dominates the page. */
+  .person-gallery .person-photo-lead { aspect-ratio: auto; height: min(440px, 60vh); }
+}
+/* Issue 568: the profile v2 header card, The basics, the mode cards and the menu button. */
+.person-page-head { margin-bottom: 20px; }
+.person-header { display: grid; gap: 6px; margin: 8px 0 0; padding: 20px; }
+.person-header .person-facts { margin: 0; }
+.person-distance { gap: 4px; font: var(--type-small); }
+.person-online { margin: 0 2px; }
+.person-standing { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 2px 0 0; font: var(--type-small); }
+.person-standing-item { display: inline-flex; align-items: center; gap: 5px; }
+.person-header .person-action-bar { margin: 10px 0 0; }
+.person-action-bar .person-action { display: inline-flex; align-items: center; gap: 8px; }
+.person-more { display: inline-grid; place-items: center; width: 44px; height: 44px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); cursor: pointer; }
+.person-more:hover { border-color: var(--text); }
+.person-more:focus-visible { outline: 3px solid var(--text); outline-offset: 1px; }
+.person-header .safety-menu-list { left: 0; right: auto; }
+.safety-menu-item .icon { margin-right: 8px; }
+.person-basics { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr)); gap: 12px 24px; margin: 0; }
+.person-basics dt { color: var(--muted); font: var(--type-small); }
+.person-basics dd { margin: 2px 0 0; font-weight: 600; }
+.person-mode-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.person-mode-head .person-subhead { margin: 0 0 6px; }
+.person-mode-state { margin-left: auto; color: var(--muted); font: var(--type-small); }
+.person-mode-label { margin: 0 0 6px; color: var(--muted); font: var(--type-small); }
+.person-mode .person-about { margin: 10px 0 0; }
+.person-updated { margin: 0; }
+/* Issue 568: on a phone the actions stay on screen above the tab bar. */
+@media (max-width: 759px) {
+  .person-header .person-action-bar { position: fixed; z-index: 26; left: 0; right: 0; bottom: calc(var(--tab-bar) + env(safe-area-inset-bottom)); flex-wrap: nowrap; margin: 0; padding: 10px var(--gutter); border-top: 1px solid var(--border); background: var(--surface); }
+  .person-header .person-action-bar .person-action { min-width: 0; }
+  /* Room for the fixed bar, so the last card isn't hidden under it. */
+  .person-layout-447 { padding-bottom: 72px; }
+  /* The privacy pill moves up above the bar, so neither covers the other. */
+  .member-layout:has(.person-header .person-action-bar) .privacy-pill { bottom: calc(var(--tab-bar) + 76px + env(safe-area-inset-bottom)); }
+  .person-header .safety-menu { position: static; }
+  .person-header .safety-menu-list { top: auto; bottom: calc(100% + 6px); left: var(--gutter); right: var(--gutter); min-width: 0; }
+  .person-action-bar .person-action-main { flex: 1 1 auto; justify-content: center; }
 }
 
 /* Issue 442 (owner-approved demo): Explore's header. The mode switcher shares the heading row and wraps under it on a

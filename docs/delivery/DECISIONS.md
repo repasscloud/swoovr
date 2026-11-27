@@ -1791,3 +1791,23 @@ Builds D429 (Q192 A, A) for [#533](https://github.com/repasscloud/swoovr/issues/
   - **Ask Swoovr to check it:** opens an admin review in the existing name-review queue (`name_change_reviews.reason` = `id-name-differs` / `id-name-middle`). *Matches* closes the check; *mismatch* removes ID Verified as in D317.
   - **DEFAULT (PR 581 review):** asking for a check is always available. It needs neither Didit nor an ID name that passes the registered-name rules. When the ID's name isn't a valid registered name as it is (for example a comma in "Smith, Jr."), it is shown but can't be taken (`id-name-not-usable`). If the ID's name can't be read, the prompt offers **Try again** and **Ask Swoovr to check it**.
 - **DEFAULT:** while a name check is open, the ordinary registered-name edit is refused (`name-check-open`), as with the date of birth (D166). When both differ, the date-of-birth prompt comes first and the name prompt opens as soon as it's done.
+
+### D436 — Member profile v2: header, sections and layout (#568, 27 November 2026)
+
+**CONFIRMED** by the owner on [#568](https://github.com/repasscloud/swoovr/issues/568) (the layout part; the rest of the brief is split into #569–#573, #448–#452 and #545). Replaces D417's **top-right** badge placement; the one dialog explaining every badge stays.
+- **Header card:**
+  - the name with the published age; the badges **beside the name**, each with its meaning on hover; the online dot (D410/D422; never a time)
+  - gender and pronouns, then the distance line
+  - where the two stand as a status line ("Connected in Friends"), replacing "Friends: connected"
+  - **Message** (when connected) or **Connect**, and a ⋯ menu with Report, Block, Serious safety incident and, when connected in every shared mode, Manage connection. Meet up joins once #545 is built.
+- **Body:** the gallery beside the details from 760px; the lead photo is at most 440px tall on wide screens. The details are:
+  - **About me** (once, when every shown mode says the same)
+  - **The basics** (gender, and Dating's orientation only when shown, D175)
+  - one block per shared mode with its state, "Looking for" chips, its own words, and "Goes by … here"
+  - **Profile updated {date}**: the day what the viewer can see last changed (profile versions, #91), never activity
+    - **DEFAULT (PR 582 review):** taken from the shown modes' versions, which carry the name and About shown there. The core version counts only for a text-picture change while the text picture is shown, so an edit no shown mode displays (an unshared core About) never moves the date.
+    - The text picture counts only while the whole gallery is empty, as the page renders it. Gender, pronouns and age as shown, and the orientation where Dating is shown, count from their own change times (`member_identities.presentation_changed_at` / `orientation_changed_at`; times only, never values). A hidden value, or "show me", never counts.
+    - Each profile version is reduced to what is shown before it is compared with the one before it: the name, About, "Looking for" chips and photos shown in a shown mode. A setting nobody sees (the mode's raw name or About, Share my About behind the mode's own About, on/visible) never counts.
+    - Photos count as the gallery shows them: the viewed mode's main photo first, then each shown mode's photos in order, each photo once. A reorder or repeat that the gallery hides never counts, and nor does another mode's main-photo choice. A date-of-birth correction counts when it changes the age shown, and not when the age is hidden or comes out the same.
+- Only populated sections render; nothing shows "Not specified".
+- **Phone:** one column; the actions stay fixed above the tab bar, and the privacy-choices pill moves above them.

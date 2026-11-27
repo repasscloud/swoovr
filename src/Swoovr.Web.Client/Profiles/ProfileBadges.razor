@@ -1,10 +1,10 @@
-@* Issue 509 (D417): the badges at the top right of a profile. Selecting them opens one dialog that explains every badge, so nobody has
+@* Issue 568 (D436): the badges beside the name, each with its meaning on hover. Issue 509 (D417): the badges of a profile. Selecting them opens one dialog that explains every badge, so nobody has
    to guess: theirs first, in the API's order (Q11) with the date of each check, then the rest. Nothing here awards a badge (D55). *@
 @if (Badges.Count > 0)
 {
     <button type="button" class="person-badges badge-row" @ref="button" aria-haspopup="dialog" data-badges="@string.Join(" ", Badges.Select(b => b.Badge))" data-open-badges
             aria-label="@("Badges: " + string.Join(", ", Badges.Select(b => BadgeArtwork.Label(AccountText.BadgeKind(b.Badge)))) + ". What they mean")" @onclick="OpenAsync">
-        @foreach (var badge in Badges) { <Badge Kind="@AccountText.BadgeKind(badge.Badge)" Size="28" /> }
+        @foreach (var badge in Badges) { <span class="person-badge" title="@BadgeArtwork.Label(AccountText.BadgeKind(badge.Badge))"><Badge Kind="@AccountText.BadgeKind(badge.Badge)" Size="22" /></span> }
     </button>
     <MemberDialog Kind="badges" Title="What badges mean" Open="open" Closed="() => open = false" ReturnFocus="button">
         <h3 class="person-subhead">@Name has</h3>

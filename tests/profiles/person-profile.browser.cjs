@@ -91,7 +91,7 @@ let checks = 0; const pass = () => checks++;
    assert.ok(withdraw < dialogWidth * 0.5, `Withdraw is compact (${withdraw} of ${dialogWidth})`); pass();
    assert.equal(await page.locator('[data-connect-mode=friends] .chip').count(), (await page.locator('[data-connect-mode]').count()) > 1 ? 1 : 0, 'the mode is named only when there is a choice'); pass();
    await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' });
-   assert.ok((await page.locator('[data-connect-summary]').innerText()).includes('Friends: request sent')); pass();
+   assert.ok((await page.locator('[data-connect-summary]').innerText()).includes('Request sent in Friends')); pass();
    // Codex (PR 463): when Message fails (the connection ended meanwhile), the reason shows beside the button.
    const received = (await call(a, '/api/requests?box=received')).body.items.find(r => r.mode === 'friends');
    assert.equal((await call(a, `/api/requests/${received.id}/accept`, { method: 'POST' })).status, 200);
@@ -102,6 +102,13 @@ let checks = 0; const pass = () => checks++;
    assert.equal(await page.locator('[data-message-status]').innerText(), "You can message people you're connected with."); pass();
    assert.equal(await page.locator('[data-member-dialog]').count(), 0, 'shown on the page, not in a closed dialog'); pass();
    await page.unroute('**/api/conversations');
+   // PR 582 review: connected in every shown mode, the connection is managed from the ⋯ menu and focus returns to it.
+   await page.goto(`${web}/people/${id}?mode=friends`); await page.waitForSelector('[data-person=ready] [data-message-person]', { timeout: 20000 });
+   assert.equal(await page.locator('[data-open-connect]').count(), 0, 'no Connect button when connected everywhere shown'); pass();
+   await page.click('[data-safety-menu]'); await page.click('[data-manage-connection]');
+   await page.waitForSelector('[data-member-dialog=connect]');
+   await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' });
+   await page.waitForFunction(() => document.activeElement?.matches('[data-safety-menu]')); pass();
    // Codex (PR 464): a sent report replaces its form; focus returns to the dialog heading and Escape still closes it.
    await page.click('[data-safety-menu]'); await page.click('[data-report-open]');
    await page.waitForSelector('[data-member-dialog=report] #report-category');
@@ -128,10 +135,19 @@ let checks = 0; const pass = () => checks++;
    for (const [mode, width] of [['friends', 390], ['friends', 1280], ['dating', 390], ['dating', 1280]]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto(`${web}/people/${id}?mode=${mode}`); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
+    // Issue 568: age with the name; gender and pronouns under it.
     const facts = await page.locator('[data-person-facts]').innerText();
-    assert.ok(facts.includes('Woman') && facts.includes('xe/xem') && /\b3\d\b/.test(facts), facts); pass();
+    assert.ok(facts.includes('Woman') && facts.includes('xe/xem'), facts); pass();
+    assert.match(await page.locator('[data-person-age]').innerText(), /^, 3\d$/); pass();
     assert.deepEqual(await page.locator(`[data-person-details] [data-person-mode=${mode}] .chip.is-on`).allInnerTexts(), chips(mode).map(c => c.label)); pass();
-    assert.equal(await page.locator('[data-person-orientation]').count(), mode === 'dating' ? 1 : 0); pass();
+    // Issue 568: orientation sits in The basics, still Dating's only (D175).
+    assert.equal(await page.locator('[data-person-basics] [data-basic=orientation]').count(), mode === 'dating' ? 1 : 0); pass();
+    // D436: the badges beside the name, not at the far right; the page says when the profile last changed.
+    if (await page.locator('[data-open-badges]').count()) {
+     const [name, badges] = await page.evaluate(() => ['#person-name', '[data-open-badges]'].map(q => document.querySelector(q).getBoundingClientRect()));
+     assert.ok(badges.left - name.right < 24 || badges.top > name.top, 'badges beside the name'); pass();
+    }
+    assert.match(await page.locator('[data-person-updated]').innerText(), /^Profile updated \d{1,2} [A-Z][a-z]{2} \d{4}$/); pass();
     // The pending Friends request keeps Friends (and its photos) on the Dating view too (D175); Dating never shows on Friends.
     assert.equal(await page.locator('[data-person-photos]').getAttribute('data-person-photos'), '2'); pass();
     assert.equal(await page.locator('[data-shared-modes]').getAttribute('data-shared-modes'), mode === 'friends' ? 'friends' : 'dating friends'); pass();
@@ -143,6 +159,50 @@ let checks = 0; const pass = () => checks++;
     if (width === 1280) { const [gallery, details] = await page.evaluate(() => ['[data-person-layout] > :first-child', '[data-person-details]'].map(q => document.querySelector(q).getBoundingClientRect())); assert.ok(details.left >= gallery.right, 'details sit beside the gallery on desktop'); pass(); }
     if (output) await page.screenshot({ path: `${output}/layout-${mode}-${width}.png`, fullPage: true });
    }
+   // PR 582 review: "Profile updated" follows only what the viewer can see. A core About no shown mode shares never moves
+   // it; sharing it does. Gender and pronouns as shown move it; the orientation only where Dating shows.
+   // Shifted back a year, keeping their order (the latest version per mode must stay the latest).
+   const shift = async () => { await sql(`UPDATE profile_versions SET captured_at = captured_at - interval '400 days' WHERE account_id = '${account}'`);
+     await sql(`UPDATE member_identities SET presentation_changed_at = presentation_changed_at - interval '400 days', orientation_changed_at = orientation_changed_at - interval '400 days' WHERE account_id = '${account}'`); };
+   const updated = async mode => (await call(b, `/api/profiles/${id}?mode=${mode}`)).body.lastUpdated, today = new Date().toISOString().slice(0, 10);
+   await shift();
+   let before = await updated('friends');
+   assert.ok(before < '2026-01-01', before); pass();
+   assert.equal((await call(a, '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional Sam', homeCityId: 2078025, about: 'Fictional hidden core about.' } })).status, 200);
+   assert.equal(await updated('friends'), before, 'an unshared core About is not a visible change'); pass();
+   const shareCore = share => call(a, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true, intentions: chips('friends').map(c => c.id), shareCoreAbout: share } });
+   assert.equal((await shareCore(true)).status, 200);
+   assert.equal(await updated('friends'), today, 'sharing it is'); pass();
+   assert.equal((await shareCore(false)).status, 200);
+   // PR 582 review: settings nobody sees don't count either. Behind the mode's own words, Share my About shows nothing new.
+   const friendsWords = share => call(a, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true, intentions: chips('friends').map(c => c.id), about: 'Fictional words for Friends.', shareCoreAbout: share } });
+   assert.equal((await friendsWords(false)).status, 200);
+   await shift(); before = await updated('friends');
+   assert.equal((await friendsWords(true)).status, 200);
+   assert.equal(await updated('friends'), before, 'a consent change behind the mode About is not a visible change'); pass();
+   assert.equal((await shareCore(false)).status, 200);
+   await shift(); before = await updated('friends');
+   assert.equal((await identity(false)).status, 200);
+   assert.equal(await updated('friends'), before, 'the orientation never shows outside Dating'); pass();
+   assert.equal(await updated('dating'), today, 'hiding it is a change in Dating'); pass();
+   await shift(); before = await updated('friends');
+   assert.equal((await call(a, '/api/me/identity', { method: 'PUT', body: { gender: 'woman', showGender: true, pronounId: 'self', pronouns: 'ze/zir', showPronouns: true,
+    orientation: 'straight', showOrientation: false, showAge: true, datingShowMe: ['man', 'woman'] } })).status, 200);
+   assert.equal(await updated('friends'), today, 'pronouns as shown are a visible change'); pass();
+   await shift(); before = await updated('friends');
+   assert.equal((await identity(false)).status, 200); // pronouns back; "show me" (never shown) changes too
+   await shift(); before = await updated('friends');
+   assert.equal((await call(a, '/api/me/identity', { method: 'PUT', body: { gender: 'woman', showGender: true, pronounId: 'self', pronouns: 'xe/xem', showPronouns: true,
+    orientation: 'straight', showOrientation: false, showAge: true, datingShowMe: ['woman'] } })).status, 200);
+   assert.equal(await updated('friends'), before, '"show me" is never shown'); pass();
+   assert.equal((await identity(true)).status, 200);
+   // PR 582 review: another mode's main-photo choice shows nothing; only the viewed mode's main photo leads the gallery.
+   await shift();
+   const [datingBefore, friendsBefore] = [await updated('dating'), await updated('friends')];
+   assert.equal((await call(a, '/api/me/photos/placement', { method: 'PUT', body: { scope: 'friends', mediaIds: ids, mainMediaId: ids[1] } })).status, 200);
+   assert.equal(await updated('dating'), datingBefore, "Friends' main photo isn't shown on the Dating view"); pass();
+   assert.notEqual(await updated('friends'), friendsBefore, 'it leads the Friends view'); pass();
+   assert.equal((await call(a, '/api/me/photos/placement', { method: 'PUT', body: { scope: 'friends', mediaIds: ids, mainMediaId: ids[0] } })).status, 200);
    // ---- Issue 467: the photo viewer (open, step, keyboard, swipe, focus), Report photo and the save deterrent.
    await page.setViewportSize({ width: 1280, height: 900 });
    await page.goto(`${web}/people/${id}?mode=friends`); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });

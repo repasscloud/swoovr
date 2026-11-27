@@ -4,7 +4,13 @@
 @inject Swoovr.Web.Client.Notifications.UnreadNotifications Unread
 @inject MemberClient Members
 @inject NavigationManager Navigation
-<div class="page-heading" data-person="@(loaded ? (blockedNow ? "blocked" : person is null ? "unavailable" : "ready") : "loading")">
+@* Issue 568 (profile v2, D436): a header card with the name and published age, the badges beside the name (each with its
+   meaning on hover; selecting them opens the one explanation, D417), the online dot (D410), the facts the person chose to
+   show, where the two stand as a status line, and Message / Connect with everything else in one ⋯ menu (Report and Block
+   first, then the serious incident pathway, then managing the connection). Below: the gallery beside About me, The basics
+   and one card per shared mode (what they're here for, their own words there, and where the two stand). Only what's
+   populated shows; nothing is filled in for visitors. On a phone the actions stay at the bottom of the screen. *@
+<div class="page-heading person-page-head" data-person="@(loaded ? (blockedNow ? "blocked" : person is null ? "unavailable" : "ready") : "loading")">
     <p class="breadcrumb"><a href="/explore">Explore</a> / Profile</p>
     @if (!loaded) { <p role="status">Loading…</p> }
     else if (blockedNow) { <h1>Blocked</h1> }
@@ -15,47 +21,64 @@
     }
     else
     {
-        <div class="person-name person-head"><h1>@person.DisplayName</h1><ProfileBadges Badges="person.Badges" Name="@person.DisplayName" Opening="() => safetyOpen = false" /></div>
+        <section class="card person-header" aria-labelledby="person-name">
+        <div class="person-name person-head">
+            <h1 id="person-name">@person.DisplayName@if (person.Age is { } age) { <span class="person-age" data-person-age>, @age</span> }</h1>
+            <ProfileBadges Badges="person.Badges" Name="@person.DisplayName" Opening="() => safetyOpen = false" />
+            @if (person.Online) { <span class="mc-online person-online" role="img" aria-label="Online now" title="Online now" data-person-online></span> }
+        </div>
         @* Issue 447: the key facts the person chose to show (D175), on one line. Nothing is invented or derived from ID data. *@
-        @if (KeyFacts is { Count: > 0 } facts)
+        @if (HeaderFacts is { Count: > 0 } facts)
         {
-            <p class="person-facts" data-person-facts>@string.Join(" · ", facts)
-                @if (MemberText.Distance(person.Distance) is { } distance) { <span class="person-facts-distance" data-person-distance><Icon Name="pin" Size="13" />@distance</span> }</p>
+            <p class="person-facts" data-person-facts>@string.Join(" · ", facts)</p>
         }
-        else if (MemberText.Distance(person.Distance) is { } distance) { <p class="person-facts" data-person-distance><Icon Name="pin" Size="13" />@distance</p> }
-        @* Issue 446: one primary action and a compact safety menu; each action opens a dialog with the existing flow. *@
+        @if (MemberText.Distance(person.Distance) is { } distance) { <p class="person-facts person-distance" data-person-distance><Icon Name="pin" Size="13" />@distance</p> }
+        @if (Standing is { Count: > 0 } standing)
+        {
+            <p class="person-standing" data-connect-summary>
+                @foreach (var (label, state) in standing) { <span class="person-standing-item" data-standing="@state"><Icon Name="@(state == "connected" ? "check" : "clock")" Size="14" />@label</span> }
+            </p>
+        }
+        @* Issue 446/568: one primary action and a compact menu; each action opens a dialog with the existing flow. *@
         <div class="person-action-bar" data-person-actions>
             @if (person.Modes.Any(m => m.Connection == "connected"))
             {
                 @* D143: one conversation per connected pair, across modes. *@
-                <button type="button" class="button person-action" disabled="@busy" @onclick="MessageAsync" data-message-person>Message @person.DisplayName</button>
-                <button type="button" class="button button-secondary person-action" @ref="connectButton" @onclick="() => dialog = Dialogs.Connect" data-open-connect>@ConnectLabel</button>
+                <button type="button" class="button person-action person-action-main" disabled="@busy" @onclick="MessageAsync" data-message-person><Icon Name="chat" Size="16" />Message</button>
+                @if (person.Modes.Any(m => m.Connection != "connected"))
+                {
+                    <button type="button" class="button button-secondary person-action" @ref="connectButton" @onclick="() => dialog = Dialogs.Connect" data-open-connect>@ConnectLabel</button>
+                }
             }
             else
             {
-                <button type="button" class="button person-action" @ref="connectButton" @onclick="() => dialog = Dialogs.Connect" data-open-connect>@ConnectLabel</button>
+                <button type="button" class="button person-action person-action-main" @ref="connectButton" @onclick="() => dialog = Dialogs.Connect" data-open-connect>@ConnectLabel</button>
             }
             <div class="safety-menu">
-                <button type="button" class="button button-secondary person-action" @ref="safetyButton" aria-expanded="@(safetyOpen ? "true" : "false")" aria-controls="person-safety-menu"
-                        @onclick="() => safetyOpen = !safetyOpen" data-safety-menu><Icon Name="shield" Size="16" /> Report or block</button>
+                <button type="button" class="person-more" @ref="safetyButton" aria-expanded="@(safetyOpen ? "true" : "false")" aria-controls="person-safety-menu"
+                        aria-label="@($"More: report, block or manage {person.DisplayName}")" @onclick="() => safetyOpen = !safetyOpen" data-safety-menu><Icon Name="more" Size="20" /></button>
                 @if (safetyOpen)
                 {
                     <ul id="person-safety-menu" class="safety-menu-list" data-safety-menu-list>
-                        <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Report)" data-report-open>Report @person.DisplayName</button></li>
+                        <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Report)" data-report-open><Icon Name="flag" Size="16" />Report @person.DisplayName</button></li>
                         <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Block)" data-block-open>Block @person.DisplayName</button></li>
                         @* D190: the separate Serious Safety Incident pathway, its own page. *@
-                        <li><a class="safety-menu-item" href="@($"/me/safety/report?type=profile&id={Id}")" data-serious-link>Report a serious safety incident</a></li>
+                        <li><a class="safety-menu-item" href="@($"/me/safety/report?type=profile&id={Id}")" data-serious-link><Icon Name="shield" Size="16" />Report a serious safety incident</a></li>
+                        @if (AllConnected)
+                        {
+                            <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Connect)" data-manage-connection>Manage connection</button></li>
+                        }
                     </ul>
                 }
             </div>
         </div>
         <p role="status" aria-live="polite" class="field-help person-message-status" data-message-status="@messageStatus">@messageError</p>
-        @if (ConnectSummary is { Length: > 0 } summary) { <p class="field-help person-connect-summary" data-connect-summary>@summary</p> }
+        </section>
     }
 </div>
 @if (person is not null)
 {
-    @* Issue 447: one column on a phone; gallery beside the details from tablet width up. No horizontal scrolling. *@
+    @* Issue 447/568: one column on a phone; gallery beside the details from tablet width up. No horizontal scrolling. *@
     <div class="person-layout-447" data-person-layout>
     <div class="person-gallery-col">
     @* D203: the main photo, then each shown mode's own photos (approved only, short-lived links; never another mode's).
@@ -89,27 +112,25 @@
     }
     </div>
     <div class="person-details-col" data-shared-modes="@string.Join(" ", person.Modes.Select(m => m.Id))">
-    @* D175: each mode shows its own about (the core about where none is set); one block when they're all the same. *@
-    @if (person.Modes.Select(m => m.About).Distinct().Count() > 1)
-    {
-        <section class="card person-card" aria-labelledby="about-heading" data-about="per-mode">
-            <h2 id="about-heading">About me</h2>
-            @foreach (var mode in person.Modes.Where(m => m.About is not null))
-            {
-                <h3 class="person-subhead">In @mode.Label</h3>
-                <p class="person-about" data-about-mode="@mode.Id">@mode.About</p>
-            }
-        </section>
-    }
-    else if (person.About is not null)
+    @* D175: the about shown once when it's the same in every shown mode; per-mode words go in each mode's card below. *@
+    @if (SameAbout && person.About is not null)
     {
         <section class="card person-card" aria-labelledby="about-heading">
             <h2 id="about-heading">About me</h2>
             <p class="person-about" data-about="@person.Modes[0].Id">@person.About</p>
         </section>
     }
-    @* Issue 447: what they're here for in each shown mode, once. The mode's own name only when it differs (D301), and
-       Dating's orientation only when they chose to show it (D175). *@
+    @* Issue 568: The basics, only what the person chose to show. Orientation is Dating's (D175), shown only when returned. *@
+    @if (Basics is { Count: > 0 } basics)
+    {
+        <section class="card person-card" aria-labelledby="basics-heading" data-person-basics>
+            <h2 id="basics-heading">The basics</h2>
+            <dl class="person-basics">
+                @foreach (var (label, value, key) in basics) { <div data-basic="@key"><dt>@label</dt><dd>@value</dd></div> }
+            </dl>
+        </section>
+    }
+    @* Issue 447/568: one block per shared mode: where the two stand, their own words there, and what they're here for. *@
     @if (person.Modes.Any(HasDetails))
     {
     <section class="card person-card" aria-labelledby="shared-heading" data-person-details>
@@ -117,20 +138,25 @@
         @foreach (var mode in person.Modes.Where(HasDetails))
         {
             <div class="person-mode" data-person-mode="@mode.Id">
-                @if (person.Modes.Count > 1) { <h3 class="person-subhead">@mode.Label</h3> }
+                <div class="person-mode-head">
+                    @if (person.Modes.Count > 1) { <h3 class="person-subhead">@mode.Label</h3> }
+                    @if (StandingLabel(mode) is { } state) { <span class="person-mode-state" data-mode-standing="@mode.Connection">@state</span> }
+                </div>
                 @if (mode.DisplayName is { } named && named != person.DisplayName) { <p class="person-mode-name" data-mode-public-name="@mode.Id">Goes by @named here</p> }
-                @if (mode.Orientation is { } orientation) { <p class="person-mode-fact" data-person-orientation>@orientation</p> }
                 @if (mode.Intentions.Count > 0)
                 {
+                    <p class="person-mode-label">Looking for</p>
                     <ul class="chip-row" aria-label="@($"Looking for in {mode.Label}")">@foreach (var intention in mode.Intentions) { <li><span class="chip is-on">@intention</span></li> }</ul>
                 }
+                @if (!SameAbout && mode.About is { } words) { <p class="person-about" data-about-mode="@mode.Id">@words</p> }
             </div>
         }
     </section>
     }
+    @if (person.LastUpdated is { } updated) { <p class="field-help person-updated" data-person-updated>Profile updated @updated.ToString("d MMM yyyy")</p> }
     </div>
     </div>
-    <MemberDialog Kind="connect" Title="@($"Connect with {person.DisplayName}")" Open="@(dialog == Dialogs.Connect)" Closed="Close" ReturnFocus="connectButton" FocusRequest="connectFocus">
+    <MemberDialog Kind="connect" Title="@($"Connect with {person.DisplayName}")" Open="@(dialog == Dialogs.Connect)" Closed="Close" ReturnFocus="@(AllConnected ? safetyButton : connectButton)" FocusRequest="connectFocus">
         @if (connectStatus == "sent")
         {
             @* Issue 538: one short confirmation; withdrawing stays on the pending request here or in Connections. *@
@@ -228,6 +254,9 @@
     private ElementReference connectButton, safetyButton;
 
     private void Open(Dialogs which) => (dialog, safetyOpen) = (which, false);
+    /// <summary>Connected in every shown mode: no Connect button, so the connection is managed from the ⋯ menu and focus
+    /// returns there (PR 582 review).</summary>
+    private bool AllConnected => person is not null && person.Modes.Count > 0 && person.Modes.All(m => m.Connection == "connected");
     private void Close() => (dialog, connectStatus, connectMessage) = (null, null, null);
 
     /// <summary>D203, issue 445: the main photo, then each shown mode's own approved photos, each once.</summary>
@@ -249,11 +278,27 @@
         if (PhotoOpener is { } button) { try { await button.FocusAsync(); } catch (InvalidOperationException) { } }
     }
 
-    /// <summary>Issue 447: age, gender and pronouns, each only when the API returned it (the person's own switches, D175/D382).</summary>
-    private List<string>? KeyFacts => person is null ? null : new[] { person.Age?.ToString(), person.Gender, person.Pronouns }.OfType<string>().Where(f => f.Length > 0).ToList();
+    /// <summary>Issue 568: gender and pronouns under the name (age sits with the name), each only when the API returned it (D175/D382).</summary>
+    private List<string>? HeaderFacts => person is null ? null : new[] { person.Gender, person.Pronouns }.OfType<string>().Where(f => f.Length > 0).ToList();
 
-    /// <summary>Issue 447: a mode is listed only with something real to show; visitors never see filler.</summary>
-    private bool HasDetails(SharedModeView mode) => mode.Intentions.Count > 0 || mode.Orientation is not null || mode.DisplayName is { } n && n != person?.DisplayName;
+    /// <summary>Issue 568: The basics, only populated values. Orientation is Dating's and only when the person shows it (D175).</summary>
+    private List<(string Label, string Value, string Key)>? Basics => person is null ? null : new (string, string?, string)[]
+    {
+        ("Gender", person.Gender, "gender"),
+        ("Orientation", person.Modes.Select(m => m.Orientation).FirstOrDefault(o => o is not null), "orientation"),
+    }.Where(b => !string.IsNullOrWhiteSpace(b.Item2)).Select(b => (b.Item1, b.Item2!, b.Item3)).ToList();
+
+    /// <summary>D175: one About me when every shown mode says the same; otherwise each mode's card carries its own words.</summary>
+    private bool SameAbout => person is not null && person.Modes.Select(m => m.About).Distinct().Count() <= 1;
+
+    /// <summary>Issue 447/568: a mode is listed only with something real to show; visitors never see filler.</summary>
+    private bool HasDetails(SharedModeView mode) => mode.Intentions.Count > 0 || !SameAbout && mode.About is not null || mode.DisplayName is { } n && n != person?.DisplayName;
+
+    /// <summary>Issue 568: where the two stand in a mode, for the mode card; nothing when there's nothing between them.</summary>
+    private static string? StandingLabel(SharedModeView mode) => mode.Connection switch
+    {
+        "connected" => "Connected", "sent" => "Request sent", "received" => "Wants to connect", _ => null,
+    };
 
     /// <summary>The primary button: what the viewer can do next across the shared modes.</summary>
     private string ConnectLabel => person?.Modes switch
@@ -263,10 +308,11 @@
         _ => "Connect",
     };
 
-    /// <summary>Where the two stand, per mode, so the state shows without opening the dialog.</summary>
-    private string? ConnectSummary => person is null ? null : string.Join(" · ", person.Modes.Where(m => m.Connection != "none")
-        // Bracketed for the reader (Codex, PR 465): C# already binds the switch before +, but this can't be misread.
-        .Select(m => $"{m.Label}: " + (m.Connection switch { "connected" => "connected", "sent" => "request sent", "received" => "wants to connect", _ => m.Connection })));
+    /// <summary>Issue 568: where the two stand, as a status line under the facts ("Connected in Dating"), without opening the dialog.</summary>
+    private List<(string Label, string State)>? Standing => person?.Modes.Where(m => m.Connection != "none").Select(m => (m.Connection switch
+    {
+        "connected" => $"Connected in {m.Label}", "sent" => $"Request sent in {m.Label}", "received" => $"Wants to connect in {m.Label}", _ => m.Label,
+    }, m.Connection)).ToList();
     private string? connectStatus, connectMessage;
     private PersonProfile? person;
 

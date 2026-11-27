@@ -293,9 +293,54 @@ public static class ProfileEndpoints
                 photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])),
                 await HomeDistanceAsync(db, current.Profile!, person.Profile, reach.SameMarket && !reach.ByPresence, clock.GetUtcNow(), cancellationToken))
                 // Issue 389 (D382): the text picture stands in only while no approved main photo shows.
-                { PictureText = photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null ? person.Profile.PictureText : null });
+                {
+                    PictureText = photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null ? person.Profile.PictureText : null,
+                    // Issue 568: the green dot as on Explore cards (D410, D422), and the day what the viewer can see last changed.
+                    Online = OnlineStatusPolicy.Shows(OnlineStatus(configuration), current.Profile!, person.Profile, clock.GetUtcNow()),
+                    // The text picture shows only while the whole gallery is empty, as PersonPanel renders it (PR 582 review).
+                    LastUpdated = await LastUpdatedAsync(db, person.Profile.AccountId, shownIds, mode ?? shownIds[0], identity,
+                        photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null
+                        && shownIds.All(m => photos.Modes.GetValueOrDefault((person.Profile.AccountId, m)) is not { Count: > 0 }), cancellationToken),
+                });
         });
     }
+
+    /// <summary>
+    /// Issue 568 (D436): the day what the viewer can see of a profile last changed: the profile versions as shown
+    /// (ProfileShownChange), and gender, pronouns and age as shown, and the orientation when Dating is shown, from their own
+    /// change times (MemberIdentity), since profile versions never hold them.
+    /// </summary>
+    private static async Task<DateOnly?> LastUpdatedAsync(SwoovrDbContext db, Guid account, IReadOnlyList<string> shownIds, string lead, MemberIdentity? identity,
+        bool pictureTextShown, CancellationToken cancellationToken)
+    {
+        var versions = await db.ProfileVersions.AsNoTracking()
+            .Where(v => v.AccountId == account && (shownIds.Contains(v.ModeId) || pictureTextShown && v.ModeId == ProfileVersions.Core)).ToListAsync(cancellationToken);
+        var changed = new[]
+        {
+            ProfileShownChange.Last(versions, shownIds, lead, pictureTextShown),
+            identity?.PresentationChangedAt, shownIds.Contains(ConnectionModeIds.Dating) ? identity?.OrientationChangedAt : null,
+        }.Max();
+        return changed is { } at ? DateOnly.FromDateTime(at.UtcDateTime) : null;
+    }
+
+    /// <summary>
+    /// Issue 568 (D436, PR 582 review): a date-of-birth change that changes the age others see moves "Profile updated"; a
+    /// hidden age, or one that comes out the same, doesn't. A member without identity settings gets the defaults, which are
+    /// what a missing row already means (age shown). Unsaved.
+    /// </summary>
+    internal static async Task AgeChangedAsync(SwoovrDbContext db, Guid account, DateOnly? before, DateOnly? after, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(now.UtcDateTime);
+        int? Age(DateOnly? date) => date is { } d ? AgePolicy.YearsOn(d, today) : null;
+        if (Age(before) == Age(after)) return;
+        var identity = await db.MemberIdentities.FindAsync([account], cancellationToken);
+        if (identity is null) db.MemberIdentities.Add(new MemberIdentity { AccountId = account, UpdatedAt = now, PresentationChangedAt = now });
+        else if (identity.ShowAge) identity.PresentationChangedAt = now;
+    }
+
+    /// <summary>One property's JSON, or the given empty value when an older snapshot shape has none.</summary>
+    private static string Shown(System.Text.Json.JsonElement root, string name, string missing) =>
+        root.TryGetProperty(name, out var value) ? value.GetRawText() : missing;
 
     /// <summary>
     /// What discovery needs from the viewer in one mode, for Explore and Traveller Search alike: the mode on (D92), a date

@@ -40,6 +40,13 @@ public sealed class MemberIdentity
     /// <summary>Dating "show me": one or more gender ids (D138).</summary>
     public List<string> DatingShowMe { get; set; } = [];
     public DateTimeOffset UpdatedAt { get; set; }
+    /// <summary>
+    /// Issue 568 (D436): when the gender, pronouns or age as others see them last changed (a hidden value changing never
+    /// counts). Feeds "Profile updated"; only a time, never what changed.
+    /// </summary>
+    public DateTimeOffset? PresentationChangedAt { get; set; }
+    /// <summary>Issue 568 (D436): when the orientation as shown in Dating last changed (D175: Dating only, under its switch).</summary>
+    public DateTimeOffset? OrientationChangedAt { get; set; }
 }
 
 public enum ChipMatch { Any, All }
