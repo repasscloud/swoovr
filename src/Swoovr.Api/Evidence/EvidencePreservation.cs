@@ -185,6 +185,9 @@ public sealed class EvidencePreservation(IServiceProvider services, EvidenceKeys
                         {
                             Message = message,
                             HiddenBy = await db.MessageHides.Where(h => h.MessageId == message.Id).Select(h => new { h.AccountId, h.HiddenAt }).ToListAsync(cancellationToken),
+                            // PR 583 review: a meet-up card's plan (place, time, category, state) lives on its own row, which the
+                            // message's deletion cascades away; held evidence keeps it.
+                            Meetup = message.MeetupId is { } plan ? await db.Meetups.AsNoTracking().SingleOrDefaultAsync(x => x.Id == plan, cancellationToken) : null,
                         });
                         if (message.MediaId is { } photo && await db.MediaItems.FindAsync([photo], cancellationToken) is { } attachment)
                             await AddMediaAsync(attachment, Add, cancellationToken);
