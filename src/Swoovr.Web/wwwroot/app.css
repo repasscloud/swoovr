@@ -507,7 +507,6 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 .person-layout .account-section:first-child { margin-top: 0; }
 .person-actions form, .account-details form, .account-details > .account-actions { max-width: 420px; }
 .person-actions .account-actions { margin-top: 16px; }
-.chats-page [data-chat-list] > li { padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); justify-content: space-between; }
 .conversation-page > .account-actions { grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
 .conversation-page .bubble { max-width: min(78%, 34rem); }
 .home { max-width: 960px; margin-inline: auto; display: grid; gap: 32px; align-items: start; }
@@ -1066,6 +1065,19 @@ body:has(.public-layout) { padding-bottom: 0; }
 .cx-button, .cx-more { width: auto; flex: none; min-height: 40px; padding: 0 16px; }
 .cx-more { margin-top: 12px; }
 .cx-confirm { flex-basis: 100%; }
+/* Issue 541: a chat row is one link (thumbnail, who, mode and badges, last updated, unread count). */
+.chat-row { border-top: 1px solid var(--border); }
+.chat-row:first-child { border-top: 0; }
+.chat-row-link { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; color: var(--text); text-decoration: none; }
+.chat-row:first-child .chat-row-link { border-radius: 16px 16px 0 0; }
+.chat-row:last-child .chat-row-link { border-radius: 0 0 16px 16px; }
+.chat-row:only-child .chat-row-link { border-radius: 16px; }
+.chat-row-link:hover { background: var(--soft); }
+.chat-row-link:focus-visible { outline: 3px solid var(--text); outline-offset: -3px; }
+.chat-row-link .cx-who { flex: 1 1 auto; }
+.chat-updated { color: var(--muted); font: 400 .8125rem/1.3 var(--font); }
+.chat-row.has-unread .cx-name { font-weight: 800; }
+.chat-unread { flex: none; margin-left: auto; }
 @media (min-width: 900px) {
   .cx-layout { grid-template-columns: 220px minmax(0, 1fr); align-items: start; }
   .cx-nav { flex-direction: column; overflow: visible; position: sticky; top: 24px; }

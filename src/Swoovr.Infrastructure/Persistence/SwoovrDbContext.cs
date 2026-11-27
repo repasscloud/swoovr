@@ -68,6 +68,7 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<MessageHide> MessageHides => Set<MessageHide>();
     public DbSet<ConversationHide> ConversationHides => Set<ConversationHide>();
+    public DbSet<ConversationRead> ConversationReads => Set<ConversationRead>();
     public DbSet<Itinerary> Itineraries => Set<Itinerary>();
     public DbSet<IdVerificationAttempt> IdVerificationAttempts => Set<IdVerificationAttempt>();
     public DbSet<DiditWebhookEvent> DiditWebhookEvents => Set<DiditWebhookEvent>();
@@ -882,6 +883,14 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             hide.HasKey(h => new { h.ConversationId, h.AccountId });
             hide.HasOne<Conversation>().WithMany().HasForeignKey(h => h.ConversationId).OnDelete(DeleteBehavior.Cascade);
             hide.HasOne<Account>().WithMany().HasForeignKey(h => h.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+        // Issue 541: the member's own read position per conversation (unread counts only; never a read receipt).
+        model.Entity<ConversationRead>(read =>
+        {
+            read.HasKey(r => new { r.ConversationId, r.AccountId });
+            read.HasIndex(r => r.AccountId);
+            read.HasOne<Conversation>().WithMany().HasForeignKey(r => r.ConversationId).OnDelete(DeleteBehavior.Cascade);
+            read.HasOne<Account>().WithMany().HasForeignKey(r => r.AccountId).OnDelete(DeleteBehavior.Cascade);
         });
         // D150, D153: home-location consistency checks keep the outcome only; never coordinates, IP addresses or places.
         // D348, #278: one sealed Near me reading per member, deleted with the account; never a history.

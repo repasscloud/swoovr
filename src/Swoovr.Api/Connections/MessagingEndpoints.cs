@@ -26,22 +26,23 @@ public static class MessagingEndpoints
     {
         var api = app.MapGroup("/api").RequireAuthorization();
 
-        api.MapGet("/conversations", async (ClaimsPrincipal user, AccountResolver accounts, CancellationToken cancellationToken) =>
+        api.MapGet("/conversations", async (ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
             if (denied is not null) return denied;
-            var (db, me) = (accounts.Db!, current!.Account!.Id);
-            var rows = await (from c in db.Conversations
-                              where (c.PairLow == me || c.PairHigh == me)
-                                    && (c.ClosedAt == null || c.ClosedReason == ClosedReasons.Disconnected || c.ClosedReason == ClosedReasons.Deleted || c.ClosedReason == ClosedReasons.MemberEnded)
-                                    && !db.Blocks.Any(b => (b.BlockerAccountId == c.PairLow && b.BlockedAccountId == c.PairHigh) || (b.BlockerAccountId == c.PairHigh && b.BlockedAccountId == c.PairLow))
-                              let hidden = db.ConversationHides.Where(h => h.ConversationId == c.Id && h.AccountId == me).Select(h => (DateTimeOffset?)h.HiddenAt).FirstOrDefault()
-                              where hidden == null || (c.LastMessageAt != null && c.LastMessageAt > hidden)
-                              orderby c.LastMessageAt ?? c.CreatedAt descending
-                              select c).Take(100).ToListAsync(cancellationToken);
+            var (db, me, now) = (accounts.Db!, current!.Account!.Id, clock.GetUtcNow());
+            // Issue 541: latest activity first (creation time for an empty chat), then a fixed tie-break.
+            var rows = await Listed(db, me).OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt).ThenByDescending(c => c.Id)
+                .Take(100).ToListAsync(cancellationToken);
+            var unread = await UnreadAsync(db, me, rows.Select(c => c.Id).ToList(), cancellationToken);
             var views = new List<ConversationView>();
-            foreach (var c in rows) views.Add(await ViewAsync(db, c, me, cancellationToken));
-            return Results.Ok(views);
+            foreach (var c in rows) views.Add((await ViewAsync(db, c, me, cancellationToken)) with { Unread = unread.GetValueOrDefault(c.Id), ModeId = c.OriginModeId });
+            // Issue 541: the thumbnail and published age for the mode the chat started in, only where the profile is still
+            // open to this member in that mode (Connections' rule); otherwise the row shows the name only.
+            var faces = await RequestEndpoints.FacesAsync(db, accounts.Services, me,
+                rows.Where(c => c.OriginModeId is not null).Select(c => (c.PairLow == me ? c.PairHigh : c.PairLow, c.OriginModeId!)).ToList(), now, cancellationToken);
+            return Results.Ok(views.Zip(rows, (view, c) => c.OriginModeId is { } mode && faces.TryGetValue((c.PairLow == me ? c.PairHigh : c.PairLow, mode), out var face)
+                ? view with { Person = view.Person with { Photo = face.Photo, Age = face.Age } } : view).ToList());
         });
 
         // Opens the conversation with a connected member (or returns the open one); anything else is "not available".
@@ -112,12 +113,29 @@ public static class MessagingEndpoints
             var page = rows.Take(MessagingPolicy.PageSize).ToList();
             // #49: reading the conversation reads its message notifications (the member's own state; no read receipts).
             if (before is null)
+            {
+                // Issue 541: this member has now read the conversation (their own unread count; the sender is never told).
+                await MarkReadAsync(db, id, me, now, cancellationToken);
                 await db.Notifications.Where(n => n.AccountId == me && (n.Kind == NotificationKind.Message || n.Kind == NotificationKind.ConversationEnded) && n.SubjectId == id && n.ReadAt == null)
                     .ExecuteUpdateAsync(u => u.SetProperty(n => n.ReadAt, now), cancellationToken);
+            }
             var media = await MediaForAsync(db, page, cancellationToken);
             var links = accounts.Services.GetRequiredService<Media.MediaLinks>();
             return Results.Ok(new MessagePage(page.Select(m => View(m, me, now, media.GetValueOrDefault(m.MediaId ?? Guid.Empty), links)).ToList(),
                 rows.Count > MessagingPolicy.PageSize, page.LastOrDefault()?.SentAt));
+        });
+
+        // Issue 541: a message that arrived live while the member had the conversation open is read too.
+        api.MapPost("/conversations/{id:guid}/read", async (Guid id, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
+            if (denied is not null) return denied;
+            var (db, me, now) = (accounts.Db!, current!.Account!.Id, clock.GetUtcNow());
+            if (await ReadableAsync(db, id, me, cancellationToken) is null) return NotAvailable();
+            await MarkReadAsync(db, id, me, now, cancellationToken);
+            await db.Notifications.Where(n => n.AccountId == me && (n.Kind == NotificationKind.Message || n.Kind == NotificationKind.ConversationEnded) && n.SubjectId == id && n.ReadAt == null)
+                .ExecuteUpdateAsync(u => u.SetProperty(n => n.ReadAt, now), cancellationToken);
+            return Results.NoContent();
         });
 
         api.MapPost("/conversations/{id:guid}/messages", async (Guid id, NewMessage request, ClaimsPrincipal user, AccountResolver accounts, IHubContext<MessagesHub> hub,
@@ -504,6 +522,45 @@ public static class MessagingEndpoints
         if (trips.Count == 0 || trips.Any(x => x.t.AccountId != me)) return false;
         return trips.Any(x => x.t.ArrivedAt is null && TravelPolicy.State(new TripFacts(x.t, x.c.TimeZone), [], now) is not (TripState.Cancelled or TripState.Expired));
     }
+
+    /// <summary>The conversations the Chats page lists for this member (D143): open ones, and ones closed by a disconnect,
+    /// a deletion or the member ending them; never across a block, and not hidden unless a message arrived since.</summary>
+    public static IQueryable<Conversation> Listed(SwoovrDbContext db, Guid me) =>
+        from c in db.Conversations
+        where (c.PairLow == me || c.PairHigh == me)
+              && (c.ClosedAt == null || c.ClosedReason == ClosedReasons.Disconnected || c.ClosedReason == ClosedReasons.Deleted || c.ClosedReason == ClosedReasons.MemberEnded)
+              && !db.Blocks.Any(b => (b.BlockerAccountId == c.PairLow && b.BlockedAccountId == c.PairHigh) || (b.BlockerAccountId == c.PairHigh && b.BlockedAccountId == c.PairLow))
+        let hidden = db.ConversationHides.Where(h => h.ConversationId == c.Id && h.AccountId == me).Select(h => (DateTimeOffset?)h.HiddenAt).FirstOrDefault()
+        where hidden == null || (c.LastMessageAt != null && c.LastMessageAt > hidden)
+        select c;
+
+    /// <summary>
+    /// Issue 541: the other person's messages this member hasn't read, per conversation. Counts text, photos and farewells
+    /// the member can see (a photo only once it passed screening, as the thread shows it); never their own messages, system
+    /// lines, deleted or moderation-removed messages, ones they hid, or anything from before they hid the chat.
+    /// </summary>
+    public static async Task<Dictionary<Guid, int>> UnreadAsync(SwoovrDbContext db, Guid me, IReadOnlyCollection<Guid> conversations, CancellationToken cancellationToken)
+    {
+        if (conversations.Count == 0) return [];
+        return await (from m in db.Messages
+                      where conversations.Contains(m.ConversationId) && m.SenderAccountId != me && m.Kind != MessageKind.System
+                            && m.DeletedAt == null && m.ModerationRemovedAt == null
+                            && !db.MessageHides.Any(h => h.MessageId == m.Id && h.AccountId == me)
+                            && (m.Kind != MessageKind.Photo || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null))
+                      let read = db.ConversationReads.Where(r => r.ConversationId == m.ConversationId && r.AccountId == me).Select(r => (DateTimeOffset?)r.ReadAt).FirstOrDefault()
+                      let hidden = db.ConversationHides.Where(h => h.ConversationId == m.ConversationId && h.AccountId == me).Select(h => (DateTimeOffset?)h.HiddenAt).FirstOrDefault()
+                      where (read == null || m.SentAt > read) && (hidden == null || m.SentAt > hidden)
+                      group m by m.ConversationId into g
+                      select new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
+    }
+
+    /// <summary>Issue 541: the member has read the conversation up to now. Never moves back (two tabs racing keep the later time).</summary>
+    private static Task MarkReadAsync(SwoovrDbContext db, Guid conversation, Guid me, DateTimeOffset now, CancellationToken cancellationToken) =>
+        db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO conversation_reads (conversation_id, account_id, read_at) VALUES ({conversation}, {me}, {now}) ON CONFLICT (conversation_id, account_id) DO UPDATE SET read_at = GREATEST(conversation_reads.read_at, EXCLUDED.read_at)", cancellationToken);
+
+    /// <summary>Issue 541: the Chats tab's badge, unread messages across every chat the Chats page lists.</summary>
+    public static async Task<int> UnreadTotalAsync(SwoovrDbContext db, Guid me, CancellationToken cancellationToken) =>
+        (await UnreadAsync(db, me, await Listed(db, me).Select(c => c.Id).ToListAsync(cancellationToken), cancellationToken)).Values.Sum();
 
     private static async Task<ConversationView> ViewAsync(SwoovrDbContext db, Conversation conversation, Guid me, CancellationToken cancellationToken, bool unanswered = false)
     {

@@ -5,9 +5,12 @@ namespace Swoovr.Contracts;
 /// now (CanSend; the API checks again on every send). No read receipts, presence or typing (Q42 rules 6–7).
 /// AwaitingReply (#300, D380; set when one conversation is opened): the member reached the other person's
 /// unanswered-message limit and can write again once they reply. It never says what the limit is.
+/// Issue 541: Unread counts the other person's delivered messages since this member last opened the conversation (their own
+/// state only; never shown to the sender). ModeId is the mode the conversation started in (OriginModeId), so the list can
+/// name it truthfully; null for conversations from before modes were recorded.
 /// </summary>
 public sealed record ConversationView(Guid Id, PersonSummary Person, DateTimeOffset CreatedAt, DateTimeOffset? LastMessageAt, bool CanSend, bool Closed = false,
-    bool AwaitingReply = false);
+    bool AwaitingReply = false, int Unread = 0, string? ModeId = null);
 
 /// <summary>
 /// A message as one member sees it. Kind removed-by-moderation carries neutral text and cannot be unsent; it is distinct from member deletion. CanDelete: theirs and within five minutes (delete for both, rule 8). Deleted: shown

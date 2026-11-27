@@ -281,6 +281,9 @@ public sealed partial class MemberClient(HttpClient transport)
         SendAsync<MessageView>(new HttpRequestMessage(HttpMethod.Post, $"api/conversations/{conversationId}/messages") { Content = JsonContent.Create(new NewMessage(text)) }, cancellationToken);
 
     /// <summary>Delete for both, within five minutes of sending (D143).</summary>
+    /// <summary>Issue 541: marks the conversation read up to now (the member's own unread count only).</summary>
+    public Task<int> ReadConversationAsync(Guid id, CancellationToken cancellationToken = default) =>
+        StatusAsync(new HttpRequestMessage(HttpMethod.Post, $"api/conversations/{id}/read"), cancellationToken);
     public Task<int> DeleteMessageAsync(Guid id, CancellationToken cancellationToken = default) =>
         StatusAsync(new HttpRequestMessage(HttpMethod.Delete, $"api/messages/{id}"), cancellationToken);
 

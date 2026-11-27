@@ -3,7 +3,15 @@
    the page; the badge adds "N unread notifications" for screen readers. *@
 @implements IDisposable
 @inject UnreadNotifications Unread
-@if (Requests)
+@if (Chats)
+{
+    @* Issue 541: unread messages across the member's chats, in the same red badge, from the same answer. *@
+    @if (NotificationText.Badge(Unread.UnreadChats) is { } messages)
+    {
+        <span class="unread-badge" data-unread-badge="@Where" data-unread-chats="@Unread.UnreadChats"><span aria-hidden="true">@messages</span><span class="visually-hidden">, @Unread.UnreadChats unread @(Unread.UnreadChats == 1 ? "message" : "messages")</span></span>
+    }
+}
+else if (Requests)
 {
     @* Issue 540: connection requests waiting for this member's answer, in the same red badge, from the same answer. *@
     @if (NotificationText.Badge(Unread.PendingRequests) is { } waiting)
@@ -20,6 +28,8 @@ else if (NotificationText.Badge(Unread.Count) is { } label)
     [Parameter] public string Where { get; set; } = "";
     /// <summary>Issue 540: count connection requests waiting for an answer instead of unread notifications.</summary>
     [Parameter] public bool Requests { get; set; }
+    /// <summary>Issue 541: count unread chat messages instead of unread notifications.</summary>
+    [Parameter] public bool Chats { get; set; }
 
     protected override void OnInitialized()
     {
