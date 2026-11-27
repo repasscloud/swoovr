@@ -306,44 +306,50 @@ public static class ProfileEndpoints
     }
 
     /// <summary>
-    /// Issue 568 (D436): the day what the viewer can see of a profile last changed. Each shown mode's version already
-    /// carries the name and About shown there, core ones included (ProfilePrivacy.CaptureAsync), so the core version counts
-    /// only for the text picture, and only while that is what's shown. A core About or name the viewer can't see never
-    /// moves the date (PR 582 review). Gender, pronouns and age as shown, and the orientation when Dating is shown, count
-    /// from their own change times (MemberIdentity), since profile versions never hold them.
+    /// Issue 568 (D436): the day what the viewer can see of a profile last changed. Profile versions also hold settings
+    /// nobody sees (the raw mode name and About, Share my About, on/visible), so each one is reduced to what is shown before
+    /// it is compared with the one before it (PR 582 review): in a shown mode the name, About, "Looking for" chips and
+    /// photos shown there, core ones included; in core only the text picture, and only while that is what's shown. Gender,
+    /// pronouns and age as shown, and the orientation when Dating is shown, count from their own change times
+    /// (MemberIdentity), since profile versions never hold them.
     /// </summary>
     private static async Task<DateOnly?> LastUpdatedAsync(SwoovrDbContext db, Guid account, IReadOnlyList<string> shownIds, MemberIdentity? identity,
         bool pictureTextShown, CancellationToken cancellationToken)
     {
-        var changed = new[]
-        {
-            await db.ProfileVersions.Where(v => v.AccountId == account && shownIds.Contains(v.ModeId)).MaxAsync(v => (DateTimeOffset?)v.CapturedAt, cancellationToken),
-            identity?.PresentationChangedAt, shownIds.Contains(ConnectionModeIds.Dating) ? identity?.OrientationChangedAt : null,
-        }.Max();
+        var changes = new List<DateTimeOffset?> { identity?.PresentationChangedAt, shownIds.Contains(ConnectionModeIds.Dating) ? identity?.OrientationChangedAt : null };
+        foreach (var mode in shownIds)
+            changes.Add(await VisibleChangeAsync(db, account, mode, ShownInMode, countsFirst: _ => true, cancellationToken));
         if (pictureTextShown)
-        {
-            var core = await db.ProfileVersions.Where(v => v.AccountId == account && v.ModeId == ProfileVersions.Core)
-                .OrderBy(v => v.CapturedAt).Select(v => new { v.CapturedAt, v.ContentJson }).ToListAsync(cancellationToken);
-            string? previous = null;
-            foreach (var version in core)
-            {
-                var text = PictureTextOf(version.ContentJson);
-                if (text != previous && (text is not null || previous is not null) && (changed is null || version.CapturedAt > changed)) changed = version.CapturedAt;
-                previous = text;
-            }
-        }
-        return changed is { } at ? DateOnly.FromDateTime(at.UtcDateTime) : null;
+            changes.Add(await VisibleChangeAsync(db, account, ProfileVersions.Core, root => Shown(root, "pictureText", "null"), countsFirst: shown => shown != "null", cancellationToken));
+        return changes.Max() is { } at ? DateOnly.FromDateTime(at.UtcDateTime) : null;
     }
 
-    private static string? PictureTextOf(string json)
+    /// <summary>
+    /// When the shown part of one mode's (or core's) versions last changed: newest first, stopping at the first older version
+    /// that showed something different. The oldest version counts when countsFirst says what it showed was something.
+    /// </summary>
+    private static async Task<DateTimeOffset?> VisibleChangeAsync(SwoovrDbContext db, Guid account, string mode, Func<System.Text.Json.JsonElement, string> shown,
+        Func<string, bool> countsFirst, CancellationToken cancellationToken)
     {
-        try
+        (string Shown, DateTimeOffset At)? newer = null;
+        await foreach (var version in db.ProfileVersions.Where(v => v.AccountId == account && v.ModeId == mode).OrderByDescending(v => v.CapturedAt)
+            .Select(v => new { v.CapturedAt, v.ContentJson }).AsAsyncEnumerable().WithCancellation(cancellationToken))
         {
-            using var document = System.Text.Json.JsonDocument.Parse(json);
-            return document.RootElement.TryGetProperty("pictureText", out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString() : null;
+            string now;
+            try { using var document = System.Text.Json.JsonDocument.Parse(version.ContentJson); now = shown(document.RootElement); }
+            catch (System.Text.Json.JsonException) { continue; }
+            if (newer is { } n && n.Shown != now) return n.At;
+            newer = (now, version.CapturedAt);
         }
-        catch (System.Text.Json.JsonException) { return null; }
+        return newer is { } first && countsFirst(first.Shown) ? first.At : null;
     }
+
+    private static string ShownInMode(System.Text.Json.JsonElement root) => string.Join('\u001f',
+        Shown(root, "shownName", "null"), Shown(root, "shownAbout", "null"), Shown(root, "intentions", "[]"), Shown(root, "mainPhoto", "null"), Shown(root, "photos", "[]"));
+
+    /// <summary>One property's JSON, or the given empty value when an older snapshot shape has none.</summary>
+    private static string Shown(System.Text.Json.JsonElement root, string name, string missing) =>
+        root.TryGetProperty(name, out var value) ? value.GetRawText() : missing;
 
     /// <summary>
     /// What discovery needs from the viewer in one mode, for Explore and Traveller Search alike: the mode on (D92), a date

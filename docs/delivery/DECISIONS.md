@@ -1807,5 +1807,6 @@ Builds D429 (Q192 A, A) for [#533](https://github.com/repasscloud/swoovr/issues/
   - **Profile updated {date}**: the day what the viewer can see last changed (profile versions, #91), never activity
     - **DEFAULT (PR 582 review):** taken from the shown modes' versions, which carry the name and About shown there. The core version counts only for a text-picture change while the text picture is shown, so an edit no shown mode displays (an unshared core About) never moves the date.
     - The text picture counts only while the whole gallery is empty, as the page renders it. Gender, pronouns and age as shown, and the orientation where Dating is shown, count from their own change times (`member_identities.presentation_changed_at` / `orientation_changed_at`; times only, never values). A hidden value, or "show me", never counts.
+    - Each profile version is reduced to what is shown before it is compared with the one before it: the name, About, "Looking for" chips and photos shown in a shown mode. A setting nobody sees (the mode's raw name or About, Share my About behind the mode's own About, on/visible) never counts.
 - Only populated sections render; nothing shows "Not specified".
 - **Phone:** one column; the actions stay fixed above the tab bar, and the privacy-choices pill moves above them.

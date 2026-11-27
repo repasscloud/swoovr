@@ -174,6 +174,13 @@ let checks = 0; const pass = () => checks++;
    assert.equal((await shareCore(true)).status, 200);
    assert.equal(await updated('friends'), today, 'sharing it is'); pass();
    assert.equal((await shareCore(false)).status, 200);
+   // PR 582 review: settings nobody sees don't count either. Behind the mode's own words, Share my About shows nothing new.
+   const friendsWords = share => call(a, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true, intentions: chips('friends').map(c => c.id), about: 'Fictional words for Friends.', shareCoreAbout: share } });
+   assert.equal((await friendsWords(false)).status, 200);
+   await shift(); before = await updated('friends');
+   assert.equal((await friendsWords(true)).status, 200);
+   assert.equal(await updated('friends'), before, 'a consent change behind the mode About is not a visible change'); pass();
+   assert.equal((await shareCore(false)).status, 200);
    await shift(); before = await updated('friends');
    assert.equal((await identity(false)).status, 200);
    assert.equal(await updated('friends'), before, 'the orientation never shows outside Dating'); pass();
