@@ -55,16 +55,16 @@ public static class FavouriteEndpoints
                                where f.AccountId == me orderby f.CreatedAt descending select new { p.PublicId, f.CreatedAt })
                 .Take(FavouritePolicy.Max).ToListAsync(token);
             var order = await ProfileEndpoints.BadgeOrderAsync(db, token);
-            var list = new List<FavouriteView>();
-            foreach (var row in saved)
-            {
-                if (await ProfileEndpoints.OpensAsync(db, configuration, current.Profile!, row.PublicId, now, token) is not { Person: var person, ShownMode: var shown }) continue;
+            // One batched check for the whole list, then the shown mode's alias for everyone in one query.
+            var opened = await ProfileEndpoints.OpensManyAsync(db, configuration, current.Profile!, saved.Select(r => r.PublicId).ToList(), now, token);
+            var listed = saved.Where(r => opened.ContainsKey(r.PublicId)).Take(FavouritePolicy.Listed).Select(r => (Row: r, Open: opened[r.PublicId])).ToList();
+            var accountsShown = listed.Select(x => x.Open.Person.Profile.AccountId).ToList();
+            var aliases = (await db.MemberModes.Where(m => accountsShown.Contains(m.AccountId)).Select(m => new { m.AccountId, m.ModeId, m.DisplayName }).ToListAsync(token))
+                .ToDictionary(m => (m.AccountId, m.ModeId), m => m.DisplayName);
+            var list = listed.Select(x => new FavouriteView(new PersonSummary(x.Open.Person.Profile.PublicId,
                 // The name the linked profile shows: that mode's alias, else the main name (as Explore and GET /api/profiles/{id}).
-                var alias = await db.MemberModes.Where(m => m.AccountId == person.Profile.AccountId && m.ModeId == shown).Select(m => m.DisplayName).SingleOrDefaultAsync(token);
-                list.Add(new FavouriteView(new PersonSummary(person.Profile.PublicId, ModePrivacy.DisplayName(alias, person.Profile.DisplayName)!,
-                    ProfileEndpoints.Badges(person.Profile, order)), row.CreatedAt));
-                if (list.Count == FavouritePolicy.Listed) break;
-            }
+                ModePrivacy.DisplayName(aliases.GetValueOrDefault((x.Open.Person.Profile.AccountId, x.Open.ShownMode)), x.Open.Person.Profile.DisplayName)!,
+                ProfileEndpoints.Badges(x.Open.Person.Profile, order)), x.Row.CreatedAt)).ToList();
             return Results.Ok(list);
         });
     }

@@ -47,6 +47,13 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.deepEqual([await shownNames(), (await call(tokens.viv, `/api/profiles/${pid.tam}`)).body.displayName], [['Fictional Alias tam'], 'Fictional Alias tam']); pass();
     await call(tokens.tam, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true, displayName: '  ' } });
     assert.deepEqual(await shownNames(), ['Fictional Fav tam'], 'no alias: the main name'); pass();
+    // Another market with no request between them: out of the list, as the profile itself doesn't open (PR 603 review).
+    const tamAccount = `(SELECT account_id FROM member_profiles WHERE public_id = '${pid.tam}')`;
+    const homeBefore = await sql(`SELECT home_market_id FROM member_profiles WHERE account_id = ${tamAccount}`);
+    await sql(`UPDATE member_profiles SET home_market_id = (SELECT id FROM markets WHERE id <> '${homeBefore}' ORDER BY id LIMIT 1) WHERE account_id = ${tamAccount}`);
+    assert.deepEqual([await list('viv'), (await call(tokens.viv, `/api/profiles/${pid.tam}`)).status], [[], 404], 'another market'); pass();
+    await sql(`UPDATE member_profiles SET home_market_id = '${homeBefore}' WHERE account_id = ${tamAccount}`);
+    assert.deepEqual(await list('viv'), [pid.tam]); pass();
 
     // A block either way removes it.
     assert.equal((await fav('bob', 'viv')).status, 200);
