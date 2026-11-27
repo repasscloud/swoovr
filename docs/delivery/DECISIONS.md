@@ -1893,3 +1893,11 @@ Closes the OPEN point in D440 for [#586](https://github.com/repasscloud/swoovr/i
 - Rows of buttons (`.account-actions`, `.button-row`) are wrapping flex rows with 10–12 px between buttons. The page-level full-width overrides are removed.
 - **DEFAULT:** these stay full width, because they are rows of a list or an owner-confirmed pair, not buttons in a row: menu items (profile and chat ⋯ menus, the photo viewer's actions, city results), the phone tab bar, and the two equal Sign in / Create account buttons on the welcome page (issue 187). The Keycloak sign-in card keeps its single full-card submit button (a one-action form in a 476 px card); say if you want it changed too.
 - **Guard:** the owned suite `button-widths` signs in a fictional member and renders 17 member pages at 1280 and 390 px. It fails if a button is wider than 320 px on desktop, or if two buttons in a row touch.
+
+### D448 — Private favourites (#572, 28 November 2026)
+
+Builds [#572](https://github.com/repasscloud/swoovr/issues/572) (from #568 §11, §12):
+- **Save:** **Add to favourites** / **Remove from favourites** (star icon) in a member's profile ⋯ menu. Saving needs that profile to be open to you (the same rules as opening it: no block either way, a shared visible mode, market reach). It's private: the other member is never told, nothing shows on their side, and no count exists anywhere.
+- **List:** **Favourites** in the Me menu (`/me/favourites`), newest first, with Remove. Anyone whose profile isn't open to you now (for example they hid the mode) drops out of the list while that lasts. **DEFAULT:** up to 500 favourites, of which the list shows the latest 100 open ones.
+- **Blocks and deletion:** a block either way removes both members' favourites of each other; deleting an account removes its favourites and every favourite of it. The data export lists the members you saved and when.
+- **OPEN, Q195 ([#596](https://github.com/repasscloud/swoovr/issues/596)):** favouriting from an Explore card. Cards have no action buttons (D398, D443), so DEFAULT A applies: profile menu only.

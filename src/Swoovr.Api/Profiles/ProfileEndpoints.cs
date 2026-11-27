@@ -295,6 +295,8 @@ public static class ProfileEndpoints
                 // Issue 389 (D382): the text picture stands in only while no approved main photo shows.
                 {
                     PictureText = photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null ? person.Profile.PictureText : null,
+                    // Issue 572 (D448): only the viewer's own private favourite, never anyone else's.
+                    Favourite = await db.MemberFavourites.AnyAsync(f => f.AccountId == viewer && f.TargetAccountId == person.Profile.AccountId, cancellationToken),
                     // Issue 568: the green dot as on Explore cards (D410, D422), and the day what the viewer can see last changed.
                     Online = OnlineStatusPolicy.Shows(OnlineStatus(configuration), current.Profile!, person.Profile, clock.GetUtcNow()),
                     // The text picture shows only while the whole gallery is empty, as PersonPanel renders it (PR 582 review).
@@ -616,6 +618,26 @@ public static class ProfileEndpoints
     /// viewer's market offers, and in which shared modes the person is visiting the viewer's market.</summary>
     /// <param name="ByPresence">D346: the shared market comes from physical presence, not both homes, so home cities give no distance.</param>
     public sealed record Reach(bool SameMarket, IReadOnlyCollection<string> MarketModes, IReadOnlySet<string> VisitingModes, bool ByPresence = false);
+
+    /// <summary>
+    /// Issue 572 (D448): whether this person's profile opens for the viewer at all, by the same rules as GET /api/profiles/{id}
+    /// without a mode: a candidate (no block either way, active), a shared visible mode, and the market reach (D125, D142).
+    /// </summary>
+    public static async Task<Row?> OpensAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile viewer, Guid publicId, DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var person = await Candidates(db, configuration, viewer.AccountId).SingleOrDefaultAsync(c => c.Profile.PublicId == publicId, cancellationToken);
+        if (person is null) return null;
+        var shared = await SharedModesAsync(db, viewer.AccountId, person, cancellationToken);
+        if (shared.Count == 0) return null;
+        var (low, high) = ConnectionRequest.Pair(viewer.AccountId, person.Profile.AccountId);
+        var between = await db.ConnectionRequests.Where(r => r.PairLow == low && r.PairHigh == high
+            && (r.Status == ConnectionRequestStatus.Pending || r.Status == ConnectionRequestStatus.Accepted)).ToListAsync(cancellationToken);
+        if (ModePrivacy.Shown(null, shared.Select(m => m.Id).ToList(), between.Select(r => r.ModeId).ToHashSet()).Count == 0) return null;
+        var reach = await ReachAsync(db, configuration, viewer, person, shared, between, now, cancellationToken);
+        var travel = await Travel.ArrivalEndpoints.ReachAsync(db, viewer, person, shared, now, cancellationToken);
+        return MarketAccess.ProfileOpens(reach.SameMarket, between.Count > 0, reach.VisitingModes.Count > 0, travel.SearchModes.Count > 0) ? person : null;
+    }
 
     public static async Task<Reach> ReachAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile viewer, Row person,
         IReadOnlyList<ConnectionMode> shared, List<ConnectionRequest> between, DateTimeOffset now, CancellationToken cancellationToken)

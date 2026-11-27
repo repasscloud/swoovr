@@ -265,6 +265,8 @@ public sealed class AccountDeletion(IServiceProvider services, IIdentityAdmin id
         await db.ConnectionRequests.Where(r => r.FromAccountId == id || r.ToAccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.Blocks.Where(b => b.BlockerAccountId == id || b.BlockedAccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.MemberModes.Where(m => m.AccountId == id).ExecuteDeleteAsync(cancellationToken);
+        // Issue 572 (D448): their favourites, and every favourite of them.
+        await db.MemberFavourites.Where(f => f.AccountId == id || f.TargetAccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.ModeFilters.Where(f => f.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.MemberIdentities.Where(i => i.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.BotModeAuthorisations.Where(b => b.AccountId == id).ExecuteDeleteAsync(cancellationToken);
