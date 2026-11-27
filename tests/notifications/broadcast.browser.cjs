@@ -3,7 +3,7 @@
 // recipient; withdrawing removes it everywhere and closes the page. Fictional data only.
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
-const { web, createMember, createStaff, memberToken, staffToken, rootAdminToken, call, sql } = require('../auth/local-tokens.cjs');
+const { web, createMember, createStaff, memberToken, staffToken, rootAdminToken, cli, call, sql } = require('../auth/local-tokens.cjs');
 const output = process.env.SWOOVR_SCREENSHOTS;
 
 (async () => {
@@ -17,6 +17,7 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     const st = await staffToken(browser, adm); await call(st, '/api/session');
     const support = await staffToken(browser, sup); await call(support, '/api/session');
     const members = { ann: await createMember('bcast-ann'), del: await createMember('bcast-del') };
+    await cli('beta', 'add', members.ann.email, members.del.email);
     const tokens = { ann: await memberToken(browser, members.ann), del: await memberToken(browser, members.del) };
     for (const n of Object.keys(tokens)) assert.equal((await call(tokens[n], '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional Bcast ' + n, homeCityId: 2078025 } })).status, 200, n);
     const sub = n => JSON.parse(Buffer.from(tokens[n].split('.')[1], 'base64url')).sub;
@@ -40,7 +41,7 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.equal(centreRead.status, 200, JSON.stringify(centreRead.body));
     const centre = centreRead.body.items.find(i => i.kind === 'announcement');
     assert.deepEqual([centre?.title, centre?.link, centre?.read], ['From Swoovr: Fictional maintenance', `/me/notifications/announcements/${id}`, false]); pass();
-    const late = await createMember('bcast-late'); const lateToken = await memberToken(browser, late);
+    const late = await createMember('bcast-late'); await cli('beta', 'add', late.email); const lateToken = await memberToken(browser, late);
     assert.equal((await call(lateToken, '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional Bcast late', homeCityId: 2078025 } })).status, 200);
     assert.equal((await call(lateToken, `/api/me/announcements/${id}`)).status, 404, 'only a recipient can open it'); pass();
 
