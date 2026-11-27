@@ -110,6 +110,20 @@ const MODES = ['dating', 'friends', 'activities', 'business'];
     assert.equal(await page.locator('[data-chat]').first().getAttribute('data-chat'), withAda, 'newest activity first'); pass();
     assert.equal((await call(tokens.me, `/api/conversations/${withAda}/messages`)).status, 200);
     await page.waitForSelector('[data-chat-unread-count]', { state: 'detached', timeout: 45000 }); pass();
+    // PR 578 review: Bea's photo was in review when I hid the chat and passed after: the chat comes back with it unread, and
+    // the thread shows it (the same delivery-time rule for both). Seeded in SQL: a passed attachment row, no object needed.
+    assert.equal((await call(tokens.me, `/api/conversations/${withBea}/hide`, { method: 'POST' })).status, 204);
+    const beaAccount = await sql(`SELECT id FROM accounts WHERE subject = '${claims(tokens.bea).sub}'`);
+    const lateMedia = require('node:crypto').randomUUID(), latePhoto = require('node:crypto').randomUUID();
+    await sql(`INSERT INTO media_items (id, account_id, status, sha256, upload_sha256, content_type, width, height, bytes, created_at, screen_attempts, known_content_checked, purpose, screened_at, conversation_id)
+      VALUES ('${lateMedia}', '${beaAccount}', 'Passed', '\\x00', '\\x00', 'image/jpeg', 400, 400, 1000, now() - interval '10 minutes', 1, true, 'attachment', now() + interval '1 second', '${withBea}')`);
+    await sql(`INSERT INTO messages (id, conversation_id, sender_account_id, kind, body, sent_at, media_id)
+      VALUES ('${latePhoto}', '${withBea}', '${beaAccount}', 'Photo', '', now() - interval '10 minutes', '${lateMedia}')`);
+    await sql(`UPDATE conversations SET last_message_at = now() + interval '1 second' WHERE id = '${withBea}'`);
+    assert.equal((await list('me')).find(c => c.id === withBea)?.unread, 1, 'the chat is back with the photo unread'); pass();
+    assert.ok((await call(tokens.me, `/api/conversations/${withBea}/messages`)).body.items.some(m => m.id === latePhoto), 'and the thread shows it'); pass();
+    await sql(`DELETE FROM messages WHERE id = '${latePhoto}'`); await sql(`DELETE FROM media_items WHERE id = '${lateMedia}'`);
+    await sql(`DELETE FROM conversation_hides WHERE conversation_id = '${withBea}'`);
     assert.deepEqual(await page.evaluate(audit), [], 'accessibility floor at 1280'); pass();
     if (output) await page.screenshot({ path: output + '/chats-1280.png', fullPage: true });
     for (const width of [390, 320]) { await page.setViewportSize({ width, height: 844 }); assert.deepEqual(await page.evaluate(audit), [], 'accessibility floor at ' + width); pass(); }

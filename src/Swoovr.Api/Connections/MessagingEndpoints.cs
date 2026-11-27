@@ -106,7 +106,10 @@ public static class MessagingEndpoints
             // Q59, D167: messages deleted for both stay in the list as deleted, without their text.
             // #41: the recipient never sees a photo message before its photo passed screening (AttachmentPolicy.Listed).
             var rows = await db.Messages.Where(m => m.ConversationId == id && (before == null || m.SentAt < before)
-                    && (hiddenAt == null || m.SentAt > hiddenAt) && !db.MessageHides.Any(h => h.MessageId == m.Id && h.AccountId == me)
+                    // PR 578 review: their photo that passed after the hide is new to this member, as the unread count says.
+                    && (hiddenAt == null || m.SentAt > hiddenAt || (m.Kind == MessageKind.Photo && m.SenderAccountId != me
+                        && db.MediaItems.Any(i => i.Id == m.MediaId && (i.ReviewedAt ?? i.ScreenedAt) > hiddenAt)))
+                    && !db.MessageHides.Any(h => h.MessageId == m.Id && h.AccountId == me)
                     && (m.Kind != MessageKind.Photo || m.SenderAccountId == me || m.DeletedAt != null
                         || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null)))
                 .OrderByDescending(m => m.SentAt).ThenByDescending(m => m.Kind == MessageKind.System).ThenByDescending(m => m.Id).Take(MessagingPolicy.PageSize + 1).ToListAsync(cancellationToken);
@@ -542,21 +545,28 @@ public static class MessagingEndpoints
     public static async Task<Dictionary<Guid, int>> UnreadAsync(SwoovrDbContext db, Guid me, IReadOnlyCollection<Guid> conversations, CancellationToken cancellationToken)
     {
         if (conversations.Count == 0) return [];
-        return await (from m in db.Messages
-                      where conversations.Contains(m.ConversationId) && m.SenderAccountId != me && m.Kind != MessageKind.System
-                            && m.DeletedAt == null && m.ModerationRemovedAt == null
-                            && !db.MessageHides.Any(h => h.MessageId == m.Id && h.AccountId == me)
-                            && (m.Kind != MessageKind.Photo || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null))
-                      let read = db.ConversationReads.Where(r => r.ConversationId == m.ConversationId && r.AccountId == me).Select(r => (DateTimeOffset?)r.ReadAt).FirstOrDefault()
-                      let hidden = db.ConversationHides.Where(h => h.ConversationId == m.ConversationId && h.AccountId == me).Select(h => (DateTimeOffset?)h.HiddenAt).FirstOrDefault()
-                      // PR 578 review: a photo reaches the member when it passes (an admin's approval or the screener),
-                      // not when it was sent, so reading the chat while it was in review doesn't count it as read.
-                      let passed = m.Kind == MessageKind.Photo ? db.MediaItems.Where(i => i.Id == m.MediaId).Select(i => i.ReviewedAt ?? i.ScreenedAt).FirstOrDefault() : null
-                      let delivered = passed != null && passed > m.SentAt ? passed.Value : m.SentAt
-                      where (read == null || delivered > read) && (hidden == null || delivered > hidden)
+        return await (from m in UnreadMessages(db, me)
+                      where conversations.Contains(m.ConversationId)
                       group m by m.ConversationId into g
                       select new { g.Key, Count = g.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
     }
+
+    /// <summary>The messages UnreadAsync counts, across every conversation (callers narrow it).</summary>
+    public static IQueryable<Message> UnreadMessages(SwoovrDbContext db, Guid me) =>
+        from m in db.Messages
+        where m.SenderAccountId != me && m.Kind != MessageKind.System
+              && m.DeletedAt == null && m.ModerationRemovedAt == null
+              && !db.MessageHides.Any(h => h.MessageId == m.Id && h.AccountId == me)
+              && (m.Kind != MessageKind.Photo || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null))
+        let read = db.ConversationReads.Where(r => r.ConversationId == m.ConversationId && r.AccountId == me).Select(r => (DateTimeOffset?)r.ReadAt).FirstOrDefault()
+        let hidden = db.ConversationHides.Where(h => h.ConversationId == m.ConversationId && h.AccountId == me).Select(h => (DateTimeOffset?)h.HiddenAt).FirstOrDefault()
+        // PR 578 review: a photo reaches the member when it passes (an admin's approval or the screener),
+        // not when it was sent, so reading the chat while it was in review doesn't count it as read. The thread
+        // shows it after a hide on the same rule.
+        let passed = m.Kind == MessageKind.Photo ? db.MediaItems.Where(i => i.Id == m.MediaId).Select(i => i.ReviewedAt ?? i.ScreenedAt).FirstOrDefault() : null
+        let delivered = passed != null && passed > m.SentAt ? passed.Value : m.SentAt
+        where (read == null || delivered > read) && (hidden == null || delivered > hidden)
+        select m;
 
     /// <summary>Issue 541: the member has read the conversation up to now. Never moves back (two tabs racing keep the later time).</summary>
     private static Task MarkReadAsync(SwoovrDbContext db, Guid conversation, Guid me, DateTimeOffset now, CancellationToken cancellationToken) =>
