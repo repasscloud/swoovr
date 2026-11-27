@@ -152,8 +152,11 @@
     private bool loaded, filtersOpen, noticeOpen;
     private ElementReference filtersButton;
     /// <summary>Issue 566 (owner, 27 November 2026, replaces 442's per-browser DEFAULT): closing the notice is for good, on
-    /// every device, and nothing brings it back. The browser key stays as a fallback and carries an older dismissal over.</summary>
+    /// every device, and nothing brings it back. The account holds it; this browser only keeps a dismissal the account
+    /// couldn't be told yet, under that account's id (PR 576 review: never one member's for another on a shared browser).
+    /// The old unscoped key from 442 is carried over once, to the first account that opens Explore, then removed.</summary>
     private const string NoticeKey = "swoovr.explore.notice-dismissed";
+    private string PendingKey => $"{NoticeKey}:{mine?.PublicId}";
     private string? refused;
     private string? market, visitingCity;
     private bool interested, busy;
@@ -199,12 +202,24 @@
         loaded = true;
         if (refused is null)
         {
-            var dismissedHere = false;
-            try { dismissedHere = await JS.InvokeAsync<string?>("localStorage.getItem", NoticeKey) is not null; }
+            var pending = false;
+            try
+            {
+                pending = await JS.InvokeAsync<string?>("localStorage.getItem", PendingKey) is not null;
+                // A browser that closed it before issue 566 hands that over once, then forgets it.
+                if (await JS.InvokeAsync<string?>("localStorage.getItem", NoticeKey) is not null)
+                {
+                    pending = true;
+                    await JS.InvokeVoidAsync("localStorage.removeItem", NoticeKey);
+                }
+            }
             catch (Exception error) when (error is JSException or InvalidOperationException) { }
-            noticeOpen = mine?.ExploreNoticeDismissed != true && !dismissedHere;
-            // A browser that closed it before issue 566 tells the account, so other devices stop showing it too.
-            if (dismissedHere && mine?.ExploreNoticeDismissed != true) await SaveDismissalAsync();
+            noticeOpen = mine?.ExploreNoticeDismissed != true && !pending;
+            if (pending)
+            {
+                if (mine?.ExploreNoticeDismissed == true) await ForgetPendingAsync();
+                else await SaveDismissalAsync();
+            }
         }
         if (refused is null && selected.Length > 0) await SelectAsync(selected);
     }
@@ -325,16 +340,25 @@
     private async Task DismissNoticeAsync()
     {
         noticeOpen = false;
-        try { await JS.InvokeVoidAsync("localStorage.setItem", NoticeKey, "1"); }
-        catch (Exception error) when (error is JSException or InvalidOperationException) { }
         await SaveDismissalAsync();
     }
 
-    // Best effort: if the account can't be told now, this browser still remembers and tells it on the next visit.
+    // Best effort: if the account can't be told now, this browser remembers it for this account only and tells it on
+    // the next visit.
     private async Task SaveDismissalAsync()
     {
-        try { await Members.DismissExploreNoticeAsync(); }
+        var saved = false;
+        try { saved = await Members.DismissExploreNoticeAsync() == 204; }
         catch (Exception error) when (error is HttpRequestException or TaskCanceledException) { }
+        if (saved) { await ForgetPendingAsync(); return; }
+        try { await JS.InvokeVoidAsync("localStorage.setItem", PendingKey, "1"); }
+        catch (Exception error) when (error is JSException or InvalidOperationException) { }
+    }
+
+    private async Task ForgetPendingAsync()
+    {
+        try { await JS.InvokeVoidAsync("localStorage.removeItem", PendingKey); }
+        catch (Exception error) when (error is JSException or InvalidOperationException) { }
     }
 
     // Saved filters change who's shown: reload this mode's results behind the dialog.
