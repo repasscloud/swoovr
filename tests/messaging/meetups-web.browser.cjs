@@ -91,7 +91,7 @@ const ADELAIDE = 2078025;
     assert.equal(reported.status, 201);
     const evidence = JSON.parse(await sql(`SELECT snapshot FROM case_evidence WHERE report_id = '${reported.body.id}' AND kind = 'message'`));
     assert.equal(evidence.messages.find(m => m.id === fourthMessage)?.kind, 'meetup'); pass();
-    const plans = JSON.parse(await sql(`SELECT snapshot FROM case_evidence WHERE report_id = '${reported.body.id}' AND kind = 'meetup-plans'`)).plans;
+    const plans = (await sql(`SELECT snapshot FROM case_evidence WHERE report_id = '${reported.body.id}' AND kind = 'meetup-plan'`)).split('\n').filter(Boolean).map(x => JSON.parse(x));
     const kept = plans.find(x => x.messageId === fourthMessage);
     assert.deepEqual([kept?.venue, kept?.category, kept?.status], ['Fictional Reported Cafe', 'coffee', 'Declined'], 'plan kept: ' + JSON.stringify(plans)); pass();
     // PR 583 review: invitations count toward the other member's unanswered limit, and one sent back is a reply.
@@ -195,12 +195,21 @@ const ADELAIDE = 2078025;
     const adm = await createStaff('mtw-adm');
     assert.equal((await call(root, '/api/admin/invitations', { method: 'POST', body: { email: adm.email, role: 'admin' } })).status, 201);
     const st = await staffToken(browser, adm); await call(st, '/api/session');
+    // PR 583 review: twenty earlier plans with 120-character non-ASCII venues (escaped in JSON) still fit the report's evidence.
+    const wide = '架'.repeat(120);
+    await sql(`WITH src AS (SELECT conversation_id, mode_id, recipient_account_id p, proposer_account_id r FROM meetups WHERE id = '${second.id}'),
+      ids AS (SELECT gen_random_uuid() mid, gen_random_uuid() eid, g FROM generate_series(1, 20) g),
+      msg AS (INSERT INTO messages (id, conversation_id, sender_account_id, kind, body, sent_at, meetup_id)
+        SELECT mid, conversation_id, p, 'Meetup', '', now() - g * interval '1 millisecond', eid FROM ids, src RETURNING id)
+      INSERT INTO meetups (id, conversation_id, message_id, mode_id, proposer_account_id, recipient_account_id, category, venue, starts_at, status, created_at)
+      SELECT eid, conversation_id, mid, mode_id, p, r, 'coffee', '${wide}', now() + interval '30 days', 'Withdrawn', now() - g * interval '1 second' FROM ids, src`);
     r = await propose('ada', chat, { ...plan, startsAt: soon(20), note: 'Fictional note to remove' });
     const liveId = r.body.meetup.id, liveMessage = r.body.id;
     const liveCard = page.locator(`[data-meetup="${liveId}"]`);
     await liveCard.locator('[data-meetup-note]', { hasText: 'Fictional note to remove' }).waitFor({ timeout: 15000 });
     const liveReport = await call(tokens.me, '/api/reports', { method: 'POST', body: { subjectType: 'message', subjectId: liveMessage, category: 'harassment', text: null, block: false } });
-    assert.equal(liveReport.status, 201);
+    assert.equal(liveReport.status, 201, JSON.stringify(liveReport.body)); pass();
+    assert.equal(await sql(`SELECT count(*) FROM case_evidence WHERE report_id = '${liveReport.body.id}' AND kind = 'meetup-plan' AND position('U67B6' in upper(snapshot)) > 0 AND length(snapshot) < 8192`), '20', 'one bounded item per wide plan'); pass();
     const liveCase = await sql(`SELECT case_id FROM reports WHERE id = '${liveReport.body.id}'`);
     const source = (await call(st, `/api/admin/cases/${liveCase}/content-sources`)).body.find(x => x.reportId === liveReport.body.id && x.field === 'message' && x.messageId === liveMessage);
     assert.equal(source?.text, 'Fictional note to remove', 'the note is offered for removal'); pass();
