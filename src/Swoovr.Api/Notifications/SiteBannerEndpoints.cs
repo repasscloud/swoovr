@@ -11,19 +11,19 @@ namespace Swoovr.Api.Notifications;
 /// <summary>
 /// Issue 588 (D445): site-wide banners. Admins publish, schedule and switch them off; Support can see them. Every change is
 /// audited with ids only. The app (signed in and out) and the website's front page read the one live banner for their
-/// placement from public, briefly cached endpoints that return only its text and tone.
+/// placement from one public, briefly cached endpoint that returns only its text and tone.
 /// </summary>
 public static class SiteBannerEndpoints
 {
     public static void Map(WebApplication app)
     {
-        // The app asks for its placement; the website (swoovr-marketing) reads /api/v1/site-banner, the website placement.
+        // The app reads ?placement=app; the website (swoovr-marketing) reads ?placement=website, cross-origin. One stable path:
+        // D211: Swoovr API paths carry no numerical version, so issue 588's suggested numbered path isn't used.
         app.MapGet("/api/site-banner", (string? placement, AccountResolver accounts, TimeProvider clock, HttpContext context, CancellationToken token) =>
-            PublicAsync(placement == SiteBannerPolicy.Website ? SiteBannerPolicy.Website : SiteBannerPolicy.App, accounts, clock, context, token)).AllowAnonymous();
-        app.MapGet("/api/v1/site-banner", (AccountResolver accounts, TimeProvider clock, HttpContext context, CancellationToken token) =>
         {
-            context.Response.Headers.AccessControlAllowOrigin = "*";
-            return PublicAsync(SiteBannerPolicy.Website, accounts, clock, context, token);
+            var website = placement == SiteBannerPolicy.Website;
+            if (website) context.Response.Headers.AccessControlAllowOrigin = "*";
+            return PublicAsync(website ? SiteBannerPolicy.Website : SiteBannerPolicy.App, accounts, clock, context, token);
         }).AllowAnonymous();
 
         var admin = app.MapGroup("/api/admin/site-banners").RequireAuthorization();

@@ -44,15 +44,16 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.deepEqual([status, body], [200, { text: 'Fictional maintenance tonight from 10 pm', tone: 'warning' }]); pass();
     assert.match(cache ?? '', /public, max-age=60/); pass();
     assert.equal((await publicBanner('website'))[0], 204, 'not on the website'); pass();
-    assert.equal((await fetch(`${api}/api/v1/site-banner`)).status, 204); pass();
+    assert.equal((await fetch(`${api}/api/site-banner?placement=website`)).headers.get('access-control-allow-origin'), '*', 'the website reads it cross-origin'); pass();
+    assert.equal((await fetch(`${api}/api/site-banner?placement=app`)).headers.get('access-control-allow-origin'), null, 'the app placement is same-origin only'); pass();
     // One banner on per placement; a website-only banner can be on beside it.
     const second = await create({ text: 'Fictional second app banner' }); ids.push(second.body.id);
     const taken = await turn(second.body.id, true);
     assert.deepEqual([taken.status, taken.body?.code], [409, 'site-banner-placement-taken']); pass();
     const site = await create({ text: 'Fictional website notice', tone: 'critical', inApp: false, onWebsite: true }); ids.push(site.body.id);
     assert.equal((await turn(site.body.id, true)).status, 200); pass();
-    const v1 = await fetch(`${api}/api/v1/site-banner`);
-    assert.deepEqual([v1.status, await v1.json(), v1.headers.get('access-control-allow-origin')], [200, { text: 'Fictional website notice', tone: 'critical' }, '*']); pass();
+    const website = await fetch(`${api}/api/site-banner?placement=website`);
+    assert.deepEqual([website.status, await website.json(), website.headers.get('access-control-allow-origin')], [200, { text: 'Fictional website notice', tone: 'critical' }, '*']); pass();
     // Editing an enabled banner into a placement that's taken is refused too.
     const clash = await call(st, `/api/admin/site-banners/${site.body.id}`, { method: 'PUT', body: { text: 'Fictional website notice', tone: 'critical', inApp: true, onWebsite: true } });
     assert.deepEqual([clash.status, clash.body?.code], [409, 'site-banner-placement-taken']); pass();
