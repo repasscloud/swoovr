@@ -64,7 +64,7 @@
                         <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Block)" data-block-open>Block @person.DisplayName</button></li>
                         @* D190: the separate Serious Safety Incident pathway, its own page. *@
                         <li><a class="safety-menu-item" href="@($"/me/safety/report?type=profile&id={Id}")" data-serious-link><Icon Name="shield" Size="16" />Report a serious safety incident</a></li>
-                        @if (person.Modes.Any(m => m.Connection == "connected") && person.Modes.All(m => m.Connection == "connected"))
+                        @if (AllConnected)
                         {
                             <li><button type="button" class="safety-menu-item" @onclick="() => Open(Dialogs.Connect)" data-manage-connection>Manage connection</button></li>
                         }
@@ -156,7 +156,7 @@
     @if (person.LastUpdated is { } updated) { <p class="field-help person-updated" data-person-updated>Profile updated @updated.ToString("d MMM yyyy")</p> }
     </div>
     </div>
-    <MemberDialog Kind="connect" Title="@($"Connect with {person.DisplayName}")" Open="@(dialog == Dialogs.Connect)" Closed="Close" ReturnFocus="connectButton" FocusRequest="connectFocus">
+    <MemberDialog Kind="connect" Title="@($"Connect with {person.DisplayName}")" Open="@(dialog == Dialogs.Connect)" Closed="Close" ReturnFocus="@(AllConnected ? safetyButton : connectButton)" FocusRequest="connectFocus">
         @if (connectStatus == "sent")
         {
             @* Issue 538: one short confirmation; withdrawing stays on the pending request here or in Connections. *@
@@ -254,6 +254,9 @@
     private ElementReference connectButton, safetyButton;
 
     private void Open(Dialogs which) => (dialog, safetyOpen) = (which, false);
+    /// <summary>Connected in every shown mode: no Connect button, so the connection is managed from the ⋯ menu and focus
+    /// returns there (PR 582 review).</summary>
+    private bool AllConnected => person is not null && person.Modes.Count > 0 && person.Modes.All(m => m.Connection == "connected");
     private void Close() => (dialog, connectStatus, connectMessage) = (null, null, null);
 
     /// <summary>D203, issue 445: the main photo, then each shown mode's own approved photos, each once.</summary>

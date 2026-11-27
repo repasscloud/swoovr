@@ -297,10 +297,46 @@ public static class ProfileEndpoints
                     PictureText = photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null ? person.Profile.PictureText : null,
                     // Issue 568: the green dot as on Explore cards (D410, D422), and the day what the viewer can see last changed.
                     Online = OnlineStatusPolicy.Shows(OnlineStatus(configuration), current.Profile!, person.Profile, clock.GetUtcNow()),
-                    LastUpdated = await db.ProfileVersions.Where(v => v.AccountId == person.Profile.AccountId && (v.ModeId == ProfileVersions.Core || shownIds.Contains(v.ModeId)))
-                        .MaxAsync(v => (DateTimeOffset?)v.CapturedAt, cancellationToken) is { } changed ? DateOnly.FromDateTime(changed.UtcDateTime) : null,
+                    LastUpdated = await LastUpdatedAsync(db, person.Profile.AccountId, shownIds,
+                        photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null, cancellationToken),
                 });
         });
+    }
+
+    /// <summary>
+    /// Issue 568 (D436): the day what the viewer can see of a profile last changed. Each shown mode's version already
+    /// carries the name and About shown there, core ones included (ProfilePrivacy.CaptureAsync), so the core version counts
+    /// only for the text picture, and only while that is what's shown. A core About or name the viewer can't see never
+    /// moves the date (PR 582 review).
+    /// </summary>
+    private static async Task<DateOnly?> LastUpdatedAsync(SwoovrDbContext db, Guid account, IReadOnlyList<string> shownIds, bool pictureTextShown,
+        CancellationToken cancellationToken)
+    {
+        var changed = await db.ProfileVersions.Where(v => v.AccountId == account && shownIds.Contains(v.ModeId))
+            .MaxAsync(v => (DateTimeOffset?)v.CapturedAt, cancellationToken);
+        if (pictureTextShown)
+        {
+            var core = await db.ProfileVersions.Where(v => v.AccountId == account && v.ModeId == ProfileVersions.Core)
+                .OrderBy(v => v.CapturedAt).Select(v => new { v.CapturedAt, v.ContentJson }).ToListAsync(cancellationToken);
+            string? previous = null;
+            foreach (var version in core)
+            {
+                var text = PictureTextOf(version.ContentJson);
+                if (text != previous && (text is not null || previous is not null) && (changed is null || version.CapturedAt > changed)) changed = version.CapturedAt;
+                previous = text;
+            }
+        }
+        return changed is { } at ? DateOnly.FromDateTime(at.UtcDateTime) : null;
+    }
+
+    private static string? PictureTextOf(string json)
+    {
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(json);
+            return document.RootElement.TryGetProperty("pictureText", out var value) && value.ValueKind == System.Text.Json.JsonValueKind.String ? value.GetString() : null;
+        }
+        catch (System.Text.Json.JsonException) { return null; }
     }
 
     /// <summary>

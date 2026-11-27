@@ -1794,5 +1794,6 @@ Builds #282 on D345, D348 and D352, with the wording approved on [#271](https://
   - **The basics** (gender, and Dating's orientation only when shown, D175)
   - one block per shared mode with its state, "Looking for" chips, its own words, and "Goes by … here"
   - **Profile updated {date}**: the day what the viewer can see last changed (profile versions, #91), never activity
+    - **DEFAULT (PR 582 review):** taken from the shown modes' versions, which carry the name and About shown there. The core version counts only for a text-picture change while the text picture is shown, so an edit no shown mode displays (an unshared core About) never moves the date.
 - Only populated sections render; nothing shows "Not specified".
 - **Phone:** one column; the actions stay fixed above the tab bar, and the privacy-choices pill moves above them.

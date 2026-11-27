@@ -102,6 +102,13 @@ let checks = 0; const pass = () => checks++;
    assert.equal(await page.locator('[data-message-status]').innerText(), "You can message people you're connected with."); pass();
    assert.equal(await page.locator('[data-member-dialog]').count(), 0, 'shown on the page, not in a closed dialog'); pass();
    await page.unroute('**/api/conversations');
+   // PR 582 review: connected in every shown mode, the connection is managed from the ⋯ menu and focus returns to it.
+   await page.goto(`${web}/people/${id}?mode=friends`); await page.waitForSelector('[data-person=ready] [data-message-person]', { timeout: 20000 });
+   assert.equal(await page.locator('[data-open-connect]').count(), 0, 'no Connect button when connected everywhere shown'); pass();
+   await page.click('[data-safety-menu]'); await page.click('[data-manage-connection]');
+   await page.waitForSelector('[data-member-dialog=connect]');
+   await page.keyboard.press('Escape'); await page.waitForSelector('[data-member-dialog=connect]', { state: 'detached' });
+   await page.waitForFunction(() => document.activeElement?.matches('[data-safety-menu]')); pass();
    // Codex (PR 464): a sent report replaces its form; focus returns to the dialog heading and Escape still closes it.
    await page.click('[data-safety-menu]'); await page.click('[data-report-open]');
    await page.waitForSelector('[data-member-dialog=report] #report-category');
@@ -152,6 +159,18 @@ let checks = 0; const pass = () => checks++;
     if (width === 1280) { const [gallery, details] = await page.evaluate(() => ['[data-person-layout] > :first-child', '[data-person-details]'].map(q => document.querySelector(q).getBoundingClientRect())); assert.ok(details.left >= gallery.right, 'details sit beside the gallery on desktop'); pass(); }
     if (output) await page.screenshot({ path: `${output}/layout-${mode}-${width}.png`, fullPage: true });
    }
+   // PR 582 review: "Profile updated" follows only what the viewer can see. A core About no shown mode shares never moves
+   // it; sharing it does.
+   // Shifted back a year, keeping their order (the latest version per mode must stay the latest).
+   await sql(`UPDATE profile_versions SET captured_at = captured_at - interval '400 days' WHERE account_id = '${account}'`);
+   const before = (await call(b, `/api/profiles/${id}?mode=friends`)).body.lastUpdated;
+   assert.ok(before < '2026-01-01', before); pass();
+   assert.equal((await call(a, '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional Sam', homeCityId: 2078025, about: 'Fictional hidden core about.' } })).status, 200);
+   assert.equal((await call(b, `/api/profiles/${id}?mode=friends`)).body.lastUpdated, before, 'an unshared core About is not a visible change'); pass();
+   const shareCore = share => call(a, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true, intentions: chips('friends').map(c => c.id), shareCoreAbout: share } });
+   assert.equal((await shareCore(true)).status, 200);
+   assert.notEqual((await call(b, `/api/profiles/${id}?mode=friends`)).body.lastUpdated, before, 'sharing it is'); pass();
+   assert.equal((await shareCore(false)).status, 200);
    // ---- Issue 467: the photo viewer (open, step, keyboard, swipe, focus), Report photo and the save deterrent.
    await page.setViewportSize({ width: 1280, height: 900 });
    await page.goto(`${web}/people/${id}?mode=friends`); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
