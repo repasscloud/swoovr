@@ -222,7 +222,7 @@ const { web, createMember, memberToken, rootAdminToken, cli, sql, call, claims, 
     // Issue 446: Block sits in the Report or block menu; opening its dialog blocks nobody.
     await page.click('[data-safety-menu]');
     assert.equal(await page.locator('[data-safety-menu]').getAttribute('aria-expanded'), 'true'); pass();
-    await page.getByRole('button', { name: 'Block Fictional Hal' }).click();
+    await page.getByRole('button', { name: 'Block member' }).click();
     await page.waitForSelector('[data-block=confirm]'); pass();
     if (output) await page.screenshot({ path: output + '/person-block-dialog-390.png', fullPage: true });
     assert.ok(!(await call(tokens.ann, '/api/blocks')).body.map(b => b.id).includes(pid.hal), 'opening Block blocks nobody'); pass();
