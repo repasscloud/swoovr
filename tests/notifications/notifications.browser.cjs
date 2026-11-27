@@ -69,7 +69,7 @@ const pushBox = id => `push-${id.replace(/-/g, '')}@simulated.swoovr.invalid`;
     let r = await call(tokens.ana, '/api/me/notification-settings');
     assert.deepEqual(r.body, { messages: true, requests: true, connections: true, travel: true, push: true, email: true, privatePreviews: true,
       quietFrom: null, quietUntil: null, timeZone: 'Australia/Adelaide', mutedModes: [], chatPhotos: true, devices: 0, unansweredLimit: 0 }); pass(); // D380: the limit is Off by default
-    assert.deepEqual(await centre('ana'), { items: [], unread: 0, pendingRequests: 0 }); pass();
+    assert.deepEqual(await centre('ana'), { items: [], unread: 0, pendingRequests: 0, unreadChats: 0 }); pass();
 
     // ---- Settings validation and tampered bodies.
     for (const bad of [{ quietFrom: '22:00' }, { quietUntil: '07:00' }, { quietFrom: '25:00', quietUntil: '07:00' }, { quietFrom: '9pm', quietUntil: '07:00' },

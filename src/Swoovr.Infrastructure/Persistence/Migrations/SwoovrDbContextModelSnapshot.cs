@@ -1571,6 +1571,29 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                     b.ToTable("conversation_hides");
                 });
 
+            modelBuilder.Entity("Swoovr.Domain.ConversationRead", b =>
+                {
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("conversation_id");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<DateTimeOffset>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.HasKey("ConversationId", "AccountId")
+                        .HasName("pk_conversation_reads");
+
+                    b.HasIndex("AccountId")
+                        .HasDatabaseName("ix_conversation_reads_account_id");
+
+                    b.ToTable("conversation_reads");
+                });
+
             modelBuilder.Entity("Swoovr.Domain.CustodyEvent", b =>
                 {
                     b.Property<long>("Sequence")
@@ -9552,6 +9575,23 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_conversation_hides_conversations_conversation_id");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.ConversationRead", b =>
+                {
+                    b.HasOne("Swoovr.Domain.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_conversation_reads_accounts_account_id");
+
+                    b.HasOne("Swoovr.Domain.Conversation", null)
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_conversation_reads_conversations_conversation_id");
                 });
 
             modelBuilder.Entity("Swoovr.Domain.CustodyEvent", b =>

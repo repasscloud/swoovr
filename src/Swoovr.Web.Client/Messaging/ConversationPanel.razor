@@ -7,6 +7,7 @@
    neutral line, and opens again as soon as their reply arrives live (or the chat is reopened). *@
 @inject MemberClient Members
 @inject NavigationManager Navigation
+@inject UnreadNotifications Unread
 @implements IAsyncDisposable
 <div class="chat-head" data-conversation="@(loaded ? (conversation is null ? "unavailable" : "ready") : "loading")" data-live="@(live ? "on" : "off")">
     @if (conversation is not null)
@@ -146,7 +147,7 @@
             (messages, more, before) = (page?.Items.Reverse().Select(Project).ToList() ?? [], page?.More ?? false, page?.Before);
             hub = new MessagesHubClient(new Uri(Navigation.BaseUri + "bff/hubs/messages"));
             // A photo's state changes arrive as the same message again (#41): replace it in place.
-            hub.Message += m => { if (m.ConversationId == Id) { Upsert(m); Replied(m); _ = InvokeAsync(StateHasChanged); } };
+            hub.Message += m => { if (m.ConversationId == Id) { Upsert(m); Replied(m); if (!m.Mine) _ = ReadLiveAsync(); _ = InvokeAsync(StateHasChanged); } };
             hub.Deleted += d => { if (d.ConversationId == Id) { MarkDeleted(d.MessageId); _ = InvokeAsync(StateHasChanged); } };
             hub.Reconnected += () => _ = InvokeAsync(Closed);
             hub.Closed += c => { if (c.ConversationId == Id) _ = InvokeAsync(Closed); };
@@ -160,8 +161,17 @@
             // Issue 300: a reply (or a looser limit) between the first read and the live connection doesn't arrive live.
             await RecheckAwaitingAsync();
             if (messages.Count == 0 && conversation.CanSend) starters = (await Members.StartersAsync(Id)).Value ?? [];
+            // Issue 541: opening the chat read it (the API recorded that); the Chats badge drops now, not at the next poll.
+            _ = Unread.ChangedByMemberAsync();
         }
         loaded = true;
+    }
+
+    // Issue 541 DEFAULT: a message that arrives while this chat is open counts as read (the member's own count only).
+    private async Task ReadLiveAsync()
+    {
+        try { await Members.ReadConversationAsync(Id); await Unread.ChangedByMemberAsync(); }
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException) { }
     }
 
     private async Task OlderAsync()

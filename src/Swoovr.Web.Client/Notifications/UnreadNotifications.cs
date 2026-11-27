@@ -29,6 +29,9 @@ public sealed class UnreadNotifications(MemberClient members, NavigationManager 
     /// <summary>Issue 540: connection requests waiting for an answer, from the same answer (no second poll).</summary>
     public int? PendingRequests => Centre?.PendingRequests;
 
+    /// <summary>Issue 541: unread messages across the member's chats, from the same answer (no second poll).</summary>
+    public int? UnreadChats => Centre?.UnreadChats;
+
     public event Action? Changed;
 
     /// <summary>
@@ -42,9 +45,9 @@ public sealed class UnreadNotifications(MemberClient members, NavigationManager 
         if ((await members.NotificationsAsync(cancellationToken)).Value is not { } centre) return false;
         if (order < applied) return true; // a newer answer is already in Centre
         applied = order;
-        var before = (Count, PendingRequests);
+        var before = (Count, PendingRequests, UnreadChats);
         Centre = centre;
-        if ((Count, PendingRequests) != before) Changed?.Invoke();
+        if ((Count, PendingRequests, UnreadChats) != before) Changed?.Invoke();
         return true;
     }
 

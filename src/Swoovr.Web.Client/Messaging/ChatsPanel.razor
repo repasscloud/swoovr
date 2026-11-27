@@ -1,6 +1,11 @@
 @* Chats (D143, Interactive WebAssembly): the member's open conversations, most recent first. Conversations exist only
-   between connected people; a block closes one at once. No read receipts or presence. *@
+   between connected people; a block closes one at once. No read receipts or presence.
+   Issue 541 (with issue 567's points): each row is one link to the chat, with the person's thumbnail, name and published age,
+   the mode the chat started in, their badges, "Last updated" (the latest conversation activity; creation for an empty
+   chat) and this member's own unread count. The list reloads when the shared unread total changes and every 30 seconds. *@
+@implements IDisposable
 @inject MemberClient Members
+@inject UnreadNotifications Unread
 <div class="page-heading" data-chats="@(loaded ? (refused is null ? "ready" : "refused") : "loading")">
     <h1>Chats</h1>
     @if (!loaded) { <p role="status">Loading…</p> }
@@ -14,23 +19,100 @@
     }
     else
     {
-        <ul class="request-list" data-chat-list="@conversations.Count">
+        <ul class="cx-rows chat-rows" data-chat-list="@conversations.Count">
             @foreach (var c in conversations)
             {
-                <li data-chat="@c.Id"><span class="request-person"><a href="@($"/chats/{c.Id}")">@(c.Person.DisplayName ?? "Someone")</a><BadgeRow Badges="c.Person.Badges" /></span>
-                    <span class="field-help">@(c.LastMessageAt is { } at ? at.ToLocalTime().ToString("d MMM, HH:mm") : "No messages yet")</span></li>
+                <li class="chat-row@(c.Unread > 0 ? " has-unread" : "")" data-chat="@c.Id" data-chat-unread="@c.Unread">
+                    <a class="chat-row-link" href="@($"/chats/{c.Id}")" aria-label="@RowLabel(c)">
+                        @if (c.Person.Photo is { } photo) { <img class="cx-thumb" src="@PhotoText.Web(photo.Link)" alt="" loading="lazy" data-row-photo /> }
+                        else { <span class="cx-thumb" aria-hidden="true">@Initial(c.Person.DisplayName)</span> }
+                        <span class="cx-who" aria-hidden="true">
+                            <span class="cx-name">@(c.Person.DisplayName ?? "Someone")@if (c.Person.Age is { } age) { <span class="cx-age" data-row-age>, @age</span> }</span>
+                            <span class="cx-meta">@if (c.ModeId is { } mode) { <span class="chip cx-mode" data-chat-mode="@mode">@Label(mode)</span> }<BadgeRow Badges="c.Person.Badges" />@if (c.Closed) { <span class="chip" data-chat-closed>Closed</span> }</span>
+                            <span class="chat-updated" data-chat-updated>Last updated: @Updated(c)</span>
+                        </span>
+                        @if (c.Unread > 0) { <span class="cx-count chat-unread" aria-hidden="true" data-chat-unread-count="@c.Unread">@(c.Unread > 99 ? "99+" : c.Unread.ToString())</span> }
+                    </a>
+                </li>
             }
         </ul>
     }
 }
 @code {
-    private bool loaded;
+    private bool loaded, disposed;
     private string? refused;
     private List<ConversationView> conversations = [];
+    private List<ConnectionModeView> modes = [];
+    private int? lastTotal;
+    private CancellationTokenSource? polling;
 
     protected override async Task OnInitializedAsync()
     {
+        if (await Members.ModesAsync() is { Ok: true } catalogue) modes = catalogue.Value!.ToList();
+        await LoadAsync();
+        Unread.Changed += OnUnreadChanged;
+        Unread.Watch();
+        polling = new CancellationTokenSource();
+        _ = PollAsync(polling.Token);
+    }
+
+    // PR 578 review: the total can stay the same while one chat is read and another gets a message, so the list reloads
+    // on the same 30-second rhythm as the badges too, not only when the total moves.
+    private async Task PollAsync(CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(UnreadNotifications.Interval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken)) await InvokeAsync(ReloadAsync);
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task LoadAsync()
+    {
         var result = await Members.ConversationsAsync();
         (conversations, refused, loaded) = (result.Value ?? [], result.Ok ? null : result.Code ?? "unavailable", true);
+        lastTotal = conversations.Sum(c => c.Unread);
+    }
+
+    // New messages (or reading one in another tab) change the shared total: reload so counts and order follow.
+    private void OnUnreadChanged()
+    {
+        if (disposed || Unread.UnreadChats is not { } total || total == lastTotal) return;
+        _ = InvokeAsync(ReloadAsync);
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (disposed) return;
+        try { await LoadAsync(); }
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException) { return; }
+        if (!disposed) StateHasChanged();
+    }
+
+    private string Label(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;
+
+    private static string Initial(string? name) => string.IsNullOrWhiteSpace(name) ? "?" : name.Trim()[..1].ToUpperInvariant();
+
+    private static string Updated(ConversationView c) => (c.LastMessageAt ?? c.CreatedAt).ToLocalTime() is var at && at.Date == DateTimeOffset.Now.Date
+        ? at.ToString("HH:mm") : at.ToString("d MMM, HH:mm");
+
+    // One accessible name for the whole row: who, the mode, when, and how many unread.
+    private string RowLabel(ConversationView c) => string.Join(", ", new[]
+    {
+        (c.Person.DisplayName ?? "Someone") + (c.Person.Age is { } age ? $" {age}" : ""),
+        c.ModeId is { } mode ? Label(mode) : null,
+        c.Closed ? "closed" : null,
+        "last updated " + Updated(c),
+        c.Unread switch { 0 => null, 1 => "1 unread message", var n => $"{n} unread messages" },
+    }.Where(part => part is not null));
+
+    public void Dispose()
+    {
+        disposed = true;
+        polling?.Cancel();
+        polling?.Dispose();
+        Unread.Changed -= OnUnreadChanged;
+        Unread.Unwatch();
     }
 }

@@ -213,6 +213,8 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 500;
     const queue = (await call(st.adm, '/api/admin/media/review')).body.items.find(i => i.id === unsureMedia);
     assert.deepEqual([queue?.purpose, queue?.accountId], ['attachment', id.ana]); pass();
     assert.equal((await call(st.adm, `/api/admin/media/${unsureMedia}/decision`, { method: 'POST', body: { decision: 'approve' } })).status, 200);
+    // PR 578 review: Ben read the chat while the photo was in review; once it's delivered it still counts as unread.
+    assert.ok(await waitFor(async () => (await call(tk.ben, '/api/conversations')).body.find(c => c.id === ab)?.unread === 1), 'a photo approved after a read is unread'); pass();
     assert.ok(await waitFor(async () => (await list('ben', ab)).some(m => m.id === unsure && m.photo))); pass();
 
     // ---- Blocked (labelled simulation): sealed, held, escalated with ids only; reads as not approved; nobody can view it.

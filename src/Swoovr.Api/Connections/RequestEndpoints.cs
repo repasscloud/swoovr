@@ -304,25 +304,41 @@ public static class RequestEndpoints
         List<ConnectionRequestView> views, Guid me, DateTimeOffset now, CancellationToken cancellationToken)
     {
         if (rows.Count == 0) return views;
-        var others = rows.Select(r => r.FromAccountId == me ? r.ToAccountId : r.FromAccountId).Distinct().ToList();
+        var faces = await FacesAsync(db, services, me, rows.Select(r => (r.FromAccountId == me ? r.ToAccountId : r.FromAccountId, r.ModeId)).ToList(), now, cancellationToken);
+        return rows.Zip(views, (row, view) =>
+            faces.TryGetValue((row.FromAccountId == me ? row.ToAccountId : row.FromAccountId, row.ModeId), out var face)
+                ? view with { Person = view.Person with { Photo = face.Photo, Age = face.Age } } : view).ToList();
+    }
+
+    /// <summary>
+    /// The main photo and published age of each (person, mode) the member may see now (the profile endpoint's rule: still a
+    /// candidate and the mode still shared, D175). Pairs the member may not see are left out, so the row shows a name only.
+    /// PR 561 review: one candidate query and one batched shared-modes check for the whole page, not one per person.
+    /// Shared by Connections (issue 539) and Chats (issue 541).
+    /// </summary>
+    public static async Task<Dictionary<(Guid Other, string Mode), (PhotoView? Photo, int? Age)>> FacesAsync(SwoovrDbContext db, IServiceProvider services, Guid me,
+        IReadOnlyList<(Guid Other, string Mode)> pairs, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<(Guid, string), (PhotoView?, int?)>();
+        if (pairs.Count == 0) return result;
+        var others = pairs.Select(p => p.Other).Distinct().ToList();
         var configuration = services.GetRequiredService<IConfiguration>();
-        // PR 561 review: one candidate query and one batched shared-modes check for the whole page, not one per person.
         var people = await ProfileEndpoints.Candidates(db, configuration, me).Where(c => others.Contains(c.Profile.AccountId)).ToListAsync(cancellationToken);
         var open = (await ProfileEndpoints.SharedModesAsync(db, me, people, cancellationToken))
             .SelectMany(p => p.Value.Select(mode => (p.Key, mode.Id))).ToHashSet();
         var links = services.GetService<Media.MediaLinks>();
-        var photos = links is null ? default : await Media.MediaEndpoints.PhotosAsync(db, links, others, rows.Select(r => r.ModeId).Distinct().ToList(), now, cancellationToken);
+        var photos = links is null ? default : await Media.MediaEndpoints.PhotosAsync(db, links, others, pairs.Select(p => p.Mode).Distinct().ToList(), now, cancellationToken);
         var identities = await ProfileEndpoints.IdentitiesAsync(db, others, cancellationToken);
         var births = await db.MemberProfiles.Where(p => others.Contains(p.AccountId)).ToDictionaryAsync(p => p.AccountId, p => p.DateOfBirth, cancellationToken);
         var today = DateOnly.FromDateTime(now.UtcDateTime);
-        return rows.Zip(views, (row, view) =>
+        foreach (var (other, mode) in pairs.Distinct())
         {
-            var other = row.FromAccountId == me ? row.ToAccountId : row.FromAccountId;
-            if (!open.Contains((other, row.ModeId))) return view;
+            if (!open.Contains((other, mode))) continue;
             var age = births.GetValueOrDefault(other) is { } born ? AgePolicy.YearsOn(born, today) : (int?)null;
-            var shownAge = ModePrivacy.OnCard(row.ModeId, ProfileEndpoints.Public(identities.GetValueOrDefault(other), age, new Dictionary<string, string>()).Age, null, null).Age;
-            return view with { Person = view.Person with { Photo = photos.Main?.GetValueOrDefault((other, row.ModeId)), Age = shownAge } };
-        }).ToList();
+            var shownAge = ModePrivacy.OnCard(mode, ProfileEndpoints.Public(identities.GetValueOrDefault(other), age, new Dictionary<string, string>()).Age, null, null).Age;
+            result[(other, mode)] = (photos.Main?.GetValueOrDefault((other, mode)), shownAge);
+        }
+        return result;
     }
 
     public static async Task<ConnectionRequestView> ViewAsync(SwoovrDbContext db, ConnectionRequest request, Guid me, CancellationToken cancellationToken) =>

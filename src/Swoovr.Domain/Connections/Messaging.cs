@@ -68,6 +68,17 @@ public sealed class ConversationHide
     public DateTimeOffset HiddenAt { get; set; }
 }
 
+/// <summary>
+/// Issue 541: how far one member has read one conversation, for their own unread counts. Never shown to the other
+/// member (no read receipts, D143). Set when the member opens the conversation's newest messages.
+/// </summary>
+public sealed class ConversationRead
+{
+    public Guid ConversationId { get; set; }
+    public Guid AccountId { get; set; }
+    public DateTimeOffset ReadAt { get; set; }
+}
+
 public enum SendRefusal { None, NotAvailable, BotMayOnlyReply, ArrivalRequired, InvalidText, RateLimited, AwaitingReply }
 
 /// <summary>What the API knows about one attempt to send.</summary>

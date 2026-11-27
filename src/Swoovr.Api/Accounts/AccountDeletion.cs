@@ -257,6 +257,7 @@ public sealed class AccountDeletion(IServiceProvider services, IIdentityAdmin id
         await conversations.Where(c => c.ClosedReason == ClosedReasons.Disconnected).ExecuteUpdateAsync(u => u.SetProperty(c => c.ClosedReason, ClosedReasons.Deleted), cancellationToken);
         await db.MessageHides.Where(h => h.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.ConversationHides.Where(h => h.AccountId == id).ExecuteDeleteAsync(cancellationToken);
+        await db.ConversationReads.Where(r => r.AccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.Messages.Where(m => m.SenderAccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.ConnectionRequests.Where(r => r.FromAccountId == id || r.ToAccountId == id).ExecuteDeleteAsync(cancellationToken);
         await db.Blocks.Where(b => b.BlockerAccountId == id || b.BlockedAccountId == id).ExecuteDeleteAsync(cancellationToken);
