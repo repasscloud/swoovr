@@ -83,8 +83,15 @@ const ADELAIDE = 2078025;
     // Withdraw and decline.
     const third = (await propose('me', chat, { ...plan, startsAt: soon(6) })).body.meetup;
     assert.equal((await answer('me', third.id, 'withdraw')).body.meetup.state, 'withdrawn'); pass();
-    const fourth = (await propose('ada', chat, { ...plan, category: 'coffee', startsAt: soon(7, 10) })).body.meetup;
+    r = await propose('ada', chat, { ...plan, category: 'coffee', venue: 'Fictional Reported Cafe', startsAt: soon(7, 10), note: null });
+    const fourth = r.body.meetup, fourthMessage = r.body.id;
     assert.equal((await answer('me', fourth.id, 'decline')).body.meetup.state, 'declined'); pass();
+    // PR 583 review: a reported card keeps its plan in the case, even with no note.
+    const reported = await call(tokens.me, '/api/reports', { method: 'POST', body: { subjectType: 'message', subjectId: fourthMessage, category: 'harassment', text: null, block: false } });
+    assert.equal(reported.status, 201);
+    const evidence = JSON.parse(await sql(`SELECT snapshot FROM case_evidence WHERE report_id = '${reported.body.id}'`));
+    const kept = evidence.messages.find(m => m.id === fourthMessage);
+    assert.deepEqual([kept.kind, kept.meetup?.venue, kept.meetup?.category, kept.meetup?.status], ['meetup', 'Fictional Reported Cafe', 'coffee', 'Declined'], JSON.stringify(kept)); pass();
 
     // A block calls every open plan off and nobody can answer any more.
     const blkPlan = (await propose('blk', blkChat, { category: 'networking', venue: 'Fictional Hub', startsAt: soon(5, 9) })).body.meetup;
@@ -140,6 +147,17 @@ const ADELAIDE = 2078025;
     assert.equal(await page.locator(`[data-meetups-section=upcoming] [data-meetups-row="${webId}"]`).count(), 1); pass();
     for (const width of [390, 320]) { await page.setViewportSize({ width, height: 844 }); assert.deepEqual(await page.evaluate(audit), [], 'My meet-ups at ' + width); pass(); }
     if (output) await page.screenshot({ path: output + '/meetups-390.png', fullPage: true });
+    // PR 583 review: a state change never brings back a card hidden for me.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(web + `/chats/${chat}`);
+    await page.waitForSelector('[data-conversation=ready]');
+    const hiddenId = await page.locator('li[data-message-kind=meetup]', { has: page.locator(`[data-meetup="${webId}"]`) }).getAttribute('data-message');
+    await page.click(`[data-message-menu="${hiddenId}"]`);
+    await page.click(`[data-hide="${hiddenId}"]`);
+    await page.locator(`li[data-message="${hiddenId}"]`).waitFor({ state: 'detached' });
+    assert.equal((await answer('ada', webId, 'cancel')).status, 200);
+    await page.waitForTimeout(4000);
+    assert.equal(await page.locator(`li[data-message="${hiddenId}"]`).count(), 0, 'stays hidden after Ada calls it off'); pass();
     await context.close();
     console.log(`PASS: private meet-ups (issue 545), ${passed} checks.`);
   } finally {

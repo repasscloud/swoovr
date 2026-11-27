@@ -188,7 +188,12 @@ public static partial class MessagingEndpoints
     {
         var message = await db.Messages.AsNoTracking().SingleOrDefaultAsync(m => m.Id == meetup.MessageId, cancellationToken);
         if (message is null) return;
-        foreach (var viewer in new[] { conversation.PairLow, conversation.PairHigh })
+        // PR 583 review: a state change never brings back a card the viewer hid ("Hide for me", or hiding the chat after it
+        // was sent), the same rule as the thread list.
+        var hidden = await db.MessageHides.Where(h => h.MessageId == message.Id).Select(h => h.AccountId)
+            .Union(db.ConversationHides.Where(h => h.ConversationId == conversation.Id && h.HiddenAt >= message.SentAt).Select(h => h.AccountId))
+            .ToListAsync(cancellationToken);
+        foreach (var viewer in new[] { conversation.PairLow, conversation.PairHigh }.Where(v => !hidden.Contains(v)))
             await BetaMessageAudience.SendAsync(services, viewer, View(message, viewer, now, meetup: Card(meetup, message, viewer, now, conversation.ClosedAt is null)), cancellationToken);
     }
 

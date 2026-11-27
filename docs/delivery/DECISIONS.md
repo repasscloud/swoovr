@@ -1830,4 +1830,6 @@ Builds D430 (Q193) for [#545](https://github.com/repasscloud/swoovr/issues/545),
 - **After acceptance (A):** **Add to calendar** makes an `.ics` file on the device; nothing is sent. **I'm meeting someone** is offered as a link and never starts by itself. There are no reminders.
 - **My meet-ups** (`/me/meetups`, in the Me menu): Upcoming, Waiting for a reply, and Past and closed. Each row opens its chat, where every action lives.
 - **DEFAULT:** a block, a disconnect, ending the chat or deleting an account calls off every pending or accepted plan in that chat. Plans are deleted with the messages that carried them and included in the data export. The audit names the action only, never the place, time or note.
+- **Moderation (PR 583 review):** the note is screened by text-harm inspection and can be removed by staff like a text message's. A report keeps the card's plan (category, place, time, length, state) in the case evidence, so it survives the message's retention. A state change re-sends the card only to a member who hasn't hidden it or the chat since it was sent.
+- **OPEN:** the free-text place isn't screened or removable on its own yet; staff see it in report evidence.
 - Group meet-ups, discovery and events stay deferred (#36, #46, #59).

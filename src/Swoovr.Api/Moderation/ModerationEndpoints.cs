@@ -234,11 +234,18 @@ public static class ModerationEndpoints
                 var photoIds = kept.Where(m => m.MediaId is not null).Select(m => m.MediaId!.Value).ToList();
                 retainedMedia.AddRange(photoIds);
                 var hashes = await db.MediaItems.Where(i => photoIds.Contains(i.Id)).ToDictionaryAsync(i => i.Id, i => Convert.ToHexStringLower(i.Sha256), cancellationToken);
+                // PR 583 review: a meet-up card keeps its plan (what, where, when, state) in the case, not only its note, so
+                // the evidence survives retention deleting the carrying message.
+                var meetupIds = kept.Where(m => m.MeetupId is not null).Select(m => m.MeetupId!.Value).ToList();
+                var meetups = meetupIds.Count == 0 ? [] : await db.Meetups.AsNoTracking().Where(x => meetupIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
                 snapshot = new
                 {
                     Conversation = conversation.Id, Reported = message?.Id, Chosen = chosen is not null, conversation.ClosedReason,
                     Messages = kept.Select(m => new { m.Id, Kind = Wire(m.Kind), FromSubject = m.Kind == MessageKind.System ? (bool?)null : m.SenderAccountId != me, m.SentAt, Deleted = m.DeletedAt is not null, Text = m.Kind == MessageKind.System ? ConversationEnding.ByOther : m.Body,
-                        Photo = m.MediaId, PhotoSha256 = m.MediaId is { } p ? hashes.GetValueOrDefault(p) : null }).ToList(),
+                        Photo = m.MediaId, PhotoSha256 = m.MediaId is { } p ? hashes.GetValueOrDefault(p) : null,
+                        Meetup = m.MeetupId is { } x && meetups.TryGetValue(x, out var plan)
+                            ? new { plan.Id, plan.ModeId, plan.Category, plan.Venue, plan.StartsAt, plan.DurationMinutes, Status = plan.Status.ToString(), plan.ProposerAccountId, plan.SupersedesId, plan.CreatedAt, plan.AnsweredAt }
+                            : null }).ToList(),
                 };
             }
         }
