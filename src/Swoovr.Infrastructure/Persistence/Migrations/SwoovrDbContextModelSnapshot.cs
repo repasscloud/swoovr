@@ -4834,6 +4834,29 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Swoovr.Domain.MemberFavourite", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<Guid>("TargetAccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_account_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("AccountId", "TargetAccountId")
+                        .HasName("pk_member_favourites");
+
+                    b.HasIndex("TargetAccountId")
+                        .HasDatabaseName("ix_member_favourites_target_account_id");
+
+                    b.ToTable("member_favourites");
+                });
+
             modelBuilder.Entity("Swoovr.Domain.MemberIdentity", b =>
                 {
                     b.Property<Guid>("AccountId")
@@ -10273,6 +10296,23 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_member_appearances_accounts_account_id");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.MemberFavourite", b =>
+                {
+                    b.HasOne("Swoovr.Domain.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_member_favourites_accounts_account_id");
+
+                    b.HasOne("Swoovr.Domain.Account", null)
+                        .WithMany()
+                        .HasForeignKey("TargetAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_member_favourites_accounts_target_account_id");
                 });
 
             modelBuilder.Entity("Swoovr.Domain.MemberIdentity", b =>

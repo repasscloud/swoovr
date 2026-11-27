@@ -34,10 +34,11 @@ public sealed record ModeUpdate(bool Enabled, bool Visible, IReadOnlyList<Guid>?
 /// Orientation in Dating only, when they show it. Never the date of birth.</remarks>
 /// <param name="Distance">D348: a band, never a distance or coordinates.</param>
 /// <param name="PictureText">Issue 389 (D382): the person's text picture, only while the tile has no approved photo.</param>
+/// <param name="Favourite">D449 (Q195): the viewer's own private favourite of this person; never anyone else's.</param>
 public sealed record ProfileCard(Guid Id, string DisplayName, string? About, IReadOnlyList<string> Intentions, IReadOnlyList<BadgeView> Badges,
     int? Age = null, string? Gender = null, string? Pronouns = null, DistanceView? Distance = null, PhotoView? Photo = null, string? Visiting = null,
     string? PictureText = null, int PhotoCount = 0, string? Connection = null, bool NewMember = false,
-    string? Orientation = null, bool Online = false);
+    string? Orientation = null, bool Online = false, bool Favourite = false);
 
 /// <summary>
 /// D348: what another member may learn about distance. Band is hidden, nearby (0–2 km), within10Km, km10To20, km20To30,
@@ -85,6 +86,6 @@ public sealed record ProfileAtReport(DateTimeOffset ReportedAt, List<ProfileVers
 public sealed record MarketInterestUpdate(bool Interested);
 public sealed record PersonProfile(Guid Id, string DisplayName, string? About, IReadOnlyList<SharedModeView> Modes, IReadOnlyList<BadgeView> Badges,
     int? Age = null, string? Gender = null, string? Pronouns = null, PhotoView? Photo = null, DistanceView? Distance = null, string? PictureText = null,
-    bool Online = false, DateOnly? LastUpdated = null);
+    bool Online = false, DateOnly? LastUpdated = null, bool Favourite = false);
 // Issue 568: Online is the D410/D422 green dot (both members chose to show it; never a time). LastUpdated is the day the
 // profile the viewer can see last changed (its captured versions, #91): a date only, never activity.

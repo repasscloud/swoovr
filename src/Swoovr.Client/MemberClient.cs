@@ -202,6 +202,11 @@ public sealed partial class MemberClient(HttpClient transport)
         StatusAsync(new HttpRequestMessage(HttpMethod.Put, "api/me/market-interest") { Content = JsonContent.Create(new MarketInterestUpdate(interested)) }, cancellationToken);
 
     /// <summary>Another member's profile as seen from one mode (D175): that mode plus modes you're connected in.</summary>
+    /// <summary>Issue 572 (D448): private favourites (only the member who saved one ever sees it).</summary>
+    public Task<ApiResult<FavouriteState>> FavouriteAsync(Guid person, bool favourite, CancellationToken token = default) =>
+        SendAsync<FavouriteState>(new HttpRequestMessage(favourite ? HttpMethod.Put : HttpMethod.Delete, $"api/people/{person}/favourite"), token);
+    public Task<ApiResult<List<FavouriteView>>> FavouritesAsync(CancellationToken token = default) =>
+        SendAsync<List<FavouriteView>>(new HttpRequestMessage(HttpMethod.Get, "api/me/favourites"), token);
     public Task<ApiResult<PersonProfile>> PersonAsync(Guid id, string? mode = null, CancellationToken cancellationToken = default) =>
         SendAsync<PersonProfile>(new HttpRequestMessage(HttpMethod.Get, "api/profiles/" + id + (mode is null ? "" : "?mode=" + Uri.EscapeDataString(mode))), cancellationToken);
 

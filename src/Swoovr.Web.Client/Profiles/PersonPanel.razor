@@ -54,6 +54,10 @@
             {
                 <button type="button" class="button person-action person-action-main" @ref="connectButton" @onclick="() => dialog = Dialogs.Connect" data-open-connect>@ConnectLabel</button>
             }
+            @* D448 (issue 572), D449 (Q195): a private favourite, the gold star beside the menu; the member is never told. *@
+            <button type="button" class="person-favourite favourite-star" aria-pressed="@(person.Favourite ? "true" : "false")" disabled="@busy" @onclick="FavouriteAsync"
+                    aria-label="@(person.Favourite ? "Remove from favourites" : "Add to favourites")" title="@(person.Favourite ? "In your favourites. Only you can see this." : "Add to favourites. Only you can see this.")"
+                    data-favourite="@(person.Favourite ? "on" : "off")"><Icon Name="star" Size="20" /></button>
             <div class="safety-menu">
                 <button type="button" class="person-more" @ref="safetyButton" aria-expanded="@(safetyOpen ? "true" : "false")" aria-controls="person-safety-menu"
                         aria-label="More: report, block or manage this member" @onclick="() => safetyOpen = !safetyOpen" data-safety-menu><Icon Name="more" Size="20" /></button>
@@ -349,6 +353,18 @@
         (connectStatus, connectMessage) = result.Ok ? ("disconnected", "Disconnected. They won't be told.") : ("failed", "That connection isn't available any more.");
         confirmDisconnect = null;
         await ReloadAsync();
+    }
+
+    private async Task FavouriteAsync()
+    {
+        if (person is null || busy) return;
+        busy = true;
+        try
+        {
+            var result = await Members.FavouriteAsync(person.Id, !person.Favourite);
+            if (result.Ok) person = person with { Favourite = result.Value!.Favourite };
+        }
+        finally { busy = false; }
     }
 
     private async Task MessageAsync()

@@ -20,3 +20,9 @@ public sealed record NewConnectionRequest(Guid To, string Mode, Guid? Trip = nul
 
 public sealed record BlockRequest(Guid ProfileId);
 public sealed record BlockedPerson(Guid Id, string? DisplayName, DateTimeOffset Since);
+
+/// <summary>Issue 572 (D448): whether the viewer has privately saved this member.</summary>
+public sealed record FavouriteState(bool Favourite);
+
+/// <summary>One member the viewer saved, while their profile is open to the viewer.</summary>
+public sealed record FavouriteView(PersonSummary Person, DateTimeOffset SavedAt);

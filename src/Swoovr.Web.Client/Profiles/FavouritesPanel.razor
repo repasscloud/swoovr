@@ -1,0 +1,32 @@
+@inject MemberClient Members
+@* Issue 572 (D448): the member's own private favourites. Nobody else sees this list, and nobody is told they're on it. *@
+<div class="page-heading">
+    <h1>Favourites</h1>
+    <p>Members you saved. Only you can see this list; nobody is told you saved them.</p>
+</div>
+@if (items is null) { <p role="status">@(loaded ? "Favourites aren't available right now." : "Loading…")</p> }
+else if (items.Count == 0) { <section class="card notice" data-favourites="none"><p>No favourites yet. Tap the star on a member's card or profile to save them here.</p></section> }
+else
+{
+    <ul class="favourite-list" data-favourites="@items.Count">
+        @foreach (var f in items)
+        {
+            <li class="card favourite-row" data-favourite-person="@f.Person.Id">
+                <a class="favourite-name" href="@($"/people/{f.Person.Id}")"><strong>@f.Person.DisplayName</strong></a>
+                <span class="field-help">Saved @f.SavedAt.ToLocalTime().ToString("d MMM yyyy")</span>
+                <button type="button" class="button button-secondary button-small" disabled="@busy" @onclick="() => RemoveAsync(f.Person.Id)" data-favourite-remove="@f.Person.Id">Remove</button>
+            </li>
+        }
+    </ul>
+}
+@code {
+    private List<FavouriteView>? items;
+    private bool loaded, busy;
+    protected override async Task OnInitializedAsync() { items = (await Members.FavouritesAsync()).Value; loaded = true; }
+    private async Task RemoveAsync(Guid id)
+    {
+        busy = true;
+        try { if ((await Members.FavouriteAsync(id, false)).Ok) items?.RemoveAll(f => f.Person.Id == id); }
+        finally { busy = false; }
+    }
+}

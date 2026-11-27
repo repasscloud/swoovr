@@ -58,9 +58,10 @@ let checks = 0; const pass = () => checks++;
    // The safety menu: Report, Block and the serious-incident page, all reachable in one step.
    await page.click('[data-safety-menu]');
    assert.equal(await page.locator('[data-safety-menu]').getAttribute('aria-expanded'), 'true'); pass();
-   assert.equal(await page.locator('[data-safety-menu-list] li').count(), 3); pass();
+   assert.equal(await page.locator('[data-safety-menu-list] li').count(), 3, 'report, block, serious incident (D449: the favourite star is beside the menu)'); pass();
    // D441 (issue 591): every row has an icon and says "member", never the name.
    assert.equal(await page.locator('[data-safety-menu-list] li svg[data-icon]').count(), 3); pass();
+   assert.equal(await page.locator('[data-person-actions] > [data-favourite=off]').count(), 1, 'the star beside ⋯ (D449)'); pass();
    assert.equal((await page.locator('[data-report-open]').innerText()).trim(), 'Report member'); pass();
    assert.equal((await page.locator('[data-block-open]').innerText()).trim(), 'Block member'); pass();
    assert.equal((await page.locator('[data-safety-menu-list]').innerText()).includes('Fictional Sam'), false, 'no member name in the menu'); pass();

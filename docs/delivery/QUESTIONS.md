@@ -3064,3 +3064,8 @@ Asked on #257 in three rounds: [Q141–Q148](https://github.com/repasscloud/wand
 - **194.1 Privacy Notice.** **A (recommended):** a sentence (0.22, or 0.21 if the dates line up) before UAT. **B:** the current notice covers it.
 - **194.2 Map display.** **A (recommended):** no third-party map images; the card opens the member's maps app or web maps. **B:** a provider's preview.
 - **194.3 Retention.** **A (recommended):** kept and removed like any message (D165). **B:** expires after a set time.
+
+### Q195 — Favourite from an Explore card
+
+- Issue: [#596](https://github.com/repasscloud/swoovr/issues/596) (for #572; D398, D443, D448). Status: ANSWERED, owner 28 November 2026: B, and a star on the profile too (**D449**).
+- **195.1 Explore cards.** **A (recommended):** favourite from the profile's ⋯ menu only; cards stay action-free (D398). **B:** a small star over the photo. **C:** a long-press / right-click card menu.

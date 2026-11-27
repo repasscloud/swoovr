@@ -62,6 +62,7 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
     public DbSet<DobReviewIdView> DobReviewIdViews => Set<DobReviewIdView>();
     public DbSet<AccountEscalation> AccountEscalations => Set<AccountEscalation>();
     public DbSet<SiteBanner> SiteBanners => Set<SiteBanner>();
+    public DbSet<MemberFavourite> MemberFavourites => Set<MemberFavourite>();
     public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
     public DbSet<NameChangeReview> NameChangeReviews => Set<NameChangeReview>();
     public DbSet<DobChangeGrant> DobChangeGrants => Set<DobChangeGrant>();
@@ -845,6 +846,14 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             broadcast.Property(b => b.Title).HasMaxLength(BroadcastPolicy.TitleMax);
             broadcast.Property(b => b.Body).HasMaxLength(BroadcastPolicy.BodyMax);
             broadcast.HasIndex(b => b.SentAt);
+        });
+        // Issue 572 (D448): private favourites; gone with either account.
+        model.Entity<MemberFavourite>(favourite =>
+        {
+            favourite.HasKey(f => new { f.AccountId, f.TargetAccountId });
+            favourite.HasOne<Account>().WithMany().HasForeignKey(f => f.AccountId).OnDelete(DeleteBehavior.Cascade);
+            favourite.HasOne<Account>().WithMany().HasForeignKey(f => f.TargetAccountId).OnDelete(DeleteBehavior.Cascade);
+            favourite.HasIndex(f => f.TargetAccountId);
         });
         model.Entity<SiteBanner>(banner =>
         {

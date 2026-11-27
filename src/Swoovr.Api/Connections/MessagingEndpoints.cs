@@ -639,6 +639,8 @@ public static partial class MessagingEndpoints
             Audit.Record(db, now, null, "system", "conversation.closed", "conversation", open.Id.ToString(), "block");
             await CallOffMeetupsAsync(db, open.Id, now, cancellationToken); // issue 545
         }
+        // Issue 572 (D448): a block either way removes both members' private favourites of each other.
+        await db.MemberFavourites.Where(f => f.AccountId == me && f.TargetAccountId == other || f.AccountId == other && f.TargetAccountId == me).ExecuteDeleteAsync(cancellationToken);
         return open;
     }
 

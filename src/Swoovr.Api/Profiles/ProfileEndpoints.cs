@@ -295,6 +295,8 @@ public static class ProfileEndpoints
                 // Issue 389 (D382): the text picture stands in only while no approved main photo shows.
                 {
                     PictureText = photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null ? person.Profile.PictureText : null,
+                    // Issue 572 (D448): only the viewer's own private favourite, never anyone else's.
+                    Favourite = await db.MemberFavourites.AnyAsync(f => f.AccountId == viewer && f.TargetAccountId == person.Profile.AccountId, cancellationToken),
                     // Issue 568: the green dot as on Explore cards (D410, D422), and the day what the viewer can see last changed.
                     Online = OnlineStatusPolicy.Shows(OnlineStatus(configuration), current.Profile!, person.Profile, clock.GetUtcNow()),
                     // The text picture shows only while the whole gallery is empty, as PersonPanel renders it (PR 582 review).
@@ -525,6 +527,8 @@ public static class ProfileEndpoints
         // Issue 498: informational only, after the order is settled; never for official bots.
         var newFrom = NewMemberPolicy.From(configuration.GetValue("Explore:NewMemberDays", NewMemberPolicy.DefaultDays), now);
         var recent = newFrom is { } from ? (await db.Accounts.Where(a => shownIds.Contains(a.Id) && a.CreatedAt > from).Select(a => a.Id).ToListAsync(cancellationToken)).ToHashSet() : [];
+        // D449 (Q195): the gold star on the card. Only the viewer's own favourites, in one query.
+        var favourites = (await db.MemberFavourites.Where(f => f.AccountId == me && shownIds.Contains(f.TargetAccountId)).Select(f => f.TargetAccountId).ToListAsync(cancellationToken)).ToHashSet();
         return shown.Select(c =>
         {
             var identity = identities.GetValueOrDefault(c.Profile.AccountId);
@@ -543,7 +547,7 @@ public static class ProfileEndpoints
                 standing.GetValueOrDefault(c.Profile.AccountId), !c.Profile.Bot && recent.Contains(c.Profile.AccountId),
                 OrientationIn(selected.Id, identity, orientations),
                 // Issue 499 (D410): mutual, worked out after the list and its order are settled.
-                OnlineStatusPolicy.Shows(online, viewer, c.Profile, now));
+                OnlineStatusPolicy.Shows(online, viewer, c.Profile, now), favourites.Contains(c.Profile.AccountId));
         }).ToList();
     }
 
@@ -616,6 +620,60 @@ public static class ProfileEndpoints
     /// viewer's market offers, and in which shared modes the person is visiting the viewer's market.</summary>
     /// <param name="ByPresence">D346: the shared market comes from physical presence, not both homes, so home cities give no distance.</param>
     public sealed record Reach(bool SameMarket, IReadOnlyCollection<string> MarketModes, IReadOnlySet<string> VisitingModes, bool ByPresence = false);
+
+    /// <summary>
+    /// Issue 572 (D448): whether this person's profile opens for the viewer at all, by the same rules as GET /api/profiles/{id}
+    /// without a mode: a candidate (no block either way, active), a shared visible mode, and the market reach (D125, D142).
+    /// ShownMode is the mode that page shows first, so a list can use the same name (the mode's alias) as the linked profile.
+    /// </summary>
+    public sealed record Opened(Row Person, string ShownMode);
+
+    public static async Task<Opened?> OpensAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile viewer, Guid publicId, DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        (await OpensManyAsync(db, configuration, viewer, [publicId], now, cancellationToken)).GetValueOrDefault(publicId);
+
+    /// <summary>
+    /// The same rule for a list (PR 603 review): candidates, shared modes and connection requests load once for everyone,
+    /// and the viewer's home market once. Since a profile opens when any reach holds (MarketAccess.ProfileOpens), a request
+    /// or connection, or the same home market (not a bot, as ReachAsync decides it), settles it without the per-person
+    /// presence, visit and travel lookups; only the rest take them. Keyed by public id; people whose profile doesn't open
+    /// are left out.
+    /// </summary>
+    public static async Task<Dictionary<Guid, Opened>> OpensManyAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile viewer,
+        IReadOnlyCollection<Guid> publicIds, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var opened = new Dictionary<Guid, Opened>();
+        if (publicIds.Count == 0) return opened;
+        var ids = publicIds.Distinct().ToList();
+        var people = await Candidates(db, configuration, viewer.AccountId).Where(c => ids.Contains(c.Profile.PublicId)).ToListAsync(cancellationToken);
+        if (people.Count == 0) return opened;
+        var sharedBy = await SharedModesAsync(db, viewer.AccountId, people, cancellationToken);
+        var me = viewer.AccountId;
+        var others = people.Select(p => p.Profile.AccountId).ToList();
+        var requests = await db.ConnectionRequests.Where(r => (r.Status == ConnectionRequestStatus.Pending || r.Status == ConnectionRequestStatus.Accepted)
+            && (r.PairLow == me && others.Contains(r.PairHigh) || r.PairHigh == me && others.Contains(r.PairLow))).ToListAsync(cancellationToken);
+        var (home, _) = await MarketEndpoints.HomeAsync(db, viewer, cancellationToken);
+        foreach (var person in people)
+        {
+            var other = person.Profile.AccountId;
+            var shared = sharedBy[other];
+            if (shared.Count == 0) continue;
+            var between = requests.Where(r => r.PairLow == other || r.PairHigh == other).ToList();
+            var shownIds = ModePrivacy.Shown(null, shared.Select(m => m.Id).ToList(), between.Select(r => r.ModeId).ToHashSet());
+            if (shownIds.Count == 0) continue;
+            var opens = between.Count > 0
+                || home is { Open: true } && viewer.HomeGeoNameId is not null && !person.Profile.Bot
+                   && MarketAccess.SameMarket(home.Id, person.Profile.HomeMarketId, false, null);
+            if (!opens)
+            {
+                var reach = await ReachAsync(db, configuration, viewer, person, shared, between, now, cancellationToken);
+                opens = MarketAccess.ProfileOpens(reach.SameMarket, false, reach.VisitingModes.Count > 0)
+                    || (await Travel.ArrivalEndpoints.ReachAsync(db, viewer, person, shared, now, cancellationToken)).SearchModes.Count > 0;
+            }
+            if (opens) opened[person.Profile.PublicId] = new Opened(person, shownIds[0]);
+        }
+        return opened;
+    }
 
     public static async Task<Reach> ReachAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile viewer, Row person,
         IReadOnlyList<ConnectionMode> shared, List<ConnectionRequest> between, DateTimeOffset now, CancellationToken cancellationToken)

@@ -1,0 +1,20 @@
+@page "/me/favourites"
+<PageTitle>Favourites — Swoovr</PageTitle>
+<SettingsShell Current="favourites">
+<div class="collection-page member-settings">
+@if (!signedIn)
+{
+    <div class="page-heading"><h1>Favourites</h1><p>Sign in to see your favourites.</p></div>
+    <p class="account-actions"><a class="primary-link" href="/account/sign-in" data-enhance-nav="false">Sign in</a></p>
+}
+else
+{
+    <Swoovr.Web.Client.Profiles.FavouritesPanel @rendermode="new InteractiveWebAssemblyRenderMode(prerender: false)" />
+}
+</div>
+</SettingsShell>
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    private bool signedIn;
+    protected override void OnInitialized() => signedIn = HttpContext.User.Identity?.IsAuthenticated == true;
+}

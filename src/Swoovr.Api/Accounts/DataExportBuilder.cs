@@ -43,6 +43,8 @@ public static class DataExportBuilder
             .Select(r => new { direction = r.FromAccountId == id ? "sent" : "received", with = Name(r.FromAccountId == id ? r.ToAccountId : r.FromAccountId, r.ModeId),
                 mode = r.ModeId, r.Status, r.CreatedAt, r.AnsweredAt });
         var blocks = (await db.Blocks.Where(b => b.BlockerAccountId == id).ToListAsync(cancellationToken)).Select(b => new { person = Name(b.BlockedAccountId) });
+        // Issue 572 (D448): the members you saved, and when.
+        var favourites = (await db.MemberFavourites.Where(f => f.AccountId == id).OrderBy(f => f.CreatedAt).ToListAsync(cancellationToken)).Select(f => new { person = Name(f.TargetAccountId), savedAt = f.CreatedAt });
 
         var conversations = await db.Conversations.Where(c => c.PairLow == id || c.PairHigh == id).OrderBy(c => c.CreatedAt).ToListAsync(cancellationToken);
         var conversationIds = conversations.Select(c => c.Id).ToList();
@@ -102,7 +104,7 @@ public static class DataExportBuilder
                 gender = identity.GenderId, identity.GenderDescription, pronouns = identity.PronounId, selfDescribedPronouns = identity.Pronouns, orientation = identity.OrientationId,
                 identity.ShowGender, identity.ShowPronouns, identity.ShowOrientation, identity.ShowAge, identity.DatingShowMe,
             },
-            modes, filters, trips, requests, blocks, conversations = chats, reportsYouMade = reports, notices, sanctions, appeals, meetingSafety,
+            modes, filters, trips, requests, blocks, favourites, conversations = chats, reportsYouMade = reports, notices, sanctions, appeals, meetingSafety,
             policyNoticeReceipts=await (from recipient in db.Set<PolicyNoticeRecipient>() join publication in db.Set<PolicyNoticePublication>() on recipient.PublicationId equals publication.Id where recipient.AccountId==id select new{publication.Version,recipient.Status,recipient.CreatedAt,recipient.CompletedAt,publication.PurgeAfter}).ToListAsync(cancellationToken),
             // D348, #278: that a Near me position is stored and until when; never the position itself.
             nearMe=(await db.MemberLocations.Where(l=>l.AccountId==id).Select(l=>(DateTimeOffset?)l.ObservedAt).SingleOrDefaultAsync(cancellationToken)) is {} storedAt?new{positionStoredAt=storedAt,usedUntil=storedAt+NearMePolicy.FreshFor,note="A rounded, encrypted position; it is never included here."}:null,
@@ -148,6 +150,7 @@ public static class DataExportBuilder
         var others = await db.ConnectionRequests.Where(r => r.FromAccountId == id || r.ToAccountId == id).Select(r => r.FromAccountId == id ? r.ToAccountId : r.FromAccountId)
             .Union(db.Conversations.Where(c => c.PairLow == id || c.PairHigh == id).Select(c => c.PairLow == id ? c.PairHigh : c.PairLow))
             .Union(db.Blocks.Where(b => b.BlockerAccountId == id).Select(b => b.BlockedAccountId))
+            .Union(db.MemberFavourites.Where(f => f.AccountId == id).Select(f => f.TargetAccountId))
             .ToListAsync(cancellationToken);
         return await db.MemberProfiles.Where(p => others.Contains(p.AccountId)).ToDictionaryAsync(p => p.AccountId, p => p.DisplayName, cancellationToken);
     }
