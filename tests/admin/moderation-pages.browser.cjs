@@ -16,7 +16,7 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     await page.goto(admin + '/sign-in'); await page.fill('#username', adm.email); await page.fill('#password', adm.password); await page.click('#kc-login');
     await fillStaffOtp(page, adm); await page.waitForURL(u => u.href.startsWith(admin) && !u.href.includes('/realms/'), { timeout: 30000 });
     for (const route of ['/appeals', '/dob-reviews', '/name-reviews', '/media']) {
-      await page.goto(admin + route); await page.waitForSelector('main h1');
+      await page.goto(admin + route); await page.waitForSelector('main .ui-page-head h1');
       assert.equal(await page.locator('main .ui-page-head h1').count(), 1, route + ' page head'); pass();
       if (route !== '/media') { assert.ok(await page.locator('main .ui-stats').count() >= 1, route + ' stats'); pass(); }
       assert.equal(await page.locator('main').getByText('Oldest first', { exact: true }).count(), 0, route + ' no "Oldest first"'); pass();
