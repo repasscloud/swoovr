@@ -200,6 +200,19 @@ public static class ProfileEndpoints
             }
             return Results.Ok(await OwnAsync(db, profile, cancellationToken));
         });
+        // Issue 566: closing the Explore notice is for good, on every device. Setting it again keeps the first time.
+        api.MapPost("/me/explore-notice/dismiss", async (ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken cancellationToken) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, cancellationToken);
+            if (denied is not null) return denied;
+            var (profile, db) = (current!.Profile!, accounts.Db!);
+            if (profile.ExploreNoticeDismissedAt is null)
+            {
+                profile.ExploreNoticeDismissedAt = clock.GetUtcNow();
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            return Results.NoContent();
+        });
         api.MapGet("/explore", async (string? mode, string? scope, ClaimsPrincipal user, AccountResolver accounts, IConfiguration configuration, TimeProvider clock,
             CancellationToken cancellationToken) =>
         {
@@ -709,7 +722,8 @@ public static class ProfileEndpoints
         return new(profile.PublicId, profile.DisplayName, profile.About, modes.Select(m => settings.GetValueOrDefault(m.Id) is { } s
             ? new MyModeView(m.Id, s.Enabled, s.Visible, chosen.Where(i => i.ModeId == m.Id).Select(i => i.IntentionId).ToList(), s.About, s.ShareCoreAbout == true, s.DisplayName)
             : new MyModeView(m.Id, false, false, [])).ToList(), home is null ? null : Swoovr.Api.Travel.TravelEndpoints.Place(home),
-            await db.MarketInterests.AnyAsync(i => i.AccountId == profile.AccountId, cancellationToken), profile.PictureText);
+            await db.MarketInterests.AnyAsync(i => i.AccountId == profile.AccountId, cancellationToken), profile.PictureText,
+            profile.ExploreNoticeDismissedAt is not null);
     }
 
     /// <summary>Labels of the available intentions each person chose, by (account, mode).</summary>

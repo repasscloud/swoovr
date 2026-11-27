@@ -1756,3 +1756,10 @@ Builds #282 on D345, D348 and D352, with the wording approved on [#271](https://
 - **DEFAULT:** the trip actions and **Save trip** become content width (no full-width buttons, D390).
 - The iOS and Android texts (§10–§11) wait for Flutter (#284).
 - **PR 560 review:** the page's 5-minute refresh is sent as a background request (`X-Swoovr-Background: 1`), and `PUT /api/me/location` lets a background reading only replace a stored one. After **Stop sharing** (the row is deleted), no open tab or device starts sharing again until the member chooses **Share my location**. A reading that finishes after the member left Explore or Near me, or while the page is hidden, is dropped.
+
+### D435 — Explore: no About link, the notice closes for good, a tinted scope switch (#566, 27 November 2026)
+
+**CONFIRMED** by the owner on [#566](https://github.com/repasscloud/swoovr/issues/566). Replaces D392's dismissal rule (per browser, ⓘ brings it back).
+- **ⓘ About Explore** is removed from the market line.
+- Closing the notice is **for good, on the account**: `POST /api/me/explore-notice/dismiss` sets `member_profiles.explore_notice_dismissed_at` (nullable column, in the data export), and `GET /api/me/profile` returns `ExploreNoticeDismissed`. A browser that closed it before this change tells the account once, on its next visit, then drops that key. If the account can't be told at the moment of closing, the browser keeps it under that account's public id only (never for another member on a shared browser) until the account is told. Nothing brings it back.
+- **Active location / Near me** is a pill switch, and the chosen side is lightly tinted (`--accent` at 35% over `--surface`, token-only). Before this, the pressed state had no style. Labels stay on one line. The market line ("People in …" / "Near you in …") is unchanged.

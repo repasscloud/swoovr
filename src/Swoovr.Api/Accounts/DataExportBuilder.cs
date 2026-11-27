@@ -90,6 +90,8 @@ public static class DataExportBuilder
                 profile.FoundingMember, profile.FounderPlace, profile.FoundingSince,
                 // Issue 389 (D382).
                 profile.PictureText, profile.OnboardingCompletedAt,
+                // Issue 566.
+                profile.ExploreNoticeDismissedAt,
             },
             identity = identity is null ? null : new
             {
