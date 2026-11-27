@@ -211,7 +211,7 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     assert.ok(hrefs.includes('/people/' + pid.eli) && !hrefs.includes('/people/' + pid.ben) && !hrefs.includes('/people/' + pid.cai)); pass();
     const tiles = await page.locator('.member-card').evaluateAll(els => els.map(e => [Math.round(e.getBoundingClientRect().width), Math.round(e.getBoundingClientRect().height)]));
     assert.ok(tiles.every(([w, h]) => w === tiles[0][0] && h === tiles[0][1])); pass(); // equal tiles (UI-STYLE.md)
-    assert.deepEqual(await page.locator(`.member-card:has(a[href^="/people/${pid.eli}"]) .mc-chips .chip`).allInnerTexts(), ['Long-term relationship', 'Open to exploring']); pass(); // issue 443: at most two chips
+    assert.equal(await page.locator(`.member-card:has(a[href^="/people/${pid.eli}"]) .chip`).count(), 0); pass(); // D443 (issue 589): intentions are on the profile, not the card
     if (output) await page.screenshot({ path: output + '/explore-390.png', fullPage: true });
     await page.click('.explore-modes [data-mode=business]');
     await page.waitForSelector('[data-explore-mode=business][data-explore-state=off]'); pass();

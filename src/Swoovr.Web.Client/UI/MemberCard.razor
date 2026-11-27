@@ -1,7 +1,9 @@
 @* Issue 443 (D398): the Explore member card. Photo and quote cards share one shape: a square media block that scales with
-   the grid column (an approved photo, or the member's own words in the quote serif on ink), then one body: name and badges, an
-   optional detail line, and at most two intention chips. Nothing is invented: every line is left out when there's
-   nothing to show, and the body keeps a fixed height so every card in the grid is the same size.
+   the grid column (an approved photo, or the member's own words in the quote serif on ink), then the body.
+   D443 (issue 589, supersedes D398's intention chips): the body is four fixed rows, top to bottom: name, age (badges and
+   the online dot inline) → gender · sexuality → connection → location ("Visiting …" when travelling). A row with nothing
+   to show stays as blank space, never invented text, so every card in every mode is exactly the same size. Intentions
+   are on the profile page, not the card.
    Slots for issue 476: Overlays sits over the media block's corners (travel, photo count), Meta replaces the detail line
    (presence, distance, connection), Badges follows the name. The whole card is the name link's target. *@
 <article class="member-card @(Photo is null ? "is-quote" : "is-photo")" data-tile="@(Photo is null ? "quote" : "photo")">
@@ -23,47 +25,41 @@
         @if (Overlays is not null) { <div class="mc-overlays">@Overlays</div> }
     </div>
     <div class="mc-body">
-        <div class="mc-name"><h2>@if (Online) { <span class="mc-online" role="img" aria-label="Online" title="Online" data-tile-online></span> }<a href="@Href"><span class="mc-name-text">@Name</span>@(Age is { } years ? $", {years}" : "")</a></h2>@Badges</div>
-        @if (!string.IsNullOrEmpty(Identity)) { <p class="mc-identity" data-tile-identity>@Identity</p> }
-        @if (!string.IsNullOrEmpty(Status)) { <p class="mc-status" data-tile-status>@Status</p> }
+        <div class="mc-name mc-row"><h2>@if (Online) { <span class="mc-online" role="img" aria-label="Online" title="Online" data-tile-online></span> }<a href="@Href"><span class="mc-name-text">@Name</span>@(Age is { } years ? $", {years}" : "")</a></h2>@Badges</div>
+        @if (!string.IsNullOrEmpty(Identity)) { <p class="mc-identity mc-row" data-tile-identity>@Identity</p> } else { <p class="mc-identity mc-row" aria-hidden="true" data-tile-blank="identity"></p> }
+        @if (!string.IsNullOrEmpty(Status)) { <p class="mc-status mc-row" data-tile-status>@Status</p> } else { <p class="mc-status mc-row" aria-hidden="true" data-tile-blank="status"></p> }
         @if (Meta is not null)
         {
-            <div class="mc-meta">@Meta</div>
+            <div class="mc-meta mc-row">@Meta</div>
         }
         else if (!string.IsNullOrEmpty(Detail))
         {
-            <p class="mc-meta" data-tile-detail><Icon Name="pin" Size="12" /><span>@Detail</span></p>
+            <p class="mc-meta mc-row" data-tile-detail><Icon Name="pin" Size="12" /><span>@Detail</span></p>
         }
-        @if (Intentions.Count > 0)
+        else
         {
-            <ul class="mc-chips" aria-label="Intentions">
-                @foreach (var intention in Intentions.Take(MaxChips)) { <li class="chip">@intention</li> }
-            </ul>
+            <p class="mc-meta mc-row" aria-hidden="true" data-tile-blank="location"></p>
         }
     </div>
 </article>
 @code {
-    /// <summary>Issue 476: at most two intention chips, in the API's order; the rest are on the profile.</summary>
-    public const int MaxChips = 2;
-
     [Parameter, EditorRequired] public string Name { get; set; } = "";
     /// <summary>Issue 495: only what the API returned for this mode.</summary>
     [Parameter] public int? Age { get; set; }
     [Parameter, EditorRequired] public string Href { get; set; } = "";
-    [Parameter] public IReadOnlyList<string> Intentions { get; set; } = [];
-    /// <summary>One short line under the name: the distance band or "Visiting …" (D348, D352). Left out when empty.</summary>
+    /// <summary>The location row: "Visiting …" when travelling, otherwise the distance band (D348, D352). Blank when empty.</summary>
     [Parameter] public string Detail { get; set; } = "";
     /// <summary>Issue 499 (D410): a green dot and nothing else; the API decides.</summary>
     [Parameter] public bool Online { get; set; }
-    /// <summary>Issue 495: gender and orientation, as the API returned them for this mode. Left out when empty.</summary>
+    /// <summary>Issue 495: gender and orientation, as the API returned them for this mode. Blank when empty.</summary>
     [Parameter] public string Identity { get; set; } = "";
-    /// <summary>Issue 497: where the viewer stands with them, before the detail line. Left out when empty.</summary>
+    /// <summary>Issue 497: where the viewer stands with them in this mode. Blank when empty.</summary>
     [Parameter] public string Status { get; set; } = "";
     /// <summary>The text shown when there's no photo: the member's text picture or the start of their about.</summary>
     [Parameter] public string? Quote { get; set; }
     [Parameter] public RenderFragment? Photo { get; set; }
     [Parameter] public RenderFragment? Badges { get; set; }
-    /// <summary>Issue 476: small labels over the media block (top-left and bottom-right corners).</summary>
+    /// <summary>Issue 476: small labels over the media block: "New member" top-left, the photo count bottom-right (D443).</summary>
     [Parameter] public RenderFragment? Overlays { get; set; }
     /// <summary>Issue 476: a richer detail line (presence, distance, connection). Replaces Detail when set.</summary>
     [Parameter] public RenderFragment? Meta { get; set; }

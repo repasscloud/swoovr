@@ -1848,3 +1848,12 @@ Builds D430 (Q193) for [#545](https://github.com/repasscloud/swoovr/issues/545),
 - **Pinned top bar ([#584](https://github.com/repasscloud/swoovr/issues/584), owner):** signed in, the top bar (wordmark, Explore, Connections, Chats, Me) never slides up; the page scrolls behind it. **DEFAULT:** on `/me/*`, `/settings/*` and `/account/*` the settings menu (the desktop sidebar) also stays in place below it, and other sticky panels (previews, policy contents) sit below the bar instead of under it. Signed-out pages keep a scrolling header. On phones the bottom tab bar was already fixed.
 - **Me ([#585](https://github.com/repasscloud/swoovr/issues/585), owner):** the Me tab opens `/me/profile` instead of `/account`; Account settings stays in the settings menu. **DEFAULT:** the "Me /" breadcrumbs point to `/me/profile` too.
 - **MFA row ([#590](https://github.com/repasscloud/swoovr/issues/590), owner):** the value reads **Enabled** or **Disabled** with no "Optional". **DEFAULT:** "Required for this account" stays when it applies, because it explains why there is no Disable option. **Set up authenticator** / **Replace authenticator** is the row's button on the right, like **Change** and **Add a passkey**.
+
+### D443 — Explore cards: fixed rows, the same size in every mode (#589, 28 November 2026)
+
+**CONFIRMED** (owner, 28 November 2026) for [#589](https://github.com/repasscloud/swoovr/issues/589). Supersedes D398's "at most two intention chips".
+- Every Explore card is exactly the same size in every mode. Under the photo (or text picture) there are four fixed rows, top to bottom: **name, age** (the badges and online dot inline) → **gender · sexuality** → **connection** (Connected, Request sent, Request received) → **location** (the distance band, or **Visiting …** when travelling, which replaces it).
+- A row with nothing to show stays as blank space. Nothing wraps: a long name or city shortens with an ellipsis.
+- **Intention chips** (for example "Long-term relationship") are no longer on the card. They stay on the profile page under "Looking for in …" (D436); members choose who appears with their filters.
+- **Overlays on the photo:** **New member** (#498) top-left and the photo count bottom-right. The travel pill over the photo is gone because Visiting is the location row.
+- Per-mode profile facts (#500) go on the profile page, not the card.
