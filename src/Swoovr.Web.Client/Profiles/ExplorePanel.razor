@@ -36,7 +36,6 @@
             </nav>
             <p class="explore-market">
                 @if (market is not null) { <span data-explore-market data-explore-visiting="@(visitingCity is null ? "false" : "true")">@(scope == "nearMe" ? $"Near you in {market}" : visitingCity is { } city ? $"Visiting {city}: people in {market}" : $"People in {market}")</span> }
-                <button type="button" class="link-button" @onclick="ShowNoticeAsync" data-explore-about>ⓘ About Explore</button>
             </p>
             <div class="explore-actions">
                 <button type="button" class="button button-secondary explore-action" @ref="filtersButton" @onclick="() => filtersOpen = true" disabled="@(selected.Length == 0)" data-discovery-filters>Review filters</button>
@@ -152,7 +151,8 @@
 @code {
     private bool loaded, filtersOpen, noticeOpen;
     private ElementReference filtersButton;
-    /// <summary>Issue 442 DEFAULT (owner-confirmed): the notice is dismissed per browser, never synced; ⓘ brings it back.</summary>
+    /// <summary>Issue 566 (owner, 27 November 2026, replaces 442's per-browser DEFAULT): closing the notice is for good, on
+    /// every device, and nothing brings it back. The browser key stays as a fallback and carries an older dismissal over.</summary>
     private const string NoticeKey = "swoovr.explore.notice-dismissed";
     private string? refused;
     private string? market, visitingCity;
@@ -199,8 +199,12 @@
         loaded = true;
         if (refused is null)
         {
-            try { noticeOpen = await JS.InvokeAsync<string?>("localStorage.getItem", NoticeKey) is null; }
-            catch (Exception error) when (error is JSException or InvalidOperationException) { noticeOpen = true; }
+            var dismissedHere = false;
+            try { dismissedHere = await JS.InvokeAsync<string?>("localStorage.getItem", NoticeKey) is not null; }
+            catch (Exception error) when (error is JSException or InvalidOperationException) { }
+            noticeOpen = mine?.ExploreNoticeDismissed != true && !dismissedHere;
+            // A browser that closed it before issue 566 tells the account, so other devices stop showing it too.
+            if (dismissedHere && mine?.ExploreNoticeDismissed != true) await SaveDismissalAsync();
         }
         if (refused is null && selected.Length > 0) await SelectAsync(selected);
     }
@@ -323,13 +327,14 @@
         noticeOpen = false;
         try { await JS.InvokeVoidAsync("localStorage.setItem", NoticeKey, "1"); }
         catch (Exception error) when (error is JSException or InvalidOperationException) { }
+        await SaveDismissalAsync();
     }
 
-    private async Task ShowNoticeAsync()
+    // Best effort: if the account can't be told now, this browser still remembers and tells it on the next visit.
+    private async Task SaveDismissalAsync()
     {
-        noticeOpen = true;
-        try { await JS.InvokeVoidAsync("localStorage.removeItem", NoticeKey); }
-        catch (Exception error) when (error is JSException or InvalidOperationException) { }
+        try { await Members.DismissExploreNoticeAsync(); }
+        catch (Exception error) when (error is HttpRequestException or TaskCanceledException) { }
     }
 
     // Saved filters change who's shown: reload this mode's results behind the dialog.

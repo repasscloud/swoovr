@@ -1073,6 +1073,13 @@ body:has(.public-layout) { padding-bottom: 0; }
 }
 /* Issue 282: the Explore scope switch, Near me's permission notice and the Travel pre-arrival switches. */
 .explore-scope { margin: 0 0 8px; }
+/* Issue 566: Active location / Near me as a pill switch; the chosen side is lightly tinted so it stands out (before, the
+   pressed state had no style at all). Labels stay on one line. */
+.explore-scope { display: inline-flex; flex-wrap: nowrap; gap: 2px; padding: 3px; border: 1px solid var(--border); border-radius: 999px; }
+.explore-scope .segment { flex: 0 0 auto; min-height: 36px; padding: 0 16px; border-radius: 999px; white-space: nowrap; color: var(--muted); }
+.explore-scope .segment[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 35%, var(--surface)); color: var(--text); }
+.explore-scope .segment:hover:not([aria-pressed="true"]) { color: var(--text); }
+@media (forced-colors: active) { .explore-scope .segment[aria-pressed="true"] { outline: 2px solid Highlight; } }
 .near-me-notice p { max-width: none; }
 .near-me-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .near-me-actions .button { width: auto; min-height: 44px; padding: 0 20px; }
