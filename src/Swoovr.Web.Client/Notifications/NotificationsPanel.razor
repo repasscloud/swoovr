@@ -5,7 +5,7 @@
 @inject UnreadNotifications Unread
 <div class="rd-page">
 <div class="page-heading" data-notifications="@(loaded ? "ready" : "loading")">
-    <p class="breadcrumb"><a href="/account">Me</a> / @NotificationText.Title</p>
+    <p class="breadcrumb"><a href="/me/profile">Me</a> / @NotificationText.Title</p>
     <h1>@NotificationText.Title</h1>
     @if (!loaded) { <p role="status">Loading…</p> }
     else if (barred) { <p data-notifications-barred>Only account notices and updates to your own reports show while it's restricted.</p> }

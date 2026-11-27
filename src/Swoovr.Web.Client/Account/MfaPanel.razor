@@ -1,28 +1,31 @@
 @inject MemberClient Members
+@* D442 (issue 590): the value reads just Enabled / Disabled ("Required for this account" stays, it explains why there is
+   no Disable option), and Set up / Replace authenticator is the row's button, like Change and Add a passkey. *@
 <div id="mfa" class="settings-row">
 <div class="settings-row-text"><p class="settings-row-label">Multi-factor authentication</p>
 @if (view is null) { <p class="settings-row-value">@(loaded ? "MFA status is unavailable." : "Loading MFA status…")</p> }
 else
 {
-    <p class="settings-row-value">@Label(view.Status)@(view.Required ? " · Required for this account" : " · Optional")</p>
+    <p class="settings-row-value" data-mfa-value>@Label(view.Status)@(view.Required ? " · Required for this account" : "")</p>
     @if(view.ResetPending) { <p>Contact Support to finish your account recovery review.</p> }
-    else
+    else if(view.Methods.Contains("otp"))
     {
-        <p><a href="/account/action/authenticator" data-enhance-nav="false">@(view.Methods.Contains("otp") ? "Replace authenticator" : "Set up authenticator")</a></p>
-        @if(view.Methods.Contains("otp"))
+        @if(view.RecoveryCodesAvailable) { <p><a href="/account/action/recovery-codes" data-enhance-nav="false">Generate recovery codes</a></p> }
+        @if(!view.Required)
         {
-            @if(view.RecoveryCodesAvailable) { <p><a href="/account/action/recovery-codes" data-enhance-nav="false">Generate recovery codes</a></p> }
-            @if(!view.Required)
-            {
-                <details><summary>Disable MFA</summary><p>Confirm with a recent MFA sign-in. Your existing sessions will end.</p>
-                <label><input type="checkbox" @bind="confirm" />I confirm disabling optional MFA</label>
-                <button type="button" @onclick="DisableAsync" disabled="@(!confirm || busy)">Disable MFA</button></details>
-            }
+            <details><summary>Disable MFA</summary><p>Confirm with a recent MFA sign-in. Your existing sessions will end.</p>
+            <label><input type="checkbox" @bind="confirm" />I confirm disabling optional MFA</label>
+            <button type="button" @onclick="DisableAsync" disabled="@(!confirm || busy)">Disable MFA</button></details>
         }
     }
 }
 @if(message is not null) { <p role="status">@message @if(reauth) { <a href="/account/reauthenticate?returnUrl=%2Faccount%23mfa" data-enhance-nav="false">Sign in again with MFA</a> }</p> }
-</div></div>
+</div>
+@if (view is not null && !view.ResetPending)
+{
+    <a class="settings-row-action" href="/account/action/authenticator" data-enhance-nav="false" data-mfa-action>@(view.Methods.Contains("otp") ? "Replace authenticator" : "Set up authenticator")</a>
+}
+</div>
 @code {
     private MfaView? view;private bool loaded,confirm,busy,reauth;private string? message;
     private static string Label(string value)=>value switch{"enabled"=>"Enabled","disabled"=>"Disabled","required"=>"Required","setup-pending"=>"Setup pending",_=>"Unavailable"};

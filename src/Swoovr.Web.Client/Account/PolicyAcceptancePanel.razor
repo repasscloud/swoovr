@@ -13,7 +13,7 @@ else
     </section>
 }
 @if(message is not null){<p role="status" data-policy-result>@message</p>}
-<p><a href="/account">Me</a> · <a href="/account/data">Your data and account</a> · <a href="/safety">Safety &amp; Support</a></p>
+<p><a href="/me/profile">Me</a> · <a href="/account/data">Your data and account</a> · <a href="/safety">Safety &amp; Support</a></p>
 @code{
     private MemberPolicyView? state;private bool confirmed,busy;private string? message;
     protected override async Task OnInitializedAsync()=>state=(await Members.PoliciesAsync()).Value;

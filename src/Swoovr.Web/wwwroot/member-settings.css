@@ -88,7 +88,7 @@
 @media (min-width: 900px) {
   .settings-shell { grid-template-columns: 240px minmax(0, 1fr); gap: 40px; }
   /* The popover list is the sidebar here: always shown, in the page flow. */
-  .settings-nav, .settings-nav[popover], .settings-nav:popover-open { display: block; position: sticky; top: 24px; inset: auto; width: auto; height: auto; margin: 0; padding: 0; overflow: visible; border: 0; background: none; color: inherit; }
+  .settings-nav, .settings-nav[popover], .settings-nav:popover-open { display: block; position: sticky; top: calc(var(--header-offset) + 24px); inset: auto; width: auto; height: auto; margin: 0; padding: 0; overflow: visible; border: 0; background: none; color: inherit; }
   .settings-nav::backdrop { display: none; }
   .settings-menu-head, .settings-menu-button { display: none; }
 }
