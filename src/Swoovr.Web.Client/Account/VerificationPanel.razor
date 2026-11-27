@@ -4,7 +4,7 @@
    the return address is never trusted. No environment notice is shown on any host (D321); nothing claims a live check. *@
 @inject MemberClient Members
 <div class="page-heading" data-verification="@(loaded ? (view is null ? "refused" : "ready") : "loading")">
-    <p class="breadcrumb"><a href="/account">Me</a> / ID verification</p>
+    <p class="breadcrumb"><a href="/me/profile">Me</a> / ID verification</p>
     <h1>ID verification</h1>
     @if (!loaded) { <p role="status">Loading…</p> }
     else if (view is null) { <p role="status" data-verification-refused="@refused">@(refused == ProblemCodes.BetaNotEnrolled ? "ID verification opens once your email is on the invitation list." : "We couldn't load your ID verification.")</p> }

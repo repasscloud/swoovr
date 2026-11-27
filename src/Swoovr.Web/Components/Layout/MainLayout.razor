@@ -14,7 +14,8 @@
         @Tab("Connections", "users", "/connections", Path.StartsWith("/connections"), RequestsBadge)
         @Tab("Chats", "chat", "/chats", Path.StartsWith("/chats") || Path.StartsWith("/prototype/conversation"), ChatsBadge)
         @* Issue 472: the Me tab carries the unread notification count. *@
-        @Tab("Me", "user", "/account", MeActive, MeBadge)
+        @* D442 (issue 585): Me opens the member's own profile; Account settings stays in the settings menu. *@
+        @Tab("Me", "user", "/me/profile", MeActive, MeBadge)
     </nav>
     @* issue 217: Me / settings pages put their menu button here (SettingsShell). *@
     <Microsoft.AspNetCore.Components.Sections.SectionOutlet SectionName="@SettingsShell.HeaderActions" />

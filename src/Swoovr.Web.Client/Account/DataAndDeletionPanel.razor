@@ -7,7 +7,7 @@
 @inject IJSRuntime JS
 <div class="data-page">
 <div class="data-head" data-data-panel="@(loaded ? (view?.State ?? "error") : "loading")">
-    <p class="breadcrumb"><a href="/account">Me</a> / Data and account</p>
+    <p class="breadcrumb"><a href="/me/profile">Me</a> / Data and account</p>
     <h1>@(view?.State == "pending" ? DeletionText.PendingTitle(view) : DeletionText.Title)</h1>
     @if (!loaded) { <p role="status">Loading…</p> }
     else if (view?.State == "pending") { <p class="data-pending-body" data-deletion-due="@view.DueAt?.ToString("o")">@DeletionText.PendingBody(view)</p> }

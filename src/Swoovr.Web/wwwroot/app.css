@@ -301,12 +301,20 @@ a.tab:hover { color: var(--text); }
 .unread-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--unread); color: var(--unread-text); font: 700 .6875rem/1 var(--font); font-variant-numeric: tabular-nums; letter-spacing: 0; white-space: nowrap; }
 .tab-icon .unread-badge { position: absolute; top: -7px; left: calc(100% - 9px); border: 2px solid var(--surface); height: 20px; min-width: 20px; }
 .settings-nav a .unread-badge { margin-left: auto; }
+/* D442 (issue 584): signed in, the top bar never slides up; pages scroll behind it. --header-offset keeps sticky panels
+   (settings menu, previews, contents lists) and in-page anchors below it. Signed-out pages keep a scrolling header. */
+:root { --header-offset: 0px; }
+.member-layout { --header-offset: 64px; }
+.member-layout .app-header { position: sticky; top: 0; z-index: 35; }
+html:has(.member-layout) { scroll-padding-top: calc(64px + 16px); }
 main { max-width: 1100px; margin: 0 auto; padding: 30px var(--gutter) 56px; }
 .column { max-width: 420px; margin: 0 auto; }
 .app-footer { padding: 20px var(--gutter); border-top: 1px solid var(--border); color: var(--muted); font: var(--type-foot); text-align: center; }
 .app-footer p { margin: 0 auto; }
 @media (max-width: 759px) {
   .app-header { min-height: 56px; }
+  .member-layout { --header-offset: 56px; }
+  html:has(.member-layout) { scroll-padding-top: calc(56px + 16px); }
   .wordmark { font-size: 1.5rem; }
   .tab-bar { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; min-height: calc(var(--tab-bar) + env(safe-area-inset-bottom)); align-items: flex-start; justify-content: space-around; gap: 0; padding: 10px 0 env(safe-area-inset-bottom); border-top: 1px solid var(--border); background: var(--surface); }
   .tab { flex: 1 1 0; max-width: 80px; min-width: 0; flex-direction: column; gap: 4px; padding: 0; min-height: 44px; font: var(--type-tab); text-align: center; }
@@ -346,7 +354,7 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 /* Issue 565: appearance actions are natural-width buttons in a row, never full width. */
 .appearance-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .appearance-actions > .button, .appearance-actions > .quiet-button { width: auto; min-height: 44px; padding: 0 18px; font-size: .9375rem; }
-.appearance-preview { position: sticky; top: 24px; }
+.appearance-preview { position: sticky; top: calc(var(--header-offset) + 24px); }
 .preview-title { font: var(--type-section); margin-bottom: 2px; }
 .sample-profile { padding-top: 16px; }
 .sample-avatar { margin-bottom: 12px; }
@@ -400,7 +408,7 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 @media (min-width: 760px) {
   .explore { display: grid; grid-template-columns: 300px minmax(0, 1fr); align-items: start; gap: 32px; }
   .filters-open, .sheet-handle, .sheet-close { display: none !important; }
-  .sheet[popover] { display: block; position: sticky; top: 24px; inset: auto; width: auto; max-height: none; margin: 0; padding: 20px; overflow: visible; border: 1px solid var(--border); border-radius: 16px; animation: none; }
+  .sheet[popover] { display: block; position: sticky; top: calc(var(--header-offset) + 24px); inset: auto; width: auto; max-height: none; margin: 0; padding: 20px; overflow: visible; border: 1px solid var(--border); border-radius: 16px; animation: none; }
   .sheet-title { font-size: 1.0625rem; letter-spacing: 0; margin-bottom: 10px; }
   .people-grid { justify-content: start; }
 }
@@ -782,12 +790,12 @@ body:has(.public-layout) { padding-bottom: 0; }
 .safety-v2 a:focus-visible, .safety-v2 select:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 @media (min-width: 720px) {
   .safety-grid { grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr); gap: 20px; }
-  .safety-secondary { position: sticky; top: 24px; }
+  .safety-secondary { position: sticky; top: calc(var(--header-offset) + 24px); }
 }
 @media (prefers-reduced-motion: reduce) { .safety-links .icon { transition: none; } }
 @media (min-width: 960px) {
   .policy-layout { grid-template-columns: 15rem minmax(0, 1fr); gap: 56px; }
-  .policy-toc { position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto; }
+  .policy-toc { position: sticky; top: calc(var(--header-offset) + 24px); max-height: calc(100vh - var(--header-offset) - 48px); overflow-y: auto; }
   .policy-toc details { border: 0; background: none; }
   .policy-toc summary { padding: 0 10px 10px; pointer-events: none; font: var(--type-label); letter-spacing: .3px; text-transform: uppercase; color: var(--muted); min-height: 0; }
   .policy-toc summary::after { display: none; }

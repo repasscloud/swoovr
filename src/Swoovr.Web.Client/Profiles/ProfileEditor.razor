@@ -5,7 +5,7 @@
 @inject IJSRuntime JS
 <div class="rd-page">
 <div class="page-heading" data-profile-editor="@(loaded ? "ready" : "loading")">
-    <p class="breadcrumb"><a href="/account">Me</a> / Profile</p>
+    <p class="breadcrumb"><a href="/me/profile">Me</a> / Profile</p>
     <h1>Your profile</h1>
     @if (!loaded) { <p role="status">Loading…</p> }
     else if (refused is not null) { <p role="status" data-profile-refused="@refused">@(refused == ProblemCodes.BetaNotEnrolled ? "Your profile opens once your email is on the invitation list." : "We couldn't load your profile.")</p> }

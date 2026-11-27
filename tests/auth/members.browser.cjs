@@ -165,6 +165,14 @@ async function mailCount(to) {
     assert.ok(session?.httpOnly && session.sameSite === 'Lax'); pass();
     assert.ok(!cookies.some(c => /eyJ/.test(c.value)), 'no token in browser cookies'); pass();
     await shot(page, 'account-new');
+    // D442: Me opens the member's own profile (issue 585); the top bar stays pinned (issue 584); MFA is a row button (issue 590).
+    assert.equal(await page.locator('a[data-tab=Me]').getAttribute('href'), '/me/profile'); pass();
+    assert.equal(await page.locator('.app-header').evaluate(e => getComputedStyle(e).position), 'sticky'); pass();
+    await page.locator('[data-mfa-value]').waitFor();
+    assert.doesNotMatch(await page.locator('[data-mfa-value]').innerText(), /Optional/); pass();
+    assert.match(await page.locator('#mfa > [data-mfa-action].settings-row-action').innerText(), /Set up authenticator|Replace authenticator/); pass();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    assert.equal(Math.round(await page.locator('.app-header').evaluate(e => e.getBoundingClientRect().top)), 0, 'the top bar never slides up'); pass();
 
     // Sign out is a POST with antiforgery; a cross-site GET does nothing.
     assert.ok([404, 405].includes((await page.request.get(web + '/account/sign-out', { maxRedirects: 0 })).status())); pass();
