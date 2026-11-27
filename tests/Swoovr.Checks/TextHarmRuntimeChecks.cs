@@ -126,6 +126,25 @@ static class TextHarmRuntimeChecks
         var meetupNote=Message(meetupSubject,meetupConversation,"Fictional send me money before our meet-up",clock.Now);meetupNote.Kind=MessageKind.Meetup;
         var meetupResult=await processor.ProcessAsync(await MessageIntent(meetupNote),default);
         check("meet-up note is inspected like a text message",meetupResult.Result=="created"&&await db.Set<TextHarmReview>().AnyAsync(r=>r.SubjectAccountId==meetupSubject));
+        // Issue 586 (D444): a meet-up's place is screened under its own source, apart from the note, and goes stale once removed.
+        var placeSubject=await Member();var placePeer=await Member();var placeConversation=await Conversation(placeSubject,placePeer);
+        async Task<(Meetup Plan,Guid Intent)> Place(string venue)
+        {
+            var carrier=Message(placeSubject,placeConversation,"",clock.Now);carrier.Kind=MessageKind.Meetup;
+            var plan=new Meetup{Id=Guid.NewGuid(),ConversationId=placeConversation,MessageId=carrier.Id,ModeId="friends",ProposerAccountId=placeSubject,RecipientAccountId=placePeer,
+                Category="coffee",Venue=venue,StartsAt=clock.Now.AddDays(2),Status=MeetupStatus.Pending,CreatedAt=clock.Now};
+            carrier.MeetupId=plan.Id;db.Messages.Add(carrier);db.Meetups.Add(plan);
+            queue.Enqueue(placeSubject,TextHarmSource.MeetupVenue,plan.Id,null,venue,clock.Now);await db.SaveChangesAsync();
+            return (plan,await db.Set<TextHarmIntent>().Where(i=>i.SourceId==plan.Id&&i.Source==TextHarmSource.MeetupVenue).Select(i=>i.Id).SingleAsync());
+        }
+        var (harmfulPlace,placeIntent)=await Place("Fictional Bistro, send me money first");
+        var placeResult=await processor.ProcessAsync(placeIntent,default);
+        var placeReview=await db.Set<TextHarmReview>().AsNoTracking().SingleOrDefaultAsync(r=>r.SubjectAccountId==placeSubject&&r.Source==TextHarmSource.MeetupVenue);
+        check("a harmful meet-up place is inspected under its own source",placeResult.Result=="created"&&placeReview?.SourceId==harmfulPlace.Id
+            &&placeReview.RelatedAccountIds.Contains(placePeer)&&detector.Inputs.Last(i=>i.AccountId==placeSubject).Source==TextHarmSource.MeetupVenue);
+        var (removedPlace,removedIntent)=await Place("Fictional Bistro, send me money now");
+        removedPlace.Venue="";await db.SaveChangesAsync();
+        check("a removed meet-up place is skipped as stale",(await processor.ProcessAsync(removedIntent,default)).Result=="stale");
         // PR 583 review: earlier meet-up notes count in the repetition and recipient history; a card with no note doesn't.
         var noteSubject=await Member();var notePeers=new[]{await Member(),await Member(),await Member(),await Member()};
         var noteChats=new[]{await Conversation(noteSubject,notePeers[0]),await Conversation(noteSubject,notePeers[1]),await Conversation(noteSubject,notePeers[2]),await Conversation(noteSubject,notePeers[3])};

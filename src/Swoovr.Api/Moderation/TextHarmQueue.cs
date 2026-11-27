@@ -10,7 +10,8 @@ public sealed class TextHarmQueue(SwoovrDbContext db,EvidenceKeys keys,TextHarmR
 {
     public Guid Enqueue(Guid account,TextHarmSource source,Guid sourceId,string? mode,string? text,DateTimeOffset now)
     {
-        var revision=source==TextHarmSource.Message?sourceId:Guid.NewGuid();
+        // A message and a meet-up's place never change after sending, so their own id is the revision (issue 586).
+        var revision=source is TextHarmSource.Message or TextHarmSource.MeetupVenue?sourceId:Guid.NewGuid();
         if(!rules.Enabled||string.IsNullOrWhiteSpace(text))return revision;
         if(keys.CurrentVersion is not{}version)throw new InvalidOperationException("Text review requires configured evidence keys.");
         db.Set<TextHarmIntent>().Add(new(){Id=Guid.NewGuid(),AccountId=account,Source=source,SourceId=sourceId,ModeId=mode,

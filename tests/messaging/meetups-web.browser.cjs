@@ -220,6 +220,33 @@ const ADELAIDE = 2078025;
     await liveCard.locator('[data-meetup-accept]').click();
     await page.locator(`[data-meetup="${liveId}"][data-meetup-state=accepted]`).waitFor({ timeout: 15000 }); pass();
     assert.equal(await liveCard.locator('[data-meetup-note]').innerText(), 'Removed by Swoovr.', 'answering never brings the note back'); pass();
+    // Issue 586 (D444): the place is offered for removal on its own; removing it shows "Removed by Swoovr." everywhere and
+    // calls the plan off, accepted (this one) or pending.
+    const places = async (report, kase = liveCase) => (await call(st, `/api/admin/cases/${kase}/content-sources`)).body.filter(x => x.reportId === report && x.field === 'meetup-venue');
+    const removePlace = (report, place, kase = liveCase) => call(st, `/api/admin/cases/${kase}/content-removals`, { method: 'POST', body: { commandId: crypto.randomUUID(), reportId: report, field: 'meetup-venue', modeId: null, messageId: place.messageId, expectedSourceSha256: place.sha256, reason: 'Fictional place review' } });
+    const livePlace = (await places(liveReport.body.id)).find(x => x.messageId === liveMessage);
+    assert.equal(livePlace?.text, plan.venue, 'the place is offered for removal'); pass();
+    assert.equal((await call(st, `/api/admin/cases/${liveCase}/content-removals`, { method: 'POST', body: { commandId: crypto.randomUUID(), reportId: liveReport.body.id, field: 'meetup-venue', modeId: null, messageId: crypto.randomUUID(), expectedSourceSha256: livePlace.sha256, reason: 'Fictional place review' } })).status, 404, 'only a plan in the report'); pass();
+    const placeRemoval = await removePlace(liveReport.body.id, livePlace);
+    assert.equal(placeRemoval.status, 200, JSON.stringify(placeRemoval.body)); pass();
+    await page.locator(`[data-meetup="${liveId}"][data-meetup-state=cancelled]`).waitFor({ timeout: 15000 }); pass();
+    assert.equal(await liveCard.locator('[data-meetup-venue]').innerText(), 'Removed by Swoovr.'); pass();
+    assert.equal(await liveCard.locator('[data-meetup-calendar]').count(), 0, 'no calendar file for a called-off plan'); pass();
+    assert.deepEqual([(await card('me', liveId))?.venue, (await card('me', liveId))?.state], ['Removed by Swoovr.', 'cancelled']); pass();
+    const listed = (await call(tokens.me, '/api/me/meetups')).body.find(m => m.id === liveId);
+    assert.equal(listed?.venue, 'Removed by Swoovr.', 'My meet-ups shows the removed text'); pass();
+    assert.equal(await sql(`SELECT venue FROM meetups WHERE id = '${liveId}'`), '', 'the original place is gone from the plan'); pass();
+    const sealed = (await call(st, `/api/admin/cases/${liveCase}/content-removals/${placeRemoval.body.removalId ?? placeRemoval.body.id}`)).body;
+    assert.equal(sealed?.text, plan.venue, 'sealed evidence keeps the original'); pass();
+    assert.equal((await places(liveReport.body.id)).some(x => x.messageId === liveMessage), false, 'not offered twice'); pass();
+    // A pending invitation: called off too.
+    r = await propose('ada', chat, { ...plan, startsAt: soon(21), venue: 'Fictional Pending Place' });
+    const pendingReport = await call(tokens.me, '/api/reports', { method: 'POST', body: { subjectType: 'message', subjectId: r.body.id, category: 'harassment', text: null, block: false } });
+    assert.equal(pendingReport.status, 201);
+    const pendingCase = await sql(`SELECT case_id FROM reports WHERE id = '${pendingReport.body.id}'`);
+    const pendingPlace = (await places(pendingReport.body.id, pendingCase)).find(x => x.messageId === r.body.id);
+    assert.equal((await removePlace(pendingReport.body.id, pendingPlace, pendingCase)).status, 200); pass();
+    assert.deepEqual([(await card('ada', r.body.meetup.id))?.venue, (await card('ada', r.body.meetup.id))?.state], ['Removed by Swoovr.', 'cancelled']); pass();
     await context.close();
     console.log(`PASS: private meet-ups (issue 545), ${passed} checks.`);
   } finally {

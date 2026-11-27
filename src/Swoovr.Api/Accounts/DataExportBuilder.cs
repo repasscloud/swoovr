@@ -65,7 +65,7 @@ public static class DataExportBuilder
                     removedByModeration = m.ModerationRemovedAt is not null, deleted = m.DeletedAt is not null, photo = m.DeletedAt is null ? m.MediaId : null,
                     photoState = m.SenderAccountId == id && m.DeletedAt is null && m.MediaId is { } p && media.TryGetValue(p, out var item) ? MediaPolicy.MemberState(item.Status) : null,
                 }),
-            meetups = meetups[c.Id].Select(m => new { proposedBy = m.ProposerAccountId == id ? "you" : "them", m.Category, m.Venue, m.StartsAt, m.DurationMinutes, status = m.Status.ToString().ToLowerInvariant(), m.CreatedAt }),
+            meetups = meetups[c.Id].Select(m => new { proposedBy = m.ProposerAccountId == id ? "you" : "them", m.Category, Venue = Connections.MessagingEndpoints.VisibleVenue(m), m.StartsAt, m.DurationMinutes, status = m.Status.ToString().ToLowerInvariant(), m.CreatedAt }),
         });
 
         var reports = await db.Reports.Where(r => r.ReporterAccountId == id).OrderBy(r => r.CreatedAt)

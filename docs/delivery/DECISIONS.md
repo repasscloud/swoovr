@@ -1857,3 +1857,12 @@ Builds D430 (Q193) for [#545](https://github.com/repasscloud/swoovr/issues/545),
 - **Intention chips** (for example "Long-term relationship") are no longer on the card. They stay on the profile page under "Looking for in …" (D436); members choose who appears with their filters.
 - **Overlays on the photo:** **New member** (#498) top-left and the photo count bottom-right. The travel pill over the photo is gone because Visiting is the location row.
 - Per-mode profile facts (#500) go on the profile page, not the card.
+
+### D444 — Meet-ups: the place is screened and can be removed (#586, 28 November 2026)
+
+Closes the OPEN point in D440 for [#586](https://github.com/repasscloud/swoovr/issues/586).
+- **Screening (DEFAULT):** every proposal and suggested change queues text-harm inspection for the place under its own source, `MeetupVenue` (source and revision are the meet-up id), apart from the note. A place is not a message, so it has no repetition history. Once the place is removed, its pending inspection is stale. A candidate names the other member as related, like a message.
+- **Removal (DEFAULT):** staff content removal has a `meetup-venue` field, named by the message that carries the meet-up card. It is offered and accepted only when that card is in the report's evidence and the member reported is the one who proposed it. The original place is kept only in the sealed removal evidence. Both members see **Removed by Swoovr.** on the card, in My meet-ups and in their data export, and the place is never shown again.
+- **What a removal does (CONFIRMED, owner, 28 November 2026):** removing the place calls off a pending or accepted plan, because a plan without a place can't happen. Both members get the re-sent card, called off, at once. A called-off plan offers no calendar file, and any card shows the removed text, never the original place.
+- Marking a `MeetupVenue` text candidate as actioned needs a `meetup-venue` removal of that plan. On Account standing, the member sees it as a removed message (DEFAULT).
+- **Database guard:** migration `MeetupVenueRemoval` lets the content-removal guard accept `meetup-venue`. It also adds `picture-text` (issue 389, D382): the API offered that field, but the guard never listed it, so removing a text picture was refused at the database.
