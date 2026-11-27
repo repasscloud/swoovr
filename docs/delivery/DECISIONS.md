@@ -1780,3 +1780,14 @@ Builds #282 on D345, D348 and D352, with the wording approved on [#271](https://
 - **Messages:** no always-visible Delete / Hide / Report links. Each bubble has a ⋯ button (also opened by right-click or a long press; Escape closes it) with **Delete for both** (own, within five minutes, unchanged), **Hide for me** and **Report** (received). Times show inside the bubble.
 - **Composer:** a **+** menu for attachments; today it offers only **Send a photo** (#543–#545 add the rest). The blanket "No nudity or sexual content" line is removed, because explicit media has its own rules (#431). "Photos are checked before the other person sees them." stays in the + menu.
 - Delete-for-both evidence retention, authorisation and reporting are unchanged.
+
+### D439 — Legal name differences against the ID: built (#533, 27 November 2026)
+
+Builds D429 (Q192 A, A) for [#533](https://github.com/repasscloud/swoovr/issues/533). Replaces D416's DEFAULT exact comparison.
+- **Comparison** (`RegisteredNamePolicy.Compare`): case, extra spaces, accents, hyphens and apostrophes are ignored. When the first given name and the last name agree and only middle names differ, the result is *middle names only*. Anything else is *different*. No name from Didit is *unknown*, which never creates a mismatch.
+- **After an approved check:** the same name records a match. Any difference opens the member's one-time name correction (`member_profiles.name_check`). ID Verified stays. The name and date-of-birth checks are independent; resolving one never closes the other.
+- **The correction:** the member sees the name on their own ID, read from Didit just now (`GET /api/me/verification/name`; never stored or logged), and chooses either:
+  - **Use the name on my ID:** the registered names become exactly the ID's, with no free text. It happens once and is audited without names. The identity record and ban matching (D191) are refreshed, and the display name never changes.
+  - **Ask Swoovr to check it:** opens an admin review in the existing name-review queue (`name_change_reviews.reason` = `id-name-differs` / `id-name-middle`). *Matches* closes the check; *mismatch* removes ID Verified as in D317.
+  - **DEFAULT (PR 581 review):** asking for a check is always available. It needs neither Didit nor an ID name that passes the registered-name rules. When the ID's name isn't a valid registered name as it is (for example a comma in "Smith, Jr."), it is shown but can't be taken (`id-name-not-usable`). If the ID's name can't be read, the prompt offers **Try again** and **Ask Swoovr to check it**.
+- **DEFAULT:** while a name check is open, the ordinary registered-name edit is refused (`name-check-open`), as with the date of birth (D166). When both differ, the date-of-birth prompt comes first and the name prompt opens as soon as it's done.

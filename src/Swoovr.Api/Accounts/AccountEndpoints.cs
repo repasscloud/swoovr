@@ -275,7 +275,8 @@ public static class AccountEndpoints
 
     public static MemberAccount View(MemberProfile profile, DateOnly today, IReadOnlyList<Badge> badgeOrder, string accountState = "active") => new(
         Wire(profile.AgeStatus), AgePolicy.CurrentAge(profile, today), profile.DateOfBirth, profile.DeclaredAge,
-        Swoovr.Api.Profiles.ProfileEndpoints.Badges(profile, badgeOrder), profile.DateOfBirthVerified, accountState, Wire(profile.DobCheck));
+        Swoovr.Api.Profiles.ProfileEndpoints.Badges(profile, badgeOrder), profile.DateOfBirthVerified, accountState, Wire(profile.DobCheck),
+        NameCheck: Wire(profile.NameCheck));
 
     private static DateOnly Today(TimeProvider clock) => DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime);
 }
