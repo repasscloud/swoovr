@@ -58,6 +58,7 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.equal((await page.locator('[data-favourite=off]').innerText()).trim(), 'Add to favourites'); pass();
     if (output) await page.screenshot({ path: `${output}/favourite-menu-1280.png` });
     await page.click('[data-favourite=off]');
+    await page.locator('[data-safety-menu-list]').waitFor({ state: 'detached', timeout: 10000 }); // saved, then the menu closes
     await page.click('[data-safety-menu]');
     await page.locator('[data-favourite=on]').waitFor({ timeout: 10000 });
     assert.equal((await page.locator('[data-favourite=on]').innerText()).trim(), 'Remove from favourites'); pass();
