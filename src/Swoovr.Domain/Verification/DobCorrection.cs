@@ -100,6 +100,9 @@ public sealed class NameChangeReview
     public Guid AccountId { get; set; }
     /// <summary>The registered-names revision under review; a newer change replaces the open review's revision.</summary>
     public long Revision { get; set; }
+    /// <summary>Null for a name change (D317); "id-name-differs" or "id-name-middle" when the member asked for a review instead of
+    /// taking the name on their approved ID (issue 533, D429).</summary>
+    public string? Reason { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? ResolvedAt { get; set; }
     public Guid? ResolvedBy { get; set; }

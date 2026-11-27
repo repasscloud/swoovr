@@ -8,6 +8,7 @@ public sealed record BadgeView(string Badge, DateTimeOffset? CheckedAt);
 /// <param name="AccountState">active, restricted, suspended or terminated (D160); anything but active shows the restricted screen;
 /// pendingDeletion (D170) shows the deletion screen instead.</param>
 /// <param name="DobCheck">"none", "correctionNeeded" (show the one-time prompt) or "manualReview" (D166).</param>
+/// <param name="NameCheck">Issue 533 (D429): "none", "correctionNeeded" (show the one-time name prompt) or "manualReview".</param>
 /// <param name="PhoneRequired">D148: a verified mobile number is required and missing; clients show the phone step first.</param>
 /// <param name="SetupStep">Issue 254 (D342): the next onboarding step ("names", "phone", "policies", "dateOfBirth"), or null when
 /// setup is complete. Clients keep the member in onboarding until it is null. Issue 389 (D382): then the profile steps
@@ -25,7 +26,7 @@ public sealed record MemberAccount(
     bool PhoneRequired = false,
     string? EmailChangeProblem = null,bool PolicyRequired=false,DateTimeOffset? DateOfBirthCorrectionUntil=null,bool RegisteredNamesRequired=false,bool PhoneGateEnabled=false,
     string? StatusReference = null, IReadOnlyList<string>? RestrictionLimits = null, DateTimeOffset? RestrictedUntil = null, bool MfaAccessRequired = false,
-    string? SetupStep = null);
+    string? SetupStep = null, string NameCheck = "none");
 
 /// <summary>
 /// Issue 254 (D342): the member's own email address and mobile number for Account settings. Masked unless the member
@@ -82,6 +83,12 @@ public sealed record ExportTicket(string Path, DateTimeOffset ExpiresAt);
 
 /// <summary>D166: the member's one correction of their date of birth to the one on their verified ID.</summary>
 public sealed record DobCorrectionRequest(DateOnly? DateOfBirth);
+
+/// <summary>Issue 533 (D429): the name on the member's own approved ID, read from Didit just now (never stored).</summary>
+public sealed record IdNameView(string FirstName, string? LastName, bool Mononym);
+
+/// <summary>Issue 533 (D429): "use-id" takes the name exactly as it is on the ID (no free text); "review" asks Swoovr to check it.</summary>
+public sealed record NameCorrectionRequest(string? Choice);
 
 /// <summary>Both optional; a date of birth, when given, decides the age (owner, 23 October 2026).</summary>
 public sealed record AgeUpdate(DateOnly? DateOfBirth, int? Age, bool Confirmed=false);
@@ -216,6 +223,8 @@ public static class ProblemCodes
     public const string DeleteWindowPassed = "delete-window-passed";
     /// <summary>D166: there's no date-of-birth correction open for this member (none was needed, or it was used).</summary>
     public const string DobCorrectionNotOpen = "dob-correction-not-open";
+    public const string NameCorrectionNotOpen = "name-correction-not-open";
+    public const string NameCheckOpen = "name-check-open";
     /// <summary>D166: the date of birth is changed through the one-time correction prompt, not the ordinary form.</summary>
     public const string DobCorrectionRequired = "dob-correction-required";
     /// <summary>D166: an admin is reviewing the date of birth; it can't be changed meanwhile.</summary>

@@ -28,6 +28,8 @@ public static class RegisteredNamesService
         if(account.Status!=AccountStatus.Active||account.Realm!=AccountRealm.Members)return("account-locked",null);
         if(account.RegisteredNamesRevision!=update.ExpectedRevision)return("record-changed",null);
         var profile=await db.MemberProfiles.SingleAsync(p=>p.AccountId==id,token);await db.Entry(profile).ReloadAsync(token);
+        // Issue 533 (D429): while the name is being checked against the ID, the one-time prompt (or the review) is the only way.
+        if(profile.NameCheck!=NameCheck.None)return(ProblemCodes.NameCheckOpen,null);
         bool changed=account.RegisteredFirstName!=names.FirstName||account.RegisteredLastName!=names.LastName||account.RegisteredMononym!=names.Mononym;
         if(!changed&&RegisteredNamePolicy.Complete(account)){await transaction.CommitAsync(token);return(null,View(account));}
         account.RegisteredFirstName=names.FirstName;account.RegisteredLastName=names.LastName;account.RegisteredMononym=names.Mononym;

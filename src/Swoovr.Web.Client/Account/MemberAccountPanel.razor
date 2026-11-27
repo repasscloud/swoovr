@@ -79,6 +79,7 @@ else
         @if (me.AccountState == "restricted") { <p class="notice" role="status" data-restriction-limits="@string.Join(",", me.RestrictionLimits ?? [])">@MemberText.RestrictionNotice(me.RestrictionLimits, me.RestrictedUntil) <a href="/me/notices">Read the notice</a></p> }
         @if (me.PolicyRequired) { <p class="notice" role="status" data-policy-gate>Please review the required policies. <a href="/account/policies">Review and choose whether to accept</a></p> }
         <DobCorrectionPrompt Account="me" Changed="Corrected" />
+        <NameCorrectionPrompt Account="me" Changed="Corrected" />
         @if (!me.PhoneRequired && !me.RegisteredNamesRequired && me.DateOfBirth is not null) { <FirstUseSafetyAdvice /> }
         @if (me.AgeStatus == "needsVerification")
         {

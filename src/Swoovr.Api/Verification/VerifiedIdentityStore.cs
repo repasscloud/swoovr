@@ -58,8 +58,10 @@ public sealed class VerifiedIdentityStore(IServiceProvider services, IdentityKey
             fields = decision.Identity;
         if (fields is null) return false;
         var declaration=await db.Accounts.SingleAsync(a=>a.Id==account,cancellationToken);
-        if(declaration.RegisteredNamesRevision==attempt.RegisteredNamesRevision&&RegisteredNamePolicy.Complete(declaration))
-            declaration.RegisteredNamesMatchId=RegisteredNamePolicy.Matches(new(declaration.RegisteredFirstName!,declaration.RegisteredLastName,declaration.RegisteredMononym),fields.FirstName,fields.LastName);
+        // Issue 533 (D429): the name check, when the approval itself carried no names (or again when they're re-read).
+        if(declaration.RegisteredNamesRevision==attempt.RegisteredNamesRevision&&RegisteredNamePolicy.Complete(declaration)
+            &&await db.MemberProfiles.SingleOrDefaultAsync(p=>p.AccountId==account,cancellationToken)is{}profile)
+            VerificationEndpoints.NameCheckAfterApproval(db,declaration,profile,fields.FirstName,fields.LastName,now);
         var record = VerifiedIdentityPolicy.Record(account, attempt, fields, now, version, keys.Encryption[version], hmac);
         var existing = await db.VerifiedIdentities.FindAsync([account], cancellationToken);
         if (existing is not null) db.VerifiedIdentities.Remove(existing);

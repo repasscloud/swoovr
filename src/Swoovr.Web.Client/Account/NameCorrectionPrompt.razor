@@ -1,0 +1,73 @@
+@* Issue 533 (Q192 A, D429): the one-time name correction. An approved ID check shows a registered name that differs from
+   the account's (middle names alone count). The member sees the name on their own ID (read from Didit just now, never
+   stored) and either takes it exactly as it is, or asks Swoovr to check it. Their public display name never changes. A
+   date-of-birth difference has its own prompt (DobCorrectionPrompt); resolving one never closes the other. *@
+@inject MemberClient Members
+@* When both differ, the date of birth comes first; this opens as soon as that one is done. *@
+@if (Account.NameCheck == "correctionNeeded" && Account.DobCheck != "correctionNeeded" && !closed)
+{
+    <div class="dialog-backdrop" data-name-correction="open">
+        <section class="card dialog" role="dialog" aria-modal="true" aria-labelledby="name-correction-heading">
+            <h2 id="name-correction-heading">Your name doesn't match your ID</h2>
+            <p>Your ID check passed, but the name on your ID is different from your registered name on Swoovr. You can do this once.</p>
+            @if (idName is { } id)
+            {
+                <dl class="name-correction-names">
+                    <div><dt>Name on your ID</dt><dd data-id-name>@Full(id.FirstName, id.LastName)</dd></div>
+                </dl>
+                <p class="field-help">Only your registered name changes. The name people see on Swoovr stays as it is.</p>
+                <div class="dialog-actions">
+                    <button type="button" class="button" disabled="@busy" @onclick='() => ChooseAsync("use-id")' data-name-use-id>Use the name on my ID</button>
+                    <button type="button" class="button button-secondary" disabled="@busy" @onclick='() => ChooseAsync("review")' data-name-review>Ask Swoovr to check it</button>
+                </div>
+            }
+            else if (loading) { <p role="status">Loading…</p> }
+            <p role="status" aria-live="polite" class="field-help" data-name-correction-status="@status">@message</p>
+        </section>
+    </div>
+}
+else if (Account.NameCheck == "manualReview")
+{
+    <section class="card notice" data-name-review="open">
+        <p><strong>@AccountText.DobReviewTitle</strong> Someone from Swoovr will check that your registered name matches your ID. You don't need to do anything.</p>
+    </section>
+}
+@code {
+    [Parameter, EditorRequired] public MemberAccount Account { get; set; } = default!;
+    /// <summary>Called with the updated account after the member's choice.</summary>
+    [Parameter] public EventCallback<MemberAccount> Changed { get; set; }
+    private IdNameView? idName;
+    private bool busy, closed, loading, requested;
+    private string? status, message;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Account.NameCheck != "correctionNeeded" || requested) return;
+        requested = loading = true;
+        var result = await Members.IdNameAsync();
+        loading = false;
+        if (result.Value is { } value) idName = value;
+        else (status, message) = (result.Code ?? "failed", result.Code == ProblemCodes.NameCorrectionNotOpen ? "There's nothing to correct now." : "We couldn't check your ID just now. Try again shortly.");
+    }
+
+    private static string Full(string first, string? last) => string.IsNullOrWhiteSpace(last) ? first : $"{first} {last}";
+
+    private async Task ChooseAsync(string choice)
+    {
+        busy = true;
+        var result = await Members.CorrectNameAsync(choice);
+        busy = false;
+        if (result.Value is { } updated)
+        {
+            closed = choice == "use-id";
+            await Changed.InvokeAsync(updated);
+            return;
+        }
+        (status, message) = (result.Code ?? "failed", result.Code switch
+        {
+            ProblemCodes.VerificationProviderFailed => "We couldn't check your ID just now. Try again shortly.",
+            ProblemCodes.NameCorrectionNotOpen => "There's nothing to correct now.",
+            _ => "That didn't work. Try again.",
+        });
+    }
+}
