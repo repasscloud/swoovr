@@ -624,8 +624,11 @@ public static class ProfileEndpoints
     /// <summary>
     /// Issue 572 (D448): whether this person's profile opens for the viewer at all, by the same rules as GET /api/profiles/{id}
     /// without a mode: a candidate (no block either way, active), a shared visible mode, and the market reach (D125, D142).
+    /// ShownMode is the mode that page shows first, so a list can use the same name (the mode's alias) as the linked profile.
     /// </summary>
-    public static async Task<Row?> OpensAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile viewer, Guid publicId, DateTimeOffset now,
+    public sealed record Opened(Row Person, string ShownMode);
+
+    public static async Task<Opened?> OpensAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile viewer, Guid publicId, DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var person = await Candidates(db, configuration, viewer.AccountId).SingleOrDefaultAsync(c => c.Profile.PublicId == publicId, cancellationToken);
@@ -635,10 +638,12 @@ public static class ProfileEndpoints
         var (low, high) = ConnectionRequest.Pair(viewer.AccountId, person.Profile.AccountId);
         var between = await db.ConnectionRequests.Where(r => r.PairLow == low && r.PairHigh == high
             && (r.Status == ConnectionRequestStatus.Pending || r.Status == ConnectionRequestStatus.Accepted)).ToListAsync(cancellationToken);
-        if (ModePrivacy.Shown(null, shared.Select(m => m.Id).ToList(), between.Select(r => r.ModeId).ToHashSet()).Count == 0) return null;
+        var shownIds = ModePrivacy.Shown(null, shared.Select(m => m.Id).ToList(), between.Select(r => r.ModeId).ToHashSet());
+        if (shownIds.Count == 0) return null;
         var reach = await ReachAsync(db, configuration, viewer, person, shared, between, now, cancellationToken);
         var travel = await Travel.ArrivalEndpoints.ReachAsync(db, viewer, person, shared, now, cancellationToken);
-        return MarketAccess.ProfileOpens(reach.SameMarket, between.Count > 0, reach.VisitingModes.Count > 0, travel.SearchModes.Count > 0) ? person : null;
+        return MarketAccess.ProfileOpens(reach.SameMarket, between.Count > 0, reach.VisitingModes.Count > 0, travel.SearchModes.Count > 0)
+            ? new Opened(person, shownIds[0]) : null;
     }
 
     public static async Task<Reach> ReachAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile viewer, Row person,

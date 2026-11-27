@@ -23,7 +23,7 @@ public static class FavouriteEndpoints
             var (current, denied) = await MemberAsync(user, accounts, token);
             if (denied is not null) return denied;
             var (db, me, now) = (accounts.Db!, current!.Profile!.AccountId, clock.GetUtcNow());
-            var person = await ProfileEndpoints.OpensAsync(db, configuration, current.Profile!, id, now, token);
+            var person = (await ProfileEndpoints.OpensAsync(db, configuration, current.Profile!, id, now, token))?.Person;
             if (person is null || person.Profile.AccountId == me) return Problem(StatusCodes.Status404NotFound, ProblemCodes.NotAvailable, "That profile isn't available.");
             var target = person.Profile.AccountId;
             if (!await db.MemberFavourites.AnyAsync(f => f.AccountId == me && f.TargetAccountId == target, token))
@@ -58,8 +58,11 @@ public static class FavouriteEndpoints
             var list = new List<FavouriteView>();
             foreach (var row in saved)
             {
-                if (await ProfileEndpoints.OpensAsync(db, configuration, current.Profile!, row.PublicId, now, token) is not { } person) continue;
-                list.Add(new FavouriteView(new PersonSummary(person.Profile.PublicId, person.Profile.DisplayName, ProfileEndpoints.Badges(person.Profile, order)), row.CreatedAt));
+                if (await ProfileEndpoints.OpensAsync(db, configuration, current.Profile!, row.PublicId, now, token) is not { Person: var person, ShownMode: var shown }) continue;
+                // The name the linked profile shows: that mode's alias, else the main name (as Explore and GET /api/profiles/{id}).
+                var alias = await db.MemberModes.Where(m => m.AccountId == person.Profile.AccountId && m.ModeId == shown).Select(m => m.DisplayName).SingleOrDefaultAsync(token);
+                list.Add(new FavouriteView(new PersonSummary(person.Profile.PublicId, ModePrivacy.DisplayName(alias, person.Profile.DisplayName)!,
+                    ProfileEndpoints.Badges(person.Profile, order)), row.CreatedAt));
                 if (list.Count == FavouritePolicy.Listed) break;
             }
             return Results.Ok(list);

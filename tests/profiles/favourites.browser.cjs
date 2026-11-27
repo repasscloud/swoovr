@@ -41,6 +41,13 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     await call(tokens.tam, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true } });
     assert.deepEqual(await list('viv'), [pid.tam]); pass();
 
+    // The list shows the name the linked profile shows: the mode's alias when there is one (PR 603 review).
+    const shownNames = async () => (await call(tokens.viv, '/api/me/favourites')).body.map(f => f.person.displayName);
+    assert.equal((await call(tokens.tam, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true, displayName: 'Fictional Alias tam' } })).status, 200);
+    assert.deepEqual([await shownNames(), (await call(tokens.viv, `/api/profiles/${pid.tam}`)).body.displayName], [['Fictional Alias tam'], 'Fictional Alias tam']); pass();
+    await call(tokens.tam, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true, displayName: '  ' } });
+    assert.deepEqual(await shownNames(), ['Fictional Fav tam'], 'no alias: the main name'); pass();
+
     // A block either way removes it.
     assert.equal((await fav('bob', 'viv')).status, 200);
     assert.equal((await call(tokens.viv, '/api/blocks', { method: 'POST', body: { profileId: pid.bob } })).status, 204);
