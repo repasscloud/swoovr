@@ -149,6 +149,78 @@ public static class VerificationEndpoints
             return Results.Ok(AccountEndpoints.View(profile, DateOnly.FromDateTime(now.UtcDateTime), await Profiles.ProfileEndpoints.BadgeOrderAsync(db, cancellationToken)));
         });
 
+        // Issue 533 (D429): the name on the member's own approved ID, while their one-time name correction is open. Read from
+        // Didit's decision just now; never stored or logged.
+        me.MapGet("/name", async (ClaimsPrincipal user, AccountResolver accounts, IIdVerificationProvider provider, CancellationToken cancellationToken) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, cancellationToken, ageGateExempt: true);
+            if (denied is not null) return denied;
+            var (db, profile) = (accounts.Db!, current!.Profile!);
+            if (profile.NameCheck != NameCheck.CorrectionNeeded)
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.NameCorrectionNotOpen, "There's no name to correct.");
+            var id = await IdNameAsync(db, profile.AccountId, provider, cancellationToken);
+            // An ID name that isn't a valid registered name (a comma in "Smith, Jr.") is shown but can't be taken; asking
+            // Swoovr to check it stays available (PR 581 review).
+            return id.First is not { } first
+                ? Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.VerificationProviderFailed, "We couldn't check your ID just now. Try again shortly.")
+                : Results.Ok(new IdNameView(first, id.Last, string.IsNullOrWhiteSpace(id.Last), CanUse: id.Names is not null));
+        });
+
+        // Issue 533 (Q192 A, D429): the member's one name correction. "use-id" takes the name exactly as it is on the approved
+        // ID (read from Didit again, never typed), once and audited: the registered names, the identity record and ban
+        // matching (D191) follow it; the public display name never changes. "review" leaves the name and opens an admin's
+        // review. ID Verified stays either way.
+        me.MapPost("/name", async (NameCorrectionRequest request, ClaimsPrincipal user, AccountResolver accounts, IIdVerificationProvider provider,
+            VerifiedIdentityStore identities, TimeProvider clock, CancellationToken cancellationToken) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, cancellationToken, ageGateExempt: true);
+            if (denied is not null) return denied;
+            if (request.Choice is not ("use-id" or "review")) return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Choose the name on your ID, or ask Swoovr to check it.");
+            var (db, profile, account, now) = (accounts.Db!, current!.Profile!, current.Account!, clock.GetUtcNow());
+            await using var lifecycle = await AccountLifecycleLease.AcquireAsync(db, profile.AccountId, cancellationToken);
+            await using var preservation = await Swoovr.Api.Retention.PreservationLease.SharedAsync(db, cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            await db.Entry(profile).ReloadAsync(cancellationToken);
+            await db.Entry(account).ReloadAsync(cancellationToken);
+            if (account.Status != AccountStatus.Active) return Problem(403, ProblemCodes.AccountLocked, "This account is locked.");
+            if (profile.NameCheck != NameCheck.CorrectionNeeded)
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.NameCorrectionNotOpen, "There's no name to correct.");
+            var (attempt, first, last, names) = await IdNameAsync(db, profile.AccountId, provider, cancellationToken);
+            if (request.Choice == "review")
+            {
+                // Always available (PR 581 review): it needs neither Didit nor an ID name that passes registered-name rules.
+                // Without the ID's name the reason is the general one.
+                var middleOnly = first is not null && RegisteredNamePolicy.Compare(new(account.RegisteredFirstName!, account.RegisteredLastName, account.RegisteredMononym), first, last)
+                    == NameComparison.MiddleOnly;
+                (profile.NameCheck, profile.NameCheckAt) = (NameCheck.ManualReview, now);
+                var open = await db.NameChangeReviews.SingleOrDefaultAsync(r => r.AccountId == account.Id && r.ResolvedAt == null, cancellationToken);
+                var reason = middleOnly ? "id-name-middle" : "id-name-differs";
+                if (open is null) db.NameChangeReviews.Add(new NameChangeReview { Id = Guid.NewGuid(), AccountId = account.Id, Revision = account.RegisteredNamesRevision, Reason = reason, CreatedAt = now });
+                else (open.Revision, open.Reason) = (account.RegisteredNamesRevision, reason);
+                Audit.Record(db, now, account.Id, "account", "name.review-opened", "account", account.Id.ToString(), reason);
+            }
+            else
+            {
+                if (attempt is null || first is null)
+                    return Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.VerificationProviderFailed, "We couldn't check your ID just now. Try again shortly.");
+                if (names is null)
+                    return Problem(StatusCodes.Status409Conflict, ProblemCodes.IdNameNotUsable, "The name on your ID can't be used as it is. Ask Swoovr to check it.");
+                (account.RegisteredFirstName, account.RegisteredLastName, account.RegisteredMononym) = (names.FirstName, names.LastName, names.Mononym);
+                account.RegisteredNamesConfirmedAt = now;
+                account.RegisteredNamesRevision++;
+                // The approved check is where this name came from, so it stays current for the new revision.
+                attempt.RegisteredNamesRevision = account.RegisteredNamesRevision;
+                account.RegisteredNamesMatchId = true;
+                (profile.NameCheck, profile.NameCheckAt) = (NameCheck.None, null);
+                Audit.Record(db, now, account.Id, "account", "name.corrected-to-id", "account", account.Id.ToString(), "revision:" + account.RegisteredNamesRevision);
+                if (await provider.GetDecisionAsync(attempt.SessionId, cancellationToken) is { } decision && decision.SessionId == attempt.SessionId)
+                    await identities.RecordAsync(account.Id, attempt, decision, now, cancellationToken);
+            }
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return Results.Ok(AccountEndpoints.View(profile, DateOnly.FromDateTime(now.UtcDateTime), await Profiles.ProfileEndpoints.BadgeOrderAsync(db, cancellationToken)));
+        });
+
         // D152: Didit calls the API directly (never through the BFF). Signature first, then the signed timestamp, then
         // a durable dedupe on event_id in the same transaction as the change.
         app.MapPost("/api/webhooks/didit", async (HttpRequest http, SwoovrDbContext db, DiditOptions options, TimeProvider clock,
@@ -310,7 +382,7 @@ public static class VerificationEndpoints
             var rows = await (open == false ? query.OrderByDescending(x => x.r.CreatedAt) : query.OrderBy(x => x.r.CreatedAt)).Take(200).ToListAsync(cancellationToken);
             return Results.Ok(rows.Select(x => new NameReviewView(x.r.Id, x.r.AccountId, x.DisplayName, x.RegisteredFirstName, x.RegisteredLastName, x.RegisteredMononym,
                 x.r.Revision, x.r.CreatedAt, x.r.ResolvedAt, x.r.Outcome is { } o ? NameWire(o) : null, x.r.ResolutionNote,
-                x.r.ResolvedBy is null ? null : StaffName(x.ResolverFirst, x.ResolverLast, x.ResolverEmail))).ToList());
+                x.r.ResolvedBy is null ? null : StaffName(x.ResolverFirst, x.ResolverLast, x.ResolverEmail), x.r.Reason)).ToList());
         });
         names.MapPost("/{reviewId:guid}/resolve", async (Guid reviewId, NameReviewDecision request, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock,
             CancellationToken cancellationToken) =>
@@ -336,10 +408,16 @@ public static class VerificationEndpoints
                 (profile.IdStatus, profile.IdCheckedAt, profile.DateOfBirthVerified, profile.DateOfBirthVerifiedAt, profile.CanRequestIdVerification) = (VerificationStatus.Rejected, now, false, null, true);
                 Audit.Record(db, now, current.Account.Id, "account", "verification.revoked-registered-name-change", "account", review.AccountId.ToString());
             }
+            // Issue 533 (D429): the member's name check closes with the review; "matches" records the name as matching the ID.
+            if (profile.NameCheck == NameCheck.ManualReview)
+            {
+                (profile.NameCheck, profile.NameCheckAt) = (NameCheck.None, null);
+                account.RegisteredNamesMatchId = outcome == NameReviewOutcome.Matches;
+            }
             Audit.Record(db, now, current.Account.Id, "account", "verification.name-review-resolved", "account", review.AccountId.ToString(), NameWire(outcome.Value));
             await db.SaveChangesAsync(cancellationToken); await transaction.CommitAsync(cancellationToken);
             return Results.Ok(new NameReviewView(review.Id, review.AccountId, profile.DisplayName, account.RegisteredFirstName, account.RegisteredLastName, account.RegisteredMononym,
-                review.Revision, review.CreatedAt, review.ResolvedAt, NameWire(outcome.Value), review.ResolutionNote));
+                review.Revision, review.CreatedAt, review.ResolvedAt, NameWire(outcome.Value), review.ResolutionNote, Reason: review.Reason));
         });
 
         var admin = app.MapGroup("/api/admin/accounts/{id:guid}").RequireAuthorization();
@@ -470,8 +548,10 @@ public static class VerificationEndpoints
         Audit.Record(db, now, null, "system", "verification." + next.ToString().ToLowerInvariant(), "id-verification", attempt.Id.ToString(), source);
         if (next == IdAttemptState.Approved)
         {
-            account.RegisteredNamesMatchId=RegisteredNamePolicy.Complete(account)&&session.Identity is{}declaredDocument
-                ?RegisteredNamePolicy.Matches(new(account.RegisteredFirstName!,account.RegisteredLastName,account.RegisteredMononym),declaredDocument.FirstName,declaredDocument.LastName):null;
+            account.RegisteredNamesMatchId=null;
+            // Issue 533 (D429): the registered name against the ID's. Without names in this delivery the identity store reads
+            // Didit's decision and checks there (VerifiedIdentityStore.RecordAsync).
+            if(session.Identity is{}declaredDocument)NameCheckAfterApproval(db,account,profile,declaredDocument.FirstName,declaredDocument.LastName,now);
             var age = IdVerificationPolicy.AgeAfterApproval(profile.AgeStatus, session.Adult);
             if (age != profile.AgeStatus)
             {
@@ -500,6 +580,43 @@ public static class VerificationEndpoints
                 Audit.Record(db, now, null, "system", "founder.eligible", "account", account.Id.ToString());
         }
         if (save) await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Issue 533 (Q192 A, D429): after an approved check, compare the registered name with the ID's (the ID's name is never
+    /// stored). The same name marks it matched; middle names only, or any other difference, opens the member's one-time
+    /// correction. No name from Didit changes nothing. An open admin review stays open. The audit names the kind of
+    /// difference, never a name. Unsaved.
+    /// </summary>
+    public static void NameCheckAfterApproval(SwoovrDbContext db, Account account, MemberProfile profile, string? first, string? last, DateTimeOffset now)
+    {
+        if (!RegisteredNamePolicy.Complete(account)) return;
+        var comparison = RegisteredNamePolicy.Compare(new(account.RegisteredFirstName!, account.RegisteredLastName, account.RegisteredMononym), first, last);
+        if (comparison == NameComparison.Unknown) return;
+        account.RegisteredNamesMatchId = comparison == NameComparison.Same;
+        var check = comparison == NameComparison.Same ? NameCheck.None : NameCheck.CorrectionNeeded;
+        if (profile.NameCheck == NameCheck.ManualReview && check != NameCheck.None) return;
+        if (profile.NameCheck == check) return;
+        (profile.NameCheck, profile.NameCheckAt) = (check, check == NameCheck.None ? null : now);
+        Audit.Record(db, now, null, "system", check == NameCheck.None ? "name.verified" : "name.correction-needed", "account", account.Id.ToString(),
+            comparison switch { NameComparison.MiddleOnly => "middle-names", NameComparison.Different => "different", _ => null });
+    }
+
+    /// <summary>
+    /// Issue 533: the member's latest approved attempt and the names on its ID, read from Didit now. First/Last are the ID's
+    /// names as given (trimmed; null First when Didit can't say); Names is them as valid registered names, or null when they
+    /// aren't (PR 581 review: such a name can still go to a manual review).
+    /// </summary>
+    private static async Task<(IdVerificationAttempt? Attempt, string? First, string? Last, RegisteredNames? Names)> IdNameAsync(SwoovrDbContext db, Guid account,
+        IIdVerificationProvider provider, CancellationToken cancellationToken)
+    {
+        var attempt = await db.IdVerificationAttempts.Where(a => a.AccountId == account && a.State == IdAttemptState.Approved)
+            .OrderByDescending(a => a.CompletedAt).FirstOrDefaultAsync(cancellationToken);
+        var decision = attempt is null || !provider.Configured ? null : await provider.GetDecisionAsync(attempt.SessionId, cancellationToken);
+        if (attempt is null || decision is null || decision.SessionId != attempt.SessionId || decision.VendorData != account.ToString() || decision.Identity is not { } id
+            || string.IsNullOrWhiteSpace(id.FirstName)) return (attempt, null, null, null);
+        var last = string.IsNullOrWhiteSpace(id.LastName) ? null : id.LastName.Trim();
+        return (attempt, id.FirstName.Trim(), last, RegisteredNamePolicy.Validate(id.FirstName, last, last is null));
     }
 
     private static async Task<IdVerificationView> ViewAsync(SwoovrDbContext db, MemberProfile profile, IIdVerificationProvider provider,

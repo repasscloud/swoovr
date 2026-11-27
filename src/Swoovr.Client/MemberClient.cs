@@ -49,6 +49,14 @@ public sealed partial class MemberClient(HttpClient transport)
     public Task<ApiResult<MemberAccount>> CorrectDateOfBirthAsync(DateOnly? dateOfBirth, CancellationToken cancellationToken = default) =>
         SendAsync<MemberAccount>(new HttpRequestMessage(HttpMethod.Post, "api/me/verification/date-of-birth") { Content = JsonContent.Create(new DobCorrectionRequest(dateOfBirth)) }, cancellationToken);
 
+    /// <summary>Issue 533 (D429): the name on the member's own approved ID, while their name correction is open.</summary>
+    public Task<ApiResult<IdNameView>> IdNameAsync(CancellationToken token = default) =>
+        SendAsync<IdNameView>(new HttpRequestMessage(HttpMethod.Get, "api/me/verification/name"), token);
+
+    /// <summary>Issue 533 (D429): "use-id" or "review".</summary>
+    public Task<ApiResult<MemberAccount>> CorrectNameAsync(string choice, CancellationToken token = default) =>
+        SendAsync<MemberAccount>(new HttpRequestMessage(HttpMethod.Post, "api/me/verification/name") { Content = JsonContent.Create(new NameCorrectionRequest(choice)) }, token);
+
     /// <summary>The report categories as configured (D131); serious gives the Serious Safety Incident ones (D190).</summary>
     public Task<ApiResult<List<ReportCategoryView>>> ReportCategoriesAsync(bool serious = false, CancellationToken cancellationToken = default) =>
         SendAsync<List<ReportCategoryView>>(new HttpRequestMessage(HttpMethod.Get, "api/report-categories" + (serious ? "?kind=serious" : "")), cancellationToken);

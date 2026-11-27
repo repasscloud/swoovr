@@ -25,7 +25,7 @@
         @foreach (var r in waiting)
         {
             <tr data-name-review="@r.Id">
-                <td><strong>@Name(r)</strong><span class="ui-sub"><a href="/accounts/@r.AccountId">Account</a> · <code>@r.AccountId.ToString()[..8]</code></span></td>
+                <td><strong>@Name(r)</strong><span class="ui-sub">@ReasonLabel(r.Reason) · <a href="/accounts/@r.AccountId">Account</a> · <code>@r.AccountId.ToString()[..8]</code></span></td>
                 <td>@r.CreatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC<span class="ui-sub">@Ago(r.CreatedAt) ago</span></td>
                 <td class="ui-right"><a class="ui-button-ghost" href="/name-reviews?review=@r.Id" data-name-review-open="@r.Id">Review</a></td>
             </tr>
@@ -56,7 +56,7 @@ else
 {
     <dialog open class="media-dialog dob-dialog" data-name-review-dialog aria-labelledby="name-heading">
         <header class="media-dialog-head">
-            <div><h2 id="name-heading">@Name(selected)</h2><p class="ui-sub">Registered name change · revision @selected.Revision</p></div>
+            <div><h2 id="name-heading">@Name(selected)</h2><p class="ui-sub">@ReasonLabel(selected.Reason) · revision @selected.Revision</p></div>
             <nav class="media-dialog-nav" aria-label="Review navigation"><a class="ui-button-ghost" href="/name-reviews" aria-label="Close review">Close</a></nav>
         </header>
         <form method="post" @formname="@($"name-resolve-{selected.Id}")" @onsubmit="() => ResolveAsync(selected.Id)" class="media-side dob-form" data-enhance="true" data-name-form>
@@ -117,4 +117,12 @@ else
         message = AdminText.Refusal(result.Status, result.Code);
         await LoadAsync();
     }
+    // Issue 533 (D429): why the review opened. A member who asked for a check instead of taking their ID's name; the name on
+    // the ID is on the account's Didit result (D416), read live.
+    private static string ReasonLabel(string? reason) => reason switch
+    {
+        "id-name-middle" => "Differs from the ID: middle names",
+        "id-name-differs" => "Differs from the ID",
+        _ => "Registered name change",
+    };
 }

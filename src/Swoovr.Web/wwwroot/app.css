@@ -1125,6 +1125,11 @@ body:has(.public-layout) { padding-bottom: 0; }
 .dob-correction-form { display: grid; gap: 16px; margin-top: 16px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .dialog-actions .button { width: auto; min-height: 44px; padding: 0 20px; }
+/* Issue 533: the name on the member's ID in the one-time name correction, then two content-width choices. */
+.name-correction-names { margin: 16px 0 8px; }
+.name-correction-names dt { color: var(--muted); font: var(--type-small); }
+.name-correction-names dd { margin: 2px 0 0; font-weight: 700; }
+[data-name-correction] .dialog-actions { flex-wrap: wrap; margin-top: 16px; }
 /* Issue 539: Connections as navigable sections with compact rows (left navigation on wide screens, a switcher on narrow). */
 .cx-layout { display: grid; gap: 16px; }
 .cx-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }

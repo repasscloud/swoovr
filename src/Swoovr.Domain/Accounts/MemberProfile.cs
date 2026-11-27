@@ -55,6 +55,9 @@ public sealed class MemberProfile
     /// <summary>D166: a correction or a manual review open after an approved ID check whose date differed.</summary>
     public DobCheck DobCheck { get; set; }
     public DateTimeOffset? DobCheckAt { get; set; }
+    /// <summary>Issue 533 (D429): the registered name against an approved ID: none, the one-time correction, or an admin's review.</summary>
+    public NameCheck NameCheck { get; set; }
+    public DateTimeOffset? NameCheckAt { get; set; }
     /// <summary>D130: when the member first met every founding condition (FounderEligibility); never moves once set.</summary>
     public DateTimeOffset? FounderEligibleAt { get; set; }
     /// <summary>D130: when the founding benefits start, kept apart from the allocation time (<see cref="FoundingSince"/>).</summary>

@@ -13,8 +13,8 @@ using Swoovr.Infrastructure.Persistence;
 namespace Swoovr.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(SwoovrDbContext))]
-    [Migration("20261127074307_IdentityPresentationChanged")]
-    partial class IdentityPresentationChanged
+    [Migration("20261127055006_NameCheck")]
+    partial class NameCheck
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -4720,18 +4720,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("gender_id");
 
-                    b.Property<DateTimeOffset?>("OrientationChangedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("orientation_changed_at");
-
                     b.Property<string>("OrientationId")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("orientation_id");
-
-                    b.Property<DateTimeOffset?>("PresentationChangedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("presentation_changed_at");
 
                     b.Property<string>("PronounId")
                         .HasMaxLength(32)
@@ -5100,6 +5092,16 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("id_status");
+
+                    b.Property<string>("NameCheck")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("name_check");
+
+                    b.Property<DateTimeOffset?>("NameCheckAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("name_check_at");
 
                     b.Property<DateTimeOffset?>("OnboardingCompletedAt")
                         .HasColumnType("timestamp with time zone")
@@ -6075,6 +6077,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("outcome");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
 
                     b.Property<string>("ResolutionNote")
                         .HasMaxLength(1000)

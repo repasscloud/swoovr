@@ -5098,6 +5098,16 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("id_status");
 
+                    b.Property<string>("NameCheck")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("name_check");
+
+                    b.Property<DateTimeOffset?>("NameCheckAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("name_check_at");
+
                     b.Property<DateTimeOffset?>("OnboardingCompletedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("onboarding_completed_at");
@@ -6072,6 +6082,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("outcome");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("text")
+                        .HasColumnName("reason");
 
                     b.Property<string>("ResolutionNote")
                         .HasMaxLength(1000)
