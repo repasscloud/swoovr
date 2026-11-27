@@ -1909,3 +1909,7 @@ Builds [#572](https://github.com/repasscloud/swoovr/issues/572) (from #568 §11,
 - **Profile:** the same gold star as a button beside ⋯ in the action bar (gold on the dark chip when saved). It replaces the ⋯ menu's "Add to favourites" row, so the menu is back to report, block, serious incident and manage connection (D441).
 - **Still private (D448):** the member is never told, nothing shows on their side, and there is no count. The star's label says "Only you can see this". Explore returns `favourite` per card for the viewer only, in one query.
 - The gold (`--favourite`, `#F2B21B`) and the chip (`--favourite-chip`) are the same in every scheme; check_design.py checks the gold and the white outline are at least 3:1 on the chip. **DEFAULT:** the onboarding preview of your own card shows no star.
+
+### D450 — Favourites rows show the photo, age and a link per mode (#572, 28 November 2026)
+
+**CONFIRMED** (owner, 28 November 2026): the Favourites page (`/me/favourites`, D448) shows each member like a Connections row (#539): their main photo as a thumbnail (or their initial), name and age, and badges, as their profile shows them in the mode it opens in. Under the name, one link per mode you can open their profile in now (both have it on and visible), each to `/people/{id}?mode=…`; a mode they hid or turned off isn't listed. Then the saved date and Remove. Age and photo follow the same rules as Explore and Connections (D138, D203, D418). The list is still private (D448), and the API loads it in a few batched queries, not per row.

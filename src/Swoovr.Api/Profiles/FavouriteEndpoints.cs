@@ -46,7 +46,7 @@ public static class FavouriteEndpoints
             if (target is { } account) await db.MemberFavourites.Where(f => f.AccountId == me && f.TargetAccountId == account).ExecuteDeleteAsync(token);
             return Results.Ok(new FavouriteState(false));
         });
-        api.MapGet("/me/favourites", async (ClaimsPrincipal user, AccountResolver accounts, IConfiguration configuration, TimeProvider clock, CancellationToken token) =>
+        api.MapGet("/me/favourites", async (ClaimsPrincipal user, AccountResolver accounts, IConfiguration configuration, TimeProvider clock, IServiceProvider services, CancellationToken token) =>
         {
             var (current, denied) = await MemberAsync(user, accounts, token);
             if (denied is not null) return denied;
@@ -61,10 +61,18 @@ public static class FavouriteEndpoints
             var accountsShown = listed.Select(x => x.Open.Person.Profile.AccountId).ToList();
             var aliases = (await db.MemberModes.Where(m => accountsShown.Contains(m.AccountId)).Select(m => new { m.AccountId, m.ModeId, m.DisplayName }).ToListAsync(token))
                 .ToDictionary(m => (m.AccountId, m.ModeId), m => m.DisplayName);
-            var list = listed.Select(x => new FavouriteView(new PersonSummary(x.Open.Person.Profile.PublicId,
+            var faces = await Connections.RequestEndpoints.FacesAsync(db, services, me, listed.Select(x => (x.Open.Person.Profile.AccountId, x.Open.ShownMode)).ToList(), now, token);
+            FavouriteView View((Guid PublicId, DateTimeOffset CreatedAt) row, ProfileEndpoints.Opened open)
+            {
+                var other = open.Person.Profile;
                 // The name the linked profile shows: that mode's alias, else the main name (as Explore and GET /api/profiles/{id}).
-                ModePrivacy.DisplayName(aliases.GetValueOrDefault((x.Open.Person.Profile.AccountId, x.Open.ShownMode)), x.Open.Person.Profile.DisplayName)!,
-                ProfileEndpoints.Badges(x.Open.Person.Profile, order)), x.Row.CreatedAt)).ToList();
+                var person = new PersonSummary(other.PublicId, ModePrivacy.DisplayName(aliases.GetValueOrDefault((other.AccountId, open.ShownMode)), other.DisplayName)!,
+                    ProfileEndpoints.Badges(other, order));
+                // D450: the thumbnail and age as the Connections rows show them, in the mode the profile opens in, in one batch.
+                if (faces.TryGetValue((other.AccountId, open.ShownMode), out var face)) person = person with { Photo = face.Photo, Age = face.Age };
+                return new FavouriteView(person, row.CreatedAt, open.Modes ?? [open.ShownMode]);
+            }
+            var list = listed.Select(x => View((x.Row.PublicId, x.Row.CreatedAt), x.Open)).ToList();
             return Results.Ok(list);
         });
     }

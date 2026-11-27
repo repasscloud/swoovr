@@ -102,6 +102,23 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     assert.deepEqual(await list('viv'), [pid.tam]); pass();
     await page.goto(web + '/me/favourites');
     await page.locator(`[data-favourite-person="${pid.tam}"]`).waitFor({ timeout: 20000 });
+    // D450: the row shows name and age, and a link for each mode the profile opens in now.
+    const row = page.locator(`[data-favourite-person="${pid.tam}"]`);
+    assert.match(await row.locator('.cx-name').innerText(), /^Fictional Fav tam, \d+$/); pass();
+    assert.equal(await row.locator('.cx-thumb').count(), 1); pass();
+    assert.deepEqual(await row.locator('[data-favourite-mode]').evaluateAll(a => a.map(e => [e.dataset.favouriteMode, e.getAttribute('href'), e.textContent.trim()])),
+      [['friends', `/people/${pid.tam}?mode=friends`, 'Friends']]); pass();
+    assert.equal(await row.locator('.cx-name').getAttribute('href'), `/people/${pid.tam}?mode=friends`); pass();
+    const api = (await call(tokens.viv, '/api/me/favourites')).body[0];
+    assert.deepEqual([api.modes, typeof api.person.age], [['friends'], 'number']); pass();
+    // Turn on Business for both: a second link; hide it on tam's side: gone again.
+    for (const n of ['viv', 'tam']) await call(tokens[n], '/api/me/modes/business', { method: 'PUT', body: { enabled: true, visible: true } });
+    assert.deepEqual((await call(tokens.viv, '/api/me/favourites')).body[0].modes.sort(), ['business', 'friends']); pass();
+    await call(tokens.tam, '/api/me/modes/business', { method: 'PUT', body: { enabled: true, visible: false } });
+    assert.deepEqual((await call(tokens.viv, '/api/me/favourites')).body[0].modes, ['friends'], 'a hidden mode is not listed'); pass();
+    await page.reload(); await row.waitFor({ timeout: 20000 });
+    for (const width of [1280, 390]) { await page.setViewportSize({ width, height: 900 }); if (output) await page.screenshot({ path: `${output}/favourites-rows-${width}.png`, fullPage: true }); }
+    await page.setViewportSize({ width: 1280, height: 900 });
     assert.equal(await page.locator('[data-settings-link=favourites][aria-current=page]').count(), 1); pass();
     if (output) await page.screenshot({ path: `${output}/favourites-1280.png`, fullPage: true });
     await page.click(`[data-favourite-remove="${pid.tam}"]`);

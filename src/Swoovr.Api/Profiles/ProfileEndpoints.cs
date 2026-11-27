@@ -626,7 +626,8 @@ public static class ProfileEndpoints
     /// without a mode: a candidate (no block either way, active), a shared visible mode, and the market reach (D125, D142).
     /// ShownMode is the mode that page shows first, so a list can use the same name (the mode's alias) as the linked profile.
     /// </summary>
-    public sealed record Opened(Row Person, string ShownMode);
+    /// <param name="Modes">D450: every mode the viewer can open this profile in now (both on and visible), in the shared order.</param>
+    public sealed record Opened(Row Person, string ShownMode, IReadOnlyList<string>? Modes = null);
 
     public static async Task<Opened?> OpensAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile viewer, Guid publicId, DateTimeOffset now,
         CancellationToken cancellationToken) =>
@@ -670,7 +671,7 @@ public static class ProfileEndpoints
                 opens = MarketAccess.ProfileOpens(reach.SameMarket, false, reach.VisitingModes.Count > 0)
                     || (await Travel.ArrivalEndpoints.ReachAsync(db, viewer, person, shared, now, cancellationToken)).SearchModes.Count > 0;
             }
-            if (opens) opened[person.Profile.PublicId] = new Opened(person, shownIds[0]);
+            if (opens) opened[person.Profile.PublicId] = new Opened(person, shownIds[0], shared.Select(m => m.Id).ToList());
         }
         return opened;
     }
