@@ -82,9 +82,11 @@ h1, h2, p, legend, label { overflow-wrap: anywhere; }
 .link { font: var(--type-small); color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border); padding-bottom: 1px; }
 .link:hover { border-bottom-color: var(--text); }
 
-/* Buttons: 54 tall, radius 14, 16/600. Primary ink fill; secondary surface with hairline border. */
+/* Buttons: 54 tall, radius 14, 16/600. Primary ink fill; secondary surface with hairline border.
+   D447 (issue 574, owner: "we do NOT use wide buttons"): every button is as wide as its label, everywhere. Rows of buttons
+   wrap with space between them (.account-actions, .button-row). Only menus and pickers stretch their rows. */
 .button, .primary-button, .primary-link, .quiet-button {
-  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 54px; padding: 8px 20px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: auto; max-width: 100%; justify-self: start; min-height: 54px; padding: 8px 24px;
   border: 1px solid var(--primary); border-radius: var(--radius); background: var(--primary); color: var(--onPrimary);
   font: 600 1rem/1.2 var(--font); letter-spacing: -.1px; text-align: center; text-decoration: none;
   transition: transform .12s ease, border-color .2s;
@@ -95,7 +97,7 @@ h1, h2, p, legend, label { overflow-wrap: anywhere; }
 .button-secondary:hover:not(:disabled), .quiet-button:hover:not(:disabled) { border-color: var(--text); }
 .button-secondary:disabled, .quiet-button:disabled { background: var(--surface); border-color: var(--border); color: var(--placeholder); }
 .button .icon { width: 19px; height: 19px; }
-.button-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 10px; }
+.button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
 .button-small { min-height: 44px; font-size: .875rem; }
 /* Issue 420: destructive (delete) actions. Red text on the quiet button look; disabled keeps the secondary greys. */
 .button-destructive, .link-button.button-destructive { color: var(--destructive); }
@@ -374,7 +376,7 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 .sample-chat { margin: 16px 0; padding-top: 6px; border-top: 1px solid var(--border); }
 
 /* Account */
-.account-actions { display: grid; gap: 10px; margin: 26px 0 0; }
+.account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin: 26px 0 0; }
 .account-session { margin-top: 26px; }
 .account-session dl, .standing-facts { margin: 0 0 14px; }
 .account-session dl > div, .standing-facts > div { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -386,7 +388,6 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 .account-section .stack { display: grid; gap: 10px; margin-top: 14px; }
 .account-section [role=status]:empty { display: none; }
 .account-sign-out { margin-top: 16px; }
-.account-sign-out .quiet-button { width: 100%; }
 .badge-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .badge-list li { display: flex; align-items: center; gap: 8px; font-weight: 600; }
 /* Issue 439: the badge name is bold; when it was checked is ordinary text. */
@@ -526,7 +527,6 @@ legend { padding: 0; margin-bottom: 4px; font: var(--type-section); font-size: 1
 .person-layout .account-section:first-child { margin-top: 0; }
 .person-actions form, .account-details form, .account-details > .account-actions { max-width: 420px; }
 .person-actions .account-actions { margin-top: 16px; }
-.conversation-page > .account-actions { grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
 .conversation-page .bubble { max-width: min(78%, 34rem); }
 /* Issue 542: header and composer stay put; only the thread scrolls. The height leaves room for the app header (and the
    phone tab bar), so the composer is always on screen. */
