@@ -142,10 +142,11 @@ public static class MemberText
     /// <summary>Issue 495 (D418): gender and orientation on one line, only what the API returned for this mode.</summary>
     public static string CardIdentity(ProfileCard card) => string.Join(" · ", new[] { card.Gender, card.Orientation }.Where(v => !string.IsNullOrWhiteSpace(v)));
 
-    /// <summary>Issue 497: the viewer's standing with someone in the mode they're browsing; otherwise, for a while, that they're new (issue 498).</summary>
+    /// <summary>Issue 497: the viewer's standing with someone in the mode they're browsing. D443 (issue 589): "New member"
+    /// (issue 498) is an overlay on the photo now, so this row only ever says where the two of you stand.</summary>
     public static string CardStatus(ProfileCard card) => card.Connection switch
     {
-        "connected" => "Connected", "sent" => "Request sent", "received" => "Request received", _ => card.NewMember ? "New member" : "",
+        "connected" => "Connected", "sent" => "Request sent", "received" => "Request received", _ => "",
     };
 
     /// <summary>

@@ -106,7 +106,13 @@ const output = process.env.SWOOVR_SCREENSHOTS;
       await page.goto(web + '/explore?mode=friends');
       await page.waitForSelector(`.member-card:has(a[href^="/people/${pid.con}"])`, { timeout: 20000 });
       const status = n => page.locator(`.member-card:has(a[href^="/people/${pid[n]}"]) [data-tile-status]`);
-      assert.deepEqual([await status('con').textContent(), await status('out').textContent(), await status('inn').textContent(), await status('non').textContent()], ['Connected', 'Request sent', 'Request received', 'New member']); pass();
+      assert.deepEqual([await status('con').textContent(), await status('out').textContent(), await status('inn').textContent()], ['Connected', 'Request sent', 'Request received']); pass();
+      // D443 (issue 589): "New member" is an overlay on the photo; its connection row stays blank, so the card keeps its size.
+      const card = n => page.locator(`.member-card:has(a[href^="/people/${pid[n]}"])`);
+      assert.equal(await status('non').count(), 0); pass();
+      assert.equal(await card('non').locator('.mc-media [data-tile-new]').innerText(), 'New member'); pass();
+      assert.equal(await card('non').locator('[data-tile-blank=status]').count(), 1); pass();
+      assert.equal(await card('out').locator('[data-tile-new]').count(), 0, 'past 14 days'); pass();
       assert.deepEqual(await page.locator(`.member-card:has(a[href^="/people/${pid.con}"]) [data-tile-online]`).evaluateAll(a => a.map(e => [e.getAttribute('aria-label'), e.textContent, e.getBoundingClientRect().width > 6])), [['Online', '', true]]); pass();
       assert.equal(await page.locator('[data-tile-online]').count(), 1); pass();
       assert.ok(await page.locator('[data-tile-online]').evaluate(e => { const d = e.getBoundingClientRect(), n = e.parentElement.querySelector('a').getBoundingClientRect(); return d.top >= n.top && d.bottom <= n.bottom && d.right <= n.left; }), 'beside the name'); pass();

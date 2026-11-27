@@ -101,7 +101,7 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     assert.ok(!ids(explore).includes(pid.ana)); pass(); // self
     assert.ok(!ids(explore).includes(pid.eli) && explore.body.people.every(p => p.displayName)); pass(); // eli has no name yet
     const benCard = explore.body.people.find(p => p.id === pid.ben);
-    assert.deepEqual(Object.keys(benCard).sort(), ['about', 'age', 'badges', 'connection', 'displayName', 'distance', 'gender', 'id', 'intentions', 'newMember', 'photo', 'photoCount', 'pictureText', 'pronouns', 'visiting']); pass(); // D382: the member's text picture (null without one) // D352: visiting is null unless checked in here // D203: the main photo (null without one) // D348: a band object, never a distance // age, gender and pronouns only as allowed (D138, D139); never the date of birth, email or account id
+    assert.deepEqual(Object.keys(benCard).sort(), ['about', 'age', 'badges', 'connection', 'displayName', 'distance', 'gender', 'id', 'intentions', 'newMember', 'online', 'orientation', 'photo', 'photoCount', 'pictureText', 'pronouns', 'visiting']); pass(); // D382: the member's text picture (null without one) // D352: visiting is null unless checked in here // D203: the main photo (null without one) // D348: a band object, never a distance // age, gender and pronouns only as allowed (D138, D139); never the date of birth, email or account id
     assert.ok(!JSON.stringify(benCard).includes('1990-') && !('dateOfBirth' in benCard)); pass();
     assert.deepEqual(benCard.badges, []); pass(); // an ordinary member has no public badge (Q11)
     // Intentions show on tiles in the owner's order and never exclude anyone (Q16 rule 10): Ben picked none at first.
@@ -211,7 +211,7 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     assert.ok(hrefs.includes('/people/' + pid.eli) && !hrefs.includes('/people/' + pid.ben) && !hrefs.includes('/people/' + pid.cai)); pass();
     const tiles = await page.locator('.member-card').evaluateAll(els => els.map(e => [Math.round(e.getBoundingClientRect().width), Math.round(e.getBoundingClientRect().height)]));
     assert.ok(tiles.every(([w, h]) => w === tiles[0][0] && h === tiles[0][1])); pass(); // equal tiles (UI-STYLE.md)
-    assert.deepEqual(await page.locator(`.member-card:has(a[href^="/people/${pid.eli}"]) .mc-chips .chip`).allInnerTexts(), ['Long-term relationship', 'Open to exploring']); pass(); // issue 443: at most two chips
+    assert.equal(await page.locator(`.member-card:has(a[href^="/people/${pid.eli}"]) .chip`).count(), 0); pass(); // D443 (issue 589): intentions are on the profile, not the card
     if (output) await page.screenshot({ path: output + '/explore-390.png', fullPage: true });
     await page.click('.explore-modes [data-mode=business]');
     await page.waitForSelector('[data-explore-mode=business][data-explore-state=off]'); pass();
@@ -220,7 +220,7 @@ const { web, createMember, memberToken, rootAdminToken, elevatedRootToken, cli, 
     await page.waitForSelector('[data-explore-mode=dating][data-explore-state=ready]');
     await page.click(`.member-card a[href^="/people/${pid.eli}"]`);
     await page.waitForSelector('[data-person=ready]', { timeout: 20000 });
-    assert.equal(await page.locator('h1').innerText(), 'Fictional Eli'); pass();
+    assert.match(await page.locator('h1').innerText(), /^Fictional Eli(, \d+)?$/); pass(); // issue 568: the age follows the name
     assert.equal(await page.locator('[data-shared-modes]').getAttribute('data-shared-modes'), 'dating'); pass();
     assert.deepEqual(await page.locator('[data-shared-modes] .chip.is-on').allInnerTexts(), ['Long-term relationship', 'Open to exploring']); pass();
     await page.goto(web + `/people/${caiId}`);
