@@ -150,6 +150,8 @@ public static class ProblemCodes
     public const string ExportTooSoon = "export-too-soon";
     public const string ExportUnavailable = "export-unavailable";
     public const string InvalidRequest = "invalid-request";
+    /// <summary>Issue 588 (D445): another banner is already switched on for that placement.</summary>
+    public const string SiteBannerPlacementTaken = "site-banner-placement-taken";
     public const string CouponInvalid = "coupon-invalid";
     public const string TooManyAttempts = "too-many-attempts";
     public const string InvalidProfile = "invalid-profile";

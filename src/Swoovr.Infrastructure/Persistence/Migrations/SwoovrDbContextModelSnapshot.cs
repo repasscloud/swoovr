@@ -8236,6 +8236,70 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                     b.ToTable("sensitive_access_log", (string)null);
                 });
 
+            modelBuilder.Entity("Swoovr.Domain.SiteBanner", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<DateTimeOffset?>("EndsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ends_at");
+
+                    b.Property<bool>("InApp")
+                        .HasColumnType("boolean")
+                        .HasColumnName("in_app");
+
+                    b.Property<bool>("OnWebsite")
+                        .HasColumnType("boolean")
+                        .HasColumnName("on_website");
+
+                    b.Property<DateTimeOffset?>("StartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("text");
+
+                    b.Property<string>("Tone")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("tone");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_site_banners");
+
+                    b.HasIndex("Enabled", "UpdatedAt")
+                        .HasDatabaseName("ix_site_banners_enabled_updated_at");
+
+                    b.ToTable("site_banners");
+                });
+
             modelBuilder.Entity("Swoovr.Domain.StaffExclusion", b =>
                 {
                     b.Property<Guid>("StaffAccountId")

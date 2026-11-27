@@ -41,6 +41,7 @@
 @if (workspace?.MemberOperations == true)
 {
 <div class="nav-group"><p class="nav-heading">Reporting & resources</p>
+<a href="/announcements" class="@(IsActive("/announcements") ? "nav-link active" : "nav-link")" aria-current="@(IsActive("/announcements") ? "page" : null)" data-nav-announcements><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z M15 9a4 4 0 0 1 0 6 M18 6a8 8 0 0 1 0 12" /></svg>Announcements</a>
 <a href="/safety" class="@(IsActive("/safety") ? "nav-link active" : "nav-link")" aria-current="@(IsActive("/safety") ? "page" : null)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6l2 2 2-2h6v16h-6l-2 2-2-2H4z M12 6v16" /></svg><span>Safety resources</span></a>
 <a href="/beta-scorecard" class="@(IsActive("/beta-scorecard") ? "nav-link active" : "nav-link")" aria-current="@(IsActive("/beta-scorecard") ? "page" : null)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3v18h17 M8 16v-5 M13 16V7 M18 16V4" /></svg><span>Beta scorecard</span></a>
 <a href="/code-reports" class="@(IsActive("/code-reports") ? "nav-link active" : "nav-link")" aria-current="@(IsActive("/code-reports") ? "page" : null)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h10l4 4v14H5z M8 16v-3 M12 16V9 M16 16v-5" /></svg><span>Annual report data</span></a>

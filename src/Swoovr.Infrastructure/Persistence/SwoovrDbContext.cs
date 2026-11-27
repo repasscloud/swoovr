@@ -61,6 +61,7 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
     public DbSet<DobReview> DobReviews => Set<DobReview>();
     public DbSet<DobReviewIdView> DobReviewIdViews => Set<DobReviewIdView>();
     public DbSet<AccountEscalation> AccountEscalations => Set<AccountEscalation>();
+    public DbSet<SiteBanner> SiteBanners => Set<SiteBanner>();
     public DbSet<NameChangeReview> NameChangeReviews => Set<NameChangeReview>();
     public DbSet<DobChangeGrant> DobChangeGrants => Set<DobChangeGrant>();
     public DbSet<DobChangeHistory> DobChangeHistories => Set<DobChangeHistory>();
@@ -836,6 +837,13 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             view.HasIndex(v => new { v.ReviewId, v.ActorAccountId, v.At });
         });
         // Issue 455 (D404): one open escalation per account. Staff ids aren't foreign keys, as in the audit.
+        // Issue 588 (D445): site-wide banners. History is kept; only switching on is limited to one per placement.
+        model.Entity<SiteBanner>(banner =>
+        {
+            banner.Property(b => b.Text).HasMaxLength(SiteBannerPolicy.TextMax);
+            banner.Property(b => b.Tone).HasConversion<string>().HasMaxLength(16);
+            banner.HasIndex(b => new { b.Enabled, b.UpdatedAt });
+        });
         model.Entity<AccountEscalation>(escalation =>
         {
             escalation.HasOne<Account>().WithMany().HasForeignKey(e => e.AccountId).OnDelete(DeleteBehavior.Cascade);

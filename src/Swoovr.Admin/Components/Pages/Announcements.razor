@@ -1,0 +1,118 @@
+@page "/announcements"
+@inject AdminClient Admin
+@* Issue 588 (D445): site-wide banners for the app and the website's front page. Admin publishes; Support can see them. *@
+<PageTitle>Announcements — Swoovr admin</PageTitle>
+<header class="ui-page-head">
+    <h1>Announcements</h1>
+    <p>A banner across the app, the website's front page, or both. Members can't dismiss it.</p>
+</header>
+<nav class="ui-tabs" aria-label="Announcement sections">
+    <a href="/announcements" aria-current="page">Banners</a>
+</nav>
+@if (message is not null) { <p class="notice" role="status" data-result="@resultCode">@message</p> }
+@if (admin)
+{
+    <section class="ui-card" aria-labelledby="new-banner-heading">
+        <h2 id="new-banner-heading">New banner</h2>
+        <p class="ui-help">It's saved switched off. Switch it on when it's ready; only one banner can be on in each place.</p>
+        @BannerForm(null)
+    </section>
+}
+@if (banners.Count == 0) { <div class="ui-empty" data-site-banners="none"><strong>No banners</strong>Banners you publish appear here.</div> }
+else
+{
+    <div class="table-scroll ui-table" tabindex="0" role="region" aria-label="Banners">
+    <table data-site-banners="@banners.Count"><thead><tr><th scope="col">Banner</th><th scope="col">Shows in</th><th scope="col">When</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    @foreach (var b in banners)
+    {
+        <tr data-site-banner="@b.Id" data-site-banner-state="@b.State">
+            <td><strong>@b.Text</strong><span class="ui-sub">@ToneLabel(b.Tone) · changed by @(b.UpdatedBy ?? "Staff"), @b.UpdatedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC</span></td>
+            <td>@Places(b)</td>
+            <td>@Window(b)</td>
+            <td><span class="ui-pill" data-tone="@(b.State == "live" ? "approve" : b.State == "scheduled" ? "pending" : "quiet")">@StateLabel(b.State)</span></td>
+            <td class="ui-right">
+                @if (b.CanEdit)
+                {
+                    <form method="post" @formname="@($"switch-{b.Id}")" @onsubmit="() => SwitchAsync(b.Id, !b.Enabled)" class="appeal-decide" data-enhance="true">
+                        <AntiforgeryToken />
+                        <button type="submit" class="@(b.Enabled ? "ui-button-ghost" : "ui-button-sm")" data-site-banner-switch="@(b.Enabled ? "off" : "on")">@(b.Enabled ? "Switch off" : "Switch on")</button>
+                    </form>
+                }
+            </td>
+        </tr>
+        @if (b.CanEdit)
+        {
+            <tr class="banner-edit-row"><td colspan="5"><details open="@(failed == b.Id)"><summary>Edit</summary>@BannerForm(b)</details></td></tr>
+        }
+    }
+    </tbody></table></div>
+}
+@code {
+    [CascadingParameter] private HttpContext? Context { get; set; }
+    private List<SiteBannerView> banners = [];
+    private bool admin;
+    private string? message, resultCode;
+    private Guid? failed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        admin = (await Admin.WorkspaceAsync()).Value?.Administration == true;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var result = await Admin.SiteBannersAsync();
+        banners = result.Value ?? [];
+        if (!result.Ok && message is null) (resultCode, message) = (result.Code ?? result.Status.ToString(), AdminText.Refusal(result.Status, result.Code));
+    }
+
+    private RenderFragment BannerForm(SiteBannerView? b) => @<form method="post" @formname="@(b is null ? "banner-new" : $"banner-{b.Id}")" @onsubmit="() => SaveAsync(b?.Id)" class="banner-form" data-enhance="true" data-site-banner-form="@(b?.Id.ToString() ?? "new")">
+        <AntiforgeryToken />
+        <label class="ui-field banner-text"><span>Announcement</span><input name="text" maxlength="200" required value="@b?.Text" placeholder="What members need to know" /></label>
+        <label class="ui-field"><span>Tone</span><select name="tone">
+            @foreach (var (value, label) in Tones) { <option value="@value" selected="@(b?.Tone == value)">@label</option> }
+        </select></label>
+        <fieldset class="banner-places"><legend>Shows in</legend>
+            <label class="beta-check"><input type="checkbox" name="inApp" value="true" checked="@(b?.InApp ?? true)" /><span>The app</span></label>
+            <label class="beta-check"><input type="checkbox" name="onWebsite" value="true" checked="@(b?.OnWebsite ?? false)" /><span>Website front page</span></label>
+        </fieldset>
+        <label class="ui-field"><span>Starts (UTC, optional)</span><input type="datetime-local" name="startsAt" value="@Local(b?.StartsAt)" /></label>
+        <label class="ui-field"><span>Ends (UTC, optional)</span><input type="datetime-local" name="endsAt" value="@Local(b?.EndsAt)" /></label>
+        <div class="beta-filter-actions"><button type="submit" data-site-banner-save>@(b is null ? "Save banner" : "Save changes")</button></div>
+    </form>;
+
+    private async Task SaveAsync(Guid? id)
+    {
+        var form = Context?.Request.HasFormContentType == true ? Context.Request.Form : null;
+        var request = new SiteBannerRequest(form?["text"].ToString(), form?["tone"].ToString(), form?["inApp"].ToString() == "true", form?["onWebsite"].ToString() == "true",
+            Utc(form?["startsAt"].ToString()), Utc(form?["endsAt"].ToString()));
+        var result = id is { } existing ? await Admin.UpdateSiteBannerAsync(existing, request) : await Admin.CreateSiteBannerAsync(request);
+        resultCode = result.Ok ? "ok" : result.Code ?? result.Status.ToString();
+        message = result.Ok ? (id is null ? "Banner saved. Switch it on when it's ready." : "Changes saved.") : Refusal(result.Status, result.Code);
+        failed = result.Ok ? null : id;
+        await LoadAsync();
+    }
+
+    private async Task SwitchAsync(Guid id, bool on)
+    {
+        var result = await Admin.SwitchSiteBannerAsync(id, on);
+        resultCode = result.Ok ? "ok" : result.Code ?? result.Status.ToString();
+        message = result.Ok ? (on ? "Banner switched on." : "Banner switched off.") : Refusal(result.Status, result.Code);
+        await LoadAsync();
+    }
+
+    private static string Refusal(int status, string? code) => code == "site-banner-placement-taken"
+        ? "Another banner is switched on for that place. Switch it off first."
+        : status == 400 ? "Check the banner: up to 200 characters on one line, at least one place, and an end after the start." : AdminText.Refusal(status, code);
+
+    private static readonly (string Value, string Label)[] Tones = [("info", "Info"), ("warning", "Warning"), ("critical", "Critical")];
+    private static string ToneLabel(string tone) => Tones.FirstOrDefault(t => t.Value == tone).Label ?? tone;
+    private static string Places(SiteBannerView b) => b.InApp && b.OnWebsite ? "App and website" : b.InApp ? "App" : "Website";
+    private static string StateLabel(string state) => state switch { "live" => "Showing", "scheduled" => "Scheduled", "ended" => "Ended", _ => "Off" };
+    private static string Window(SiteBannerView b) => b.StartsAt is null && b.EndsAt is null ? "Whenever it's on"
+        : $"{(b.StartsAt is { } s ? s.ToUniversalTime().ToString("d MMM HH:mm") : "Now")} – {(b.EndsAt is { } e ? e.ToUniversalTime().ToString("d MMM HH:mm") : "until switched off")} UTC";
+    private static string? Local(DateTimeOffset? at) => at?.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm");
+    private static DateTimeOffset? Utc(string? value) => DateTime.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out var at)
+        ? new DateTimeOffset(at, TimeSpan.Zero) : null;
+}
