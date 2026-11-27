@@ -103,6 +103,13 @@ const ADELAIDE = 2078025;
     assert.equal((await text()).status, 201, 'their invitation is a reply'); pass();
     assert.equal((await answer('ada', back.id, 'withdraw')).status, 200);
     assert.equal((await limit(0)).status, 200);
+    // PR 583 review: a note removed by staff leaves the card and its controls, so the plan can still be answered.
+    r = await propose('me', chat, { ...plan, startsAt: soon(15) });
+    await sql(`UPDATE messages SET body = '', moderation_removed_at = now() WHERE id = '${r.body.id}'`);
+    const moderated = await card('ada', r.body.meetup.id);
+    assert.deepEqual([moderated?.note, moderated?.canAccept, moderated?.canDecline, moderated?.venue], ['Removed by Swoovr.', true, true, plan.venue], 'card kept: ' + JSON.stringify(moderated ?? null)); pass();
+    assert.equal((await call(tokens.ada, `/api/conversations/${chat}/messages`)).body.items.find(m => m.id === r.body.id)?.kind, 'meetup'); pass();
+    assert.equal((await answer('ada', r.body.meetup.id, 'decline')).body.meetup.state, 'declined', 'answered, so the chat is free again'); pass();
 
     // A block calls every open plan off and nobody can answer any more.
     const blkPlan = (await propose('blk', blkChat, { category: 'networking', venue: 'Fictional Hub', startsAt: soon(5, 9) })).body.meetup;

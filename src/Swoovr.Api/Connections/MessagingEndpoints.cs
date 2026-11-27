@@ -467,7 +467,10 @@ public static partial class MessagingEndpoints
     /// </summary>
     public static MessageView View(Message message, Guid viewer, DateTimeOffset now, MediaItem? media = null, Media.MediaLinks? links = null, MeetupView? meetup = null)
     {
-        if(message.ModerationRemovedAt!=null)return new(message.Id,message.ConversationId,message.SenderAccountId==viewer,"removed-by-moderation","Removed by Swoovr.",message.SentAt,false);
+        // PR 583 review: removing a meet-up's note keeps its card and controls (the note reads "Removed by Swoovr."), so the plan
+        // can still be answered and never blocks the chat's next invitation.
+        if(message.ModerationRemovedAt!=null&&!(message.Kind==MessageKind.Meetup&&meetup is not null))
+            return new(message.Id,message.ConversationId,message.SenderAccountId==viewer,"removed-by-moderation","Removed by Swoovr.",message.SentAt,false);
         if (message.Kind == MessageKind.System)
             return new(message.Id, message.ConversationId, false, "system", ConversationEnding.SystemText(message.SenderAccountId == viewer), message.SentAt, false);
         PhotoView? photo = null;
