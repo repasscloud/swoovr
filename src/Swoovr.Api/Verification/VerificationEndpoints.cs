@@ -158,10 +158,12 @@ public static class VerificationEndpoints
             var (db, profile) = (accounts.Db!, current!.Profile!);
             if (profile.NameCheck != NameCheck.CorrectionNeeded)
                 return Problem(StatusCodes.Status409Conflict, ProblemCodes.NameCorrectionNotOpen, "There's no name to correct.");
-            var (_, names) = await IdNameAsync(db, profile.AccountId, provider, cancellationToken);
-            return names is null
+            var id = await IdNameAsync(db, profile.AccountId, provider, cancellationToken);
+            // An ID name that isn't a valid registered name (a comma in "Smith, Jr.") is shown but can't be taken; asking
+            // Swoovr to check it stays available (PR 581 review).
+            return id.First is not { } first
                 ? Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.VerificationProviderFailed, "We couldn't check your ID just now. Try again shortly.")
-                : Results.Ok(new IdNameView(names.FirstName, names.LastName, names.Mononym));
+                : Results.Ok(new IdNameView(first, id.Last, string.IsNullOrWhiteSpace(id.Last), CanUse: id.Names is not null));
         });
 
         // Issue 533 (Q192 A, D429): the member's one name correction. "use-id" takes the name exactly as it is on the approved
@@ -183,13 +185,13 @@ public static class VerificationEndpoints
             if (account.Status != AccountStatus.Active) return Problem(403, ProblemCodes.AccountLocked, "This account is locked.");
             if (profile.NameCheck != NameCheck.CorrectionNeeded)
                 return Problem(StatusCodes.Status409Conflict, ProblemCodes.NameCorrectionNotOpen, "There's no name to correct.");
-            var (attempt, names) = await IdNameAsync(db, profile.AccountId, provider, cancellationToken);
-            if (attempt is null || names is null)
-                return Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.VerificationProviderFailed, "We couldn't check your ID just now. Try again shortly.");
-            var middleOnly = RegisteredNamePolicy.Compare(new(account.RegisteredFirstName!, account.RegisteredLastName, account.RegisteredMononym), names.FirstName, names.LastName)
-                == NameComparison.MiddleOnly;
+            var (attempt, first, last, names) = await IdNameAsync(db, profile.AccountId, provider, cancellationToken);
             if (request.Choice == "review")
             {
+                // Always available (PR 581 review): it needs neither Didit nor an ID name that passes registered-name rules.
+                // Without the ID's name the reason is the general one.
+                var middleOnly = first is not null && RegisteredNamePolicy.Compare(new(account.RegisteredFirstName!, account.RegisteredLastName, account.RegisteredMononym), first, last)
+                    == NameComparison.MiddleOnly;
                 (profile.NameCheck, profile.NameCheckAt) = (NameCheck.ManualReview, now);
                 var open = await db.NameChangeReviews.SingleOrDefaultAsync(r => r.AccountId == account.Id && r.ResolvedAt == null, cancellationToken);
                 var reason = middleOnly ? "id-name-middle" : "id-name-differs";
@@ -199,6 +201,10 @@ public static class VerificationEndpoints
             }
             else
             {
+                if (attempt is null || first is null)
+                    return Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.VerificationProviderFailed, "We couldn't check your ID just now. Try again shortly.");
+                if (names is null)
+                    return Problem(StatusCodes.Status409Conflict, ProblemCodes.IdNameNotUsable, "The name on your ID can't be used as it is. Ask Swoovr to check it.");
                 (account.RegisteredFirstName, account.RegisteredLastName, account.RegisteredMononym) = (names.FirstName, names.LastName, names.Mononym);
                 account.RegisteredNamesConfirmedAt = now;
                 account.RegisteredNamesRevision++;
@@ -596,16 +602,21 @@ public static class VerificationEndpoints
             comparison switch { NameComparison.MiddleOnly => "middle-names", NameComparison.Different => "different", _ => null });
     }
 
-    /// <summary>Issue 533: the member's latest approved attempt and the names on its ID, read from Didit now; nulls when Didit can't say.</summary>
-    private static async Task<(IdVerificationAttempt? Attempt, RegisteredNames? Names)> IdNameAsync(SwoovrDbContext db, Guid account, IIdVerificationProvider provider,
-        CancellationToken cancellationToken)
+    /// <summary>
+    /// Issue 533: the member's latest approved attempt and the names on its ID, read from Didit now. First/Last are the ID's
+    /// names as given (trimmed; null First when Didit can't say); Names is them as valid registered names, or null when they
+    /// aren't (PR 581 review: such a name can still go to a manual review).
+    /// </summary>
+    private static async Task<(IdVerificationAttempt? Attempt, string? First, string? Last, RegisteredNames? Names)> IdNameAsync(SwoovrDbContext db, Guid account,
+        IIdVerificationProvider provider, CancellationToken cancellationToken)
     {
         var attempt = await db.IdVerificationAttempts.Where(a => a.AccountId == account && a.State == IdAttemptState.Approved)
             .OrderByDescending(a => a.CompletedAt).FirstOrDefaultAsync(cancellationToken);
         var decision = attempt is null || !provider.Configured ? null : await provider.GetDecisionAsync(attempt.SessionId, cancellationToken);
-        if (attempt is null || decision is null || decision.SessionId != attempt.SessionId || decision.VendorData != account.ToString() || decision.Identity is not { } id) return (attempt, null);
-        var mononym = string.IsNullOrWhiteSpace(id.LastName);
-        return (attempt, RegisteredNamePolicy.Validate(id.FirstName, id.LastName, mononym));
+        if (attempt is null || decision is null || decision.SessionId != attempt.SessionId || decision.VendorData != account.ToString() || decision.Identity is not { } id
+            || string.IsNullOrWhiteSpace(id.FirstName)) return (attempt, null, null, null);
+        var last = string.IsNullOrWhiteSpace(id.LastName) ? null : id.LastName.Trim();
+        return (attempt, id.FirstName.Trim(), last, RegisteredNamePolicy.Validate(id.FirstName, last, last is null));
     }
 
     private static async Task<IdVerificationView> ViewAsync(SwoovrDbContext db, MemberProfile profile, IIdVerificationProvider provider,

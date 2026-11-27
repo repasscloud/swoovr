@@ -15,13 +15,31 @@
                 <dl class="name-correction-names">
                     <div><dt>Name on your ID</dt><dd data-id-name>@Full(id.FirstName, id.LastName)</dd></div>
                 </dl>
-                <p class="field-help">Only your registered name changes. The name people see on Swoovr stays as it is.</p>
+                @if (id.CanUse)
+                {
+                    <p class="field-help">Only your registered name changes. The name people see on Swoovr stays as it is.</p>
+                }
+                else
+                {
+                    <p class="field-help" data-name-not-usable>The name on your ID can't be used on Swoovr as it is, so Swoovr will check it for you.</p>
+                }
                 <div class="dialog-actions">
-                    <button type="button" class="button" disabled="@busy" @onclick='() => ChooseAsync("use-id")' data-name-use-id>Use the name on my ID</button>
+                    @if (id.CanUse)
+                    {
+                        <button type="button" class="button" disabled="@busy" @onclick='() => ChooseAsync("use-id")' data-name-use-id>Use the name on my ID</button>
+                    }
                     <button type="button" class="button button-secondary" disabled="@busy" @onclick='() => ChooseAsync("review")' data-name-review>Ask Swoovr to check it</button>
                 </div>
             }
             else if (loading) { <p role="status">Loading…</p> }
+            else
+            {
+                @* PR 581 review: a failed load can be retried, and asking Swoovr to check never needs the ID's name. *@
+                <div class="dialog-actions">
+                    <button type="button" class="button" disabled="@busy" @onclick="LoadAsync" data-name-retry>Try again</button>
+                    <button type="button" class="button button-secondary" disabled="@busy" @onclick='() => ChooseAsync("review")' data-name-review>Ask Swoovr to check it</button>
+                </div>
+            }
             <p role="status" aria-live="polite" class="field-help" data-name-correction-status="@status">@message</p>
         </section>
     </div>
@@ -43,7 +61,14 @@ else if (Account.NameCheck == "manualReview")
     protected override async Task OnParametersSetAsync()
     {
         if (Account.NameCheck != "correctionNeeded" || requested) return;
-        requested = loading = true;
+        requested = true;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (loading) return;
+        (loading, status, message) = (true, null, null);
         var result = await Members.IdNameAsync();
         loading = false;
         if (result.Value is { } value) idName = value;
@@ -67,6 +92,7 @@ else if (Account.NameCheck == "manualReview")
         {
             ProblemCodes.VerificationProviderFailed => "We couldn't check your ID just now. Try again shortly.",
             ProblemCodes.NameCorrectionNotOpen => "There's nothing to correct now.",
+            ProblemCodes.IdNameNotUsable => "The name on your ID can't be used as it is. Ask Swoovr to check it.",
             _ => "That didn't work. Try again.",
         });
     }

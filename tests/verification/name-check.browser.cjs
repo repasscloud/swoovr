@@ -27,7 +27,7 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
   const code = r => [r.status, r.body?.code];
   try {
     const root = await rootAdminToken(browser);
-    const names = ['same', 'mid', 'dif', 'both'];
+    const names = ['same', 'mid', 'dif', 'both', 'comma'];
     const members = Object.fromEntries(await Promise.all(names.map(async n => [n, await createMember('namecheck-' + n)])));
     await cli('beta', 'add', ...Object.values(members).map(m => m.email));
     const tokens = {}, ids = {};
@@ -63,7 +63,7 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     const regBefore = (await call(tokens.mid, '/api/me/registered-names')).body;
     assert.deepEqual(code(await call(tokens.mid, '/api/me/registered-names', { method: 'PUT', body: { firstName: 'Typed', lastName: 'Name', mononym: false, expectedRevision: regBefore.revision, confirm: true } })),
       [409, 'name-check-open'], 'ordinary edits wait'); pass();
-    assert.deepEqual((await call(tokens.mid, '/api/me/verification/name')).body, { firstName: 'Fictional Maria', lastName: 'Example', mononym: false }); pass();
+    assert.deepEqual((await call(tokens.mid, '/api/me/verification/name')).body, { firstName: 'Fictional Maria', lastName: 'Example', mononym: false, canUse: true }); pass();
     assert.equal((await call(tokens.mid, '/api/me/verification/name', { method: 'POST', body: { choice: 'typed', firstName: 'Anything' } })).status, 400, 'no free text'); pass();
     let r = await call(tokens.mid, '/api/me/verification/name', { method: 'POST', body: { choice: 'use-id' } });
     assert.deepEqual([r.status, r.body.nameCheck], [200, 'none']); pass();
@@ -87,6 +87,14 @@ const canonical = v => Array.isArray(v) ? `[${v.map(canonical).join(',')}]`
     r = await call(root, `/api/admin/name-reviews/${difReview.id}/resolve`, { method: 'POST', body: { outcome: 'matches', reason: 'Fictional: a known alias on the ID.' } });
     assert.equal(r.status, 200); pass();
     assert.equal((await me('dif')).nameCheck, 'none', 'the review closes the check'); pass();
+
+    // PR 581 review: an ID name that isn't a valid registered name can't be taken, but asking Swoovr to check it still works.
+    await approve('comma', 'Fictional', 'Example, Jr.');
+    assert.equal((await me('comma')).nameCheck, 'correctionNeeded'); pass();
+    assert.deepEqual((await call(tokens.comma, '/api/me/verification/name')).body, { firstName: 'Fictional', lastName: 'Example, Jr.', mononym: false, canUse: false }); pass();
+    assert.deepEqual(code(await call(tokens.comma, '/api/me/verification/name', { method: 'POST', body: { choice: 'use-id' } })), [409, 'id-name-not-usable']); pass();
+    r = await call(tokens.comma, '/api/me/verification/name', { method: 'POST', body: { choice: 'review' } });
+    assert.deepEqual([r.status, r.body.nameCheck], [200, 'manualReview']); pass();
 
     // Never stored or audited: no ID name anywhere in the database outside the sealed identity record.
     assert.equal(await sql(`SELECT count(*) FROM audit_entries WHERE detail ILIKE '%Other%' OR detail ILIKE '%Person%' OR detail ILIKE '%Maria%'`), '0'); pass();

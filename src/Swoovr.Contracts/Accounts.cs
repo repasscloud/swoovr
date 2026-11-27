@@ -85,7 +85,9 @@ public sealed record ExportTicket(string Path, DateTimeOffset ExpiresAt);
 public sealed record DobCorrectionRequest(DateOnly? DateOfBirth);
 
 /// <summary>Issue 533 (D429): the name on the member's own approved ID, read from Didit just now (never stored).</summary>
-public sealed record IdNameView(string FirstName, string? LastName, bool Mononym);
+/// <param name="CanUse">False when the ID's name isn't a valid registered name as it is (a comma in "Smith, Jr."); the member
+/// can then only ask Swoovr to check it.</param>
+public sealed record IdNameView(string FirstName, string? LastName, bool Mononym, bool CanUse = true);
 
 /// <summary>Issue 533 (D429): "use-id" takes the name exactly as it is on the ID (no free text); "review" asks Swoovr to check it.</summary>
 public sealed record NameCorrectionRequest(string? Choice);
@@ -225,6 +227,8 @@ public static class ProblemCodes
     public const string DobCorrectionNotOpen = "dob-correction-not-open";
     public const string NameCorrectionNotOpen = "name-correction-not-open";
     public const string NameCheckOpen = "name-check-open";
+    /// <summary>Issue 533: the name on the ID isn't a valid registered name as it is; ask Swoovr to check it instead.</summary>
+    public const string IdNameNotUsable = "id-name-not-usable";
     /// <summary>D166: the date of birth is changed through the one-time correction prompt, not the ordinary form.</summary>
     public const string DobCorrectionRequired = "dob-correction-required";
     /// <summary>D166: an admin is reviewing the date of birth; it can't be changed meanwhile.</summary>
