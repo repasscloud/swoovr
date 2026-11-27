@@ -192,6 +192,35 @@ const MODES = ['dating', 'friends', 'activities', 'business'];
       assert.deepEqual(await page.evaluate(audit), [], 'conversation accessibility floor at ' + width); pass();
     }
     if (output) { await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: output + '/chat-390.png' }); }
+    // PR 579 review: Report (header) and End conversation (menu) add their form below the thread; it comes into view with focus.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const revealed = selector => page.evaluate(sel => {
+      const form = document.querySelector(sel), box = document.querySelector('[data-chat-scroll]').getBoundingClientRect(), at = form?.getBoundingClientRect();
+      return !!at && at.top < box.bottom && at.bottom > box.top && form.contains(document.activeElement);
+    }, selector);
+    await page.evaluate(() => { const s = document.querySelector('[data-chat-scroll]'); s.scrollTop = 0; });
+    await page.click('[data-report-conversation]');
+    await page.waitForSelector('[data-chat-report-conversation] [data-report]');
+    assert.ok(await page.waitForFunction(() => document.querySelector('[data-chat-report-conversation]')?.contains(document.activeElement)).then(() => revealed('[data-chat-report-conversation]')), 'the report form is shown and focused'); pass();
+    await page.evaluate(() => { const s = document.querySelector('[data-chat-scroll]'); s.scrollTop = 0; });
+    await page.click('[data-chat-menu]'); await page.click('[data-end-open]');
+    await page.waitForSelector('[data-end-form]');
+    assert.ok(await page.waitForFunction(() => document.querySelector('[data-end-form]')?.contains(document.activeElement)).then(() => revealed('[data-end-form]')), 'the end form is shown and focused'); pass();
+
+    // PR 579 review: more unread than one page (50): earlier pages load so it still opens at the first unread message.
+    const beaId = await sql(`SELECT id FROM accounts WHERE subject = '${claims(tokens.bea).sub}'`);
+    await sql(`UPDATE conversation_reads SET read_at = now() - interval '31 minutes' WHERE conversation_id = '${withBea}'`);
+    await sql(`INSERT INTO messages (id, conversation_id, sender_account_id, kind, body, sent_at)
+      SELECT gen_random_uuid(), '${withBea}', '${beaId}', 'Text', 'Fictional backlog ' || i, now() - interval '30 minutes' + i * interval '1 second' FROM generate_series(0, 59) AS i`);
+    const oldestUnread = await sql(`SELECT id FROM messages WHERE conversation_id = '${withBea}' AND body = 'Fictional backlog 0'`);
+    assert.ok((await list('me')).find(c => c.id === withBea).unread > 50, 'more than a page unread'); pass();
+    await page.goto(web + `/chats/${withBea}`);
+    await page.waitForSelector(`[data-conversation=ready] [data-message="${oldestUnread}"]`); pass();
+    await page.waitForTimeout(300);
+    assert.ok(await page.evaluate(first => {
+      const box = document.querySelector('[data-chat-scroll]').getBoundingClientRect(), at = document.querySelector(`[data-message="${first}"]`).getBoundingClientRect();
+      return at.top >= box.top - 1 && at.top < box.bottom;
+    }, oldestUnread), 'opens at the first unread message, from an earlier page'); pass();
     await context.close();
     console.log(`PASS: chats web (issues 541, 542), ${passed} checks.`);
   } finally {

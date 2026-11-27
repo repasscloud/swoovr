@@ -34,7 +34,7 @@
         }
         else { <span class="chat-who"><span class="cx-thumb" aria-hidden="true">?</span><h1 class="chat-name">@conversation.Person.DisplayName</h1></span> }
         <div class="chat-head-actions">
-            <button type="button" class="button button-secondary chat-head-button" @onclick="() => { reportingConversation = true; chatMenu = false; }" data-report-conversation><Icon Name="flag" Size="16" />Report</button>
+            <button type="button" class="button button-secondary chat-head-button" @onclick="ReportConversation" data-report-conversation><Icon Name="flag" Size="16" />Report</button>
             <button type="button" class="chat-icon-button" aria-label="More actions for this chat" aria-expanded="@(chatMenu ? "true" : "false")" aria-controls="chat-menu" @onclick="() => { chatMenu = !chatMenu; menuFor = null; attachMenu = false; }" data-chat-menu><Icon Name="more" Size="20" /></button>
             @if (chatMenu)
             {
@@ -46,7 +46,7 @@
                     }
                     <a class="chat-menu-item" href="@($"/me/safety/report?type=conversation&id={Id}")" data-serious-link><Icon Name="shield" Size="16" />Serious safety incident</a>
                     <button type="button" class="chat-menu-item" @onclick="HideConversationAsync" data-hide-conversation>Hide this chat</button>
-                    @if (conversation.CanSend) { <button type="button" class="chat-menu-item" @onclick="() => { ending = true; chatMenu = false; }" data-end-open>End conversation</button> }
+                    @if (conversation.CanSend) { <button type="button" class="chat-menu-item" @onclick="OpenEnding" data-end-open>End conversation</button> }
                 </div>
             }
         </div>
@@ -90,7 +90,7 @@
                         <span class="bubble-menu" data-message-menu-open="@m.Id">
                             @if (m.CanDelete) { <button type="button" class="chat-menu-item button-destructive" @onclick="() => DeleteAsync(m)" data-delete="@m.Id">Delete for both</button> }
                             <button type="button" class="chat-menu-item" @onclick="() => HideAsync(m)" data-hide="@m.Id">Hide for me</button>
-                            @if (!m.Mine && !m.Deleted) { <button type="button" class="chat-menu-item" @onclick="() => { reporting = m.Id; menuFor = null; }" data-report-message="@m.Id">Report</button> }
+                            @if (!m.Mine && !m.Deleted) { <button type="button" class="chat-menu-item" @onclick="() => ReportMessage(m)" data-report-message="@m.Id">Report</button> }
                         </span>
                     }
                 }
@@ -99,7 +99,7 @@
     </ul>
     @if (reporting is { } reported)
     {
-        <ReportForm SubjectType="message" SubjectId="@reported.ToString()" Name="@(conversation.Person.DisplayName ?? "this person")" Submitted="() => reportSent=true" Blocked="Closed" />
+        <div data-chat-report-message><ReportForm SubjectType="message" SubjectId="@reported.ToString()" Name="@(conversation.Person.DisplayName ?? "this person")" Submitted="() => reportSent=true" Blocked="Closed" /></div>
     }
     @if (conversation.CanSend && messages.Count == 0 && starters.Count > 0)
     {
@@ -129,7 +129,7 @@
     }
     @if (reportingConversation)
     {
-        <ReportForm SubjectType="conversation" SubjectId="@Id.ToString()" Name="@(conversation.Person.DisplayName ?? "this person")" Submitted="() => reportSent=true" Blocked="Closed" />
+        <div data-chat-report-conversation><ReportForm SubjectType="conversation" SubjectId="@Id.ToString()" Name="@(conversation.Person.DisplayName ?? "this person")" Submitted="() => reportSent=true" Blocked="Closed" /></div>
     }
     </div>
     @if (conversation.CanSend)
@@ -177,6 +177,8 @@
     private Guid? menuFor;
     private int? keepFrom;
     private string? firstUnread;
+    // PR 579 review: Report and End conversation add their form below the thread; scroll it into view and focus it.
+    private string? reveal;
     private List<ConnectionModeView> modes = [];
     private bool reconciling,disposed;
     private readonly List<MessageView> refreshArrivals=[];
@@ -191,8 +193,19 @@
             var page = (await Members.MessagesAsync(Id)).Value;
             (messages, more, before) = (page?.Items.Reverse().Select(Project).ToList() ?? [], page?.More ?? false, page?.Before);
             // Issue 542: open at the first message that was unread (the API counted before this read), else the newest.
-            var received = messages.Where(m => !m.Mine && m.Kind != "system" && !m.Deleted).ToList();
-            firstUnread = conversation.Unread > 0 && conversation.Unread <= received.Count ? received[^conversation.Unread].Id.ToString() : null;
+            // PR 579 review: when it's older than the newest page, load earlier pages until it's in (up to
+            // MaxUnreadPages more); past that, open at the oldest loaded message, which is unread too.
+            var received = messages.Where(Received).ToList();
+            for (var pages = 0; conversation.Unread > received.Count && more && pages < MaxUnreadPages; pages++)
+            {
+                var older = (await Members.MessagesAsync(Id, before)).Value;
+                if (older is null) break;
+                messages.InsertRange(0, older.Items.Reverse().Select(Project));
+                (more, before) = (older.More, older.Before);
+                received = messages.Where(Received).ToList();
+            }
+            firstUnread = conversation.Unread <= 0 || received.Count == 0 ? null
+                : conversation.Unread <= received.Count ? received[^conversation.Unread].Id.ToString() : messages[0].Id.ToString();
             hub = new MessagesHubClient(new Uri(Navigation.BaseUri + "bff/hubs/messages"));
             // A photo's state changes arrive as the same message again (#41): replace it in place.
             hub.Message += m => { if (m.ConversationId == Id) _ = InvokeAsync(async () => { followNew = await AtEndAsync(); Upsert(m); Replied(m); if (!m.Mine) _ = ReadLiveAsync(); StateHasChanged(); }); };
@@ -223,6 +236,7 @@
             if (!started && loaded) { started = true; await JS.InvokeVoidAsync("SwoovrChat.start", thread, firstUnread); }
             else if (keepFrom is { } height) { keepFrom = null; await JS.InvokeVoidAsync("SwoovrChat.keep", thread, height); }
             else if (followNew) { followNew = false; await JS.InvokeVoidAsync("SwoovrChat.toEnd", thread); }
+            if (reveal is { } selector) { reveal = null; await JS.InvokeVoidAsync("SwoovrChat.reveal", thread, selector); }
         }
         catch (Exception error) when (error is JSException or InvalidOperationException or TaskCanceledException) { }
     }
@@ -232,6 +246,12 @@
         try { return await JS.InvokeAsync<bool>("SwoovrChat.atEnd", thread); }
         catch (Exception error) when (error is JSException or InvalidOperationException or TaskCanceledException) { return true; }
     }
+
+    private const int MaxUnreadPages = 10;
+    private void ReportConversation() { (reportingConversation, chatMenu, reveal) = (true, false, "[data-chat-report-conversation]"); }
+    private void OpenEnding() { (ending, chatMenu, reveal) = (true, false, "[data-end-form]"); }
+    private void ReportMessage(MessageView m) { (reporting, menuFor, reveal) = (m.Id, null, "[data-chat-report-message]"); }
+    private static bool Received(MessageView m) => !m.Mine && m.Kind != "system" && !m.Deleted;
 
     private string ProfileLink => conversation is { ModeId: { } mode } ? $"/people/{conversation.Person.Id}?mode={mode}" : $"/people/{conversation?.Person.Id}";
     private string ModeLabel(string id) => modes.FirstOrDefault(m => m.Id == id)?.Label ?? id;

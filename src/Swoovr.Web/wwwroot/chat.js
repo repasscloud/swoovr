@@ -16,5 +16,13 @@
     // A new message: follow it only when the member was already at the end (or sent it), never pull them down mid-read.
     atEnd(el) { return !el || nearEnd(el); },
     toEnd(el) { if (el) el.scrollTop = el.scrollHeight; },
+    // PR 579 review: a form added below the thread (Report, End conversation) scrolls into view and takes focus.
+    reveal(el, selector) {
+      const target = el && el.querySelector(selector);
+      if (!target) return;
+      target.scrollIntoView({ block: 'nearest' });
+      const first = target.querySelector('button, select, input, textarea, a[href]');
+      if (first) first.focus({ preventScroll: true });
+    },
   };
 })();
