@@ -1159,6 +1159,54 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                     b.ToTable("bot_mode_authorisations");
                 });
 
+            modelBuilder.Entity("Swoovr.Domain.Broadcast", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("body");
+
+                    b.Property<int>("Recipients")
+                        .HasColumnType("integer")
+                        .HasColumnName("recipients");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("sent_at");
+
+                    b.Property<Guid>("SentBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sent_by");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset?>("WithdrawnAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("withdrawn_at");
+
+                    b.Property<Guid?>("WithdrawnBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("withdrawn_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_broadcasts");
+
+                    b.HasIndex("SentAt")
+                        .HasDatabaseName("ix_broadcasts_sent_at");
+
+                    b.ToTable("broadcasts");
+                });
+
             modelBuilder.Entity("Swoovr.Domain.CaseEvidence", b =>
                 {
                     b.Property<Guid>("Id")

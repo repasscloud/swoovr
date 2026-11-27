@@ -662,3 +662,7 @@
 .rd-text-picture-foot > p.field-help { flex: 1 1 240px; }
 /* Issue 431 (D389): an album holding a live explicit photo says so to its owner. */
 .ph-explicit { display: inline-flex; align-items: center; min-height: 20px; padding: 0 8px; margin-left: 6px; border: 1px solid var(--text); border-radius: 999px; font: 700 .625rem/1 var(--font); letter-spacing: .06em; text-transform: uppercase; vertical-align: middle; }
+/* Issue 588 (D446): an announcement's text keeps its paragraphs. */
+.announcement-body p { margin: 0 0 12px; white-space: pre-line; }
+.announcement-body p:last-child { margin-bottom: 0; }
+.announcement-body + p { margin-top: 16px; }

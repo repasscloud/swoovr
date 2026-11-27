@@ -309,6 +309,9 @@ public sealed partial class MemberClient(HttpClient transport)
         SendAsync<MessageView>(new HttpRequestMessage(HttpMethod.Post, $"api/meetups/{meetup}/{action}"), token);
 
     /// <summary>Issue 545: My meet-ups.</summary>
+    /// <summary>Issue 588 (D446): one announcement Swoovr sent to every member, from its notification.</summary>
+    public Task<ApiResult<AnnouncementView>> AnnouncementAsync(Guid id, CancellationToken token = default) =>
+        SendAsync<AnnouncementView>(new HttpRequestMessage(HttpMethod.Get, $"api/me/announcements/{id}"), token);
     public Task<ApiResult<List<MeetupView>>> MeetupsAsync(CancellationToken token = default) =>
         SendAsync<List<MeetupView>>(new HttpRequestMessage(HttpMethod.Get, "api/me/meetups"), token);
 

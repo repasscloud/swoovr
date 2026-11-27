@@ -62,6 +62,7 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
     public DbSet<DobReviewIdView> DobReviewIdViews => Set<DobReviewIdView>();
     public DbSet<AccountEscalation> AccountEscalations => Set<AccountEscalation>();
     public DbSet<SiteBanner> SiteBanners => Set<SiteBanner>();
+    public DbSet<Broadcast> Broadcasts => Set<Broadcast>();
     public DbSet<NameChangeReview> NameChangeReviews => Set<NameChangeReview>();
     public DbSet<DobChangeGrant> DobChangeGrants => Set<DobChangeGrant>();
     public DbSet<DobChangeHistory> DobChangeHistories => Set<DobChangeHistory>();
@@ -838,6 +839,13 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
         });
         // Issue 455 (D404): one open escalation per account. Staff ids aren't foreign keys, as in the audit.
         // Issue 588 (D445): site-wide banners. History is kept; only switching on is limited to one per placement.
+        // Issue 588 (D446): notifications to every member. The text lives here; each centre item holds only its id.
+        model.Entity<Broadcast>(broadcast =>
+        {
+            broadcast.Property(b => b.Title).HasMaxLength(BroadcastPolicy.TitleMax);
+            broadcast.Property(b => b.Body).HasMaxLength(BroadcastPolicy.BodyMax);
+            broadcast.HasIndex(b => b.SentAt);
+        });
         model.Entity<SiteBanner>(banner =>
         {
             banner.Property(b => b.Text).HasMaxLength(SiteBannerPolicy.TextMax);

@@ -200,6 +200,14 @@ public sealed partial class AdminClient(HttpClient transport)
     public Task<ApiResult<EscalationView>> ResolveEscalationAsync(Guid id, string note, CancellationToken cancellationToken = default) =>
         SendAsync<EscalationView>(HttpMethod.Post, $"api/admin/escalations/{id}/resolve", new EscalationResolution(note), cancellationToken);
 
+    /// <summary>Issue 588 (D446): notifications to every member. Support reads; Admin sends and withdraws.</summary>
+    public Task<ApiResult<List<BroadcastView>>> BroadcastsAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<List<BroadcastView>>(HttpMethod.Get, "api/admin/broadcasts", null, cancellationToken);
+    public Task<ApiResult<BroadcastView>> SendBroadcastAsync(BroadcastRequest request, CancellationToken cancellationToken = default) =>
+        SendAsync<BroadcastView>(HttpMethod.Post, "api/admin/broadcasts", request, cancellationToken);
+    public Task<ApiResult<BroadcastView>> WithdrawBroadcastAsync(Guid id, CancellationToken cancellationToken = default) =>
+        SendAsync<BroadcastView>(HttpMethod.Post, $"api/admin/broadcasts/{id}/withdraw", null, cancellationToken);
+
     /// <summary>Issue 588 (D445): site banners. Support reads; Admin creates, edits and switches them on or off.</summary>
     public Task<ApiResult<List<SiteBannerView>>> SiteBannersAsync(CancellationToken cancellationToken = default) =>
         SendAsync<List<SiteBannerView>>(HttpMethod.Get, "api/admin/site-banners", null, cancellationToken);

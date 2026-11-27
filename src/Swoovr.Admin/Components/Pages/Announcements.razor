@@ -7,9 +7,55 @@
     <p>A banner across the app, the website's front page, or both. Members can't dismiss it.</p>
 </header>
 <nav class="ui-tabs" aria-label="Announcement sections">
-    <a href="/announcements" aria-current="page">Banners</a>
+    <a href="/announcements" aria-current="@(Notices ? null : "page")">Banners</a>
+    <a href="/announcements?view=notifications" aria-current="@(Notices ? "page" : null)" data-announcements-tab="notifications">Notifications to members</a>
 </nav>
 @if (message is not null) { <p class="notice" role="status" data-result="@resultCode">@message</p> }
+@if (Notices)
+{
+    @* Issue 588 (D446): to every member's notification centre; withdraw only, never edited after sending. *@
+    @if (admin)
+    {
+        <section class="ui-card" aria-labelledby="new-broadcast-heading">
+            <h2 id="new-broadcast-heading">Send to every member</h2>
+            <p class="ui-help">It goes to the notification centre of every active member, restricted ones included. It can't be edited after sending; you can withdraw it.</p>
+            <form method="post" @formname="broadcast-new" @onsubmit="SendAsync" class="banner-form" data-enhance="true" data-broadcast-form>
+                <AntiforgeryToken />
+                <label class="ui-field banner-text"><span>Title</span><input name="title" maxlength="80" required placeholder="Shown in the notification" /></label>
+                <label class="ui-field banner-text"><span>Message</span><textarea name="body" rows="5" maxlength="2000" required placeholder="Shown on its own page"></textarea></label>
+                <label class="beta-check banner-text"><input type="checkbox" name="confirm" value="true" required /><span>Send to every member now. I understand it can't be edited after sending.</span></label>
+                <div class="beta-filter-actions"><button type="submit" data-broadcast-send>Send to every member</button></div>
+            </form>
+        </section>
+    }
+    @if (broadcasts.Count == 0) { <div class="ui-empty" data-broadcasts="none"><strong>Nothing sent</strong>Notifications you send to every member appear here.</div> }
+    else
+    {
+        <div class="table-scroll ui-table" tabindex="0" role="region" aria-label="Notifications sent">
+        <table data-broadcasts="@broadcasts.Count"><thead><tr><th scope="col">Notification</th><th scope="col">Sent</th><th scope="col">Members</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>
+        @foreach (var b in broadcasts)
+        {
+            <tr data-broadcast="@b.Id" data-broadcast-state="@(b.WithdrawnAt is null ? "sent" : "withdrawn")">
+                <td><strong>@b.Title</strong><span class="ui-sub appeal-text">@b.Body</span></td>
+                <td>@b.SentAt.ToUniversalTime().ToString("d MMM HH:mm") UTC<span class="ui-sub">@(b.SentBy ?? "Staff")</span></td>
+                <td>@b.Recipients</td>
+                <td>@if (b.WithdrawnAt is { } at) { <span class="ui-pill" data-tone="quiet">Withdrawn</span><span class="ui-sub">@at.ToUniversalTime().ToString("d MMM HH:mm") UTC · @(b.WithdrawnBy ?? "Staff")</span> } else { <span class="ui-pill" data-tone="approve">Sent</span> }</td>
+                <td class="ui-right">
+                    @if (b.CanWithdraw)
+                    {
+                        <form method="post" @formname="@($"withdraw-{b.Id}")" @onsubmit="() => WithdrawAsync(b.Id)" class="appeal-decide" data-enhance="true">
+                            <AntiforgeryToken />
+                            <button type="submit" class="ui-button-ghost" data-broadcast-withdraw="@b.Id">Withdraw</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+        </tbody></table></div>
+    }
+}
+else
+{
 @if (admin)
 {
     <section class="ui-card" aria-labelledby="new-banner-heading">
@@ -47,7 +93,11 @@ else
     }
     </tbody></table></div>
 }
+}
 @code {
+    [SupplyParameterFromQuery(Name = "view")] public string? View { get; set; }
+    private bool Notices => View == "notifications";
+    private List<BroadcastView> broadcasts = [];
     [CascadingParameter] private HttpContext? Context { get; set; }
     private List<SiteBannerView> banners = [];
     private bool admin;
@@ -62,9 +112,34 @@ else
 
     private async Task LoadAsync()
     {
+        if (Notices)
+        {
+            var sent = await Admin.BroadcastsAsync();
+            broadcasts = sent.Value ?? [];
+            if (!sent.Ok && message is null) (resultCode, message) = (sent.Code ?? sent.Status.ToString(), AdminText.Refusal(sent.Status, sent.Code));
+            return;
+        }
         var result = await Admin.SiteBannersAsync();
         banners = result.Value ?? [];
         if (!result.Ok && message is null) (resultCode, message) = (result.Code ?? result.Status.ToString(), AdminText.Refusal(result.Status, result.Code));
+    }
+
+    private async Task SendAsync()
+    {
+        var form = Context?.Request.HasFormContentType == true ? Context.Request.Form : null;
+        var result = await Admin.SendBroadcastAsync(new BroadcastRequest(form?["title"].ToString(), form?["body"].ToString(), form?["confirm"].ToString() == "true"));
+        resultCode = result.Ok ? "ok" : result.Code ?? result.Status.ToString();
+        message = result.Ok ? $"Sent to {result.Value!.Recipients} members." : result.Status == 400
+            ? "Write a title (up to 80 characters) and a message (up to 2,000), and confirm it goes to every member." : AdminText.Refusal(result.Status, result.Code);
+        await LoadAsync();
+    }
+
+    private async Task WithdrawAsync(Guid id)
+    {
+        var result = await Admin.WithdrawBroadcastAsync(id);
+        resultCode = result.Ok ? "ok" : result.Code ?? result.Status.ToString();
+        message = result.Ok ? "Withdrawn. It's gone from every member's notifications." : AdminText.Refusal(result.Status, result.Code);
+        await LoadAsync();
     }
 
     private RenderFragment BannerForm(SiteBannerView? b) => @<form method="post" @formname="@(b is null ? "banner-new" : $"banner-{b.Id}")" @onsubmit="() => SaveAsync(b?.Id)" class="banner-form" data-enhance="true" data-site-banner-form="@(b?.Id.ToString() ?? "new")">

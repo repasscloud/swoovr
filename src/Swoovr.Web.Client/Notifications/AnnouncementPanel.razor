@@ -1,0 +1,29 @@
+@inject MemberClient Members
+@* Issue 588 (D446): one announcement Swoovr sent to every member. Read-only, reached only from its notification. *@
+<div class="page-heading">
+    <p class="breadcrumb"><a href="/me/notifications">Notifications</a> / From Swoovr</p>
+    @if (view is not null)
+    {
+        <h1 data-announcement="@view.Id">@view.Title</h1>
+        <p class="field-help">From Swoovr · @view.SentAt.ToLocalTime().ToString("d MMMM yyyy")</p>
+    }
+    else { <h1>From Swoovr</h1> }
+</div>
+@if (view is not null)
+{
+    <section class="card announcement-body" data-announcement-body>
+        @foreach (var paragraph in view.Body.Split("\n\n", StringSplitOptions.RemoveEmptyEntries)) { <p>@paragraph</p> }
+    </section>
+}
+else if (loaded)
+{
+    <p role="status" data-announcement="unavailable">This announcement isn't available any more.</p>
+}
+else { <p role="status">Loading…</p> }
+<p><a href="/me/notifications">Back to notifications</a></p>
+@code {
+    [Parameter, EditorRequired] public Guid Id { get; set; }
+    private AnnouncementView? view;
+    private bool loaded;
+    protected override async Task OnParametersSetAsync() { view = (await Members.AnnouncementAsync(Id)).Value; loaded = true; }
+}

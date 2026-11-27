@@ -1875,3 +1875,13 @@ Closes the OPEN point in D440 for [#586](https://github.com/repasscloud/swoovr/i
 - **In the app:** above the top bar on every page, signed in and signed out. It can't be dismissed. The tones are fixed colour pairs, checked for contrast in every scheme by `check_design.py`: Info uses `--primary`/`--onPrimary`, Warning uses `--banner-warning`/`--banner-warning-text` (amber with dark text), and Critical uses `--emergency`/`--emergency-text`. The web host reads the banner server-side and keeps it for 30 seconds (DEFAULT), so a change shows within about a minute.
 - **Website:** public, unauthenticated `GET /api/site-banner?placement=website` returns `{ text, tone }` or 204, cached for 60 seconds and readable cross-origin; the app reads `?placement=app`. It never returns who wrote it or when. **D211 (CONFIRMED) wins over #588 Q9's suggested `/api/v1/site-banner`:** Swoovr API paths carry no numerical version. The swoovr-marketing change is a follow-up in that repo (#595).
 - **Later:** #197's restriction banner should use the same slot so the two never stack badly. The notification to all members (#588 part 2) is a separate build.
+
+### D446 — Notification to every member (#588 part 2, 28 November 2026)
+
+**CONFIRMED** (owner, 28 November 2026, #588 Q6–Q8); built here:
+- **Who:** Admins send and withdraw (Admin › Announcements › Notifications to members); Support can see what was sent. Sending needs an explicit confirmation. Each send and withdrawal is audited with the id and the recipient count, never the text.
+- **Audience:** every account in the members realm whose status is Active, restricted members included; never deactivated, pending-deletion or deleted accounts, and never one chosen member (a support ticket covers that). Barred members' centres already show only account notices, so it doesn't appear for them. It goes to people who are members when it's sent; someone who joins later doesn't get it.
+- **Delivery:** the notification centre only ("From Swoovr: <title>"). No push or email yet; push comes with the push-notifications work. Members can't switch it off (DEFAULT), like account notices.
+- **Its page:** `/me/notifications/announcements/{id}` shows the title, the date and the message, with its paragraphs kept. Only a member who received it can open it, and opening it marks it read.
+- **After sending:** it can't be edited, only withdrawn. Withdrawing removes it from every centre and closes its page.
+- Title up to 80 characters on one line; message up to 2,000 characters.
