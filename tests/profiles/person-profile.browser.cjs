@@ -160,17 +160,35 @@ let checks = 0; const pass = () => checks++;
     if (output) await page.screenshot({ path: `${output}/layout-${mode}-${width}.png`, fullPage: true });
    }
    // PR 582 review: "Profile updated" follows only what the viewer can see. A core About no shown mode shares never moves
-   // it; sharing it does.
+   // it; sharing it does. Gender and pronouns as shown move it; the orientation only where Dating shows.
    // Shifted back a year, keeping their order (the latest version per mode must stay the latest).
-   await sql(`UPDATE profile_versions SET captured_at = captured_at - interval '400 days' WHERE account_id = '${account}'`);
-   const before = (await call(b, `/api/profiles/${id}?mode=friends`)).body.lastUpdated;
+   const shift = async () => { await sql(`UPDATE profile_versions SET captured_at = captured_at - interval '400 days' WHERE account_id = '${account}'`);
+     await sql(`UPDATE member_identities SET presentation_changed_at = presentation_changed_at - interval '400 days', orientation_changed_at = orientation_changed_at - interval '400 days' WHERE account_id = '${account}'`); };
+   const updated = async mode => (await call(b, `/api/profiles/${id}?mode=${mode}`)).body.lastUpdated, today = new Date().toISOString().slice(0, 10);
+   await shift();
+   let before = await updated('friends');
    assert.ok(before < '2026-01-01', before); pass();
    assert.equal((await call(a, '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional Sam', homeCityId: 2078025, about: 'Fictional hidden core about.' } })).status, 200);
-   assert.equal((await call(b, `/api/profiles/${id}?mode=friends`)).body.lastUpdated, before, 'an unshared core About is not a visible change'); pass();
+   assert.equal(await updated('friends'), before, 'an unshared core About is not a visible change'); pass();
    const shareCore = share => call(a, '/api/me/modes/friends', { method: 'PUT', body: { enabled: true, visible: true, intentions: chips('friends').map(c => c.id), shareCoreAbout: share } });
    assert.equal((await shareCore(true)).status, 200);
-   assert.notEqual((await call(b, `/api/profiles/${id}?mode=friends`)).body.lastUpdated, before, 'sharing it is'); pass();
+   assert.equal(await updated('friends'), today, 'sharing it is'); pass();
    assert.equal((await shareCore(false)).status, 200);
+   await shift(); before = await updated('friends');
+   assert.equal((await identity(false)).status, 200);
+   assert.equal(await updated('friends'), before, 'the orientation never shows outside Dating'); pass();
+   assert.equal(await updated('dating'), today, 'hiding it is a change in Dating'); pass();
+   await shift(); before = await updated('friends');
+   assert.equal((await call(a, '/api/me/identity', { method: 'PUT', body: { gender: 'woman', showGender: true, pronounId: 'self', pronouns: 'ze/zir', showPronouns: true,
+    orientation: 'straight', showOrientation: false, showAge: true, datingShowMe: ['man', 'woman'] } })).status, 200);
+   assert.equal(await updated('friends'), today, 'pronouns as shown are a visible change'); pass();
+   await shift(); before = await updated('friends');
+   assert.equal((await identity(false)).status, 200); // pronouns back; "show me" (never shown) changes too
+   await shift(); before = await updated('friends');
+   assert.equal((await call(a, '/api/me/identity', { method: 'PUT', body: { gender: 'woman', showGender: true, pronounId: 'self', pronouns: 'xe/xem', showPronouns: true,
+    orientation: 'straight', showOrientation: false, showAge: true, datingShowMe: ['woman'] } })).status, 200);
+   assert.equal(await updated('friends'), before, '"show me" is never shown'); pass();
+   assert.equal((await identity(true)).status, 200);
    // ---- Issue 467: the photo viewer (open, step, keyboard, swipe, focus), Report photo and the save deterrent.
    await page.setViewportSize({ width: 1280, height: 900 });
    await page.goto(`${web}/people/${id}?mode=friends`); await page.waitForSelector('[data-person=ready]', { timeout: 20000 });

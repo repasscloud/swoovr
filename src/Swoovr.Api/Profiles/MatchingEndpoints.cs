@@ -64,6 +64,11 @@ public static class MatchingEndpoints
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidProfile, $"Keep your pronouns to {MatchPolicy.PronounsMax} characters.");
             if (check != FilterError.None)
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidProfile, "Check the options you picked.");
+            // Issue 568 (PR 582 review): "Profile updated" moves only when what others see changes, never for a hidden value.
+            var labels = await ProfileEndpoints.GenderLabelsAsync(db, cancellationToken);
+            var orientations = await db.ProfileOptions.Where(o => o.Kind == "orientation").ToDictionaryAsync(o => o.Id, o => o.Label, cancellationToken);
+            if (ProfileEndpoints.Public(identity, 0, labels) != ProfileEndpoints.Public(candidate, 0, labels)) identity.PresentationChangedAt = now;
+            if (ProfileEndpoints.OrientationIn("dating", identity, orientations) != ProfileEndpoints.OrientationIn("dating", candidate, orientations)) identity.OrientationChangedAt = now;
             (identity.GenderId, identity.GenderDescription, identity.PronounId, identity.Pronouns, identity.OrientationId, identity.ShowGender, identity.ShowOrientation, identity.ShowAge,
                 identity.ShowPronouns, identity.DatingShowMe, identity.UpdatedAt) = (candidate.GenderId, candidate.GenderDescription, candidate.PronounId, candidate.Pronouns,
                 candidate.OrientationId, candidate.ShowGender, candidate.ShowOrientation, candidate.ShowAge, candidate.ShowPronouns, candidate.DatingShowMe, now);

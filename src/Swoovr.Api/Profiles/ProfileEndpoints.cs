@@ -297,8 +297,10 @@ public static class ProfileEndpoints
                     PictureText = photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null ? person.Profile.PictureText : null,
                     // Issue 568: the green dot as on Explore cards (D410, D422), and the day what the viewer can see last changed.
                     Online = OnlineStatusPolicy.Shows(OnlineStatus(configuration), current.Profile!, person.Profile, clock.GetUtcNow()),
-                    LastUpdated = await LastUpdatedAsync(db, person.Profile.AccountId, shownIds,
-                        photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null, cancellationToken),
+                    // The text picture shows only while the whole gallery is empty, as PersonPanel renders it (PR 582 review).
+                    LastUpdated = await LastUpdatedAsync(db, person.Profile.AccountId, shownIds, identity,
+                        photos.Main.GetValueOrDefault((person.Profile.AccountId, mode ?? shownIds[0])) is null
+                        && shownIds.All(m => photos.Modes.GetValueOrDefault((person.Profile.AccountId, m)) is not { Count: > 0 }), cancellationToken),
                 });
         });
     }
@@ -307,13 +309,17 @@ public static class ProfileEndpoints
     /// Issue 568 (D436): the day what the viewer can see of a profile last changed. Each shown mode's version already
     /// carries the name and About shown there, core ones included (ProfilePrivacy.CaptureAsync), so the core version counts
     /// only for the text picture, and only while that is what's shown. A core About or name the viewer can't see never
-    /// moves the date (PR 582 review).
+    /// moves the date (PR 582 review). Gender, pronouns and age as shown, and the orientation when Dating is shown, count
+    /// from their own change times (MemberIdentity), since profile versions never hold them.
     /// </summary>
-    private static async Task<DateOnly?> LastUpdatedAsync(SwoovrDbContext db, Guid account, IReadOnlyList<string> shownIds, bool pictureTextShown,
-        CancellationToken cancellationToken)
+    private static async Task<DateOnly?> LastUpdatedAsync(SwoovrDbContext db, Guid account, IReadOnlyList<string> shownIds, MemberIdentity? identity,
+        bool pictureTextShown, CancellationToken cancellationToken)
     {
-        var changed = await db.ProfileVersions.Where(v => v.AccountId == account && shownIds.Contains(v.ModeId))
-            .MaxAsync(v => (DateTimeOffset?)v.CapturedAt, cancellationToken);
+        var changed = new[]
+        {
+            await db.ProfileVersions.Where(v => v.AccountId == account && shownIds.Contains(v.ModeId)).MaxAsync(v => (DateTimeOffset?)v.CapturedAt, cancellationToken),
+            identity?.PresentationChangedAt, shownIds.Contains(ConnectionModeIds.Dating) ? identity?.OrientationChangedAt : null,
+        }.Max();
         if (pictureTextShown)
         {
             var core = await db.ProfileVersions.Where(v => v.AccountId == account && v.ModeId == ProfileVersions.Core)
