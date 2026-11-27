@@ -3,7 +3,7 @@
 // the photo viewer's action list are rows of a list, not buttons in this sense, and are left out. Fictional member only.
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
-const { web, createMember, memberToken, call, matchReady } = require('../auth/local-tokens.cjs');
+const { web, createMember, memberToken, cli, call, matchReady } = require('../auth/local-tokens.cjs');
 const output = process.env.SWOOVR_SCREENSHOTS;
 const routes = ['/explore', '/connections', '/chats', '/me/profile', '/me/photos', '/me/matching', '/me/meetups', '/me/verification', '/me/safety',
   '/me/standing', '/me/notifications', '/settings/appearance', '/me/support', '/account/membership', '/account', '/account/data', '/me/notices'];
@@ -15,6 +15,7 @@ const EXEMPT = '.ph-viewer-actions, .chat-menu, .safety-menu-list, .city-results
   let passed = 0; const pass = () => passed++;
   try {
     const member = await createMember('btnw');
+    await cli('beta', 'add', member.email);
     const token = await memberToken(browser, member);
     assert.equal((await call(token, '/api/me/profile', { method: 'PUT', body: { displayName: 'Fictional Wren', homeCityId: 2078025 } })).status, 200);
     for (const mode of ['dating', 'friends']) await call(token, `/api/me/modes/${mode}`, { method: 'PUT', body: { enabled: true, visible: true } });
