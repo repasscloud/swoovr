@@ -145,6 +145,14 @@ const ADELAIDE = 2078025;
     assert.equal(await page.locator('.chat-thread img.location-map, .location-card img, .location-card iframe').count(), 0, 'no map image in the chat'); pass();
     assert.deepEqual(requests.filter(u => /maps|openstreetmap|tile/i.test(u)), [], 'no map provider contacted'); pass();
     if (output) await page.screenshot({ path: output + '/chat-location-card.png' });
+    // PR 631 review: a location from the other member is a reply, live: the locked composer opens without a reload.
+    assert.equal((await call(tokens.ada, '/api/me/notification-settings', { method: 'PUT', body: { unansweredLimit: 3 } })).status, 200);
+    for (let i = 0; i < 3; i++) await call(tokens.me, `/api/conversations/${chat}/messages`, { method: 'POST', body: { text: 'Fictional line ' + i } });
+    await page.reload(); await page.waitForSelector('[data-conversation=ready]');
+    await page.waitForSelector('[data-composer-state=awaiting-reply]'); pass();
+    assert.equal((await share('ada', chat, { latitude: -34.97, longitude: 138.63 })).status, 201);
+    await page.waitForSelector('[data-composer-state=open]', { timeout: 15000 }); pass();
+    assert.equal((await call(tokens.ada, '/api/me/notification-settings', { method: 'PUT', body: { unansweredLimit: 0 } })).status, 200);
     await context.close();
 
     // The device reading (granted) at phone width.

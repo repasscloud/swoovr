@@ -91,7 +91,7 @@ static class NotificationChecks
         Expect(MessageText.AwaitingReply == Swoovr.Api.Connections.MessagingEndpoints.UnansweredLimitRefusal, "web, app and API share the neutral wording");
         Expect(!MessageText.AwaitingReply.Any(char.IsDigit) && !MessageText.LimitChoices.Any(c => c.Value > 0 && MessageText.AwaitingReply.Contains(c.Value.ToString())), "the refusal never names a number");
         var reply = new MessageView(Guid.NewGuid(), Guid.NewGuid(), false, "text", "hi", DateTimeOffset.UnixEpoch, false);
-        Expect(MessageText.IsReply(reply) && MessageText.IsReply(reply with { Kind = "photo" }) && MessageText.IsReply(reply with { Kind = "meetup" }), "their text, photo or meet-up is a reply");
+        Expect(MessageText.IsReply(reply) && MessageText.IsReply(reply with { Kind = "photo" }) && MessageText.IsReply(reply with { Kind = "meetup" }) && MessageText.IsReply(reply with { Kind = "location" }), "their text, photo, meet-up or location (#544) is a reply");
         Expect(!MessageText.IsReply(reply with { Mine = true }) && !MessageText.IsReply(reply with { Kind = "system" }) && !MessageText.IsReply(reply with { Kind = "farewell" }), "mine, system events and farewells aren't");
         Expect(NotificationText.Unread(0) == "No unread notifications" && NotificationText.Unread(2) == "2 unread", "unread wording");
 
