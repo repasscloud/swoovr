@@ -62,6 +62,8 @@ Every PR that appends to DECISIONS.md is in one linear stack with base `main`, s
 | 4 | #632 | #543 (part) | Chat + menu: library, upload, camera (D456) | check.sh, chat-library (20) | requested | yes |
 | 5 | #633 | #448 | Profile details slice 1 (D457, migration `ProfileAttributes`) | check.sh, profile-details (21) | finding fixed upstream | yes |
 | 6 | #634 | #448 | Profile details slice 2: web (D458) | profile-details (31) | requested | yes |
+| 7 | #635 | #452 | Shared interests (D459) | check.sh, profile-details (36) | no findings | yes |
+| 8 | #636 | #571 (part) | Travel on the profile (D460) | check.sh, profile-details (40) | no findings | yes |
 | any | #630 | — | Fix stale owned suites (test-only) | notifications (147), review-workflows | — | yes |
 | any | #629 | — | This report (docs) | — | — | yes |
 
@@ -94,13 +96,17 @@ Every PR that appends to DECISIONS.md is in one linear stack with base `main`, s
 | #313 | Waiting for you | Repository still names `hello@repasscloud.com`; confirm the UAT host's sender |
 | #440 | Waiting for you | Fresh UAT date of birth session |
 
+### Worktrees left for you to remove (merged branches)
+
+Removal was blocked by a safety check in this session, so these remain: `../swoovr-ma` … `../swoovr-mh`, `../swoovr-n1` … `../swoovr-n6` (all merged). This session's: `../swoovr-p2`, `-l1`, `-l2`, `-a1`, `-a2`, `-a3`, `-a4`, `-s1`, `-r0` (remove once their PRs merge). `git worktree remove <path>` for each.
+
 ## Morning handover
 
 ### Executive summary
 - **Start:** one open PR (#627), uncommitted D454 work, two stale owned suites, 87 open issues.
-- **End:** 10 PRs open for review: #627 (yours, untouched), #628, #629 (this report), #630, #631, #632, #633, #634, #635, #636 (#571, if opened below). 7 issues closed with evidence (#257, #319, #372, #488, #509, plus #544/#452 once their PRs merge). Issue comments on #313, #376, #448, #500, #543, #544, #569, #570.
-- **Codex:** every finding fixed, replied to and resolved (#631: location as a reply, text-harm history; the same finding repeated on #632/#633). #628, #631 (re-review), #634 had no findings at the last review; #630, #632, #633, #635 were requested or pending at handover.
-- **Tests:** check.sh passed on every branch tip (855 PostgreSQL persistence cases). Owned suites: photo-verified, notifications (147), review-workflows, chat-location (36), chat-library (20), profile-details (40). Screenshots checked for the chat card and the profile editor.
+- **End:** 10 PRs open for review: #627 (yours, untouched), #628, #629 (this report), #630, #631, #632, #633, #634, #635, #636. 7 issues closed with evidence (#257, #319, #372, #488, #509, plus #544/#452 once their PRs merge). Issue comments on #313, #376, #448, #500, #543, #544, #569, #570.
+- **Codex:** every finding fixed, replied to and resolved: #631 (a location counts as a reply in the client; labelled locations count in text-harm history); #632 (the database removal guard didn't accept locations, fixed on #631 with migration `LocationMessageRemoval`); #632/#633 repeated the first finding. Clean at their last review: #628, #630, #631, #633, #634, #635, #636. Re-review requested on #631/#632 after the last fix.
+- **Tests:** check.sh passed on every branch (856 PostgreSQL persistence cases on the final stack). Owned suites: photo-verified, notifications (147), review-workflows, chat-location (36), chat-library (20), profile-details (40). Screenshots checked for the chat card and the profile editor.
 
 ### Merge order (one linear stack, all base `main`, each appends to DECISIONS.md)
 1. #627 Privacy Notice 0.22 (D453)
@@ -115,12 +121,12 @@ Every PR that appends to DECISIONS.md is in one linear stack with base `main`, s
 Independent, any time: #630 (stale suites, test-only), #629 (this report).
 
 ### Release considerations
-- **Migrations:** only `ProfileAttributes` (a new table). #631 and #632 need none.
+- **Migrations, in order:** `LocationMessageRemoval` (#631: re-creates `content_removal_guard()` to accept Location; Down restores the previous guard), then `ProfileAttributes` (#633: a new table). #632 needs none.
 - **Flags:** none new. `Verification:PhotoVerified:Enabled` is already on in UAT (#627).
 - **Privacy Notice:** after #627 is deployed, an operator stages and publishes the "0.22, 28 November 2026" policy-update notice. Location sharing (#631) and Photo Verified depend on 0.22 being in force.
 - **Member communications:** the 0.22 notice only. Nothing else in this batch emails or pushes anyone.
 - **UAT checks after deploy:** share a location both ways (current location and a pasted link); send a library photo; Photo Verified approve/reject leaves one notification; add details on /me/profile, publish to one mode, check from another account in that mode and another; "You both like…"; a trip to your area on a visitor's profile.
-- **Rollback:** all code-only except `ProfileAttributes` (a new table; its Down drops it). Rolling back #631 leaves any shared locations as text messages starting `geo:` (shown as plain text by older clients).
+- **Rollback:** all code-only except the two migrations (both have a Down). Rolling back #631 leaves any shared locations as text messages starting `geo:` (shown as plain text by older clients).
 
 ### Your decisions (applied as DEFAULTs; change any)
 F1 0.22 effective 28 November 2026 · F2 Photo Verified decisions in the notification centre only · F3 location chosen from the current location or a pasted link, no map provider · F4 album share snapshot (not built yet) · F5 captions per photo, 150 characters (not built yet) · F6 ban-evasion review on HMAC match only (not built yet) · F7 housekeeping closures done. Also D457 option lists, nationality/causes/accessibility treated as sensitive, D459 opt-in by publishing, D460 only trips to your area.
