@@ -182,6 +182,9 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 500;
       await bubble.locator('[data-explicit-show]').click();
       await bubble.locator('[data-chat-explicit=shown]').waitFor({ timeout: 10000 });
       assert.equal(await bubble.locator('.chat-photo').evaluate(e => getComputedStyle(e).filter), 'none', 'shown on request'); pass();
+      // PR 607 review: the image really loads through the web app's media route.
+      await bubble.locator('.chat-photo').evaluate(img => img.complete ? null : new Promise(done => { img.onload = img.onerror = done; }));
+      assert.ok(await bubble.locator('.chat-photo').evaluate(img => img.naturalWidth > 0), 'the photo loads'); pass();
       if (output) await page.screenshot({ path: `${output}/explicit-chat-shown-${theme}-${width}.png` });
     }
     await context.close();
