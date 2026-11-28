@@ -174,7 +174,8 @@ public static class MediaEndpoints
             var itemIds = items.Select(i => i.Id).ToList();
             var inAlbums = (await db.PhotoAlbumItems.Where(e => itemIds.Contains(e.MediaId)).Select(e => new { e.AlbumId, e.MediaId }).ToListAsync(cancellationToken))
                 .Select(e => (e.AlbumId, e.MediaId)).ToHashSet();
-            string Destination(MediaItem i) => i.AlbumId is { } home && inAlbums.Contains((home, i.Id)) ? "album" : "library";
+            // D423 (#546): a photo sent straight to chat has its own destination.
+            string Destination(MediaItem i) => i.Purpose == AttachmentPolicy.Purpose ? "chat" : i.AlbumId is { } home && inAlbums.Contains((home, i.Id)) ? "album" : "library";
             return Results.Ok(new MediaReviewQueue(items.Select(i => new MediaReviewItem(i.Id, i.AccountId, i.CreatedAt, SignalReason(i.Signals), Signals(i.Signals), i.Screener ?? "unknown", i.KnownContentChecked, i.Purpose,
                 Destination(i), verified.Contains(i.AccountId))).ToList(),
                 await pending.CountAsync(cancellationToken), await pending.CountAsync(i => i.CreatedAt < now.AddHours(-1), cancellationToken), MediaReviewReasons.All.Select(ReasonView).ToList(), counts, since, p, total, 25,
@@ -261,12 +262,25 @@ public static class MediaEndpoints
                         "Only a photo uploaded into a private album by an ID Verified member can be approved for albums only.");
                 await db.MediaItems.Where(i => i.Id == item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.AlbumOnly, true).SetProperty(i => i.ContentRating, ContentRating.Explicit), cancellationToken);
             }
+            // D423 (#546): an adult photo sent straight to chat, from an ID Verified sender, is rated explicit before it passes; it
+            // then reaches the recipient only if they may receive it now (MessagingEndpoints.AttachmentChangedAsync).
+            var chatExplicit = review.Code == "APPROVED_CHAT_EXPLICIT";
+            if (chatExplicit)
+            {
+                var sender = await db.MemberProfiles.AsNoTracking().SingleOrDefaultAsync(p => p.AccountId == item.AccountId, cancellationToken);
+                if (item.Purpose != AttachmentPolicy.Purpose || item.Status != MediaStatus.Uncertain || sender is null || !ExplicitMediaPolicy.Allowed(sender))
+                    return Problem(StatusCodes.Status409Conflict, ProblemCodes.AlbumApprovalNotAllowed,
+                        "Only a chat photo from an ID Verified member can be approved as adult content.");
+                await db.MediaItems.Where(i => i.Id == item.Id).ExecuteUpdateAsync(u => u.SetProperty(i => i.ContentRating, ContentRating.Explicit), cancellationToken);
+            }
             var applied = request.Decision switch
             {
                 "approve" => await pipeline.PassAsync(item, actor, now, cancellationToken,review),
                 "reject" => await pipeline.RejectAsync(item, actor, review.Notes, now, cancellationToken,review),
                 _ => await pipeline.BlockAsync(item, actor, "escalated-by-reviewer", now, cancellationToken,review),
             };
+            if (!applied && chatExplicit)
+                await db.MediaItems.Where(i => i.Id == item.Id && i.Status != MediaStatus.Passed).ExecuteUpdateAsync(u => u.SetProperty(i => i.ContentRating, ContentRating.Standard), cancellationToken);
             if (!applied && albumApproval)
                 await db.MediaItems.Where(i => i.Id == item.Id && i.Status != MediaStatus.Passed).ExecuteUpdateAsync(u => u.SetProperty(i => i.AlbumOnly, false).SetProperty(i => i.ContentRating, ContentRating.Standard), cancellationToken);
             if (!applied) return Problem(StatusCodes.Status409Conflict, ProblemCodes.UnknownPhoto, "That photo isn't waiting for a decision.");
@@ -285,7 +299,7 @@ public static class MediaEndpoints
     private static MediaReviewReasonView ReasonView(MediaReviewReasonDefinition reason)=>new(reason.Code,reason.Decision,reason.Code switch
     {
         "APPROVED_STANDARD"=>"Meets current photo rules","APPROVED_NON_EXPLICIT"=>"Non-explicit image permitted by current rules",
-        "APPROVED_AFTER_REVIEW"=>"Acceptable after manual review","APPROVED_ALBUM_EXPLICIT"=>"Adult content — private albums only (ID Verified owner, album upload)","APPROVED_FALSE_POSITIVE"=>"Automated flag cleared after review",
+        "APPROVED_AFTER_REVIEW"=>"Acceptable after manual review","APPROVED_ALBUM_EXPLICIT"=>"Adult content — private albums only (ID Verified owner, album upload)","APPROVED_CHAT_EXPLICIT"=>"Adult content — chat, delivered only to a recipient who accepts it (ID Verified sender)","APPROVED_FALSE_POSITIVE"=>"Automated flag cleared after review",
         "REJECT_EXPLICIT_NO_ID"=>"Explicit content not allowed without ID verification","REJECT_EXPLICIT_BETA"=>"Explicit content not allowed here","REJECT_IMPERSONATION"=>"Impersonation or unauthorised image use",
         "REJECT_PRIVACY"=>"Prohibited personal or location information","REJECT_VIOLENCE"=>"Graphic violence or disturbing content",
         "REJECT_HATE"=>"Hate or prohibited extremist imagery","REJECT_SPAM"=>"Spam or prohibited promotion","REJECT_IMAGE_QUALITY"=>"Technical or image-quality requirements",

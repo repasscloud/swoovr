@@ -11,6 +11,8 @@ public static class MediaReviewReasons
         // #231 (owner, 6 November 2026; supersedes D178): adult photo, private albums only. The endpoint also requires an album
         // upload from an ID Verified owner (ExplicitMediaPolicy.AlbumApprovalAllowed).
         new("APPROVED_ALBUM_EXPLICIT","approve"),
+        // D423 (#546): an adult photo sent straight to chat; it reaches the recipient only if they may receive it now.
+        new("APPROVED_CHAT_EXPLICIT","approve"),
         // Issue 419 (owner, 22 November 2026): explicit content from a member who isn't ID Verified.
         new("REJECT_EXPLICIT_NO_ID","reject"),
         new("REJECT_EXPLICIT_BETA","reject"),new("REJECT_IMPERSONATION","reject"),new("REJECT_PRIVACY","reject"),new("REJECT_VIOLENCE","reject"),

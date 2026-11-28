@@ -4,7 +4,9 @@ namespace Swoovr.Domain;
 /// Photo attachments in chat (#41; policy §5, §14; D203). Only between connected members, through the same quarantine and
 /// screening as profile photos; the recipient sees one only once it passed, the sender sees its state. Uncertain ones go
 /// to the restricted admin review queue; a known-content match is a Serious Safety Incident (sealed, held, escalated
-/// with ids only, never viewable). A recipient can turn photos in chat off (Q84 default on). No explicit content (D178).
+/// with ids only, never viewable). A recipient can turn photos in chat off (Q84 default on).
+/// D423/D428 (#546, supersede D178 and D389 rule 1): an explicit photo reaches only an eligible recipient
+/// (<see cref="ExplicitChatPolicy"/>); otherwise it never reaches them at all and only the sender is told.
 /// </summary>
 public static class AttachmentPolicy
 {
@@ -16,9 +18,28 @@ public static class AttachmentPolicy
     /// <summary>Whether the recipient may see a photo message: it passed and wasn't removed (a deleted message shows as deleted to both).</summary>
     public static bool RecipientSees(MediaStatus status, bool removed) => status == MediaStatus.Passed && !removed;
 
-    /// <summary>A photo message is listed for the sender always, and for the recipient once passed, or as deleted.</summary>
+    /// <summary>A photo message is listed for the sender always, and for the recipient once passed, or as deleted. An explicit
+    /// photo refused at delivery (D423) is never listed for the recipient.</summary>
     public static bool Listed(Message message, Guid viewer, MediaStatus? status, bool removed) =>
-        message.Kind != MessageKind.Photo || message.SenderAccountId == viewer || message.DeletedAt is not null || status is { } s && RecipientSees(s, removed);
+        message.Kind != MessageKind.Photo || message.SenderAccountId == viewer
+        || message.ExplicitRefusedAt is null && (message.DeletedAt is not null || status is { } s && RecipientSees(s, removed));
+}
+
+/// <summary>
+/// D423 and D428 (#546, owner 26 November 2026): explicit photos sent straight to chat. Delivered only when, now, the sender
+/// is ID Verified (D389) and the recipient is ID Verified with Receive explicit media on for at least one mode the pair is
+/// connected in (D428). Checked when the photo would be delivered and again on every view (182.4). Screening is never
+/// skipped: malware, known-content matching and the nudity check run first; only routine manual nudity review is.
+/// </summary>
+public static class ExplicitChatPolicy
+{
+    /// <summary>The automatic check's nudity flag (MediaScreeningPolicy); for an eligible pair it rates the photo explicit (D428).</summary>
+    public const string NuditySignal = "nudity-signal";
+    /// <summary>The sender's state when an explicit photo couldn't be delivered; neutral, never why (D423).</summary>
+    public const string NotAccepted = "not-accepted";
+
+    public static bool Allowed(bool senderIdVerified, bool recipientIdVerified, bool recipientReceivesInConnectedMode) =>
+        senderIdVerified && recipientIdVerified && recipientReceivesInConnectedMode;
 }
 
 /// <summary>

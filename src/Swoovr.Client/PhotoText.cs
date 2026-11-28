@@ -47,6 +47,8 @@ public static class PhotoText
         "checking" => "Checking — they'll see it once it's approved",
         "in-review" => "Being reviewed — they'll see it once it's approved",
         "not-approved" => "Not approved — they won't see it",
+        // D423 (#546): neutral; never says whether it was their ID or their settings.
+        "not-accepted" => "Recipient does not allow adult content",
         "removed" => "Removed",
         _ => "",
     };
