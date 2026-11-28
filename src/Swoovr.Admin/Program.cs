@@ -205,7 +205,7 @@ app.MapGet("/law-enforcement/audit-export", async (string? quarter, Swoovr.Clien
 app.MapGet("/media/{token}", async (string token, HttpContext context, Swoovr.Client.AdminClient admin, CancellationToken cancellationToken) =>
 {
     context.Response.Headers.CacheControl = "no-store";
-    if (!System.Text.RegularExpressions.Regex.IsMatch(token, @"^[0-9a-f]{32}\.(review|case|member|inspection|appeal)\.[0-9]{1,12}\.[A-Za-z0-9_-]{43}$")) return Results.NotFound();
+    if (!System.Text.RegularExpressions.Regex.IsMatch(token, @"^[0-9a-f]{32}\.(review|case|member|inspection|appeal|verification)\.[0-9]{1,12}\.[A-Za-z0-9_-]{43}$")) return Results.NotFound();
     return await admin.MediaAsync("api/media/" + token, cancellationToken) is { } bytes ? Results.File(bytes, "image/jpeg") : Results.NotFound();
 }).RequireAuthorization();
 // A support request's plain-text attachment, fetched server-side with the staff member's token; the API rechecks access.

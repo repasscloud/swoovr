@@ -391,6 +391,12 @@ public sealed partial class AdminClient(HttpClient transport)
     public Task<int> ReconsiderPhotoAsync(Guid id, string reason, CancellationToken token = default) => StatusAsync(HttpMethod.Post, $"api/admin/media/{id}/reconsider", new PhotoAppealResolution("approve", reason), token);
     public Task<ApiResult<MediaReviewLink>> ViewRejectedPhotoAsync(Guid id, string purpose, CancellationToken token = default) => SendAsync<MediaReviewLink>(HttpMethod.Post, $"api/admin/media/{id}/appeal-view", new MediaViewRequest(purpose), token);
 
+    /// <summary>D452 (#530): Photo Verified requests waiting for a person (Support and Admin), and the decision.</summary>
+    public Task<ApiResult<List<PhotoIdentifiedItem>>> PhotoIdentifiedAsync(CancellationToken token = default) =>
+        SendAsync<List<PhotoIdentifiedItem>>(HttpMethod.Get, "api/admin/photo-verification", null, token);
+    public Task<ApiResult<bool>> DecidePhotoIdentifiedAsync(Guid id, string decision, string? reason, CancellationToken token = default) =>
+        ActionAsync(HttpMethod.Post, $"api/admin/photo-verification/{id}/decision", new PhotoIdentifiedDecision(decision, reason), token);
+
     public Task<ApiResult<MediaReviewQueue>> MediaReviewAsync(CancellationToken cancellationToken = default) =>
         SendAsync<MediaReviewQueue>(HttpMethod.Get, "api/admin/media/review", null, cancellationToken);
 

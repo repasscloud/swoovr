@@ -10,7 +10,7 @@ const crypto = require('node:crypto'), fs = require('node:fs/promises'), path = 
 const { spawn } = require('node:child_process');
 if (!process.env.SWOOVR_TEST_APP_DATABASE || !process.env.SWOOVR_OWNED_RUN_MANIFEST || !process.env.Media__Local__Path) throw Error('Photo Verified requires the owned runner.');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
-const { api, sleep, createMember, createStaff, memberToken, staffToken, rootAdminToken, elevatedRootToken, cli, sql, call, claims, matchReady } = require('../auth/local-tokens.cjs');
+const { api, web, admin, fillStaffOtp, sleep, createMember, createStaff, memberToken, staffToken, rootAdminToken, elevatedRootToken, cli, sql, call, claims, matchReady } = require('../auth/local-tokens.cjs');
 const { synthetic } = require('../media/synthetic-images.cjs');
 
 let EXTRA, extraProcess, extraFolder;
@@ -38,6 +38,7 @@ async function stopExtra() {
 }
 const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 500; i++) { if (await predicate()) return true; await sleep(500); } return predicate(); };
 const today = () => new Date().toISOString().slice(0, 10);
+const output = process.env.SWOOVR_SCREENSHOTS;
 
 (async () => {
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
@@ -69,10 +70,14 @@ const today = () => new Date().toISOString().slice(0, 10);
     const place = (who, mediaIds) => call(tk[who], '/api/me/photos/placement', { method: 'PUT', body: { scope: 'friends', mediaIds, mainMediaId: mediaIds[0] ?? null } });
     const view = (base, who) => call(tk[who], '/api/me/verification/photo', { base });
 
-    // ---- Off by default (the owned API): not available, and asking for a code is refused.
-    let r = await call(tk.pia, '/api/me/verification/photo');
+    // ---- Off by default: an API without the switch says it isn't available and refuses a code. (The runner turns it on
+    // for the owned hosts during this suite, so the screens can be checked below.)
+    await extraApi({ Verification__PhotoVerified__Enabled: 'false' });
+    const off = async route => { const res = await fetch(EXTRA + route.path, { method: route.method, headers: { Authorization: 'Bearer ' + tk.pia, 'Content-Type': 'application/json' }, body: route.body }); return { status: res.status, body: await res.json().catch(() => null) }; };
+    let r = await off({ path: '/api/me/verification/photo', method: 'GET' });
     assert.deepEqual([r.status, r.body.available, r.body.state], [200, false, 'none']); pass();
-    assert.equal((await call(tk.pia, '/api/me/verification/photo/code', { method: 'POST', body: { date: today() } })).status, 503); pass();
+    assert.equal((await off({ path: '/api/me/verification/photo/code', method: 'POST', body: JSON.stringify({ date: today() }) })).status, 503); pass();
+    await stopExtra();
 
     await extraApi({ Media__Screening__Simulate: 'uncertain', Media__Screening__Worker: 'true', Attachments__Scanning__Enabled: 'false', Verification__PhotoVerified__Enabled: 'true' });
     const at = (who, route, options = {}) => fetch(EXTRA + route, { ...options, headers: { Authorization: 'Bearer ' + tk[who], ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...(options.headers ?? {}) } })
@@ -242,6 +247,39 @@ const today = () => new Date().toISOString().slice(0, 10);
     assert.equal(await sql(`SELECT count(*) FROM photo_verification_attempts WHERE account_id = '${id.pia}' AND decided_at IS NOT NULL AND evidence_deleted_at IS NULL`), '0'); pass();
     assert.equal(await sql(`SELECT count(*) FROM media_items WHERE account_id = '${id.pia}' AND purpose = 'verification' AND object_key IS NOT NULL`), '0'); pass();
     assert.equal(await sql(`SELECT count(*) FROM photo_verification_attempts WHERE account_id = '${id.pia}' AND state IN ('Approved', 'Rejected')`), '3', 'decision records kept'); pass();
+    // ---- The screens (issue 530 part 2): the member's code on /me/verification; the admin Photo Identified tab.
+    await libraryPhoto(id.ned).then(m => place('ned', [m]));
+    const memberPage = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    await memberPage.goto(web + '/account/sign-in?intro=done'); await memberPage.fill('#username', members.ned.email); await memberPage.fill('#password', members.ned.password);
+    await Promise.all([memberPage.waitForURL(u => !u.href.includes('/realms/')), memberPage.click('#kc-login')]);
+    await memberPage.goto(web + '/me/verification');
+    await memberPage.locator('[data-photo-check=none] [data-photo-check-start]').waitFor({ timeout: 20000 }); pass();
+    assert.match(await memberPage.locator('#photo-check-heading + p').innerText(), /isn't an ID check/); pass();
+    await memberPage.click('[data-photo-check-start]');
+    await memberPage.locator('[data-photo-check=issued] [data-photo-check-code]').waitFor({ timeout: 10000 });
+    const shownCode = (await memberPage.locator('.photo-check-value').innerText()).trim();
+    assert.match(shownCode, /^[ACDEFHJKMNPQRTUVWXY3479]{4}$/); pass();
+    assert.equal(await memberPage.locator('[data-photo-check-file]').getAttribute('accept'), 'image/jpeg,image/png,image/webp'); pass();
+    for (const width of [1280, 390]) { await memberPage.setViewportSize({ width, height: 900 }); if (output) await memberPage.screenshot({ path: `${output}/photo-verified-code-${width}.png`, fullPage: true }); }
+    // Sent through the extra API (the owned hosts have no malware scanner); the page then says it's being checked.
+    assert.equal((await send('ned', shownCode, 540)).body.state, 'submitted');
+    await memberPage.reload(); await memberPage.locator('[data-photo-check=submitted]').waitFor({ timeout: 20000 }); pass();
+    await waitFor(async () => !!(await call(sup, '/api/admin/photo-verification')).body.find(i => i.accountId === id.ned));
+    const adminPage = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+    await adminPage.goto(admin + '/sign-in'); await adminPage.fill('#username', staff.email); await adminPage.fill('#password', staff.password); await adminPage.click('#kc-login');
+    await fillStaffOtp(adminPage, staff); await adminPage.waitForURL(u => u.href.startsWith(admin) && !u.href.includes('/realms/'), { timeout: 30000 });
+    await adminPage.goto(admin + '/media/photo-identified');
+    const card = adminPage.locator('[data-photo-identified-item]').filter({ hasText: 'Fictional Pv ned' });
+    await card.waitFor({ timeout: 20000 });
+    assert.equal((await card.locator('[data-photo-identified-code]').innerText()).trim(), shownCode); pass();
+    assert.ok(await card.locator('[data-photo-identified-evidence]').evaluate(img => img.complete && img.naturalWidth > 0), 'the evidence loads for the reviewer'); pass();
+    assert.equal(await card.locator('[data-photo-identified-profile]').count(), 1); pass();
+    if (output) await adminPage.screenshot({ path: `${output}/photo-identified-1440.png`, fullPage: true });
+    await card.locator('[data-photo-identified-approve]').check();
+    await Promise.all([adminPage.waitForURL(u => u.href.includes('decided=approve'), { timeout: 20000 }), card.locator('[data-photo-identified-save]').click()]);
+    assert.equal(await adminPage.locator('[data-photo-identified-item]').filter({ hasText: 'Fictional Pv ned' }).count(), 0); pass();
+    await memberPage.reload(); await memberPage.locator('[data-photo-check=verified]').waitFor({ timeout: 20000 }); pass();
+    if (output) await memberPage.screenshot({ path: `${output}/photo-verified-done-390.png`, fullPage: true });
     console.log(`PASS: Photo Verified (issue 530), ${passed} checks.`);
   } finally {
     await stopExtra();

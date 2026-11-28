@@ -1,0 +1,97 @@
+@page "/media/photo-identified"
+@inject AdminClient Admin
+@inject NavigationManager Navigation
+<PageTitle>Photo Identified — Swoovr admin</PageTitle>
+@* D424/D427/D452 (issue 530): one photo of the member holding the code and date, compared with the public profile photos they
+   had when they sent it. Approve awards Photo Verified for 12 months; it never means ID Verified. Support and Admin. *@
+<MediaTabs Active="photo-identified" Title="Photo Identified" Description="Photo Verified requests: one photo holding the code and date, compared with the member's profile photos." />
+@if (message is not null) { <p class="notice" role="status" data-result="@resultCode">@message</p> }
+<div class="ui-stats">
+    <div class="ui-stat"><strong>@items.Count</strong><span>Waiting</span></div>
+    <div class="ui-stat"><strong>@(items.Count == 0 ? "—" : Ago(items[0].SubmittedAt))</strong><span>Oldest waiting</span></div>
+</div>
+@if (loadError is not null) { <div class="ui-empty"><strong>Not available</strong>@loadError</div> }
+else if (items.Count == 0) { <div class="ui-empty" data-photo-identified="none"><strong>Nothing waiting</strong>Photo Verified requests appear here.</div> }
+else
+{
+    <ul class="photo-identified-list" data-photo-identified="@items.Count">
+        @foreach (var item in items)
+        {
+            <li class="ui-card photo-identified" data-photo-identified-item="@item.Id">
+                <header class="photo-identified-head">
+                    <div><h2>@(item.DisplayName ?? "Member")</h2><span class="ui-sub"><a href="/accounts/@item.AccountId">Account</a> · sent @item.SubmittedAt.ToUniversalTime().ToString("d MMM HH:mm") UTC</span></div>
+                    <dl class="photo-identified-expect"><dt>Code</dt><dd data-photo-identified-code>@item.Code</dd><dt>Date</dt><dd>@item.WrittenDate.ToString("d MMM yyyy")</dd></dl>
+                </header>
+                <div class="photo-identified-compare">
+                    <figure>
+                        <figcaption>Photo holding the code</figcaption>
+                        @if (Token(item.Evidence) is { } evidence) { <img src="/media/@evidence" alt="The member holding the code" data-photo-identified-evidence /> }
+                        else { <p class="ui-help">The photo isn't available.</p> }
+                    </figure>
+                    <figure>
+                        <figcaption>Public profile photos@(item.ProfilePhotosChanged ? " (changed since they sent it)" : "")</figcaption>
+                        <div class="photo-identified-profile">
+                            @foreach (var photo in item.ProfilePhotos)
+                            {
+                                @if (Token(photo.Link) is { } link) { <img src="/media/@link" alt="Profile photo" data-photo-identified-profile="@photo.Id" /> }
+                            }
+                        </div>
+                    </figure>
+                </div>
+                @if (item.ProfilePhotosChanged) { <p class="media-error" data-photo-identified-changed>Their profile photos changed after they sent this, so it can't be approved. Reject it as "Profile photos changed".</p> }
+                <form method="post" @formname="@($"photo-identified-{item.Id}")" @onsubmit="() => DecideAsync(item.Id)" class="photo-identified-form" data-enhance="false">
+                    <AntiforgeryToken />
+                    <fieldset class="ui-field"><legend>Decision</legend>
+                        <div class="photo-identified-decide" role="radiogroup">
+                            <label><input type="radio" name="decision" value="approve" required disabled="@item.ProfilePhotosChanged" data-photo-identified-approve /><span>Same person, code and date match</span></label>
+                            <label><input type="radio" name="decision" value="reject" required data-photo-identified-reject /><span>Don't award</span></label>
+                        </div>
+                    </fieldset>
+                    <label class="ui-field"><span>Reason (when not awarding)</span>
+                        <select name="reason" data-photo-identified-reason>
+                            <option value="">Choose…</option>
+                            @foreach (var (reasonCode, label) in Reasons) { <option value="@reasonCode" selected="@(item.ProfilePhotosChanged && reasonCode == "profile-photos-changed")">@label</option> }
+                        </select>
+                    </label>
+                    <div><button type="submit" data-photo-identified-save>Save</button></div>
+                </form>
+            </li>
+        }
+    </ul>
+}
+@code {
+    [CascadingParameter] private HttpContext? Context { get; set; }
+    private List<PhotoIdentifiedItem> items = [];
+    private string? message, resultCode, loadError;
+
+    /// <summary>Staff labels for PhotoVerificationPolicy.Reasons; the member sees their own wording.</summary>
+    private static readonly (string Code, string Label)[] Reasons =
+    [
+        ("face-not-matched", "Face doesn't match the profile photos"), ("code-not-readable", "Code or date can't be read"),
+        ("code-or-date-wrong", "Code or date is wrong"), ("photo-unclear", "Face, code or date not clearly visible"),
+        ("profile-photos-changed", "Profile photos changed"), ("other", "Other"),
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Admin.PhotoIdentifiedAsync();
+        items = result.Value ?? [];
+        if (!result.Ok) loadError = AdminText.Refusal(result.Status, result.Code);
+    }
+
+    private async Task DecideAsync(Guid id)
+    {
+        var decision = Field("decision");
+        var reason = decision == "reject" ? Field("reason") : null;
+        if (decision == "reject" && string.IsNullOrEmpty(reason)) { (message, resultCode) = ("Choose a reason.", "reason-required"); return; }
+        var result = await Admin.DecidePhotoIdentifiedAsync(id, decision, reason);
+        if (result.Ok) { Navigation.NavigateTo("/media/photo-identified?decided=" + decision, forceLoad: true); return; }
+        (message, resultCode) = (result.Code == ProblemCodes.PhotoVerificationStale ? "Their profile photos changed. Reject it as \"Profile photos changed\"." : AdminText.Refusal(result.Status, result.Code), result.Code ?? "failed");
+        await OnInitializedAsync();
+    }
+
+    private string Field(string name) => Context?.Request.HasFormContentType == true ? Context.Request.Form[name].ToString() : "";
+    /// <summary>The token part of an API link ("api/media/{token}"), for the admin's own staff-only image route.</summary>
+    private static string? Token(string? link) => link is null ? null : link.StartsWith("api/media/", StringComparison.Ordinal) ? link["api/media/".Length..] : link;
+    private static string Ago(DateTimeOffset at) { var h = Math.Max(0, (DateTimeOffset.UtcNow - at).TotalHours); return h < 1 ? $"{(int)(h * 60)} min" : h < 48 ? $"{(int)h} h" : $"{(int)(h / 24)} days"; }
+}
