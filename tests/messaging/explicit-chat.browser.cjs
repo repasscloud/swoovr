@@ -10,10 +10,11 @@ const fs = require('node:fs/promises'), path = require('node:path'), os = requir
 const { spawn } = require('node:child_process');
 if (!process.env.SWOOVR_TEST_APP_DATABASE || !process.env.ConnectionStrings__Swoovr || !process.env.SWOOVR_OWNED_RUN_MANIFEST) throw Error('Explicit chat photos require the owned runner.');
 const { chromium } = require(process.env.SWOOVR_PLAYWRIGHT_PATH || 'playwright');
-const { sleep, createMember, createStaff, memberToken, staffToken, rootAdminToken, cli, sql, call, claims, matchReady } = require('../auth/local-tokens.cjs');
+const { web, sleep, createMember, createStaff, memberToken, staffToken, rootAdminToken, cli, sql, call, claims, matchReady } = require('../auth/local-tokens.cjs');
 const { synthetic, upload } = require('../media/synthetic-images.cjs');
 
 const ADELAIDE = 2078025;
+const output = process.env.SWOOVR_SCREENSHOTS;
 let EXTRA, extraProcess, extraFolder;
 async function extraApi(env) {
   const manifest = JSON.parse(await fs.readFile(process.env.SWOOVR_OWNED_RUN_MANIFEST, 'utf8'));
@@ -160,6 +161,46 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 500;
     assert.equal((await decide(unverified.media, 'approve', 'APPROVED_CHAT_EXPLICIT')).status, 409); pass();
     assert.equal(await sql(`SELECT content_rating FROM media_items WHERE id = '${unverified.media}'`), 'Standard'); pass();
     assert.equal((await decide(unverified.media, 'reject', 'REJECT_EXPLICIT_NO_ID')).status, 200); pass();
+
+    // ---- The chat screen (issue 546 part 2): blurred with Show for the recipient; the sender's undelivered photo in a dialog.
+    const signIn = async who => {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage();
+      await page.goto(web + '/account/sign-in?intro=done'); await page.fill('#username', members[who].email); await page.fill('#password', members[who].password);
+      await Promise.all([page.waitForURL(u => !u.href.includes('/realms/')), page.click('#kc-login')]);
+      return { context, page };
+    };
+    let { context, page } = await signIn('yes');
+    for (const [theme, width] of [['light', 1280], ['dark', 390]]) {
+      await page.emulateMedia({ colorScheme: theme }); await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${web}/chats/${c.yes}`);
+      const bubble = page.locator(`[data-message="${auto.message}"]`);
+      await bubble.locator('[data-chat-explicit=hidden]').waitFor({ timeout: 20000 });
+      assert.equal(await bubble.locator('.chat-photo').evaluate(e => getComputedStyle(e).filter.includes('blur')), true, 'blurred'); pass();
+      assert.equal(await bubble.locator('.chat-photo').getAttribute('alt'), 'Adult photo, hidden'); pass();
+      assert.ok(await bubble.locator('[data-chat-explicit]').evaluate(e => { const r = e.getBoundingClientRect(), b = e.closest('li').getBoundingClientRect(); return r.left >= b.left - 1 && r.right <= b.right + 1; }), 'the blur stays inside the bubble'); pass();
+      if (output) await page.screenshot({ path: `${output}/explicit-chat-hidden-${theme}-${width}.png` });
+      await bubble.locator('[data-explicit-show]').click();
+      await bubble.locator('[data-chat-explicit=shown]').waitFor({ timeout: 10000 });
+      assert.equal(await bubble.locator('.chat-photo').evaluate(e => getComputedStyle(e).filter), 'none', 'shown on request'); pass();
+      // PR 607 review: the image really loads through the web app's media route.
+      await bubble.locator('.chat-photo').evaluate(img => img.complete ? null : new Promise(done => { img.onload = img.onerror = done; }));
+      assert.ok(await bubble.locator('.chat-photo').evaluate(img => img.naturalWidth > 0), 'the photo loads'); pass();
+      if (output) await page.screenshot({ path: `${output}/explicit-chat-shown-${theme}-${width}.png` });
+    }
+    await context.close();
+    ({ context, page } = await signIn('snd'));
+    await page.goto(`${web}/chats/${c.off}`);
+    const mineBubble = page.locator(`[data-message="${held.message}"]`);
+    await mineBubble.locator('[data-photo-state=not-accepted]').waitFor({ timeout: 20000 });
+    assert.equal((await mineBubble.locator('[data-photo-state]').innerText()).trim(), 'Recipient does not allow adult content'); pass();
+    assert.equal((await mineBubble.locator('[data-explicit-show]').innerText()).replace(/\s+/g, ' ').trim(), 'Adult content View your photo'); pass();
+    await mineBubble.locator('[data-explicit-show]').click();
+    await page.locator('[data-member-dialog=own-photo] [data-own-photo]').waitFor({ timeout: 10000 }); pass();
+    assert.equal(await mineBubble.locator('[data-chat-explicit=hidden]').count(), 1, 'still blurred in the thread'); pass();
+    if (output) await page.screenshot({ path: `${output}/explicit-chat-own-1280.png` });
+    await page.keyboard.press('Escape');
+    await page.locator('[data-member-dialog=own-photo]').waitFor({ state: 'detached', timeout: 10000 }); pass();
+    await context.close();
 
     // ---- The export: the recipient's chat lists the explicit photo by id and rating, never a refused one.
     const exportOf = async who => { const r = await call(tk[who], '/api/me/export', { method: 'POST' }); return (await fetch(`${process.env.SWOOVR_TEST_API_BASE}/${r.body.path}`, { headers: { Authorization: 'Bearer ' + tk[who] } })).json(); };
