@@ -114,6 +114,8 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     // Turn on Business for both: a second link; hide it on tam's side: gone again.
     for (const n of ['viv', 'tam']) await call(tokens[n], '/api/me/modes/business', { method: 'PUT', body: { enabled: true, visible: true } });
     assert.deepEqual((await call(tokens.viv, '/api/me/favourites')).body[0].modes.sort(), ['business', 'friends']); pass();
+    // PR 605 review: the first mode is the one the row is drawn in (the first shared mode, friends, with no request between them).
+    assert.equal((await call(tokens.viv, '/api/me/favourites')).body[0].modes[0], 'friends'); pass();
     await call(tokens.tam, '/api/me/modes/business', { method: 'PUT', body: { enabled: true, visible: false } });
     assert.deepEqual((await call(tokens.viv, '/api/me/favourites')).body[0].modes, ['friends'], 'a hidden mode is not listed'); pass();
     await page.reload(); await row.waitFor({ timeout: 20000 });

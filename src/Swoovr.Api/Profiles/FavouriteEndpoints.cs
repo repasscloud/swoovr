@@ -70,7 +70,8 @@ public static class FavouriteEndpoints
                     ProfileEndpoints.Badges(other, order));
                 // D450: the thumbnail and age as the Connections rows show them, in the mode the profile opens in, in one batch.
                 if (faces.TryGetValue((other.AccountId, open.ShownMode), out var face)) person = person with { Photo = face.Photo, Age = face.Age };
-                return new FavouriteView(person, row.CreatedAt, open.Modes ?? [open.ShownMode]);
+                // PR 605 review: the mode this row was drawn in comes first, so the name links to the profile the row shows.
+                return new FavouriteView(person, row.CreatedAt, [open.ShownMode, .. (open.Modes ?? []).Where(m => m != open.ShownMode)]);
             }
             var list = listed.Select(x => View((x.Row.PublicId, x.Row.CreatedAt), x.Open)).ToList();
             return Results.Ok(list);
