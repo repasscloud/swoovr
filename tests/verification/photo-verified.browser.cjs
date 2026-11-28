@@ -45,7 +45,7 @@ const today = () => new Date().toISOString().slice(0, 10);
   let passed = 0; const pass = () => passed++;
   try {
     const root = await rootAdminToken(browser);
-    const names = ['pia', 'ned'];
+    const names = ['pia', 'ned', 'rex'];
     const members = Object.fromEntries(await Promise.all(names.map(async n => [n, await createMember('pv-' + n)])));
     await cli('beta', 'add', ...Object.values(members).map(m => m.email));
     const tk = {}, id = {}, pid = {};
@@ -175,31 +175,31 @@ const today = () => new Date().toISOString().slice(0, 10);
 
     // ---- PR 610 review: evidence still being screened can't be decided. PR 608/610 review: revoking the badge takes the
     // photo dates with it.
-    const nedPhoto = await libraryPhoto(id.ned);
-    assert.equal((await place('ned', [nedPhoto])).status, 200);
-    assert.equal((await send('ned', (await askCode('ned')).body.code, 537)).body.state, 'submitted');
-    const nedEvidence = await sql(`SELECT media_id FROM photo_verification_attempts WHERE account_id = '${id.ned}' AND state = 'Submitted'`);
-    await waitFor(async () => !!(await call(sup, '/api/admin/photo-verification')).body.find(i => i.accountId === id.ned));
-    const nedItem = (await call(sup, '/api/admin/photo-verification')).body.find(i => i.accountId === id.ned);
-    await sql(`UPDATE media_items SET status = 'Pending' WHERE id = '${nedEvidence}'`);
-    assert.equal((await call(sup, `/api/admin/photo-verification/${nedItem.id}/decision`, { method: 'POST', body: { decision: 'approve' } })).status, 409, 'not while screening'); pass();
-    assert.equal((await call(sup, `/api/admin/photo-verification/${nedItem.id}/decision`, { method: 'POST', body: { decision: 'reject', reason: 'other' } })).status, 409); pass();
-    assert.equal(await sql(`SELECT state FROM photo_verification_attempts WHERE id = '${nedItem.id}'`), 'Submitted'); pass();
-    await sql(`UPDATE media_items SET status = 'Uncertain' WHERE id = '${nedEvidence}'`);
-    assert.equal((await call(sup, `/api/admin/photo-verification/${nedItem.id}/decision`, { method: 'POST', body: { decision: 'approve' } })).status, 200);
-    const nedShown = async () => { const p = (await call(tk.pia, `/api/profiles/${pid.ned}?mode=friends`)).body, m = p.modes.find(x => x.id === 'friends');
-      return [...(m.photos ?? []), m.mainPhoto, p.photo].filter(Boolean).filter(x => x.id === nedPhoto); };
-    assert.ok((await nedShown()).some(p => p.photoVerifiedAt), 'dated while it stands'); pass();
+    const rexPhoto = await libraryPhoto(id.rex);
+    assert.equal((await place('rex', [rexPhoto])).status, 200);
+    assert.equal((await send('rex', (await askCode('rex')).body.code, 537)).body.state, 'submitted');
+    const rexEvidence = await sql(`SELECT media_id FROM photo_verification_attempts WHERE account_id = '${id.rex}' AND state = 'Submitted'`);
+    await waitFor(async () => !!(await call(sup, '/api/admin/photo-verification')).body.find(i => i.accountId === id.rex));
+    const rexItem = (await call(sup, '/api/admin/photo-verification')).body.find(i => i.accountId === id.rex);
+    await sql(`UPDATE media_items SET status = 'Pending' WHERE id = '${rexEvidence}'`);
+    assert.equal((await call(sup, `/api/admin/photo-verification/${rexItem.id}/decision`, { method: 'POST', body: { decision: 'approve' } })).status, 409, 'not while screening'); pass();
+    assert.equal((await call(sup, `/api/admin/photo-verification/${rexItem.id}/decision`, { method: 'POST', body: { decision: 'reject', reason: 'other' } })).status, 409); pass();
+    assert.equal(await sql(`SELECT state FROM photo_verification_attempts WHERE id = '${rexItem.id}'`), 'Submitted'); pass();
+    await sql(`UPDATE media_items SET status = 'Uncertain' WHERE id = '${rexEvidence}'`);
+    assert.equal((await call(sup, `/api/admin/photo-verification/${rexItem.id}/decision`, { method: 'POST', body: { decision: 'approve' } })).status, 200);
+    const rexShown = async () => { const p = (await call(tk.pia, `/api/profiles/${pid.rex}?mode=friends`)).body, m = p.modes.find(x => x.id === 'friends');
+      return [...(m.photos ?? []), m.mainPhoto, p.photo].filter(Boolean).filter(x => x.id === rexPhoto); };
+    assert.ok((await rexShown()).some(p => p.photoVerifiedAt), 'dated while it stands'); pass();
     const elevated = await elevatedRootToken(browser);
-    r = await call(elevated, `/api/admin/accounts/${id.ned}/verification-override`, { method: 'POST', body: { badge: 'photoVerified', apply: false, reasonCode: 'applied-in-error' } });
+    r = await call(elevated, `/api/admin/accounts/${id.rex}/verification-override`, { method: 'POST', body: { badge: 'photoVerified', apply: false, reasonCode: 'applied-in-error' } });
     assert.equal(r.status, 204, JSON.stringify(r.body));
-    assert.ok((await nedShown()).length > 0 && (await nedShown()).every(p => !p.photoVerifiedAt), 'no date after a revoke'); pass();
-    assert.equal(await sql(`SELECT count(*) FROM photo_verification_matches WHERE account_id = '${id.ned}'`), '0'); pass();
+    assert.ok((await rexShown()).length > 0 && (await rexShown()).every(p => !p.photoVerifiedAt), 'no date after a revoke'); pass();
+    assert.equal(await sql(`SELECT count(*) FROM photo_verification_matches WHERE account_id = '${id.rex}'`), '0'); pass();
 
     // ---- PR 608/610 review: evidence that screening blocks closes its request with neutral wording (a sealed object
-    // stands in for a known-content match: both take the same block path), so Ned can try again.
-    assert.equal((await send('ned', (await askCode('ned')).body.code, 538)).body.state, 'submitted');
-    const blocked = await sql(`SELECT media_id FROM photo_verification_attempts WHERE account_id = '${id.ned}' AND state = 'Submitted'`);
+    // stands in for a known-content match: both take the same block path), so Rex can try again.
+    assert.equal((await send('rex', (await askCode('rex')).body.code, 538)).body.state, 'submitted');
+    const blocked = await sql(`SELECT media_id FROM photo_verification_attempts WHERE account_id = '${id.rex}' AND state = 'Submitted'`);
     await waitFor(async () => (await sql(`SELECT object_key FROM media_items WHERE id = '${blocked}'`)).startsWith('verification/'));
     const key = await sql(`SELECT object_key FROM media_items WHERE id = '${blocked}'`), sealed = 'evidence/' + key.split('/').pop();
     await fs.mkdir(path.join(process.env.Media__Local__Path, 'evidence'), { recursive: true });
@@ -207,9 +207,9 @@ const today = () => new Date().toISOString().slice(0, 10);
     await sql(`UPDATE media_items SET status = 'Pending', object_key = '${sealed}', next_screen_at = now() WHERE id = '${blocked}'`);
     assert.ok(await waitFor(async () => (await sql(`SELECT state FROM photo_verification_attempts WHERE media_id = '${blocked}'`)) === 'Rejected', 90000), 'closed by screening'); pass();
     assert.equal(await sql(`SELECT status FROM media_items WHERE id = '${blocked}'`), 'Blocked', 'still blocked (its escalation stands)'); pass();
-    r = await call(tk.ned, '/api/me/verification/photo');
+    r = await call(tk.rex, '/api/me/verification/photo');
     assert.deepEqual([r.body.state, r.body.reason], ['rejected', "We couldn't award Photo Verified this time."]); pass();
-    assert.equal((await askCode('ned')).status, 200, 'not stuck on "checking"'); pass();
+    assert.equal((await askCode('rex')).status, 200, 'not stuck on "checking"'); pass();
     await sql(`UPDATE photo_verification_attempts SET decided_at = now() - interval '31 days' WHERE media_id = '${blocked}'`);
     await cli('retention', 'purge');
     assert.equal(await sql(`SELECT count(*) FROM photo_verification_attempts WHERE media_id = '${blocked}' AND evidence_deleted_at IS NULL`), '1', 'blocked evidence is left to safety retention'); pass();
