@@ -77,7 +77,23 @@
                 {
                     @* Issue 467 (owner): right-click and drag are blocked on chat photos, including explicit media once revealed
                        (issue 431, which renders through this element); it only stops casual saving. *@
-                    @if (m.Photo is { } photo) { <img class="chat-photo" src="@PhotoText.Web(photo.Link)" alt="Photo from @(m.Mine ? "you" : conversation.Person.DisplayName)" loading="lazy" draggable="false" @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-chat-photo="@photo.Id" /> }
+                    @if (m.Photo is { } adult && m.Explicit == true)
+                    {
+                        @* D423/D451 (issue 546): an adult photo opens blurred with Show, for both, even when opted in (182.6). A
+                           photo that couldn't be delivered stays blurred for its sender, who can look at it in a dialog. *@
+                        var shown = revealed.Contains(m.Id) && m.PhotoState != "not-accepted";
+                        <span class="chat-explicit @(shown ? null : "is-blurred")" data-chat-explicit="@(shown ? "shown" : "hidden")">
+                            <img class="chat-photo" src="@PhotoText.Web(adult.Link)" alt="@(shown ? $"Photo from {(m.Mine ? "you" : conversation.Person.DisplayName)}" : "Adult photo, hidden")" loading="lazy" draggable="false" @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-chat-photo="@adult.Id" />
+                            @if (!shown)
+                            {
+                                <button type="button" class="chat-explicit-show" @onclick="() => Reveal(m)" data-explicit-show>
+                                    <span class="chat-explicit-label">Adult content</span><span class="chat-explicit-action">@(m.PhotoState == "not-accepted" ? "View your photo" : "Show")</span>
+                                </button>
+                            }
+                        </span>
+                    }
+                    else if (m.Photo is { } photo) { <img class="chat-photo" src="@PhotoText.Web(photo.Link)" alt="Photo from @(m.Mine ? "you" : conversation.Person.DisplayName)" loading="lazy" draggable="false" @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-chat-photo="@photo.Id" /> }
+                    else if (m.Explicit == true && !m.Mine) { <p class="field-help" data-explicit-unavailable>This adult photo isn't available.</p> }
                     @if (m.Mine && m.PhotoState is { } state && state != "approved") { <p class="field-help" data-photo-state="@state">@PhotoText.ChatState(state)</p> }
                 }
                 else if (m.Kind == "meetup")
@@ -165,6 +181,14 @@
         </div>
     }
     else if (!conversation.Closed) { <p class="field-help chat-compose" data-cannot-send>You can't send messages here right now.</p> }
+    @* D423 (issue 546): the sender's own photo that couldn't be delivered, revealed only to them. *@
+    <MemberDialog Kind="own-photo" Title="Your photo" Open="ownPhoto is not null" Closed="() => ownPhoto = null">
+        @if (ownPhoto?.Photo is { } own)
+        {
+            <img class="chat-own-photo" src="@PhotoText.Web(own.Link)" alt="Your photo" draggable="false" @oncontextmenu:preventDefault="true" @ondragstart:preventDefault="true" data-photo-guard data-own-photo="@own.Id" />
+            <p class="field-help">@PhotoText.ChatState("not-accepted"). It wasn't delivered, and they weren't told.</p>
+        }
+    </MemberDialog>
     <MemberDialog Kind="meetup" Title="@(suggesting is null ? $"Plan a meet-up with {conversation.Person.DisplayName}" : "Suggest changes")" Open="planning" Closed="() => planning = false">
         @if (planning)
         {
@@ -196,6 +220,10 @@
     private string? planMessage;
     private bool chatMenu, attachMenu, started, followNew;
     private Guid? menuFor;
+    // Issue 546: explicit photos this member chose to show (for this visit only), and their own undelivered one in the dialog.
+    private readonly HashSet<Guid> revealed = [];
+    private MessageView? ownPhoto;
+    private void Reveal(MessageView m) { if (m.PhotoState == "not-accepted") ownPhoto = m; else revealed.Add(m.Id); }
     private int? keepFrom;
     private string? firstUnread;
     // PR 579 review: Report and End conversation add their form below the thread; scroll it into view and focus it.
