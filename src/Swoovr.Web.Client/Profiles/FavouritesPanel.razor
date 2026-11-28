@@ -1,5 +1,5 @@
 @inject MemberClient Members
-@* Issue 572 (D448): the member's own private favourites. Nobody else sees this list, and nobody is told they're on it. *@
+@* Issue 572 (D448, D450): the member's own private favourites. Nobody else sees this list, and nobody is told they're on it. *@
 <div class="page-heading">
     <h1>Favourites</h1>
     <p>Members you saved. Only you can see this list; nobody is told you saved them.</p>
@@ -8,12 +8,25 @@
 else if (items.Count == 0) { <section class="card notice" data-favourites="none"><p>No favourites yet. Tap the star on a member's card or profile to save them here.</p></section> }
 else
 {
-    <ul class="favourite-list" data-favourites="@items.Count">
+    @* D450: each row as the Connections rows show a person (thumbnail, name and age, badges), with a link for every mode
+       their profile opens in for you now, then the saved date and Remove. *@
+    <ul class="cx-rows favourite-list" data-favourites="@items.Count">
         @foreach (var f in items)
         {
-            <li class="card favourite-row" data-favourite-person="@f.Person.Id">
-                <a class="favourite-name" href="@($"/people/{f.Person.Id}")"><strong>@f.Person.DisplayName</strong></a>
-                <span class="field-help">Saved @f.SavedAt.ToLocalTime().ToString("d MMM yyyy")</span>
+            var modes = f.Modes is { Count: > 0 } m ? m : [];
+            <li class="cx-row favourite-row" data-favourite-person="@f.Person.Id">
+                <span class="cx-person">
+                    @if (f.Person.Photo is { } photo) { <img class="cx-thumb" src="@PhotoText.Web(photo.Link)" alt="" loading="lazy" data-row-photo /> }
+                    else { <span class="cx-thumb" aria-hidden="true">@Initial(f.Person.DisplayName)</span> }
+                    <span class="cx-who">
+                        <a class="cx-name favourite-name" href="@Href(f.Person.Id, modes.FirstOrDefault())">@(f.Person.DisplayName ?? "Someone")@if (f.Person.Age is { } age) { <span class="cx-age" data-row-age>, @age</span> }</a>
+                        <span class="cx-meta">
+                            @foreach (var mode in modes) { <a class="chip favourite-mode" href="@Href(f.Person.Id, mode)" data-favourite-mode="@mode">@Label(mode)</a> }
+                            <BadgeRow Badges="f.Person.Badges" />
+                        </span>
+                        <span class="field-help">Saved @f.SavedAt.ToLocalTime().ToString("d MMM yyyy")</span>
+                    </span>
+                </span>
                 <button type="button" class="button button-secondary button-small" disabled="@busy" @onclick="() => RemoveAsync(f.Person.Id)" data-favourite-remove="@f.Person.Id">Remove</button>
             </li>
         }
@@ -22,7 +35,17 @@ else
 @code {
     private List<FavouriteView>? items;
     private bool loaded, busy;
-    protected override async Task OnInitializedAsync() { items = (await Members.FavouritesAsync()).Value; loaded = true; }
+    private List<ConnectionModeView> modeLabels = [];
+    protected override async Task OnInitializedAsync()
+    {
+        var labels = Members.ModesAsync();
+        items = (await Members.FavouritesAsync()).Value;
+        modeLabels = (await labels).Value ?? [];
+        loaded = true;
+    }
+    private string Label(string id) => modeLabels.FirstOrDefault(m => m.Id == id)?.Label ?? id;
+    private static string Href(Guid id, string? mode) => mode is null ? $"/people/{id}" : $"/people/{id}?mode={mode}";
+    private static string Initial(string? name) => string.IsNullOrWhiteSpace(name) ? "?" : name.Trim()[..1].ToUpperInvariant();
     private async Task RemoveAsync(Guid id)
     {
         busy = true;

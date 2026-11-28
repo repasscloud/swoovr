@@ -25,4 +25,6 @@ public sealed record BlockedPerson(Guid Id, string? DisplayName, DateTimeOffset 
 public sealed record FavouriteState(bool Favourite);
 
 /// <summary>One member the viewer saved, while their profile is open to the viewer.</summary>
-public sealed record FavouriteView(PersonSummary Person, DateTimeOffset SavedAt);
+/// <param name="Modes">D450: the mode ids the viewer can open this profile in now, each a link on the Favourites page. The first
+/// is the mode the row's name, photo and age come from (PR 605 review).</param>
+public sealed record FavouriteView(PersonSummary Person, DateTimeOffset SavedAt, IReadOnlyList<string>? Modes = null);
