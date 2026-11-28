@@ -113,6 +113,7 @@ const today = () => new Date().toISOString().slice(0, 10);
     const staff = await createStaff('pv-sup');
     assert.equal((await call(root, '/api/admin/invitations', { method: 'POST', body: { email: staff.email, role: 'support' } })).status, 201);
     const sup = await staffToken(browser, staff); await call(sup, '/api/session');
+    assert.equal((await call(sup, '/api/admin/media/safety-ack', { method: 'POST', body: { version: '2026-11-02', confirmed: true } })).status, 200);
     let queue = (await call(sup, '/api/admin/photo-verification')).body;
     let item = queue.find(i => i.accountId === id.pia);
     assert.deepEqual([item?.code, item?.writtenDate, item?.profilePhotos.map(p => p.id).sort(), item?.profilePhotosChanged], [fresh, today(), [first, second].sort(), false]); pass();
@@ -122,6 +123,9 @@ const today = () => new Date().toISOString().slice(0, 10);
     assert.equal((await fetch(`${api}/${item.evidence}`, { headers: { Authorization: 'Bearer ' + tk.ned } })).status, 403, 'never to a member'); pass();
     const forged = item.evidence.replace('.verification.', '.member.');
     assert.notEqual((await fetch(`${api}/${forged}`)).status, 200, 'never as a member photo'); pass();
+    // PR 608 review: never in the ordinary media review queue, and its decision endpoint refuses it.
+    assert.ok(!(await call(sup, '/api/admin/media/review')).body.items.some(i => i.id === evidence), 'not in the ordinary queue'); pass();
+    assert.equal((await call(sup, `/api/admin/media/${evidence}/decision`, { method: 'POST', body: { decision: 'approve', reasonCode: 'APPROVED_STANDARD' } })).status, 404); pass();
     assert.equal((await call(tk.pia, '/api/admin/photo-verification')).status, 403, "members can't see the queue"); pass();
 
     // ---- A stale approval is refused: a profile photo changed after she sent it.
@@ -131,6 +135,9 @@ const today = () => new Date().toISOString().slice(0, 10);
     assert.equal((await call(sup, `/api/admin/photo-verification/${item.id}/decision`, { method: 'POST', body: { decision: 'approve' } })).body?.code, 'photo-verification-stale'); pass();
     assert.equal((await call(sup, `/api/admin/photo-verification/${item.id}/decision`, { method: 'POST', body: { decision: 'reject', reason: 'made-up' } })).status, 400); pass();
     assert.equal((await call(sup, `/api/admin/photo-verification/${item.id}/decision`, { method: 'POST', body: { decision: 'reject', reason: 'profile-photos-changed' } })).status, 200); pass();
+    // PR 608 review: rejected evidence stays for the 30 days (an ordinary retention run doesn't take it).
+    await cli('retention', 'purge');
+    assert.equal(await sql(`SELECT count(*) FROM media_items WHERE id = '${evidence}' AND object_key IS NOT NULL`), '1', 'kept after a rejection'); pass();
     r = await view(undefined, 'pia');
     assert.deepEqual([r.body.state, r.body.reason, r.body.attemptsLeft], ['rejected', 'Your profile photos changed after you sent it. Send a new one.', 2]); pass();
 

@@ -452,7 +452,8 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
     public async Task<bool> DeleteVerificationEvidenceAsync(MediaItem item, DateTimeOffset now, CancellationToken cancellationToken)
     {
         if (item.Purpose != PhotoVerificationPolicy.Purpose || Store is null) return false;
-        if (item.Status is MediaStatus.Passed or MediaStatus.Uncertain) { (item.Status, item.RemovedAt) = (MediaStatus.Removed, item.RemovedAt ?? now); await db.SaveChangesAsync(cancellationToken); }
+        if (item.Status is MediaStatus.Passed or MediaStatus.Uncertain or MediaStatus.Rejected)
+        { (item.Status, item.RemovedAt, item.RejectedRetainUntil) = (MediaStatus.Removed, item.RemovedAt ?? now, null); await db.SaveChangesAsync(cancellationToken); }
         return await DeleteObjectIfAllowedAsync(item, now, cancellationToken);
     }
 

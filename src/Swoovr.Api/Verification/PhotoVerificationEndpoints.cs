@@ -159,8 +159,11 @@ public static class PhotoVerificationEndpoints
                 return Problem(StatusCodes.Status409Conflict, ProblemCodes.PhotoVerificationStale, "Their profile photos changed after they sent it. Reject it as \"profile photos changed\".");
             var profile = await db.MemberProfiles.SingleAsync(p => p.AccountId == attempt.AccountId, token);
             (attempt.State, attempt.DecidedAt, attempt.DecidedBy, attempt.Reason) = (approve ? PhotoCheckState.Approved : PhotoCheckState.Rejected, now, actor, approve ? null : request.Reason);
+            // PR 608 review: rejected evidence is kept for the same 30 days as approved evidence (the ordinary sweep deletes a
+            // rejected photo at once unless it has a retention date); RetainAsync deletes both after that.
+            var keepUntil = now + PhotoVerificationPolicy.EvidenceRetention;
             await db.MediaItems.Where(i => i.Id == attempt.MediaId).ExecuteUpdateAsync(u => u.SetProperty(i => i.Status, approve ? MediaStatus.Passed : MediaStatus.Rejected)
-                .SetProperty(i => i.ReviewedAt, now).SetProperty(i => i.ReviewedBy, actor), token);
+                .SetProperty(i => i.ReviewedAt, now).SetProperty(i => i.ReviewedBy, actor).SetProperty(i => i.RejectedRetainUntil, approve ? null : keepUntil), token);
             if (approve)
             {
                 (profile.PhotoStatus, profile.PhotoCheckedAt, profile.PhotoVerifiedUntil, profile.PhotoManual) = (VerificationStatus.Verified, now, PhotoVerificationPolicy.Until(now), false);
