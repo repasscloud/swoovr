@@ -58,7 +58,8 @@ public static partial class Bff
             if (!MediaToken().IsMatch(token)) return Results.NotFound();
             using var response = await clients.CreateClient(ApiClient).GetAsync("api/media/" + token, HttpCompletionOption.ResponseHeadersRead, context.RequestAborted);
             if (!response.IsSuccessStatusCode) return Results.NotFound();
-            context.Response.Headers.CacheControl = "private, max-age=300";
+            // PR 607 review: an explicit chat photo (D423) is checked again on every request, so it's never cached here either.
+            context.Response.Headers.CacheControl = token.Contains(".explicit.", StringComparison.Ordinal) ? "no-store" : "private, max-age=300";
             context.Response.Headers.XContentTypeOptions = "nosniff";
             return Results.File(await response.Content.ReadAsByteArrayAsync(context.RequestAborted), "image/jpeg");
         });
@@ -78,7 +79,7 @@ public static partial class Bff
     private static partial Regex ChatPhoto();
 
     // Issue 231: "own" is the owner's preview of their own refused photo; the API still checks signature, expiry and status.
-    [GeneratedRegex(@"^[0-9a-f]{32}\.(?:member|own)\.[0-9]{1,12}\.[A-Za-z0-9_-]{43}$")]
+    [GeneratedRegex(@"^[0-9a-f]{32}\.(?:member|own|explicit)\.[0-9]{1,12}\.[A-Za-z0-9_-]{43}$")]
     private static partial Regex MediaToken();
 
     public static void MapBff(WebApplication app) =>
