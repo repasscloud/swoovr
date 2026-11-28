@@ -169,6 +169,10 @@ public static class AccountControlEndpoints
             {
                 if ((profile.PhotoStatus == VerificationStatus.Verified) == request.Apply) return Problem(409, ProblemCodes.InvalidRequest, "Nothing to change.");
                 (profile.PhotoStatus, profile.PhotoCheckedAt, profile.PhotoManual) = (target, now, request.Apply);
+                // PR 608/610 review: a manual award or a revoke replaces any photo-check award, so its matched photos (and
+                // their "Photo verified" dates) and its 12-month end go with it.
+                profile.PhotoVerifiedUntil = null;
+                await db.PhotoVerificationMatches.Where(m => m.AccountId == id).ExecuteDeleteAsync(token);
             }
             else
             {

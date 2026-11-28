@@ -8,7 +8,7 @@ namespace Swoovr.Api.Media;
 /// <summary>Signed staff links are not independent privilege: recheck the recipient's live authority and MFA at delivery.</summary>
 public static class MfaEvidenceAccess
 {
-    public static bool StaffVariant(string variant)=>variant is "review" or "case" or "inspection" or "appeal";
+    public static bool StaffVariant(string variant)=>variant is "review" or "case" or "inspection" or "appeal" or "verification";
     public static async Task<IResult?> CheckAsync(Guid media,Guid owner,string variant,ClaimsPrincipal user,AccountResolver accounts,DateTimeOffset now,CancellationToken ct)
     {
         if(!StaffVariant(variant))return null;
@@ -25,6 +25,8 @@ public static class MfaEvidenceAccess
         // A link obtained by somebody else is never enough, even for another staff member.
         if(!await db.MediaReviewViews.AnyAsync(v=>v.MediaId==media&&v.ActorAccountId==actor&&v.At>=since&&v.At<=now,ct))return Results.Forbid();
         if(await StaffAccessEndpoints.ExcludedAsync(db,actor,[owner],ct))return StaffAccessEndpoints.Conflict();
+        // PR 610 review: Photo Verified evidence needs a current safety acknowledgement at delivery too.
+        if(variant=="verification"&&await PhotoReviewWorkflows.AckUntilAsync(db,actor,now,ct)is null)return PhotoReviewWorkflows.AckRequired();
         if(current.Allows(AccountRole.Admin)||current.Allows(AccountRole.TrustSafety))
             if(!await MfaElevationService.HasAsync(current,user,db,accounts.Services.GetRequiredService<IConfiguration>(),now,ct))return MfaElevationService.Required();
         if(variant=="case")

@@ -120,7 +120,7 @@ public sealed class R2MediaStore(HttpClient http, R2Options options, ILogger<R2M
     private static string Hex(byte[] data) => Convert.ToHexStringLower(data);
 }
 
-/// <summary>Object keys: `quarantine/`, `photos/` or `evidence/` and a media id. Nothing else is accepted.</summary>
+/// <summary>Object keys: `quarantine/`, `photos/`, `evidence/`, `attachments/` or `verification/` and a media id. Nothing else is accepted.</summary>
 public static class MediaKeys
 {
     public static string Quarantine(Guid id) => $"quarantine/{id:N}";
@@ -128,10 +128,12 @@ public static class MediaKeys
     public static string Evidence(Guid id) => $"evidence/{id:N}";
     /// <summary>D336: a quarantined support attachment (never served directly; released only after a clean scan).</summary>
     public static string Attachment(Guid id) => $"attachments/{id:N}";
+    /// <summary>D424 (#530): a Photo Verified evidence photo, served only on a staff verification link, deleted 30 days after the decision.</summary>
+    public static string Verification(Guid id) => $"verification/{id:N}";
 
     public static bool Valid(string key)
     {
         var parts = key.Split('/');
-        return parts.Length == 2 && parts[0] is "quarantine" or "photos" or "evidence" or "selftest" or "attachments" && Guid.TryParseExact(parts[1], "N", out _);
+        return parts.Length == 2 && parts[0] is "quarantine" or "photos" or "evidence" or "selftest" or "attachments" or "verification" && Guid.TryParseExact(parts[1], "N", out _);
     }
 }

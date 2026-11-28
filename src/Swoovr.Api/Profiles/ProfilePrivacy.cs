@@ -39,6 +39,8 @@ public static class ProfilePrivacy
     {
         var profile = await db.MemberProfiles.FindAsync([account], cancellationToken);
         if (profile is null) return;
+        // D424 (#530): a matched public profile photo that changed ends Photo Verified, before the snapshot records the badge.
+        await Verification.PhotoVerificationEndpoints.InvalidateAsync(db, account, now, cancellationToken);
         var modes = await db.MemberModes.Where(m => m.AccountId == account).ToListAsync(cancellationToken);
         var chips = await (from i in db.MemberModeIntentions join o in db.ModeIntentions on i.IntentionId equals o.Id
                            where i.AccountId == account select new { i.ModeId, o.Label }).ToListAsync(cancellationToken);

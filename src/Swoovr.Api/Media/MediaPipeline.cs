@@ -54,7 +54,7 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
 
     /// <param name="conversation">For a chat photo (#41): the conversation it's sent in; the item's purpose is then "attachment".</param>
     public async Task<(MediaItem? Item, MediaUploadError Error)> UploadAsync(Guid account, byte[] upload, Guid? replaces, DateTimeOffset now, CancellationToken cancellationToken,
-        Guid? conversation = null, bool deferScreening = false, Guid? album = null)
+        Guid? conversation = null, bool deferScreening = false, Guid? album = null, string? purpose = null)
     {
         // Malware first, on the original bytes and before anything decodes them (the one shared ClamAV, D336).
         if (await MalwareCheckAsync(account, upload, now, cancellationToken) is var refused and not MediaUploadError.None) return (null, refused);
@@ -64,11 +64,11 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
         {
             Id = Guid.NewGuid(), AccountId = account, Status = MediaStatus.Pending, CreatedAt = now, Sha256 = MediaPolicy.Hash(processed.Data),
             UploadSha256 = MediaPolicy.Hash(upload), ContentType = "image/jpeg", Width = processed.Width, Height = processed.Height, Bytes = processed.Data.Length,
-            ReplacesId = replaces, Purpose = conversation is null ? null : AttachmentPolicy.Purpose, ConversationId = conversation,
+            ReplacesId = replaces, Purpose = purpose ?? (conversation is null ? null : AttachmentPolicy.Purpose), ConversationId = conversation,
             // The uploading host screens it straight away; the sweep only takes it if that didn't happen.
             NextScreenAt = now + TimeSpan.FromMinutes(2),
             // #231: uploaded straight into a private album (the caller checked ownership and room under the media lease).
-            AlbumId = conversation is null ? album : null,
+            AlbumId = conversation is null && purpose is null ? album : null,
         };
         item.ObjectKey = MediaKeys.Quarantine(item.Id);
         await Store!.PutAsync(item.ObjectKey, processed.Data, item.ContentType, cancellationToken);
@@ -166,6 +166,20 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
             Nudity = response.Nudity.ToString(), Nsfw = response.IsNsfw, KnownContent = response.KnownContent.ToString(),
             Classification = response.KnownContent == EngineState.Completed ? response.KnownClassification : null,
         }, Json);
+        // D424 (#530): a Photo Verified evidence photo that cleared screening (or was only flagged) waits for a person in the
+        // Photo Identified queue, in its own private place; a known-content match is blocked like any other upload.
+        if (item.Purpose == PhotoVerificationPolicy.Purpose && decision.Verdict is ScreeningVerdict.Passed or ScreeningVerdict.Uncertain)
+        {
+            var evidence = await Store!.GetAsync(item.ObjectKey!, cancellationToken) ?? throw new IOException("Media object missing.");
+            var quarantined = item.ObjectKey!;
+            await Store.PutAsync(MediaKeys.Verification(item.Id), evidence, item.ContentType, cancellationToken);
+            (item.Status, item.ObjectKey, item.ScreenedAt, item.KnownContentChecked, item.NextScreenAt, item.LastScreenError)
+                = (MediaStatus.Uncertain, MediaKeys.Verification(item.Id), now, decision.KnownContentChecked, null, null);
+            Audit.Record(db, now, null, "system", "media.verification-ready", "media", item.Id.ToString(), decision.Reason);
+            await SaveModerationAsync(item, true, false, false, now, cancellationToken);
+            await DeleteSupersededCopyAsync(quarantined, cancellationToken);
+            return;
+        }
         switch (decision.Verdict)
         {
             case ScreeningVerdict.Pending:
@@ -362,6 +376,7 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
             item.PreservationPendingAt = now; item.NextPreservationAt = now; item.PreservationLegacy = false;
             item.PreservationSourceKey = item.ObjectKey;
             Audit.Record(db, now, actor, actor is null ? "system" : "account", "media.blocked", "media", item.Id.ToString(), reason);
+            await Swoovr.Api.Verification.PhotoVerificationEndpoints.ClosedByScreeningAsync(db, item, now, cancellationToken);
             await SaveModerationAsync(item,inspectionCompleted,false,true,now,cancellationToken); // Source, fact and inspection total precede effects.
         }
         await RecoverBlockedAsync(item.Id, now, cancellationToken);
@@ -431,6 +446,16 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
     {
         await using var barrier = await Retention.PreservationLease.SharedAsync(db, cancellationToken);
         if (!await Store!.DeleteAsync(key, cancellationToken)) throw new IOException("Superseded media copy deletion failed.");
+    }
+
+    /// <summary>D427 (#530): a Photo Verified evidence photo 30 days after its decision. It's marked removed and its object
+    /// deleted under the same rules as any other (held accounts and safety retention keep it).</summary>
+    public async Task<bool> DeleteVerificationEvidenceAsync(MediaItem item, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        if (item.Purpose != PhotoVerificationPolicy.Purpose || Store is null) return false;
+        if (item.Status is MediaStatus.Passed or MediaStatus.Uncertain or MediaStatus.Rejected)
+        { (item.Status, item.RemovedAt, item.RejectedRetainUntil) = (MediaStatus.Removed, item.RemovedAt ?? now, null); await db.SaveChangesAsync(cancellationToken); }
+        return await DeleteObjectIfAllowedAsync(item, now, cancellationToken);
     }
 
     private async Task<bool> DeleteObjectIfAllowedAsync(MediaItem item, DateTimeOffset now, CancellationToken cancellationToken)
@@ -549,7 +574,7 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
 
     /// <summary>The bytes of a photo the member may export (never a refused one: those read the same as each other).</summary>
     public async Task<byte[]?> ExportBytesAsync(MediaItem item, CancellationToken cancellationToken) =>
-        Store is null || item.ObjectKey is null || item.Status is MediaStatus.Blocked or MediaStatus.Rejected || item.ObjectKey.StartsWith("evidence/")
+        Store is null || item.ObjectKey is null || item.Purpose == PhotoVerificationPolicy.Purpose || item.Status is MediaStatus.Blocked or MediaStatus.Rejected || item.ObjectKey.StartsWith("evidence/")
             ? null : await Store.GetAsync(item.ObjectKey, cancellationToken);
 
     /// <summary>Bytes for a signed link: a passed photo (member link) or an uncertain one (review link); never anything else.</summary>
@@ -557,10 +582,13 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
     {
         // A case link (#41: a reported chat photo, for an admin with a recorded purpose) serves a passed or uncertain one,
         // even after delete for both while its object is kept; never a blocked one.
+        // D424 (#530): a Photo Verified evidence photo is only ever served to staff deciding it, on its own link.
+        if ((item.Purpose == PhotoVerificationPolicy.Purpose) != (variant == "verification")) return null;
         var allowed = variant switch
         {
             // D423 (PR 606/607 review): the recipient's explicit chat photo, checked again on every request (below).
             "explicit" => item is { Status: MediaStatus.Passed, RemovedAt: null, ContentRating: ContentRating.Explicit },
+            "verification" => item is { RemovedAt: null, Status: MediaStatus.Uncertain or MediaStatus.Passed or MediaStatus.Rejected } && item.ObjectKey?.StartsWith("verification/") == true,
             "member" => item is { Status: MediaStatus.Passed, RemovedAt: null },
             "inspection" => MediaPolicy.ProfileInspectable(item),
             "case" => MediaPolicy.CaseReviewable(item),

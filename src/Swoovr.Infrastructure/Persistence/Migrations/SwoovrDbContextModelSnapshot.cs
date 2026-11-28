@@ -5296,6 +5296,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)")
                         .HasColumnName("photo_status");
 
+                    b.Property<DateTimeOffset?>("PhotoVerifiedUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("photo_verified_until");
+
                     b.Property<string>("PictureText")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -6629,6 +6633,107 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasName("pk_photo_album_modes");
 
                     b.ToTable("photo_album_modes");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.PhotoVerificationAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<DateTimeOffset?>("EvidenceDeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("evidence_deleted_at");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<Guid?>("MediaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("media_id");
+
+                    b.Property<string>("ProfilePhotos")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("profile_photos");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("state");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<DateOnly>("WrittenDate")
+                        .HasColumnType("date")
+                        .HasColumnName("written_date");
+
+                    b.HasKey("Id")
+                        .HasName("pk_photo_verification_attempts");
+
+                    b.HasIndex("MediaId")
+                        .HasDatabaseName("ix_photo_verification_attempts_media_id");
+
+                    b.HasIndex("AccountId", "IssuedAt")
+                        .HasDatabaseName("ix_photo_verification_attempts_account_id_issued_at");
+
+                    b.HasIndex(new[] { "AccountId" }, "ix_photo_verification_attempts_one_open")
+                        .IsUnique()
+                        .HasDatabaseName("ix_photo_verification_attempts_one_open")
+                        .HasFilter("state IN ('Issued', 'Submitted')");
+
+                    b.ToTable("photo_verification_attempts");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.PhotoVerificationMatch", b =>
+                {
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("account_id");
+
+                    b.Property<Guid>("MediaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("media_id");
+
+                    b.Property<DateTimeOffset>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("verified_at");
+
+                    b.HasKey("AccountId", "MediaId")
+                        .HasName("pk_photo_verification_matches");
+
+                    b.HasIndex("MediaId")
+                        .HasDatabaseName("ix_photo_verification_matches_media_id");
+
+                    b.ToTable("photo_verification_matches");
                 });
 
             modelBuilder.Entity("Swoovr.Domain.PolicyAcceptance", b =>
@@ -10594,6 +10699,26 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_photo_album_modes_photo_albums_album_id");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.PhotoVerificationAttempt", b =>
+                {
+                    b.HasOne("Swoovr.Domain.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_photo_verification_attempts_accounts_account_id");
+                });
+
+            modelBuilder.Entity("Swoovr.Domain.PhotoVerificationMatch", b =>
+                {
+                    b.HasOne("Swoovr.Domain.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_photo_verification_matches_accounts_account_id");
                 });
 
             modelBuilder.Entity("Swoovr.Domain.PolicyAcceptance", b =>

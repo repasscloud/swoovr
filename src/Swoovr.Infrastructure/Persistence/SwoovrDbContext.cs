@@ -75,6 +75,8 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
     public DbSet<ConversationRead> ConversationReads => Set<ConversationRead>();
     public DbSet<Itinerary> Itineraries => Set<Itinerary>();
     public DbSet<IdVerificationAttempt> IdVerificationAttempts => Set<IdVerificationAttempt>();
+    public DbSet<PhotoVerificationAttempt> PhotoVerificationAttempts => Set<PhotoVerificationAttempt>();
+    public DbSet<PhotoVerificationMatch> PhotoVerificationMatches => Set<PhotoVerificationMatch>();
     public DbSet<DiditWebhookEvent> DiditWebhookEvents => Set<DiditWebhookEvent>();
     public DbSet<ReportCategory> ReportCategories => Set<ReportCategory>();
     public DbSet<SafetyHandoff> SafetyHandoffs => Set<SafetyHandoff>();
@@ -978,6 +980,23 @@ public sealed class SwoovrDbContext(DbContextOptions<SwoovrDbContext> options) :
             attempt.HasIndex(a => a.SessionId).IsUnique();
             attempt.HasIndex(a => a.AccountId, "ix_id_verification_attempts_one_open").IsUnique()
                 .HasFilter("state IN ('Created', 'InProgress', 'InReview')");
+        });
+        // D424/D427 (#530): Photo Verified requests (one open per member) and the photos an approval matched.
+        model.Entity<PhotoVerificationAttempt>(attempt =>
+        {
+            attempt.HasOne<Account>().WithMany().HasForeignKey(a => a.AccountId).OnDelete(DeleteBehavior.Cascade);
+            attempt.Property(a => a.Code).HasMaxLength(PhotoVerificationPolicy.CodeLength);
+            attempt.Property(a => a.ProfilePhotos).HasMaxLength(4000);
+            attempt.Property(a => a.Reason).HasMaxLength(64);
+            attempt.HasIndex(a => new { a.AccountId, a.IssuedAt });
+            attempt.HasIndex(a => a.AccountId, "ix_photo_verification_attempts_one_open").IsUnique().HasFilter("state IN ('Issued', 'Submitted')");
+            attempt.HasIndex(a => a.MediaId);
+        });
+        model.Entity<PhotoVerificationMatch>(match =>
+        {
+            match.HasKey(m => new { m.AccountId, m.MediaId });
+            match.HasOne<Account>().WithMany().HasForeignKey(m => m.AccountId).OnDelete(DeleteBehavior.Cascade);
+            match.HasIndex(m => m.MediaId);
         });
         // D152: durable webhook dedupe on Didit's event id.
         model.Entity<DiditWebhookEvent>(webhook =>

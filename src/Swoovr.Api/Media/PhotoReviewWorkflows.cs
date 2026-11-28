@@ -13,7 +13,8 @@ public static class PhotoReviewWorkflows
     public static IQueryable<MediaItem> Eligible(SwoovrDbContext db, Guid actor, bool mayReviewStaffAffiliated = true)
     {
         var staff = actor.ToString();
-        return db.MediaItems.Where(i => i.AccountId != actor
+        // PR 608 review: Photo Verified evidence is decided only in the Photo Identified queue, never as an ordinary photo.
+        return db.MediaItems.Where(i => i.AccountId != actor && i.Purpose != PhotoVerificationPolicy.Purpose
             && (mayReviewStaffAffiliated || !db.MemberProfiles.Any(p => p.AccountId == i.AccountId && p.Employee))
             && !db.StaffExclusions.Any(e => e.StaffAccountId == actor && e.SubjectAccountId == i.AccountId)
             && !db.StaffMemberLinks.Any(e => e.StaffAccountId == actor && e.MemberAccountId == i.AccountId)

@@ -35,6 +35,12 @@ static class HostingPolicyChecks
          Expect(With("media.example.test","0.20, 17 November 2026","Uat").Length==0&&With("","0.20, 17 November 2026","Uat").Length==0,"UAT before the notice");
          foreach(var env in new[]{"Production","Staging","uat-typo"})Expect(With("media.example.test","0.20, 17 November 2026",env).Contains("notice-required:Didit:IdImages:Enabled"),"never elsewhere: "+env);
          foreach(var bad in new[]{"localhost","127.0.0.1","*.example.test"})Expect(With(bad,"0.20, 17 November 2026","Uat").Length>0,"UAT image host refused: "+bad);}
+        // D427 (#530): Photo Verified needs notice 0.22 in force; private UAT may run it first (as D414).
+        {string[] With(string notice,string env="Production"){var c=Api();c["Verification:PhotoVerified:Enabled"]="true";return HostingPolicy.Validate(HostKind.Api,env,c,true,notice,new(2026,12,10)).ToArray();}
+         Expect(With("0.22, 3 December 2026").Length==0,"Photo Verified with notice 0.22 in force");
+         Expect(With("0.21, 26 November 2026").SequenceEqual(["notice-required:Verification:PhotoVerified:Enabled"])&&With("0.22, 11 December 2026").Length==1,"not before notice 0.22");
+         Expect(With("0.21, 26 November 2026","Uat").Length==0,"private UAT before the notice");
+         {var c=Api();Expect(Errors(c).Length==0,"off by default needs nothing");}}
         // D336/D337: scanning always on with a scanner; a configured helpdesk needs its retention identity.
         {var c=Api();c["Attachments:Scanning:Enabled"]="false";Expect(Errors(c).Contains("required-enabled:Attachments:Scanning:Enabled"),"attachment scanning can't be switched off");Expect(Errors(c,env:"Development").Length==0,"Development may switch scanning off");}
         {var c=Api();c["Attachments:Scanning:Worker"]="false";Expect(Errors(c).Contains("required-enabled:Attachments:Scanning:Worker"),"scan worker required");}

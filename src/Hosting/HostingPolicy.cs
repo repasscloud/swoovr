@@ -87,6 +87,10 @@ public static class HostingPolicy
             foreach(var name in (Read("Didit:IdImages:Hosts")??"").Split(',',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries))
                 if(Uri.CheckHostName(name)!=UriHostNameType.Dns||!name.Contains('.')||name.EndsWith(".localhost",StringComparison.OrdinalIgnoreCase))errors.Add("unsafe-host:Didit:IdImages:Hosts");
         }
+        // D427 (#530): Photo Verified only once the notice that describes the evidence photo (0.22) is in force. DEFAULT (as
+        // D414): private UAT may run it first to test with the owner's own photos.
+        if(Flag("Verification:PhotoVerified:Enabled")&&!uat&&!Swoovr.Contracts.PrivacyNoticeVersion.CoversPhotoVerification(notice??Swoovr.Contracts.PrivacyNoticeVersion.Current,today??DateOnly.FromDateTime(DateTime.UtcNow)))
+            errors.Add("notice-required:Verification:PhotoVerified:Enabled");
         foreach(var key in new[]{"Moderation:EscalationEmail","Moderation:EscalationBackupEmail"})Require(key);
         // D336 (#221): production always scans support attachments before they can be downloaded; never switched off.
         if(!Flag("Attachments:Scanning:Enabled",true))errors.Add("required-enabled:Attachments:Scanning:Enabled");

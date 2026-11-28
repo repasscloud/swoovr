@@ -373,8 +373,15 @@ public static class MediaEndpoints
                           orderby p.Position select new { p.AccountId, p.Scope, p.MediaId, p.IsMain, p.Position, i.CreatedAt }).ToListAsync(cancellationToken);
         var limits = await LimitsAsync(db, accounts, now, cancellationToken);
         var visible = rows.GroupBy(r => (r.AccountId, r.Scope)).SelectMany(g => g.Take(limits.GetValueOrDefault(g.Key.AccountId, MediaPolicy.ModeLimit(PlanTier.Free)))).ToList();
-        // Issue 475 (D399): the upload time travels with the photo; PhotoVerifiedAt stays null until photo verification (#372).
-        PhotoView? View(Guid id, DateTimeOffset uploaded) => links.For(id, "member", now) is { } link ? new PhotoView(id, link, uploaded) : null;
+        // Issue 475 (D399): the upload time travels with the photo. D424 (#530): a public photo matched by a Photo Verified
+        // approval carries that date (matches exist only while the badge stands; a changed photo never has one).
+        var ids = visible.Select(r => r.MediaId).Distinct().ToList();
+        // PR 608/610 review: only while the account's Photo Verified from the photo check still stands (never after a revoke).
+        var verified = await (from m in db.PhotoVerificationMatches join p in db.MemberProfiles on m.AccountId equals p.AccountId
+                              where ids.Contains(m.MediaId) && p.PhotoStatus == VerificationStatus.Verified && !p.PhotoManual
+                              select new { m.MediaId, m.VerifiedAt }).ToDictionaryAsync(m => m.MediaId, m => m.VerifiedAt, cancellationToken);
+        PhotoView? View(Guid id, DateTimeOffset uploaded) => links.For(id, "member", now) is { } link
+            ? new PhotoView(id, link, uploaded, verified.TryGetValue(id, out var at) ? at : null) : null;
         var main = visible.Where(r => r.IsMain).GroupBy(r => (r.AccountId, r.Scope))
             .Select(g => (g.Key, Photo: View(g.First().MediaId, g.First().CreatedAt))).Where(r => r.Photo is not null).ToDictionary(r => r.Key, r => r.Photo!);
         var perMode = visible.GroupBy(r => (r.AccountId, r.Scope)).ToDictionary(g => g.Key, g => g.Select(r => View(r.MediaId, r.CreatedAt)).OfType<PhotoView>().ToList());
