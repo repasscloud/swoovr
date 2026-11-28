@@ -222,6 +222,15 @@ const today = () => new Date().toISOString().slice(0, 10);
     await cli('retention', 'purge');
     assert.equal(await sql(`SELECT count(*) FROM photo_verification_attempts WHERE media_id = '${blocked}' AND evidence_deleted_at IS NULL`), '1', 'blocked evidence is left to safety retention'); pass();
 
+    // ---- PR 610 review: the retention worker ends a photo-check award only while it's still the one due; a current one stays.
+    await sql(`UPDATE member_profiles SET photo_status = 'Verified', photo_manual = false, photo_verified_until = now() + interval '1 day' WHERE account_id = '${id.rex}'`);
+    await sql(`INSERT INTO photo_verification_matches(account_id, media_id, verified_at) VALUES('${id.rex}', '${rexPhoto}', now())`);
+    await cli('retention', 'purge');
+    assert.equal(await sql(`SELECT photo_status || '|' || count(m.media_id) FROM member_profiles p LEFT JOIN photo_verification_matches m ON m.account_id = p.account_id WHERE p.account_id = '${id.rex}' GROUP BY p.photo_status`), 'Verified|1', 'not due: kept'); pass();
+    await sql(`UPDATE member_profiles SET photo_verified_until = now() - interval '1 minute' WHERE account_id = '${id.rex}'`);
+    await cli('retention', 'purge');
+    assert.equal(await sql(`SELECT photo_status || '|' || count(m.media_id) FROM member_profiles p LEFT JOIN photo_verification_matches m ON m.account_id = p.account_id WHERE p.account_id = '${id.rex}' GROUP BY p.photo_status`), 'Expired|0', 'due: ended'); pass();
+
     // ---- Retention: evidence 30 days after the decision is deleted; the decision record stays.
     await sql(`UPDATE photo_verification_attempts SET decided_at = now() - interval '31 days' WHERE account_id = '${id.pia}' AND decided_at IS NOT NULL`);
     await cli('retention', 'purge');

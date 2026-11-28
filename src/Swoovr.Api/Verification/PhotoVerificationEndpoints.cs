@@ -174,6 +174,9 @@ public static class PhotoVerificationEndpoints
             // PR 608 review: rejected evidence is kept for the same 30 days as approved evidence (the ordinary sweep deletes a
             // rejected photo at once unless it has a retention date); RetainAsync deletes both after that.
             var keepUntil = now + PhotoVerificationPolicy.EvidenceRetention;
+            // PR 608 review: the evidence status, the matched photos and the request's outcome commit together, so a failed
+            // decision leaves the request waiting (and retryable) rather than half decided.
+            await using var transaction = await db.Database.BeginTransactionAsync(token);
             await db.MediaItems.Where(i => i.Id == attempt.MediaId).ExecuteUpdateAsync(u => u.SetProperty(i => i.Status, approve ? MediaStatus.Passed : MediaStatus.Rejected)
                 .SetProperty(i => i.ReviewedAt, now).SetProperty(i => i.ReviewedBy, actor).SetProperty(i => i.RejectedRetainUntil, approve ? null : keepUntil), token);
             if (approve)
@@ -185,6 +188,7 @@ public static class PhotoVerificationEndpoints
             Audit.Record(db, now, actor, "account", approve ? "verification.photoVerified.approved" : "verification.photoVerified.rejected", "account", attempt.AccountId.ToString(),
                 approve ? $"photos:{matched.Count}" : request.Reason);
             await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
             return Results.Ok(new { attempt.Id, state = approve ? "approved" : "rejected" });
         });
     }
@@ -259,12 +263,24 @@ public static class PhotoVerificationEndpoints
     /// </summary>
     public static async Task<int> RetainAsync(SwoovrDbContext db, MediaPipeline pipeline, DateTimeOffset now, CancellationToken token)
     {
-        var expired = await db.MemberProfiles.Where(p => p.PhotoStatus == VerificationStatus.Verified && !p.PhotoManual && p.PhotoVerifiedUntil != null && p.PhotoVerifiedUntil <= now).ToListAsync(token);
-        foreach (var profile in expired)
+        var dueAwards = await db.MemberProfiles.AsNoTracking().Where(p => p.PhotoStatus == VerificationStatus.Verified && !p.PhotoManual && p.PhotoVerifiedUntil != null && p.PhotoVerifiedUntil <= now)
+            .Select(p => p.AccountId).ToListAsync(token);
+        var expired = 0;
+        foreach (var account in dueAwards)
         {
+            // PR 610 review: under the same per-account media lease as approvals, and only if the award is still the one due
+            // (a renewal or override since the list was read keeps its status and matched photos). One transaction each.
+            await using var lease = await AccountLifecycleLease.AcquireMediaAsync(db, account, token);
+            await using var transaction = await db.Database.BeginTransactionAsync(token);
+            var profile = await db.MemberProfiles.SingleOrDefaultAsync(p => p.AccountId == account, token);
+            if (profile is not null) await db.Entry(profile).ReloadAsync(token);
+            if (profile is not { PhotoStatus: VerificationStatus.Verified, PhotoManual: false, PhotoVerifiedUntil: { } until } || until > now) continue;
             (profile.PhotoStatus, profile.PhotoVerifiedUntil) = (VerificationStatus.Expired, null);
-            await db.PhotoVerificationMatches.Where(m => m.AccountId == profile.AccountId).ExecuteDeleteAsync(token);
-            Audit.Record(db, now, null, "system", "verification.photoVerified.expired", "account", profile.AccountId.ToString());
+            await db.PhotoVerificationMatches.Where(m => m.AccountId == account).ExecuteDeleteAsync(token);
+            Audit.Record(db, now, null, "system", "verification.photoVerified.expired", "account", account.ToString());
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            expired++;
         }
         await db.PhotoVerificationAttempts.Where(a => a.State == PhotoCheckState.Issued && a.IssuedAt <= now - PhotoVerificationPolicy.CodeLifetime)
             .ExecuteUpdateAsync(u => u.SetProperty(a => a.State, PhotoCheckState.Expired), token);
@@ -289,6 +305,6 @@ public static class PhotoVerificationEndpoints
                 deleted++;
             }
         }
-        return expired.Count + deleted;
+        return expired + deleted;
     }
 }
