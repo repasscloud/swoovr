@@ -266,9 +266,15 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     await memberPage.reload(); await memberPage.locator('[data-photo-check=submitted]').waitFor({ timeout: 20000 }); pass();
     await waitFor(async () => !!(await call(sup, '/api/admin/photo-verification')).body.find(i => i.accountId === id.ned));
     const adminPage = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
-    await adminPage.goto(admin + '/sign-in'); await adminPage.fill('#username', staff.email); await adminPage.fill('#password', staff.password); await adminPage.click('#kc-login');
-    await fillStaffOtp(adminPage, staff); await adminPage.waitForURL(u => u.href.startsWith(admin) && !u.href.includes('/realms/'), { timeout: 30000 });
+    // PR 610 review: a reviewer who hasn't acknowledged the safety notice sees it first, with no evidence, and acknowledges here.
+    await adminPage.goto(admin + '/sign-in'); await adminPage.fill('#username', fresh2.email); await adminPage.fill('#password', fresh2.password); await adminPage.click('#kc-login');
+    await fillStaffOtp(adminPage, fresh2); await adminPage.waitForURL(u => u.href.startsWith(admin) && !u.href.includes('/realms/'), { timeout: 30000 });
     await adminPage.goto(admin + '/media/photo-identified');
+    await adminPage.locator('[data-photo-identified=ack]').waitFor({ timeout: 20000 }); pass();
+    assert.equal(await adminPage.locator('[data-photo-identified-evidence]').count(), 0, 'no evidence before the acknowledgement'); pass();
+    if (output) await adminPage.screenshot({ path: `${output}/photo-identified-ack-1440.png`, fullPage: true });
+    await adminPage.locator('[data-photo-identified-ack-confirm]').check();
+    await Promise.all([adminPage.waitForLoadState('load'), adminPage.click('[data-photo-identified-ack]')]);
     const card = adminPage.locator('[data-photo-identified-item]').filter({ hasText: 'Fictional Pv ned' });
     await card.waitFor({ timeout: 20000 });
     assert.equal((await card.locator('[data-photo-identified-code]').innerText()).trim(), shownCode); pass();

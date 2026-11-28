@@ -6,11 +6,29 @@
    had when they sent it. Approve awards Photo Verified for 12 months; it never means ID Verified. Support and Admin. *@
 <MediaTabs Active="photo-identified" Title="Photo Identified" Description="Photo Verified requests: one photo holding the code and date, compared with the member's profile photos." />
 @if (message is not null) { <p class="notice" role="status" data-result="@resultCode">@message</p> }
-<div class="ui-stats">
-    <div class="ui-stat"><strong>@items.Count</strong><span>Waiting</span></div>
-    <div class="ui-stat"><strong>@(items.Count == 0 ? "—" : Ago(items[0].SubmittedAt))</strong><span>Oldest waiting</span></div>
-</div>
-@if (loadError is not null) { <div class="ui-empty"><strong>Not available</strong>@loadError</div> }
+@if (notice is null && loadError is null)
+{
+    <div class="ui-stats">
+        <div class="ui-stat"><strong>@items.Count</strong><span>Waiting</span></div>
+        <div class="ui-stat"><strong>@(items.Count == 0 ? "—" : Ago(items[0].SubmittedAt))</strong><span>Oldest waiting</span></div>
+    </div>
+}
+@if (notice is not null)
+{
+    @* PR 610 review: the same safety acknowledgement as Media review (Q114) before any evidence is shown or decided. *@
+    <section class="media-safety" aria-labelledby="photo-safety-heading" data-photo-identified="ack">
+        <span class="media-safety-icon" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg></span>
+        <div>
+            <h2 id="photo-safety-heading">Safety notice</h2>
+            <p>@notice.SafetyNotice</p>
+            <form method="post" @formname="photo-identified-safety-ack" @onsubmit="AcknowledgeAsync" data-enhance="false" class="media-safety-form"><AntiforgeryToken />
+                <label class="beta-check"><input type="checkbox" name="confirmed" required data-photo-identified-ack-confirm /><span>I understand</span></label>
+                <button type="submit" class="ui-button-sm" data-photo-identified-ack>Acknowledge for four hours</button>
+            </form>
+        </div>
+    </section>
+}
+else if (loadError is not null) { <div class="ui-empty"><strong>Not available</strong>@loadError</div> }
 else if (items.Count == 0) { <div class="ui-empty" data-photo-identified="none"><strong>Nothing waiting</strong>Photo Verified requests appear here.</div> }
 else
 {
@@ -63,6 +81,9 @@ else
     [CascadingParameter] private HttpContext? Context { get; set; }
     private List<PhotoIdentifiedItem> items = [];
     private string? message, resultCode, loadError;
+    /// <summary>Set while the reviewer's safety acknowledgement is missing or expired (the notice text and version).</summary>
+    private MediaReviewQueue? notice;
+    private const string AckRequired = "media-safety-ack-required";
 
     /// <summary>Staff labels for PhotoVerificationPolicy.Reasons; the member sees their own wording.</summary>
     private static readonly (string Code, string Label)[] Reasons =
@@ -76,7 +97,18 @@ else
     {
         var result = await Admin.PhotoIdentifiedAsync();
         items = result.Value ?? [];
-        if (!result.Ok) loadError = AdminText.Refusal(result.Status, result.Code);
+        (notice, loadError) = (null, null);
+        if (result.Code == AckRequired && await Admin.MediaReviewAsync() is { Ok: true, Value: { } queue }) notice = queue;
+        else if (!result.Ok) loadError = AdminText.Refusal(result.Status, result.Code);
+    }
+
+    private async Task AcknowledgeAsync()
+    {
+        if (Field("confirmed") != "on") { (message, resultCode) = ("Tick \u201cI understand\u201d first.", "ack-confirm"); await OnInitializedAsync(); return; }
+        var result = await Admin.AcknowledgePhotoSafetyAsync(notice?.NoticeVersion ?? "", true);
+        if (result.Ok) { Navigation.NavigateTo("/media/photo-identified", forceLoad: true); return; }
+        (message, resultCode) = (result.Code == "invalid-safety-ack" ? "The safety notice changed. Read the current notice and acknowledge it again." : AdminText.Refusal(result.Status, result.Code), result.Code ?? "failed");
+        await OnInitializedAsync();
     }
 
     private async Task DecideAsync(Guid id)
@@ -86,6 +118,7 @@ else
         if (decision == "reject" && string.IsNullOrEmpty(reason)) { (message, resultCode) = ("Choose a reason.", "reason-required"); return; }
         var result = await Admin.DecidePhotoIdentifiedAsync(id, decision, reason);
         if (result.Ok) { Navigation.NavigateTo("/media/photo-identified?decided=" + decision, forceLoad: true); return; }
+        if (result.Code == AckRequired) { (message, resultCode) = ("Your safety acknowledgement ran out. Acknowledge the notice again, then decide.", AckRequired); await OnInitializedAsync(); return; }
         (message, resultCode) = (result.Code == ProblemCodes.PhotoVerificationStale ? "Their profile photos changed. Reject it as \"Profile photos changed\"." : AdminText.Refusal(result.Status, result.Code), result.Code ?? "failed");
         await OnInitializedAsync();
     }
