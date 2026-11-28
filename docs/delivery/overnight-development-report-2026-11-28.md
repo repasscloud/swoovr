@@ -43,16 +43,21 @@ Every PR that appends to DECISIONS.md is in one linear stack with base `main`, s
 | 28 Nov, night | Plan approved | Report started |
 | | Housekeeping (F7) | Closed #319, #509, #372, #488 and #257 with evidence comments. #313: the repository still names `hello@repasscloud.com`; I can't read the UAT host, so I asked on the issue |
 | | PR A (D454) | Committed and pushed. **#628** opened, Codex review requested. check.sh passed. The owned suite `photo-verified` passed with the new notification checks |
-| | Stale suite `notifications` | Cause found: since #561 the Connections page reads the notification centre as it loads, and the test held that first response. Fix: wait for the request row before holding. Verifying |
-| | #544 (D455) | Built on #628. API, web form and card, `ChatLocationChecks` (52), owned suite `chat-location`. The D348 contract scan allows exactly the two chat location contracts. check.sh and the suite are running |
-| | #543a (D456) | Built on #544: Image from library (a fresh, screened chat copy), Send a photo, Take a photo (`capture`), owned suite `chat-library` |
+| | Stale suites | **#630**: `notifications` (held the Connections page's own centre read; PASS 147) and `review-workflows` (missing staff OTP; PASS). Test-only |
+| | #544 (D455) | **#631**. check.sh passed; `chat-location` PASS (36). Screenshot checked. Codex requested |
+| | #543a (D456) | **#632**. check.sh passed (on the stack); `chat-library` PASS (20). Codex requested |
+| | #448 slice 1 (D457) | Catalogue, `profile_attribute_values` (migration `ProfileAttributes`), API, per-mode details on profiles, snapshot, export and deletion. `ProfileAttributeChecks` (46). check.sh passed. Owned suite `profile-details` running |
 
 ## Pull requests (merge order)
 
 | Order | PR | Issues | Summary | Tests | Codex | Ready |
 |---|---|---|---|---|---|---|
 | 1 | #627 | #609, #530, #544 | Privacy Notice 0.22 | check.sh, photo-verified suite | no findings | yes |
-| 2 | #628 | #530 | Photo Verified decision notification (D454) | check.sh, photo-verified suite | requested | yes |
+| 2 | #628 | #530 | Photo Verified decision notification (D454) | check.sh, photo-verified suite | no findings | yes |
+| 3 | #631 | #544 | Share a location in chat (D455) | check.sh, chat-location (36) | requested | yes |
+| 4 | #632 | #543 (part) | Chat + menu: library, upload, camera (D456) | check.sh, chat-library (20) | requested | yes |
+| any | #630 | — | Fix stale owned suites (test-only) | notifications (147), review-workflows | — | yes |
+| any | #629 | — | This report (docs) | — | — | yes |
 
 ## Decisions made independently
 
