@@ -1940,3 +1940,10 @@ Builds D427 and D431 (**CONFIRMED**) with the wording the owner approved on [#60
 - **Where the wording goes:** the Photo Verified paragraph ends "Your photos", after the ID verification paragraph; the chat location paragraph ends "Messages, including ones you unsend". Nothing else changes.
 - **On with it:** `Verification:PhotoVerified:Enabled` is on in UAT. There is no production host yet; `HostingPolicy` now lets it be turned on there, because 0.22 is in force. #544 (sharing a location in chat) can be built.
 - **Telling members:** after deployment, an operator stages and publishes the policy-update notice for version "0.22, 28 November 2026" with the existing CLI (`PolicyNoticePublisher`, #121). Nothing is sent by this change alone.
+
+### D454 — Members hear about Photo Verified decisions (#530, 28 November 2026)
+
+Closes the gap D452 left ("no notification when a decision is made").
+- When Support or Admin approve or reject a Photo Verified request, the member gets one notification centre item, in the same commit as the decision: "There is an update to your Photo Verified request. Open Verification to see it." It opens `/me/verification`, which shows the outcome and, for a refusal, the reason. The item holds ids only (kind `photoVerified`, the request id, dedupe `photo-verified:{id}`).
+- **DEFAULT:** centre only, no push or email, like a photo decision (D203). Barred members don't see it.
+- The badge running out after 12 months, or ending because a verified photo changed, sends nothing; the verification page says so.
