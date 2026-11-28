@@ -183,12 +183,17 @@ const today = () => new Date().toISOString().slice(0, 10);
 
     // ---- PR 610 review: evidence still being screened can't be decided. PR 608/610 review: revoking the badge takes the
     // photo dates with it.
+    // PR 610 review: a historic `main` placement is never published, so it isn't a profile photo for this check.
+    const legacy = await libraryPhoto(id.rex);
+    await sql(`INSERT INTO media_placements(account_id, scope, position, media_id, is_main) VALUES('${id.rex}', 'main', 0, '${legacy}', false)`);
+    assert.equal((await askCode('rex')).body?.code, 'photo-verification-needs-photo', 'a legacy main photo alone is not enough'); pass();
     const rexPhoto = await libraryPhoto(id.rex);
     assert.equal((await place('rex', [rexPhoto])).status, 200);
     assert.equal((await send('rex', (await askCode('rex')).body.code, 537)).body.state, 'submitted');
     const rexEvidence = await sql(`SELECT media_id FROM photo_verification_attempts WHERE account_id = '${id.rex}' AND state = 'Submitted'`);
     await waitFor(async () => !!(await call(sup, '/api/admin/photo-verification')).body.find(i => i.accountId === id.rex));
     const rexItem = (await call(sup, '/api/admin/photo-verification')).body.find(i => i.accountId === id.rex);
+    assert.deepEqual(rexItem.profilePhotos.map(p => p.id), [rexPhoto], 'compared with the published photo only'); pass();
     await sql(`UPDATE media_items SET status = 'Pending' WHERE id = '${rexEvidence}'`);
     assert.equal((await call(sup, `/api/admin/photo-verification/${rexItem.id}/decision`, { method: 'POST', body: { decision: 'approve' } })).status, 409, 'not while screening'); pass();
     assert.equal((await call(sup, `/api/admin/photo-verification/${rexItem.id}/decision`, { method: 'POST', body: { decision: 'reject', reason: 'other' } })).status, 409); pass();

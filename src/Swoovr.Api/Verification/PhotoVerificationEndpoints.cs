@@ -91,7 +91,11 @@ public static class PhotoVerificationEndpoints
             var photos = await PublicPhotosAsync(db, profile.AccountId, token);
             if (photos.Count == 0)
                 return Problem(StatusCodes.Status409Conflict, ProblemCodes.PhotoVerificationNeedsPhoto, "Add a profile photo first. We compare it with the photo you send.");
-            var (item, error) = await pipeline.UploadAsync(profile.AccountId, buffer.ToArray(), null, now, token, purpose: PhotoVerificationPolicy.Purpose);
+            // PR 608 review: the evidence row and the submission commit together, and screening starts only after that, so an
+            // evidence photo never exists without the request that lets staff decide it and retention delete it. A failure
+            // before the commit deletes the stored bytes too.
+            await using var transaction = await db.Database.BeginTransactionAsync(token);
+            var (item, error) = await pipeline.UploadAsync(profile.AccountId, buffer.ToArray(), null, now, token, deferScreening: true, purpose: PhotoVerificationPolicy.Purpose);
             if (error != MediaUploadError.None) return error switch
             {
                 MediaUploadError.TooBig => Problem(StatusCodes.Status413PayloadTooLarge, ProblemCodes.PhotoTooBig, "Photos can be up to 10 MB."),
@@ -102,9 +106,20 @@ public static class PhotoVerificationEndpoints
                 MediaUploadError.ScanUnavailable => Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.PhotoCheckUnavailable, "Photos can't be checked right now. Try again in a few minutes."),
                 _ => Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, "That photo couldn't be read."),
             };
-            (attempt.State, attempt.MediaId, attempt.SubmittedAt, attempt.ProfilePhotos) = (PhotoCheckState.Submitted, item!.Id, now, PhotoVerificationPolicy.Snapshot(photos));
-            Audit.Record(db, now, profile.AccountId, "account", "verification.photo.submitted", "photo-verification", attempt.Id.ToString());
-            await db.SaveChangesAsync(token);
+            try
+            {
+                (attempt.State, attempt.MediaId, attempt.SubmittedAt, attempt.ProfilePhotos) = (PhotoCheckState.Submitted, item!.Id, now, PhotoVerificationPolicy.Snapshot(photos));
+                Audit.Record(db, now, profile.AccountId, "account", "verification.photo.submitted", "photo-verification", attempt.Id.ToString());
+                await db.SaveChangesAsync(token);
+                await transaction.CommitAsync(token);
+            }
+            catch
+            {
+                if (item?.ObjectKey is { } stored && accounts.Services.GetService<IMediaStore>() is { } store)
+                    try { await store.DeleteAsync(stored, CancellationToken.None); } catch { /* the bytes have no row: nothing can serve them */ }
+                throw;
+            }
+            pipeline.ScheduleScreening(item.Id);
             return Results.Ok(await ViewAsync(db, configuration, profile, now, token));
         }).DisableAntiforgery();
 
@@ -198,11 +213,20 @@ public static class PhotoVerificationEndpoints
     private static int Left(IEnumerable<PhotoVerificationAttempt> attempts, DateTimeOffset now) =>
         Math.Max(0, PhotoVerificationPolicy.MaxSubmissions - attempts.Count(a => a.SubmittedAt is { } at && at > now - PhotoVerificationPolicy.Window));
 
-    /// <summary>The member's public profile photos now: approved, placed in a mode or as main, never album-only.</summary>
-    public static async Task<List<Guid>> PublicPhotosAsync(SwoovrDbContext db, Guid account, CancellationToken token) =>
-        await (from p in db.MediaPlacements join i in db.MediaItems on p.MediaId equals i.Id
-               where p.AccountId == account && i.Status == MediaStatus.Passed && i.RemovedAt == null && !i.AlbumOnly
-               select p.MediaId).Distinct().ToListAsync(token);
+    /// <summary>
+    /// The member's public profile photos now: approved, never album-only, in a current mode gallery and within the plan's
+    /// per-mode limit (as MediaEndpoints.PhotosAsync publishes them). PR 610 review: historic `main` placements are never
+    /// published, so they never count.
+    /// </summary>
+    public static async Task<List<Guid>> PublicPhotosAsync(SwoovrDbContext db, Guid account, CancellationToken token)
+    {
+        var rows = await (from p in db.MediaPlacements join i in db.MediaItems on p.MediaId equals i.Id
+                          where p.AccountId == account && p.Scope != MediaPolicy.Main && i.Status == MediaStatus.Passed && i.RemovedAt == null && !i.AlbumOnly
+                          orderby p.Position select new { p.Scope, p.MediaId }).ToListAsync(token);
+        if (rows.Count == 0) return [];
+        var limit = (await MediaEndpoints.LimitsAsync(db, [account], DateTimeOffset.UtcNow, token)).GetValueOrDefault(account, MediaPolicy.ModeLimit(PlanTier.Free));
+        return rows.GroupBy(r => r.Scope).SelectMany(g => g.Take(limit)).Select(r => r.MediaId).Distinct().ToList();
+    }
 
     public static async Task<PhotoVerificationView> ViewAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile profile, DateTimeOffset now, CancellationToken token)
     {
