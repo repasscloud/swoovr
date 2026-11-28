@@ -34,6 +34,8 @@ public sealed class MemberProfile
     public int? FounderPlace { get; set; }
     public VerificationStatus PhotoStatus { get; set; }
     public DateTimeOffset? PhotoCheckedAt { get; set; }
+    /// <summary>D427 (#530): when Photo Verified from the staff photo check ends (12 months); null for a manual one.</summary>
+    public DateTimeOffset? PhotoVerifiedUntil { get; set; }
     public VerificationStatus IdStatus { get; set; }
     public DateTimeOffset? IdCheckedAt { get; set; }
     /// <summary>#190 §3 (D323): the current Photo Verified / ID Verified state was set by a staff override, not a provider

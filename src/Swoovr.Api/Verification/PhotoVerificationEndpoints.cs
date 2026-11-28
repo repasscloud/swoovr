@@ -1,0 +1,256 @@
+using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
+using Swoovr.Api.Accounts;
+using Swoovr.Api.Media;
+using Swoovr.Contracts;
+using Swoovr.Domain;
+using Swoovr.Infrastructure.Persistence;
+using static Swoovr.Api.Accounts.AccountEndpoints;
+
+namespace Swoovr.Api.Verification;
+
+/// <summary>
+/// D424 and D427 (#530): Photo Verified. The member asks for a four-character code, writes it and the date on paper, and
+/// sends one photo holding it; it goes through the normal upload checks (malware, known-content matching) into the staff
+/// Photo Identified queue. Support or Admin compare it with the public profile photos the member had when they sent it and
+/// approve (Photo Verified for 12 months, those photos recorded) or reject with a reason. It never grants or implies ID
+/// Verified. Off unless `Verification:PhotoVerified:Enabled` (HostingPolicy needs Privacy Notice 0.22 for that).
+/// </summary>
+public static class PhotoVerificationEndpoints
+{
+    public const string Switch = "Verification:PhotoVerified:Enabled";
+
+    public static void Map(WebApplication app)
+    {
+        var me = app.MapGroup("/api/me/verification/photo").RequireAuthorization();
+        me.MapGet("", async (ClaimsPrincipal user, AccountResolver accounts, IConfiguration configuration, TimeProvider clock, CancellationToken token) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, token);
+            return denied ?? Results.Ok(await ViewAsync(accounts.Db!, configuration, current!.Profile!, clock.GetUtcNow(), token));
+        });
+
+        me.MapPost("/code", async (PhotoVerificationCodeRequest request, ClaimsPrincipal user, AccountResolver accounts, IConfiguration configuration, TimeProvider clock,
+            CancellationToken token) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, token);
+            if (denied is not null) return denied;
+            if (!configuration.GetValue(Switch, false)) return Unavailable();
+            var (db, profile, now) = (accounts.Db!, current!.Profile!, clock.GetUtcNow());
+            if (!PhotoVerificationPolicy.DateAccepted(request.Date, now))
+                return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidRequest, "Use today's date.");
+            await using var lease = await AccountLifecycleLease.AcquireMediaAsync(db, profile.AccountId, token);
+            var attempts = await db.PhotoVerificationAttempts.Where(a => a.AccountId == profile.AccountId).ToListAsync(token);
+            if (attempts.Any(a => a.State == PhotoCheckState.Submitted))
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.PhotoVerificationPending, "Your photo is being checked. We'll update this page when it's done.");
+            if (Left(attempts, now) == 0)
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.PhotoVerificationLimit, $"You can send up to {PhotoVerificationPolicy.MaxSubmissions} photos in 30 days. Try again later.");
+            if ((await PublicPhotosAsync(db, profile.AccountId, token)).Count == 0)
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.PhotoVerificationNeedsPhoto, "Add a profile photo first. We compare it with the photo you send.");
+            // A fresh code each time (D427); any unused one is retired.
+            foreach (var open in attempts.Where(a => a.State == PhotoCheckState.Issued)) open.State = PhotoCheckState.Expired;
+            await db.SaveChangesAsync(token);
+            var attempt = new PhotoVerificationAttempt
+            {
+                Id = Guid.NewGuid(), AccountId = profile.AccountId, Code = PhotoVerificationPolicy.NewCode(), WrittenDate = request.Date, IssuedAt = now, State = PhotoCheckState.Issued,
+            };
+            db.PhotoVerificationAttempts.Add(attempt);
+            Audit.Record(db, now, profile.AccountId, "account", "verification.photo.code-issued", "photo-verification", attempt.Id.ToString());
+            await db.SaveChangesAsync(token);
+            return Results.Ok(await ViewAsync(db, configuration, profile, now, token));
+        });
+
+        me.MapPost("", async (HttpRequest request, ClaimsPrincipal user, AccountResolver accounts, IConfiguration configuration, TimeProvider clock, CancellationToken token) =>
+        {
+            var (current, denied) = await MemberAsync(user, accounts, token);
+            if (denied is not null) return denied;
+            if (!configuration.GetValue(Switch, false)) return Unavailable();
+            if (current!.Enforcement.NoPhotoUploads) return Problem(StatusCodes.Status403Forbidden, ProblemCodes.Restricted, "You can't send photos right now.");
+            var (db, profile, now) = (accounts.Db!, current.Profile!, clock.GetUtcNow());
+            if (!request.HasFormContentType) return Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, "Send the photo as a file.");
+            if (request.ContentLength > MediaPolicy.MaxUploadBytes + 64 * 1024) return Problem(StatusCodes.Status413PayloadTooLarge, ProblemCodes.PhotoTooBig, "Photos can be up to 10 MB.");
+            IFormCollection form;
+            try { form = await request.ReadFormAsync(token); }
+            catch (Exception exception) when (exception is InvalidDataException or IOException or BadHttpRequestException)
+            { return Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, "That upload couldn't be read."); }
+            if (form.Files.GetFile("file") is not { } file) return Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, "Choose a photo.");
+            if (file.Length > MediaPolicy.MaxUploadBytes) return Problem(StatusCodes.Status413PayloadTooLarge, ProblemCodes.PhotoTooBig, "Photos can be up to 10 MB.");
+            var code = form["code"].ToString().Trim().ToUpperInvariant();
+            using var buffer = new MemoryStream();
+            await file.CopyToAsync(buffer, token);
+            var pipeline = accounts.Services.GetRequiredService<MediaPipeline>();
+            if (!pipeline.Available) return Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.MediaUnavailable, "Photos aren't available right now.");
+            await using var lease = await AccountLifecycleLease.AcquireMediaAsync(db, profile.AccountId, token);
+            now = clock.GetUtcNow();
+            var attempts = await db.PhotoVerificationAttempts.Where(a => a.AccountId == profile.AccountId).ToListAsync(token);
+            // Single use and account bound: only this member's current, unexpired, unused code.
+            var attempt = attempts.SingleOrDefault(a => PhotoVerificationPolicy.CodeLive(a, now));
+            if (attempt is null || attempt.Code != code)
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.PhotoVerificationCode, "That code isn't current. Ask for a new code and write that one down.");
+            if (Left(attempts, now) == 0)
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.PhotoVerificationLimit, $"You can send up to {PhotoVerificationPolicy.MaxSubmissions} photos in 30 days. Try again later.");
+            var photos = await PublicPhotosAsync(db, profile.AccountId, token);
+            if (photos.Count == 0)
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.PhotoVerificationNeedsPhoto, "Add a profile photo first. We compare it with the photo you send.");
+            var (item, error) = await pipeline.UploadAsync(profile.AccountId, buffer.ToArray(), null, now, token, purpose: PhotoVerificationPolicy.Purpose);
+            if (error != MediaUploadError.None) return error switch
+            {
+                MediaUploadError.TooBig => Problem(StatusCodes.Status413PayloadTooLarge, ProblemCodes.PhotoTooBig, "Photos can be up to 10 MB."),
+                MediaUploadError.UnsupportedType or MediaUploadError.Animated => Problem(StatusCodes.Status415UnsupportedMediaType, ProblemCodes.PhotoUnsupported, "Use a JPEG, PNG or WebP photo."),
+                MediaUploadError.TooSmall => Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, $"Photos need to be at least {MediaPolicy.MinSide} pixels on each side."),
+                MediaUploadError.Malware => Problem(StatusCodes.Status422UnprocessableEntity, ProblemCodes.PhotoRefused, "That file can't be used. Choose a different photo."),
+                MediaUploadError.ScanUnsupported => Problem(StatusCodes.Status422UnprocessableEntity, ProblemCodes.PhotoRefused, "That photo couldn't be checked. Choose a different photo."),
+                MediaUploadError.ScanUnavailable => Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.PhotoCheckUnavailable, "Photos can't be checked right now. Try again in a few minutes."),
+                _ => Problem(StatusCodes.Status400BadRequest, ProblemCodes.PhotoInvalid, "That photo couldn't be read."),
+            };
+            (attempt.State, attempt.MediaId, attempt.SubmittedAt, attempt.ProfilePhotos) = (PhotoCheckState.Submitted, item!.Id, now, PhotoVerificationPolicy.Snapshot(photos));
+            Audit.Record(db, now, profile.AccountId, "account", "verification.photo.submitted", "photo-verification", attempt.Id.ToString());
+            await db.SaveChangesAsync(token);
+            return Results.Ok(await ViewAsync(db, configuration, profile, now, token));
+        }).DisableAntiforgery();
+
+        var admin = app.MapGroup("/api/admin/photo-verification").RequireAuthorization();
+        admin.MapGet("", async (ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock, CancellationToken token) =>
+        {
+            var (current, denied) = await AdminEndpoints.StaffAsync(user, accounts, AccountRole.Support, token);
+            if (denied is not null) return denied;
+            var (db, now) = (accounts.Db!, clock.GetUtcNow());
+            var links = accounts.Services.GetRequiredService<MediaLinks>();
+            // Waiting for a person: the evidence passed the automatic checks (Uncertain, in its own place).
+            var rows = await (from a in db.PhotoVerificationAttempts join i in db.MediaItems on a.MediaId equals i.Id
+                              join p in db.MemberProfiles on a.AccountId equals p.AccountId
+                              where a.State == PhotoCheckState.Submitted && i.Status == MediaStatus.Uncertain && i.RemovedAt == null
+                              orderby a.SubmittedAt select new { Attempt = a, p.DisplayName }).Take(50).ToListAsync(token);
+            var items = new List<PhotoIdentifiedItem>();
+            foreach (var row in rows)
+            {
+                if (await StaffAccessEndpoints.ExcludedAsync(db, current!.Account!.Id, [row.Attempt.AccountId], token)) continue;
+                var then = PhotoVerificationPolicy.Photos(row.Attempt.ProfilePhotos);
+                var nowPhotos = await PublicPhotosAsync(db, row.Attempt.AccountId, token);
+                var shown = then.Where(nowPhotos.Contains).Select(id => links.For(id, "member", now) is { } link ? new PhotoView(id, link) : null).OfType<PhotoView>().ToList();
+                // The evidence link works only for the staff member it was issued to, while this view is recent (MfaEvidenceAccess).
+                db.MediaReviewViews.Add(new MediaReviewView { MediaId = row.Attempt.MediaId!.Value, ActorAccountId = current.Account.Id, Purpose = "photo-identified", At = now });
+                items.Add(new(row.Attempt.Id, row.Attempt.AccountId, row.DisplayName, row.Attempt.Code, row.Attempt.WrittenDate, row.Attempt.SubmittedAt!.Value,
+                    links.For(row.Attempt.MediaId!.Value, "verification", now), shown, PhotoVerificationPolicy.Snapshot(nowPhotos) != row.Attempt.ProfilePhotos));
+            }
+            Audit.Record(db, now, current!.Account!.Id, "account", "verification.photo.queue-viewed", "photo-verification", "queue", $"items:{items.Count}");
+            await db.SaveChangesAsync(token);
+            return Results.Ok(items);
+        });
+
+        admin.MapPost("/{id:guid}/decision", async (Guid id, PhotoIdentifiedDecision request, ClaimsPrincipal user, AccountResolver accounts, TimeProvider clock,
+            CancellationToken token) =>
+        {
+            var (current, denied) = await AdminEndpoints.StaffAsync(user, accounts, AccountRole.Support, token);
+            if (denied is not null) return denied;
+            var (db, actor) = (accounts.Db!, current!.Account!.Id);
+            var approve = request.Decision == "approve";
+            if (!approve && (request.Decision != "reject" || request.Reason is null || !PhotoVerificationPolicy.Reasons.ContainsKey(request.Reason)))
+                return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidDecision, "Approve, or reject with one of the reasons.");
+            var attempt = await db.PhotoVerificationAttempts.SingleOrDefaultAsync(a => a.Id == id && a.State == PhotoCheckState.Submitted, token);
+            if (attempt is null) return Problem(StatusCodes.Status404NotFound, ProblemCodes.NotAvailable, "That request isn't waiting for a decision.");
+            if (attempt.AccountId == actor || await StaffAccessEndpoints.ExcludedAsync(db, actor, [attempt.AccountId], token)) return StaffAccessEndpoints.Conflict();
+            await using var lease = await AccountLifecycleLease.AcquireMediaAsync(db, attempt.AccountId, token);
+            await db.Entry(attempt).ReloadAsync(token);
+            if (attempt.State != PhotoCheckState.Submitted) return Problem(StatusCodes.Status404NotFound, ProblemCodes.NotAvailable, "That request isn't waiting for a decision.");
+            var now = clock.GetUtcNow();
+            var matched = PhotoVerificationPolicy.Photos(attempt.ProfilePhotos);
+            // D424: never an approval against profile photos that changed since the member sent it.
+            if (approve && PhotoVerificationPolicy.Snapshot(await PublicPhotosAsync(db, attempt.AccountId, token)) != attempt.ProfilePhotos)
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.PhotoVerificationStale, "Their profile photos changed after they sent it. Reject it as \"profile photos changed\".");
+            var profile = await db.MemberProfiles.SingleAsync(p => p.AccountId == attempt.AccountId, token);
+            (attempt.State, attempt.DecidedAt, attempt.DecidedBy, attempt.Reason) = (approve ? PhotoCheckState.Approved : PhotoCheckState.Rejected, now, actor, approve ? null : request.Reason);
+            await db.MediaItems.Where(i => i.Id == attempt.MediaId).ExecuteUpdateAsync(u => u.SetProperty(i => i.Status, approve ? MediaStatus.Passed : MediaStatus.Rejected)
+                .SetProperty(i => i.ReviewedAt, now).SetProperty(i => i.ReviewedBy, actor), token);
+            if (approve)
+            {
+                (profile.PhotoStatus, profile.PhotoCheckedAt, profile.PhotoVerifiedUntil, profile.PhotoManual) = (VerificationStatus.Verified, now, PhotoVerificationPolicy.Until(now), false);
+                await db.PhotoVerificationMatches.Where(m => m.AccountId == attempt.AccountId).ExecuteDeleteAsync(token);
+                db.PhotoVerificationMatches.AddRange(matched.Select(media => new PhotoVerificationMatch { AccountId = attempt.AccountId, MediaId = media, VerifiedAt = now }));
+            }
+            Audit.Record(db, now, actor, "account", approve ? "verification.photoVerified.approved" : "verification.photoVerified.rejected", "account", attempt.AccountId.ToString(),
+                approve ? $"photos:{matched.Count}" : request.Reason);
+            await db.SaveChangesAsync(token);
+            return Results.Ok(new { attempt.Id, state = approve ? "approved" : "rejected" });
+        });
+    }
+
+    private static IResult Unavailable() => Problem(StatusCodes.Status503ServiceUnavailable, ProblemCodes.VerificationNotConfigured, "Photo verification isn't available yet.");
+
+    private static int Left(IEnumerable<PhotoVerificationAttempt> attempts, DateTimeOffset now) =>
+        Math.Max(0, PhotoVerificationPolicy.MaxSubmissions - attempts.Count(a => a.SubmittedAt is { } at && at > now - PhotoVerificationPolicy.Window));
+
+    /// <summary>The member's public profile photos now: approved, placed in a mode or as main, never album-only.</summary>
+    public static async Task<List<Guid>> PublicPhotosAsync(SwoovrDbContext db, Guid account, CancellationToken token) =>
+        await (from p in db.MediaPlacements join i in db.MediaItems on p.MediaId equals i.Id
+               where p.AccountId == account && i.Status == MediaStatus.Passed && i.RemovedAt == null && !i.AlbumOnly
+               select p.MediaId).Distinct().ToListAsync(token);
+
+    public static async Task<PhotoVerificationView> ViewAsync(SwoovrDbContext db, IConfiguration configuration, MemberProfile profile, DateTimeOffset now, CancellationToken token)
+    {
+        var attempts = await db.PhotoVerificationAttempts.AsNoTracking().Where(a => a.AccountId == profile.AccountId).OrderByDescending(a => a.IssuedAt).ToListAsync(token);
+        var hasPhoto = (await PublicPhotosAsync(db, profile.AccountId, token)).Count > 0;
+        var available = configuration.GetValue(Switch, false);
+        var left = Left(attempts, now);
+        if (profile.PhotoStatus == VerificationStatus.Verified)
+            return new(available, "verified", left, VerifiedAt: profile.PhotoCheckedAt, VerifiedUntil: profile.PhotoVerifiedUntil, HasProfilePhoto: hasPhoto);
+        var latest = attempts.FirstOrDefault(a => a.State != PhotoCheckState.Expired || a.SubmittedAt is not null);
+        return latest switch
+        {
+            { State: PhotoCheckState.Submitted } => new(available, "submitted", left, HasProfilePhoto: hasPhoto),
+            { State: PhotoCheckState.Issued } a when PhotoVerificationPolicy.CodeLive(a, now) =>
+                new(available, "issued", left, a.Code, a.WrittenDate, a.IssuedAt + PhotoVerificationPolicy.CodeLifetime, HasProfilePhoto: hasPhoto),
+            { State: PhotoCheckState.Rejected } a => new(available, "rejected", left, Reason: PhotoVerificationPolicy.Reasons.GetValueOrDefault(a.Reason ?? "other"), HasProfilePhoto: hasPhoto),
+            _ when profile.PhotoStatus == VerificationStatus.Expired => new(available, "expired", left, HasProfilePhoto: hasPhoto),
+            _ => new(available, "none", left, HasProfilePhoto: hasPhoto),
+        };
+    }
+
+    /// <summary>
+    /// D424: a matched public profile photo changed (removed, replaced, taken out of every mode or taken down), so Photo
+    /// Verified ends. A manual (staff override) Photo Verified has no matched photos and is never touched here.
+    /// </summary>
+    public static async Task InvalidateAsync(SwoovrDbContext db, Guid account, DateTimeOffset now, CancellationToken token)
+    {
+        var matched = await db.PhotoVerificationMatches.Where(m => m.AccountId == account).Select(m => m.MediaId).ToListAsync(token);
+        if (matched.Count == 0) return;
+        var live = await PublicPhotosAsync(db, account, token);
+        if (matched.All(live.Contains)) return;
+        var profile = await db.MemberProfiles.SingleOrDefaultAsync(p => p.AccountId == account, token);
+        if (profile is { PhotoStatus: VerificationStatus.Verified, PhotoManual: false })
+            (profile.PhotoStatus, profile.PhotoVerifiedUntil) = (VerificationStatus.Expired, null);
+        await db.PhotoVerificationMatches.Where(m => m.AccountId == account).ExecuteDeleteAsync(token);
+        Audit.Record(db, now, null, "system", "verification.photoVerified.photos-changed", "account", account.ToString());
+        await db.SaveChangesAsync(token);
+    }
+
+    /// <summary>
+    /// D427, run by the retention worker: Photo Verified ends after 12 months; an evidence photo is deleted 30 days after its
+    /// decision (the decision record stays); an unused code lapses after a day.
+    /// </summary>
+    public static async Task<int> RetainAsync(SwoovrDbContext db, MediaPipeline pipeline, DateTimeOffset now, CancellationToken token)
+    {
+        var expired = await db.MemberProfiles.Where(p => p.PhotoStatus == VerificationStatus.Verified && !p.PhotoManual && p.PhotoVerifiedUntil != null && p.PhotoVerifiedUntil <= now).ToListAsync(token);
+        foreach (var profile in expired)
+        {
+            (profile.PhotoStatus, profile.PhotoVerifiedUntil) = (VerificationStatus.Expired, null);
+            await db.PhotoVerificationMatches.Where(m => m.AccountId == profile.AccountId).ExecuteDeleteAsync(token);
+            Audit.Record(db, now, null, "system", "verification.photoVerified.expired", "account", profile.AccountId.ToString());
+        }
+        await db.PhotoVerificationAttempts.Where(a => a.State == PhotoCheckState.Issued && a.IssuedAt <= now - PhotoVerificationPolicy.CodeLifetime)
+            .ExecuteUpdateAsync(u => u.SetProperty(a => a.State, PhotoCheckState.Expired), token);
+        await db.SaveChangesAsync(token);
+        var due = await (from a in db.PhotoVerificationAttempts join i in db.MediaItems on a.MediaId equals i.Id
+                         where a.DecidedAt != null && a.DecidedAt <= now - PhotoVerificationPolicy.EvidenceRetention && a.EvidenceDeletedAt == null
+                         select new { Attempt = a, Item = i }).Take(200).ToListAsync(token);
+        var deleted = 0;
+        foreach (var row in due)
+        {
+            if (row.Item.ObjectKey is not null && !await pipeline.DeleteVerificationEvidenceAsync(row.Item, now, token)) continue; // held: kept, tried again next run
+            row.Attempt.EvidenceDeletedAt = now;
+            Audit.Record(db, now, null, "system", "verification.photo.evidence-deleted", "photo-verification", row.Attempt.Id.ToString());
+            await db.SaveChangesAsync(token);
+            deleted++;
+        }
+        return expired.Count + deleted;
+    }
+}

@@ -34,6 +34,8 @@ public sealed class RetentionJobs(SafetyRetention safety, AccountDeletion accoun
         var expiredBans = await expiry.RunAsync(now,token);
         var history=await disposal.RunAsync(now,token);
         await AuditRetention.RunAsync(db,now,token);
+        // D427 (#530): Photo Verified ends after 12 months; evidence photos go 30 days after their decision (held ones stay).
+        await Swoovr.Api.Verification.PhotoVerificationEndpoints.RetainAsync(db,media,now,token);
         var meetingsPreserved=await meetingSafety.RunAsync(now,token);
         // D337: helpdesk retention runs after account deletion, so customers finally deleted this run are retired in it.
         // A helpdesk outage never fails the other retention work; due items simply wait for the next run.

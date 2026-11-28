@@ -140,6 +140,7 @@ Swoovr.Api.Accounts.EscalationEndpoints.Map(app);
 Swoovr.Api.Notifications.SiteBannerEndpoints.Map(app);
 Swoovr.Api.Notifications.BroadcastEndpoints.Map(app);
 Swoovr.Api.Profiles.FavouriteEndpoints.Map(app);
+Swoovr.Api.Verification.PhotoVerificationEndpoints.Map(app);
 AdminEndpoints.Map(app);
 if(persistence)Swoovr.Api.Analytics.BetaScorecardEndpoints.Map(app);
 Swoovr.Api.Profiles.ProfileEndpoints.Map(app);

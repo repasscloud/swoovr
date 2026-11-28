@@ -152,6 +152,12 @@ public static class ProblemCodes
     public const string InvalidRequest = "invalid-request";
     /// <summary>Issue 588 (D445): another banner is already switched on for that placement.</summary>
     public const string SiteBannerPlacementTaken = "site-banner-placement-taken";
+    /// <summary>D424 (#530): Photo Verified refusals.</summary>
+    public const string PhotoVerificationNeedsPhoto = "photo-verification-needs-photo";
+    public const string PhotoVerificationLimit = "photo-verification-limit";
+    public const string PhotoVerificationCode = "photo-verification-code";
+    public const string PhotoVerificationPending = "photo-verification-pending";
+    public const string PhotoVerificationStale = "photo-verification-stale";
     public const string CouponInvalid = "coupon-invalid";
     public const string TooManyAttempts = "too-many-attempts";
     public const string InvalidProfile = "invalid-profile";

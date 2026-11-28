@@ -8,7 +8,7 @@ namespace Swoovr.Api.Media;
 /// <summary>Signed staff links are not independent privilege: recheck the recipient's live authority and MFA at delivery.</summary>
 public static class MfaEvidenceAccess
 {
-    public static bool StaffVariant(string variant)=>variant is "review" or "case" or "inspection" or "appeal";
+    public static bool StaffVariant(string variant)=>variant is "review" or "case" or "inspection" or "appeal" or "verification";
     public static async Task<IResult?> CheckAsync(Guid media,Guid owner,string variant,ClaimsPrincipal user,AccountResolver accounts,DateTimeOffset now,CancellationToken ct)
     {
         if(!StaffVariant(variant))return null;

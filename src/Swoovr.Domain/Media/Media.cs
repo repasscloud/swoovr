@@ -222,7 +222,7 @@ public static class MediaPolicy
     public static (Guid Media, string Variant)? ReadLink(byte[] key, string token, DateTimeOffset now)
     {
         var parts = token.Split('.');
-        if (parts.Length != 4 || !Guid.TryParseExact(parts[0], "N", out var media) || parts[1] is not ("member" or "review" or "case" or "inspection" or "appeal" or "own" or "explicit")
+        if (parts.Length != 4 || !Guid.TryParseExact(parts[0], "N", out var media) || parts[1] is not ("member" or "review" or "case" or "inspection" or "appeal" or "own" or "explicit" or "verification")
             || !long.TryParse(parts[2], out var seconds)) return null;
         var expected = HMACSHA256.HashData(key, Encoding.ASCII.GetBytes($"{parts[0]}.{parts[1]}.{parts[2]}"));
         if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(Base64Url(expected)), Encoding.ASCII.GetBytes(parts[3]))) return null;
