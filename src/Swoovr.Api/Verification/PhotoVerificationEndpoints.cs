@@ -152,6 +152,11 @@ public static class PhotoVerificationEndpoints
             await using var lease = await AccountLifecycleLease.AcquireMediaAsync(db, attempt.AccountId, token);
             await db.Entry(attempt).ReloadAsync(token);
             if (attempt.State != PhotoCheckState.Submitted) return Problem(StatusCodes.Status404NotFound, ProblemCodes.NotAvailable, "That request isn't waiting for a decision.");
+            // PR 610 review: only evidence that cleared the automatic checks and waits in its own place can be decided (the
+            // same rule as the queue); never one still being screened, blocked or removed.
+            var evidence = await db.MediaItems.AsNoTracking().SingleOrDefaultAsync(i => i.Id == attempt.MediaId, token);
+            if (evidence is not { Status: MediaStatus.Uncertain, RemovedAt: null, Purpose: PhotoVerificationPolicy.Purpose } || evidence.ObjectKey?.StartsWith("verification/", StringComparison.Ordinal) != true)
+                return Problem(StatusCodes.Status409Conflict, ProblemCodes.NotAvailable, "That photo isn't ready for a decision.");
             var now = clock.GetUtcNow();
             var matched = PhotoVerificationPolicy.Photos(attempt.ProfilePhotos);
             // D424: never an approval against profile photos that changed since the member sent it.
@@ -209,6 +214,21 @@ public static class PhotoVerificationEndpoints
     }
 
     /// <summary>
+    /// PR 608/610 review: screening blocked the evidence (a known-content match or a sealed object), so nobody will decide it
+    /// in the Photo Identified queue. The request closes with the neutral "other" wording, so the member isn't stuck on
+    /// "We're checking your photo"; the block's own escalation and hold are untouched. Saved with the block.
+    /// </summary>
+    public static async Task ClosedByScreeningAsync(SwoovrDbContext db, MediaItem item, DateTimeOffset now, CancellationToken token)
+    {
+        if (item.Purpose != PhotoVerificationPolicy.Purpose) return;
+        foreach (var attempt in await db.PhotoVerificationAttempts.Where(a => a.MediaId == item.Id && a.State == PhotoCheckState.Submitted).ToListAsync(token))
+        {
+            (attempt.State, attempt.DecidedAt, attempt.DecidedBy, attempt.Reason) = (PhotoCheckState.Rejected, now, null, "other");
+            Audit.Record(db, now, null, "system", "verification.photoVerified.closed-by-screening", "account", attempt.AccountId.ToString());
+        }
+    }
+
+    /// <summary>
     /// D424: a matched public profile photo changed (removed, replaced, taken out of every mode or taken down), so Photo
     /// Verified ends. A manual (staff override) Photo Verified has no matched photos and is never touched here.
     /// </summary>
@@ -244,6 +264,8 @@ public static class PhotoVerificationEndpoints
         await db.SaveChangesAsync(token);
         var due = await (from a in db.PhotoVerificationAttempts join i in db.MediaItems on a.MediaId equals i.Id
                          where a.DecidedAt != null && a.DecidedAt <= now - PhotoVerificationPolicy.EvidenceRetention && a.EvidenceDeletedAt == null
+                               // A blocked one is safety evidence: its own preservation rules keep or delete it, never this.
+                               && i.Status != MediaStatus.Blocked
                          select new { Attempt = a, Item = i }).Take(200).ToListAsync(token);
         var deleted = 0;
         foreach (var row in due)

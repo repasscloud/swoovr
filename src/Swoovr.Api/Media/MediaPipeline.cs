@@ -376,6 +376,7 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
             item.PreservationPendingAt = now; item.NextPreservationAt = now; item.PreservationLegacy = false;
             item.PreservationSourceKey = item.ObjectKey;
             Audit.Record(db, now, actor, actor is null ? "system" : "account", "media.blocked", "media", item.Id.ToString(), reason);
+            await Swoovr.Api.Verification.PhotoVerificationEndpoints.ClosedByScreeningAsync(db, item, now, cancellationToken);
             await SaveModerationAsync(item,inspectionCompleted,false,true,now,cancellationToken); // Source, fact and inspection total precede effects.
         }
         await RecoverBlockedAsync(item.Id, now, cancellationToken);

@@ -376,7 +376,10 @@ public static class MediaEndpoints
         // Issue 475 (D399): the upload time travels with the photo. D424 (#530): a public photo matched by a Photo Verified
         // approval carries that date (matches exist only while the badge stands; a changed photo never has one).
         var ids = visible.Select(r => r.MediaId).Distinct().ToList();
-        var verified = await db.PhotoVerificationMatches.Where(m => ids.Contains(m.MediaId)).ToDictionaryAsync(m => m.MediaId, m => m.VerifiedAt, cancellationToken);
+        // PR 608/610 review: only while the account's Photo Verified from the photo check still stands (never after a revoke).
+        var verified = await (from m in db.PhotoVerificationMatches join p in db.MemberProfiles on m.AccountId equals p.AccountId
+                              where ids.Contains(m.MediaId) && p.PhotoStatus == VerificationStatus.Verified && !p.PhotoManual
+                              select new { m.MediaId, m.VerifiedAt }).ToDictionaryAsync(m => m.MediaId, m => m.VerifiedAt, cancellationToken);
         PhotoView? View(Guid id, DateTimeOffset uploaded) => links.For(id, "member", now) is { } link
             ? new PhotoView(id, link, uploaded, verified.TryGetValue(id, out var at) ? at : null) : null;
         var main = visible.Where(r => r.IsMain).GroupBy(r => (r.AccountId, r.Scope))
