@@ -46,7 +46,11 @@ Every PR that appends to DECISIONS.md is in one linear stack with base `main`, s
 | | Stale suites | **#630**: `notifications` (held the Connections page's own centre read; PASS 147) and `review-workflows` (missing staff OTP; PASS). Test-only |
 | | #544 (D455) | **#631**. check.sh passed; `chat-location` PASS (36). Screenshot checked. Codex requested |
 | | #543a (D456) | **#632**. check.sh passed (on the stack); `chat-library` PASS (20). Codex requested |
-| | #448 slice 1 (D457) | Catalogue, `profile_attribute_values` (migration `ProfileAttributes`), API, per-mode details on profiles, snapshot, export and deletion. `ProfileAttributeChecks` (46). check.sh passed. Owned suite `profile-details` running |
+| | #448 slice 1 (D457) | **#633**. Catalogue, `profile_attribute_values` (migration `ProfileAttributes`), API, per-mode details, snapshot, export, deletion. check.sh passed; `profile-details` PASS (21) |
+| | #448 slice 2 (D458) | **#634**. More about you on /me/profile; More about me on profiles. `profile-details` PASS (31); editor screenshot checked |
+| | Codex on #631–#633 | #631: location is a reply in the client (fixed 0239d01, suite covers it live). Text-harm history now counts labelled locations (fix + runtime check, check.sh running). #632/#633 repeated the first finding: replied and resolved |
+| | #452 (D459) | "You both like…" when both members publish interests in the mode. check.sh and suite running |
+| | #571 (D460) | Their trip to your area on the profile, by the Who's visiting rule. General availability is already a detail (D457). Suite pending |
 
 ## Pull requests (merge order)
 
@@ -56,6 +60,8 @@ Every PR that appends to DECISIONS.md is in one linear stack with base `main`, s
 | 2 | #628 | #530 | Photo Verified decision notification (D454) | check.sh, photo-verified suite | no findings | yes |
 | 3 | #631 | #544 | Share a location in chat (D455) | check.sh, chat-location (36) | requested | yes |
 | 4 | #632 | #543 (part) | Chat + menu: library, upload, camera (D456) | check.sh, chat-library (20) | requested | yes |
+| 5 | #633 | #448 | Profile details slice 1 (D457, migration `ProfileAttributes`) | check.sh, profile-details (21) | finding fixed upstream | yes |
+| 6 | #634 | #448 | Profile details slice 2: web (D458) | profile-details (31) | requested | yes |
 | any | #630 | — | Fix stale owned suites (test-only) | notifications (147), review-workflows | — | yes |
 | any | #629 | — | This report (docs) | — | — | yes |
 
@@ -63,6 +69,9 @@ Every PR that appends to DECISIONS.md is in one linear stack with base `main`, s
 
 - **D455 storage:** a shared location is stored as the message's own text (`geo:lat,lon` plus a label line), so every text rule (unsend, 30-day evidence, purge, holds, report, removal, export, deletion) covers it. No migration.
 - **D455:** 0,0 is refused, and points are kept to 5 decimal places.
+- **D457:** nationality, causes and accessibility count as sensitive (unavailable). Free-text details wait for a slice with text screening. Option lists are drafted.
+- **D459:** publishing your own interests in a mode is opting in to "You both like…" there.
+- **D460:** only a trip to the viewer's own area shows on a profile, by the Who's visiting rule.
 - **D456:** a library photo sent to a chat is re-run through the upload pipeline as a fresh chat copy, rather than reusing the library item. Retention, removal and the explicit gates then never couple the two.
 
 ## Blockers and owner actions
