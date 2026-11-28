@@ -127,6 +127,14 @@ const today = () => new Date().toISOString().slice(0, 10);
     assert.ok(!(await call(sup, '/api/admin/media/review')).body.items.some(i => i.id === evidence), 'not in the ordinary queue'); pass();
     assert.equal((await call(sup, `/api/admin/media/${evidence}/decision`, { method: 'POST', body: { decision: 'approve', reasonCode: 'APPROVED_STANDARD' } })).status, 404); pass();
     assert.equal((await call(tk.pia, '/api/admin/photo-verification')).status, 403, "members can't see the queue"); pass();
+    // PR 610 review: staff who haven't acknowledged the safety notice get no evidence links and can't decide.
+    const fresh2 = await createStaff('pv-sup2');
+    assert.equal((await call(root, '/api/admin/invitations', { method: 'POST', body: { email: fresh2.email, role: 'support' } })).status, 201);
+    const sup2 = await staffToken(browser, fresh2); await call(sup2, '/api/session');
+    r = await call(sup2, '/api/admin/photo-verification');
+    assert.deepEqual([r.status, r.body?.code], [403, 'media-safety-ack-required']); pass();
+    r = await call(sup2, `/api/admin/photo-verification/${item.id}/decision`, { method: 'POST', body: { decision: 'reject', reason: 'other' } });
+    assert.deepEqual([r.status, r.body?.code], [403, 'media-safety-ack-required']); pass();
 
     // ---- A stale approval is refused: a profile photo changed after she sent it.
     assert.equal((await place('pia', [first])).status, 200);

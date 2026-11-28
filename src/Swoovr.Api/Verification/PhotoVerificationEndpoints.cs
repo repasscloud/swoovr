@@ -114,6 +114,9 @@ public static class PhotoVerificationEndpoints
             var (current, denied) = await AdminEndpoints.StaffAsync(user, accounts, AccountRole.Support, token);
             if (denied is not null) return denied;
             var (db, now) = (accounts.Db!, clock.GetUtcNow());
+            // PR 610 review: the same reveal prerequisite as ordinary photo review (Q114): a current safety acknowledgement
+            // before any evidence link is issued.
+            if (await PhotoReviewWorkflows.AckUntilAsync(db, current!.Account!.Id, now, token) is null) return PhotoReviewWorkflows.AckRequired();
             var links = accounts.Services.GetRequiredService<MediaLinks>();
             // Waiting for a person: the evidence passed the automatic checks (Uncertain, in its own place).
             var rows = await (from a in db.PhotoVerificationAttempts join i in db.MediaItems on a.MediaId equals i.Id
@@ -143,6 +146,7 @@ public static class PhotoVerificationEndpoints
             var (current, denied) = await AdminEndpoints.StaffAsync(user, accounts, AccountRole.Support, token);
             if (denied is not null) return denied;
             var (db, actor) = (accounts.Db!, current!.Account!.Id);
+            if (await PhotoReviewWorkflows.AckUntilAsync(db, actor, clock.GetUtcNow(), token) is null) return PhotoReviewWorkflows.AckRequired();
             var approve = request.Decision == "approve";
             if (!approve && (request.Decision != "reject" || request.Reason is null || !PhotoVerificationPolicy.Reasons.ContainsKey(request.Reason)))
                 return Problem(StatusCodes.Status400BadRequest, ProblemCodes.InvalidDecision, "Approve, or reject with one of the reasons.");
@@ -262,19 +266,25 @@ public static class PhotoVerificationEndpoints
         await db.PhotoVerificationAttempts.Where(a => a.State == PhotoCheckState.Issued && a.IssuedAt <= now - PhotoVerificationPolicy.CodeLifetime)
             .ExecuteUpdateAsync(u => u.SetProperty(a => a.State, PhotoCheckState.Expired), token);
         await db.SaveChangesAsync(token);
-        var due = await (from a in db.PhotoVerificationAttempts join i in db.MediaItems on a.MediaId equals i.Id
-                         where a.DecidedAt != null && a.DecidedAt <= now - PhotoVerificationPolicy.EvidenceRetention && a.EvidenceDeletedAt == null
-                               // A blocked one is safety evidence: its own preservation rules keep or delete it, never this.
-                               && i.Status != MediaStatus.Blocked
-                         select new { Attempt = a, Item = i }).Take(200).ToListAsync(token);
+        // PR 608 review: batches of 200 that skip past held evidence, so held rows never keep unheld ones from their deletion.
         var deleted = 0;
-        foreach (var row in due)
+        var held = new HashSet<Guid>();
+        while (true)
         {
-            if (row.Item.ObjectKey is not null && !await pipeline.DeleteVerificationEvidenceAsync(row.Item, now, token)) continue; // held: kept, tried again next run
-            row.Attempt.EvidenceDeletedAt = now;
-            Audit.Record(db, now, null, "system", "verification.photo.evidence-deleted", "photo-verification", row.Attempt.Id.ToString());
-            await db.SaveChangesAsync(token);
-            deleted++;
+            var due = await (from a in db.PhotoVerificationAttempts join i in db.MediaItems on a.MediaId equals i.Id
+                             where a.DecidedAt != null && a.DecidedAt <= now - PhotoVerificationPolicy.EvidenceRetention && a.EvidenceDeletedAt == null
+                                   // A blocked one is safety evidence: its own preservation rules keep or delete it, never this.
+                                   && i.Status != MediaStatus.Blocked && !held.Contains(a.Id)
+                             orderby a.DecidedAt, a.Id select new { Attempt = a, Item = i }).Take(200).ToListAsync(token);
+            if (due.Count == 0) break;
+            foreach (var row in due)
+            {
+                if (row.Item.ObjectKey is not null && !await pipeline.DeleteVerificationEvidenceAsync(row.Item, now, token)) { held.Add(row.Attempt.Id); continue; } // held: kept, tried again next run
+                row.Attempt.EvidenceDeletedAt = now;
+                Audit.Record(db, now, null, "system", "verification.photo.evidence-deleted", "photo-verification", row.Attempt.Id.ToString());
+                await db.SaveChangesAsync(token);
+                deleted++;
+            }
         }
         return expired.Count + deleted;
     }
