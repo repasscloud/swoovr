@@ -46,7 +46,7 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 500;
     const root = await rootAdminToken(browser);
     // snd sends (ID Verified); yes: ID Verified and opted in; off: ID Verified, not opted in; noid: not ID Verified;
     // unv: a sender who isn't ID Verified.
-    const names = ['snd', 'yes', 'off', 'noid', 'unv'];
+    const names = ['snd', 'yes', 'off', 'noid', 'unv', 'cls'];
     const members = Object.fromEntries(await Promise.all(names.map(async n => [n, await createMember('xc-' + n)])));
     await cli('beta', 'add', ...Object.values(members).map(m => m.email));
     const tk = {}, id = {}, pid = {};
@@ -58,16 +58,16 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 500;
       for (const mode of ['friends', 'activities']) await call(tk[n], `/api/me/modes/${mode}`, { method: 'PUT', body: { enabled: true, visible: true } });
       await matchReady(tk[n]);
     }
-    for (const n of ['snd', 'yes', 'off']) await sql(`UPDATE member_profiles SET id_status = 'Verified', id_checked_at = now() WHERE account_id = '${id[n]}'`); // simulated for this local test
+    for (const n of ['snd', 'yes', 'off', 'cls']) await sql(`UPDATE member_profiles SET id_status = 'Verified', id_checked_at = now() WHERE account_id = '${id[n]}'`); // simulated for this local test
     const connect = async (from, to, mode = 'friends') => {
       const r = await call(tk[from], '/api/requests', { method: 'POST', body: { to: pid[to], mode } });
       assert.equal(r.status, 201, `${from}->${to} ${JSON.stringify(r.body)}`);
       assert.equal((await call(tk[to], `/api/requests/${r.body.id}/accept`, { method: 'POST' })).status, 200);
     };
-    for (const other of ['yes', 'off', 'noid']) await connect('snd', other);
+    for (const other of ['yes', 'off', 'noid', 'cls']) await connect('snd', other);
     await connect('unv', 'yes');
     const start = async (who, to) => (await call(tk[who], '/api/conversations', { method: 'POST', body: { to: pid[to] } })).body.id;
-    const c = { yes: await start('snd', 'yes'), off: await start('snd', 'off'), noid: await start('snd', 'noid'), unv: await start('unv', 'yes') };
+    const c = { yes: await start('snd', 'yes'), off: await start('snd', 'off'), noid: await start('snd', 'noid'), unv: await start('unv', 'yes'), cls: await start('snd', 'cls') };
     const list = async (who, conversation) => (await call(tk[who], `/api/conversations/${conversation}/messages`)).body?.items ?? [];
     const unread = async (who, conversation) => (await call(tk[who], '/api/conversations')).body.find(x => x.id === conversation)?.unread ?? 0;
 
@@ -105,13 +105,22 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 500;
     assert.equal((await state('snd', c.yes, auto.message)).explicit, true); pass();
     assert.ok(!(await call(sup, '/api/admin/media/review?kind=attachment')).body.items.some(i => i.id === auto.media), 'never queued'); pass();
 
+    // ---- PR 606/607 review: the recipient's link is its own variant, never cached, and checked again when it's served.
+    const recipientLink = seen.photo.link;
+    assert.match(recipientLink, /\.explicit\./); pass();
+    const fetchLink = link => fetch(`${process.env.SWOOVR_TEST_API_BASE}/${link}`);
+    let served = await fetchLink(recipientLink);
+    assert.deepEqual([served.status, served.headers.get('cache-control')], [200, 'no-store']); pass();
+    assert.match((await state('snd', c.yes, auto.message)).photo.link, /\.member\./, 'the sender sees their own on an ordinary link'); pass();
     // ---- Opting out after delivery stops it loading (182.4); turning it back on brings it back.
     await call(tk.yes, '/api/me/explicit-media', { method: 'PUT', body: { mode: 'friends', receive: false } });
     seen = await state('yes', c.yes, auto.message);
     assert.deepEqual([seen?.explicit, seen?.photo ?? null], [true, null]); pass();
+    assert.equal((await fetchLink(recipientLink)).status, 404, 'a link issued before the opt-out no longer loads'); pass();
     assert.ok((await state('snd', c.yes, auto.message)).photo, 'the sender still sees their own'); pass();
     await call(tk.yes, '/api/me/explicit-media', { method: 'PUT', body: { mode: 'friends', receive: true } });
     assert.ok((await state('yes', c.yes, auto.message))?.photo); pass();
+    assert.equal((await fetchLink(recipientLink)).status, 200); pass();
 
     // ---- Recipient not opted in for a connected mode: review with the Chat destination; never reaches them.
     const unreadBefore = await unread('off', c.off);
@@ -128,6 +137,15 @@ const waitFor = async (predicate, ms = 60000) => { for (let i = 0; i < ms / 500;
     // Opting in later doesn't deliver a refused photo.
     await call(tk.off, '/api/me/explicit-media', { method: 'PUT', body: { mode: 'friends', receive: true } });
     assert.equal(await state('off', c.off, held.message), undefined); pass();
+
+    // ---- PR 607 review: the chat ended while the photo was in review; approving it as adult content refuses it.
+    const late = await send('snd', c.cls);
+    assert.ok(await waitFor(async () => (await state('snd', c.cls, late.message))?.photoState === 'in-review')); pass(); // cls hasn't opted in yet
+    assert.equal((await call(tk.cls, '/api/me/explicit-media', { method: 'PUT', body: { mode: 'friends', receive: true } })).status, 200);
+    assert.ok([200, 204].includes((await call(tk.cls, `/api/conversations/${c.cls}/end`, { method: 'POST', body: {} })).status), 'the chat ended');
+    assert.equal((await decide(late.media, 'approve', 'APPROVED_CHAT_EXPLICIT')).status, 200);
+    assert.equal(await sql(`SELECT explicit_refused_at IS NOT NULL FROM messages WHERE id = '${late.message}'`), 't', 'refused in the same save'); pass();
+    assert.equal(await state('cls', c.cls, late.message), undefined); pass();
 
     // ---- Recipient not ID Verified: an approved standard false positive is delivered normally, with no explicit flag.
     const plain = await send('snd', c.noid);

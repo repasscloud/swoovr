@@ -497,7 +497,9 @@ public static partial class MessagingEndpoints
             explicitPhoto = media.ContentRating == ContentRating.Explicit;
             // D423: the recipient's link to an explicit photo only while they may receive it now, and never one refused at delivery.
             var shown = mine || !explicitPhoto || explicitAllowed && message.ExplicitRefusedAt is null;
-            if (shown && media.Status == MediaStatus.Passed && media.RemovedAt is null && links?.For(media.Id, "member", now) is { } link) photo = new PhotoView(media.Id, link);
+            // PR 606/607 review: the recipient's link to an explicit photo is its own variant, checked again when it's served.
+            if (shown && media.Status == MediaStatus.Passed && media.RemovedAt is null && links?.For(media.Id, mine || !explicitPhoto ? "member" : "explicit", now) is { } link)
+                photo = new PhotoView(media.Id, link);
             if (mine) state = media.RemovedAt is not null ? "removed" : message.ExplicitRefusedAt is not null ? ExplicitChatPolicy.NotAccepted : MediaPolicy.MemberState(media.Status);
         }
         return new(message.Id, message.ConversationId, message.SenderAccountId == viewer, Wire(message.Kind), MessagingPolicy.VisibleText(message), message.SentAt,

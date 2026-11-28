@@ -146,7 +146,7 @@ public static class MediaEndpoints
             if (item is null) return Results.NotFound();
             if (await MfaEvidenceAccess.CheckAsync(item.Id,item.AccountId,variant,context.User,services.GetRequiredService<AccountResolver>(),clock.GetUtcNow(),cancellationToken) is { } denied) return denied;
             if (await services.GetRequiredService<MediaPipeline>().ServeAsync(item, variant, cancellationToken) is not { } bytes) return Results.NotFound();
-            context.Response.Headers.CacheControl = MfaEvidenceAccess.StaffVariant(variant) ? "no-store" : "private, max-age=300";
+            context.Response.Headers.CacheControl = MfaEvidenceAccess.StaffVariant(variant) || variant == "explicit" ? "no-store" : "private, max-age=300";
             context.Response.Headers.XContentTypeOptions = "nosniff";
             return Results.File(bytes, "image/jpeg");
         });

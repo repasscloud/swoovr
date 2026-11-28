@@ -300,6 +300,8 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
         {
             // A chat photo never goes on a profile; the recipient sees it from now on (#41).
             Audit.Record(db, now, reviewer, reviewer is null ? "system" : "account", "media.passed", "media", item.Id.ToString(), reviewer is null ? "attachment" : "review");
+            // D423 (PR 606/607 review): an explicit photo its recipient can't receive is marked refused in this same save.
+            await Swoovr.Api.Connections.ExplicitChat.MarkUndeliverableAsync(db, item, now, cancellationToken);
             await SaveModerationAsync(item,inspectionCompleted,false,false,now,cancellationToken);
             if (quarantined != published) await DeleteSupersededCopyAsync(quarantined, cancellationToken);
             await AttachmentChangedAsync(item, now, cancellationToken);
@@ -557,6 +559,8 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
         // even after delete for both while its object is kept; never a blocked one.
         var allowed = variant switch
         {
+            // D423 (PR 606/607 review): the recipient's explicit chat photo, checked again on every request (below).
+            "explicit" => item is { Status: MediaStatus.Passed, RemovedAt: null, ContentRating: ContentRating.Explicit },
             "member" => item is { Status: MediaStatus.Passed, RemovedAt: null },
             "inspection" => MediaPolicy.ProfileInspectable(item),
             "case" => MediaPolicy.CaseReviewable(item),
@@ -565,6 +569,7 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
             "own" => MediaPolicy.OwnerPreview(item, DateTimeOffset.UtcNow),
             _ => item is { Status: MediaStatus.Uncertain, RemovedAt: null },
         };
+        if (allowed && variant == "explicit") allowed = await Swoovr.Api.Connections.ExplicitChat.ServableAsync(db, item, cancellationToken);
         if (!allowed || Store is null || item.ObjectKey is null || item.ObjectKey.StartsWith("evidence/")) return null;
         return await Store.GetAsync(item.ObjectKey, cancellationToken);
     }
