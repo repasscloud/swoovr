@@ -118,10 +118,13 @@ public static class PhotoVerificationEndpoints
             // before any evidence link is issued.
             if (await PhotoReviewWorkflows.AckUntilAsync(db, current!.Account!.Id, now, token) is null) return PhotoReviewWorkflows.AckRequired();
             var links = accounts.Services.GetRequiredService<MediaLinks>();
-            // Waiting for a person: the evidence passed the automatic checks (Uncertain, in its own place).
+            // Waiting for a person: the evidence passed the automatic checks (Uncertain, in its own place). PR 608/610 review:
+            // conflict-of-interest exclusions are filtered in the query, before the limit, so they can't hide later requests.
+            var excluded = StaffAccessEndpoints.ExcludedSubjects(db, current.Account.Id);
             var rows = await (from a in db.PhotoVerificationAttempts join i in db.MediaItems on a.MediaId equals i.Id
                               join p in db.MemberProfiles on a.AccountId equals p.AccountId
                               where a.State == PhotoCheckState.Submitted && i.Status == MediaStatus.Uncertain && i.RemovedAt == null
+                                    && !excluded.Contains(a.AccountId)
                               orderby a.SubmittedAt select new { Attempt = a, p.DisplayName }).Take(50).ToListAsync(token);
             var items = new List<PhotoIdentifiedItem>();
             foreach (var row in rows)
