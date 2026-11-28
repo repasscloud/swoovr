@@ -65,7 +65,10 @@ public static class DataExportBuilder
                 {
                     from = m.Kind == MessageKind.System ? "system" : m.SenderAccountId == id ? "you" : "them", kind = m.ModerationRemovedAt!=null?"removed-by-moderation":m.Kind.ToString().ToLowerInvariant(), text = m.Kind == MessageKind.System ? ConversationEnding.SystemText(m.SenderAccountId == id) : MessagingPolicy.VisibleText(m), m.SentAt,
                     removedByModeration = m.ModerationRemovedAt is not null, deleted = m.DeletedAt is not null, photo = m.DeletedAt is null ? m.MediaId : null,
-                    photoState = m.SenderAccountId == id && m.DeletedAt is null && m.MediaId is { } p && media.TryGetValue(p, out var item) ? MediaPolicy.MemberState(item.Status) : null,
+                    // D389 182.7 (D428): an explicit photo is listed as "photo (explicit)"; the export carries ids, never images.
+                    photoRating = m.DeletedAt is null && m.MediaId is { } r && media.TryGetValue(r, out var rated) && rated.ContentRating == ContentRating.Explicit ? "explicit" : null,
+                    photoState = m.SenderAccountId == id && m.DeletedAt is null && m.MediaId is { } p && media.TryGetValue(p, out var item)
+                        ? m.ExplicitRefusedAt is not null ? ExplicitChatPolicy.NotAccepted : MediaPolicy.MemberState(item.Status) : null,
                 }),
             meetups = meetups[c.Id].Select(m => new { proposedBy = m.ProposerAccountId == id ? "you" : "them", m.Category, Venue = Connections.MessagingEndpoints.VisibleVenue(m), m.StartsAt, m.DurationMinutes, status = m.Status.ToString().ToLowerInvariant(), m.CreatedAt }),
         });

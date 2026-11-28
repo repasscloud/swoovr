@@ -175,6 +175,15 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
                 item.KnownContentChecked = decision.KnownContentChecked;
                 await PassCoreAsync(item, null, now, cancellationToken,inspectionCompleted:true);
                 return;
+            case ScreeningVerdict.Uncertain when decision.Reason == ExplicitChatPolicy.NuditySignal && item.Purpose == AttachmentPolicy.Purpose
+                && await ExplicitRecipientAsync(item, cancellationToken):
+                // D428 (#546): a chat photo the automatic check flags for nudity, for a pair where it may be delivered, is rated
+                // explicit and delivered without routine manual review (it opens blurred; staff can overturn it). Everything
+                // else above still ran: malware, known-content matching, and the screening itself.
+                (item.ContentRating, item.KnownContentChecked) = (ContentRating.Explicit, decision.KnownContentChecked);
+                Audit.Record(db, now, null, "system", "media.explicit-auto", "media", item.Id.ToString(), decision.Reason);
+                await PassCoreAsync(item, null, now, cancellationToken, inspectionCompleted: true);
+                return;
             case ScreeningVerdict.Uncertain:
                 (item.Status, item.ScreenedAt, item.KnownContentChecked, item.NextScreenAt, item.LastScreenError) = (MediaStatus.Uncertain, now, decision.KnownContentChecked, null, null);
                 Audit.Record(db, now, null, "system", "media.uncertain", "media", item.Id.ToString(), decision.Reason);
@@ -186,6 +195,16 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
                 await BlockCoreAsync(item, null, "known-content-match", now, cancellationToken,inspectionCompleted:true);
                 return;
         }
+    }
+
+    /// <summary>D423: the chat photo's recipient may receive it as explicit now (both ID Verified, recipient opted in for a connected mode).</summary>
+    private async Task<bool> ExplicitRecipientAsync(MediaItem item, CancellationToken cancellationToken)
+    {
+        if (item.ConversationId is not { } conversation) return false;
+        var pair = await db.Conversations.AsNoTracking().Where(c => c.Id == conversation && c.ClosedAt == null).Select(c => new { c.PairLow, c.PairHigh }).SingleOrDefaultAsync(cancellationToken);
+        if (pair is null) return false;
+        var recipient = pair.PairLow == item.AccountId ? pair.PairHigh : pair.PairLow;
+        return await Swoovr.Api.Connections.ExplicitChat.AllowedAsync(db, item.AccountId, recipient, cancellationToken);
     }
 
     private void RecordReview(MediaItem item,Guid? actor,MediaReviewMetadata? review,DateTimeOffset now)
@@ -281,6 +300,8 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
         {
             // A chat photo never goes on a profile; the recipient sees it from now on (#41).
             Audit.Record(db, now, reviewer, reviewer is null ? "system" : "account", "media.passed", "media", item.Id.ToString(), reviewer is null ? "attachment" : "review");
+            // D423 (PR 606/607 review): an explicit photo its recipient can't receive is marked refused in this same save.
+            await Swoovr.Api.Connections.ExplicitChat.MarkUndeliverableAsync(db, item, now, cancellationToken);
             await SaveModerationAsync(item,inspectionCompleted,false,false,now,cancellationToken);
             if (quarantined != published) await DeleteSupersededCopyAsync(quarantined, cancellationToken);
             await AttachmentChangedAsync(item, now, cancellationToken);
@@ -538,6 +559,8 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
         // even after delete for both while its object is kept; never a blocked one.
         var allowed = variant switch
         {
+            // D423 (PR 606/607 review): the recipient's explicit chat photo, checked again on every request (below).
+            "explicit" => item is { Status: MediaStatus.Passed, RemovedAt: null, ContentRating: ContentRating.Explicit },
             "member" => item is { Status: MediaStatus.Passed, RemovedAt: null },
             "inspection" => MediaPolicy.ProfileInspectable(item),
             "case" => MediaPolicy.CaseReviewable(item),
@@ -546,6 +569,7 @@ public sealed partial class MediaPipeline(IServiceProvider services, IPhotoProce
             "own" => MediaPolicy.OwnerPreview(item, DateTimeOffset.UtcNow),
             _ => item is { Status: MediaStatus.Uncertain, RemovedAt: null },
         };
+        if (allowed && variant == "explicit") allowed = await Swoovr.Api.Connections.ExplicitChat.ServableAsync(db, item, cancellationToken);
         if (!allowed || Store is null || item.ObjectKey is null || item.ObjectKey.StartsWith("evidence/")) return null;
         return await Store.GetAsync(item.ObjectKey, cancellationToken);
     }

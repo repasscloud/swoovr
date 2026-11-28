@@ -1657,7 +1657,7 @@ Builds the first part of D389's DEFAULT design. Independent of Q182: no chat del
 
 ### D423 — Adult chat photos go directly to eligible recipients who opted in (#546, 26 November 2026)
 
-**CONFIRMED** by the owner on [#546](https://github.com/repasscloud/swoovr/issues/546) (UAT direction). Supersedes D389 rule 1 ("nudes sent straight to chat are rejected") and Q182's DEFAULTs for 182.1 and 182.2 ([#432](https://github.com/repasscloud/swoovr/issues/432)). Not built yet.
+**CONFIRMED** by the owner on [#546](https://github.com/repasscloud/swoovr/issues/546) (UAT direction). Supersedes D389 rule 1 ("nudes sent straight to chat are rejected") and Q182's DEFAULTs for 182.1 and 182.2 ([#432](https://github.com/repasscloud/swoovr/issues/432)). Built by D451.
 - **Eligible recipient:** ID Verified first, then **Receive explicit media** on for the mode (`ExplicitMediaPolicy`). The sender stays ID Verified (D389). For an eligible recipient a chat photo is delivered after mandatory screening passes, with no routine manual nudity review.
 - **Never bypassed:** "CSAM-only" means removing routine nudity review, not file validation, malware scanning, known-CSAM matching, quarantine or other prohibited-content checks. Screening that can't run fails closed.
 - **Recipient not eligible:** screened as normal; a flagged photo goes to review with Destination **Chat** (its own pill, beside #536/#537). Staff get an explicit classification reason that is separate from delivery. An approved standard false positive is delivered normally.
@@ -1702,7 +1702,7 @@ Builds the first part of D389's DEFAULT design. Independent of Q182: no chat del
 
 ### D428 — Adult chat photos: the open points (Q191, #548, 26 November 2026)
 
-**CONFIRMED** by the owner on [#548](https://github.com/repasscloud/swoovr/issues/548): every A. Completes D423 for [#546](https://github.com/repasscloud/swoovr/issues/546). Not built yet.
+**CONFIRMED** by the owner on [#548](https://github.com/repasscloud/swoovr/issues/548): every A. Completes D423 for [#546](https://github.com/repasscloud/swoovr/issues/546). Built by D451.
 - **Rating without a reviewer:** for an eligible recipient, a photo the automatic check flags for nudity is rated **Explicit** when it is delivered, opens blurred with Show, and staff can overturn it. This amends D205 ("only a reviewer sets explicit") for that case alone; everywhere else a reviewer still decides.
 - **Sender's album:** a direct adult photo stays in the chat only; it is not filed into an album.
 - **Which switch:** the recipient's Receive explicit media must be on for at least one mode the pair is connected in.
@@ -1913,3 +1913,12 @@ Builds [#572](https://github.com/repasscloud/swoovr/issues/572) (from #568 §11,
 ### D450 — Favourites rows show the photo, age and a link per mode (#572, 28 November 2026)
 
 **CONFIRMED** (owner, 28 November 2026): the Favourites page (`/me/favourites`, D448) shows each member like a Connections row (#539): their main photo as a thumbnail (or their initial), name and age, and badges, as their profile shows them in the mode it opens in. Under the name, one link per mode you can open their profile in now (both have it on and visible), each to `/people/{id}?mode=…`; a mode they hid or turned off isn't listed. Then the saved date and Remove. Age and photo follow the same rules as Explore and Connections (D138, D203, D418). The list is still private (D448), and the API loads it in a few batched queries, not per row.
+
+### D451 — Adult chat photos: how D423 and D428 are built (#546, 28 November 2026)
+
+Builds [#546](https://github.com/repasscloud/swoovr/issues/546) on D423 and D428 (the API, admin review and sender notice; the chat blur comes in the next PR).
+- **Who may receive one** (`ExplicitChat.AllowedAsync`): the sender and the recipient are both ID Verified now, and the recipient has Receive explicit media on for a mode with an active, accepted connection between them. The same answer is used at delivery and on every view.
+- **Automatic rating:** screening is unchanged (malware, known-content matching, then the nudity check). When a chat photo comes back flagged for nudity and the pair may receive it, the photo is rated **Explicit** and delivered with no manual review (audited `media.explicit-auto`). Any other flag still goes to review.
+- **Review:** chat photos show the new blue **Chat** destination pill (**DEFAULT** colour; contrast checked). Staff can approve as **Adult content: chat** (`APPROVED_CHAT_EXPLICIT`, only for an ID Verified sender), as ordinary (standard) content, or reject or escalate as before.
+- **Not delivered:** if an explicit photo's recipient can't receive it when it would be delivered, the message is marked refused (`messages.explicit_refused_at`, migration `ExplicitChatRefusal`). The recipient never gets the message, a notification, an unread count or a link, now or later (opting in afterwards doesn't deliver it), and it isn't in their export. The sender sees "Recipient does not allow adult content" and still sees their own photo.
+- **After delivery:** the recipient's link is issued only while they may still receive it, in an open conversation. Opting out, an ID lapse, a disconnection or the chat ending stops it loading (182.4). Messages carry `explicit: true` so both sides open it blurred (182.6), and the export lists `photoRating: "explicit"` with the id only (182.7).

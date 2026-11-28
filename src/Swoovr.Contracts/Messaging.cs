@@ -17,9 +17,11 @@ public sealed record ConversationView(Guid Id, PersonSummary Person, DateTimeOff
 /// as deleted, with no text (Q59, D167); the text stays on the server for 30 days for investigations. A photo message
 /// (#41) carries Photo (a short-lived link) once it passed screening; the sender also sees PhotoState: checking,
 /// in-review, approved or not-approved (a blocked photo reads as not-approved). The recipient never sees a photo message before it passed.
+/// D423 (#546): Explicit is true for an explicit photo (it opens blurred with Show, for both), and absent otherwise. The sender's PhotoState is
+/// not-accepted when it couldn't be delivered; the recipient then never sees the message at all.
 /// </summary>
 public sealed record MessageView(Guid Id, Guid ConversationId, bool Mine, string Kind, string Text, DateTimeOffset SentAt, bool CanDelete, bool Deleted = false,
-    PhotoView? Photo = null, string? PhotoState = null, MeetupView? Meetup = null);
+    PhotoView? Photo = null, string? PhotoState = null, MeetupView? Meetup = null, bool? Explicit = null);
 
 /// <summary>
 /// Issue 545 (D430): a private 1-on-1 meet-up invitation as one of its two members sees it (the card of a "meetup" message).

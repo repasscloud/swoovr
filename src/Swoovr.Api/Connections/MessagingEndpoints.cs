@@ -110,8 +110,8 @@ public static partial class MessagingEndpoints
                     && (hiddenAt == null || m.SentAt > hiddenAt || (m.Kind == MessageKind.Photo && m.SenderAccountId != me
                         && db.MediaItems.Any(i => i.Id == m.MediaId && (i.ReviewedAt ?? i.ScreenedAt) > hiddenAt)))
                     && !db.MessageHides.Any(h => h.MessageId == m.Id && h.AccountId == me)
-                    && (m.Kind != MessageKind.Photo || m.SenderAccountId == me || m.DeletedAt != null
-                        || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null)))
+                    && (m.Kind != MessageKind.Photo || m.SenderAccountId == me || m.ExplicitRefusedAt == null && (m.DeletedAt != null
+                        || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null))))
                 .OrderByDescending(m => m.SentAt).ThenByDescending(m => m.Kind == MessageKind.System).ThenByDescending(m => m.Id).Take(MessagingPolicy.PageSize + 1).ToListAsync(cancellationToken);
             var page = rows.Take(MessagingPolicy.PageSize).ToList();
             Guid? firstUnread = null;
@@ -130,7 +130,11 @@ public static partial class MessagingEndpoints
             var links = accounts.Services.GetRequiredService<Media.MediaLinks>();
             // Issue 545: each meet-up card with its current state.
             var meetups = await MeetupsForAsync(db, conversation, page, me, now, cancellationToken);
-            return Results.Ok(new MessagePage(page.Select(m => View(m, me, now, media.GetValueOrDefault(m.MediaId ?? Guid.Empty), links, meetups.GetValueOrDefault(m.Id))).ToList(),
+            // D423 (182.4): their explicit photos load only while this member may receive them now, in an open conversation.
+            var otherId = conversation.PairLow == me ? conversation.PairHigh : conversation.PairLow;
+            var explicitAllowed = conversation.ClosedAt is null && media.Values.Any(i => i.AccountId != me && i.ContentRating == ContentRating.Explicit)
+                && await ExplicitChat.AllowedAsync(db, otherId, me, cancellationToken);
+            return Results.Ok(new MessagePage(page.Select(m => View(m, me, now, media.GetValueOrDefault(m.MediaId ?? Guid.Empty), links, meetups.GetValueOrDefault(m.Id), explicitAllowed)).ToList(),
                 rows.Count > MessagingPolicy.PageSize, page.LastOrDefault()?.SentAt, firstUnread));
         });
 
@@ -432,14 +436,22 @@ public static partial class MessagingEndpoints
         var message = await db.Messages.SingleOrDefaultAsync(m => m.MediaId == item.Id, cancellationToken);
         if (message is null) return;
         var links = services.GetRequiredService<Media.MediaLinks>();
+        var conversation = item.Status == MediaStatus.Passed && message.DeletedAt is null ? await OpenAsync(db, message.ConversationId, message.SenderAccountId, cancellationToken) : null;
+        var other = conversation is null ? Guid.Empty : conversation.PairLow == message.SenderAccountId ? conversation.PairHigh : conversation.PairLow;
+        // D423 (#546): an explicit photo goes only to an eligible recipient, checked now. Otherwise it never reaches them (no
+        // message, notification, count or link) and only the sender learns it wasn't delivered, in neutral words.
+        if (conversation is not null && item.ContentRating == ContentRating.Explicit && message.ExplicitRefusedAt is null
+            && !await ExplicitChat.AllowedAsync(db, message.SenderAccountId, other, cancellationToken))
+        {
+            message.ExplicitRefusedAt = now;
+            Audit.Record(db, now, null, "system", "message.explicit-refused", "message", message.Id.ToString());
+            await db.SaveChangesAsync(cancellationToken);
+        }
         await BetaMessageAudience.SendAsync(services,message.SenderAccountId,View(message,message.SenderAccountId,now,item,links),cancellationToken);
-        if (item.Status != MediaStatus.Passed || message.DeletedAt is not null) return;
-        var conversation = await OpenAsync(db, message.ConversationId, message.SenderAccountId, cancellationToken);
-        if (conversation is null) return;
-        var other = conversation.PairLow == message.SenderAccountId ? conversation.PairHigh : conversation.PairLow;
+        if (conversation is null || message.ExplicitRefusedAt is not null) return;
         conversation.LastMessageAt = now;
         await db.SaveChangesAsync(cancellationToken);
-        await BetaMessageAudience.SendAsync(services,other,View(message,other,now,item,links),cancellationToken);
+        await BetaMessageAudience.SendAsync(services,other,View(message,other,now,item,links,explicitAllowed:true),cancellationToken);
         await services.GetRequiredService<Notifications.Notifier>().NotifyAsync(other, NotificationKind.Message, message.SenderAccountId, null, conversation.Id, now, cancellationToken);
     }
 
@@ -465,7 +477,10 @@ public static partial class MessagingEndpoints
     /// A message for one viewer. A photo message carries a short-lived link once it passed (never after delete for both),
     /// and its state for the sender only (a blocked photo reads as not approved, procedure §4).
     /// </summary>
-    public static MessageView View(Message message, Guid viewer, DateTimeOffset now, MediaItem? media = null, Media.MediaLinks? links = null, MeetupView? meetup = null)
+    /// <param name="explicitAllowed">D423: the caller checked <see cref="ExplicitChat.AllowedAsync"/> for this viewer as the
+    /// recipient now; without it an explicit photo gets no link for them (the sender always sees their own).</param>
+    public static MessageView View(Message message, Guid viewer, DateTimeOffset now, MediaItem? media = null, Media.MediaLinks? links = null, MeetupView? meetup = null,
+        bool explicitAllowed = false)
     {
         // PR 583 review: removing a meet-up's note keeps its card and controls (the note reads "Removed by Swoovr."), so the plan
         // can still be answered and never blocks the chat's next invitation.
@@ -475,13 +490,20 @@ public static partial class MessagingEndpoints
             return new(message.Id, message.ConversationId, false, "system", ConversationEnding.SystemText(message.SenderAccountId == viewer), message.SentAt, false);
         PhotoView? photo = null;
         string? state = null;
+        var explicitPhoto = false;
         if (message.Kind == MessageKind.Photo && message.DeletedAt is null && media is not null)
         {
-            if (media.Status == MediaStatus.Passed && media.RemovedAt is null && links?.For(media.Id, "member", now) is { } link) photo = new PhotoView(media.Id, link);
-            if (message.SenderAccountId == viewer) state = media.RemovedAt is not null ? "removed" : MediaPolicy.MemberState(media.Status);
+            var mine = message.SenderAccountId == viewer;
+            explicitPhoto = media.ContentRating == ContentRating.Explicit;
+            // D423: the recipient's link to an explicit photo only while they may receive it now, and never one refused at delivery.
+            var shown = mine || !explicitPhoto || explicitAllowed && message.ExplicitRefusedAt is null;
+            // PR 606/607 review: the recipient's link to an explicit photo is its own variant, checked again when it's served.
+            if (shown && media.Status == MediaStatus.Passed && media.RemovedAt is null && links?.For(media.Id, mine || !explicitPhoto ? "member" : "explicit", now) is { } link)
+                photo = new PhotoView(media.Id, link);
+            if (mine) state = media.RemovedAt is not null ? "removed" : message.ExplicitRefusedAt is not null ? ExplicitChatPolicy.NotAccepted : MediaPolicy.MemberState(media.Status);
         }
         return new(message.Id, message.ConversationId, message.SenderAccountId == viewer, Wire(message.Kind), MessagingPolicy.VisibleText(message), message.SentAt,
-            MessagingPolicy.MayDeleteForBoth(message, viewer, now), message.DeletedAt is not null, photo, state, meetup);
+            MessagingPolicy.MayDeleteForBoth(message, viewer, now), message.DeletedAt is not null, photo, state, meetup, explicitPhoto ? true : null);
     }
 
     private static async Task<Dictionary<Guid, MediaItem>> MediaForAsync(SwoovrDbContext db, IEnumerable<Message> messages, CancellationToken cancellationToken)
@@ -567,7 +589,7 @@ public static partial class MessagingEndpoints
         where m.SenderAccountId != me && m.Kind != MessageKind.System
               && m.DeletedAt == null && m.ModerationRemovedAt == null
               && !db.MessageHides.Any(h => h.MessageId == m.Id && h.AccountId == me)
-              && (m.Kind != MessageKind.Photo || db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null))
+              && (m.Kind != MessageKind.Photo || m.ExplicitRefusedAt == null && db.MediaItems.Any(i => i.Id == m.MediaId && i.Status == MediaStatus.Passed && i.RemovedAt == null))
         let read = db.ConversationReads.Where(r => r.ConversationId == m.ConversationId && r.AccountId == me).Select(r => (DateTimeOffset?)r.ReadAt).FirstOrDefault()
         let hidden = db.ConversationHides.Where(h => h.ConversationId == m.ConversationId && h.AccountId == me).Select(h => (DateTimeOffset?)h.HiddenAt).FirstOrDefault()
         // PR 578 review: a photo reaches the member when it passes (an admin's approval or the screener),

@@ -52,6 +52,9 @@ public sealed class Message
     public Guid? MediaId { get; set; }
     /// <summary>Issue 545 (D430): a meet-up invitation's card in the thread; its state lives on the <see cref="Meetup"/>.</summary>
     public Guid? MeetupId { get; set; }
+    /// <summary>D423 (#546): an explicit photo that couldn't be delivered (the recipient wasn't eligible). The recipient never
+    /// sees the message, a notification or a count for it; the sender sees "Recipient does not allow adult content."</summary>
+    public DateTimeOffset? ExplicitRefusedAt { get; set; }
 }
 
 /// <summary>A message one member hid from their own view (rule 9); the other member still sees it.</summary>

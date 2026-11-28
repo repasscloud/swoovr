@@ -204,10 +204,10 @@ for theme in data:
         low, high = sorted([luminance(dot[0]), luminance(theme[mode]['surface'])])
         assert (high + .05) / (low + .05) >= 3, f'--online contrast below 3:1 on {theme["id"]} {mode} surface'
 # Issues 536/537 (owner, 26 November 2026): the admin media review destination pills, amber and green, each with its text colour.
-destination = re.compile(r'^\s*--destination-(?:library|album)(?:-text)?:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
-pills = dict(re.findall(r'--(destination-(?:library|album)(?:-text)?):\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text()))
-assert set(pills) == {'destination-library', 'destination-library-text', 'destination-album', 'destination-album-text'}, 'admin.css must define the four destination pill tokens once'
-for pill in ['library', 'album']:
+destination = re.compile(r'^\s*--destination-(?:library|album|chat)(?:-text)?:\s*#[0-9A-Fa-f]{6};\s*$', re.M)
+pills = dict(re.findall(r'--(destination-(?:library|album|chat)(?:-text)?):\s*(#[0-9A-Fa-f]{6})', (root / 'src/Swoovr.Admin/wwwroot/admin.css').read_text()))
+assert set(pills) == {'destination-library', 'destination-library-text', 'destination-album', 'destination-album-text', 'destination-chat', 'destination-chat-text'}, 'admin.css must define the six destination pill tokens once'
+for pill in ['library', 'album', 'chat']:
     low, high = sorted([luminance(pills[f'destination-{pill}-text']), luminance(pills[f'destination-{pill}'])])
     assert (high + .05) / (low + .05) >= 4.5, f'destination {pill} pill text contrast below 4.5:1'
 red = re.findall(r'--destructive:\s*(#[0-9A-Fa-f]{6})', app_css)

@@ -5369,6 +5369,10 @@ namespace Swoovr.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("deleted_at");
 
+                    b.Property<DateTimeOffset?>("ExplicitRefusedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("explicit_refused_at");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(32)

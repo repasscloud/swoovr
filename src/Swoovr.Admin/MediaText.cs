@@ -5,10 +5,14 @@ public static class MediaText
 {
     /// <summary>Issues 536 and 537: the Destination row. A private album is a green pill whatever the signal; a photo library upload
     /// with a nudity signal is an amber pill, so it isn't mistaken for a main profile photo; anything else is plain text. It shows the
-    /// destination the API supplies, never one inferred from the signal. Tone null: plain text.</summary>
-    public static (string Label, string? Tone) Destination(string? destination, string? signal) => destination == "album"
-        ? ("Private album", "album")
-        : ("Photo library", signal == "nudity-signal" ? "library" : null);
+    /// destination the API supplies, never one inferred from the signal. Tone null: plain text.
+    /// D423 (#546): a photo sent straight to chat is a blue Chat pill, whatever the signal.</summary>
+    public static (string Label, string? Tone) Destination(string? destination, string? signal) => destination switch
+    {
+        "album" => ("Private album", "album"),
+        "chat" => ("Chat", "chat"),
+        _ => ("Photo library", signal == "nudity-signal" ? "library" : null),
+    };
 
     public static string Reason(string code) => code switch
     {
@@ -17,6 +21,7 @@ public static class MediaText
         "APPROVED_AFTER_REVIEW" => "Acceptable after review",
         "APPROVED_FALSE_POSITIVE" => "Automated flag cleared",
         "APPROVED_ALBUM_EXPLICIT" => "Adult content: private albums only",
+        "APPROVED_CHAT_EXPLICIT" => "Adult content: chat, only if the recipient accepts it",
         "REJECT_EXPLICIT_NO_ID" => "Explicit content not allowed without ID verification",
         "REJECT_EXPLICIT_BETA" => "Explicit content not allowed here",
         "REJECT_IMPERSONATION" => "Impersonation or unauthorised use",
