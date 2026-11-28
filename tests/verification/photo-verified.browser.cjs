@@ -260,6 +260,13 @@ const output = process.env.SWOOVR_SCREENSHOTS;
     const shownCode = (await memberPage.locator('.photo-check-value').innerText()).trim();
     assert.match(shownCode, /^[ACDEFHJKMNPQRTUVWXY3479]{4}$/); pass();
     assert.equal(await memberPage.locator('[data-photo-check-file]').getAttribute('accept'), 'image/jpeg,image/png,image/webp'); pass();
+    // PR 610 review: the web BFF lets a camera-sized photo through to the verification API (a 1 MB body here). The owned API
+    // has Photo Verified off, so it answers 503; the BFF's small-body limit would have answered 413 first.
+    const bffStatus = await memberPage.evaluate(async () => {
+      const form = new FormData(); form.append('file', new Blob([new Uint8Array(1024 * 1024)], { type: 'image/jpeg' }), 'paper.jpg'); form.append('code', 'XXXX');
+      return (await fetch('/bff/api/me/verification/photo', { method: 'POST', body: form, headers: { 'X-Swoovr-Bff': '1' } })).status;
+    });
+    assert.notEqual(bffStatus, 413, 'not refused by the web for its size'); pass();
     for (const width of [1280, 390]) { await memberPage.setViewportSize({ width, height: 900 }); if (output) await memberPage.screenshot({ path: `${output}/photo-verified-code-${width}.png`, fullPage: true }); }
     // Sent through the extra API (the owned hosts have no malware scanner); the page then says it's being checked.
     assert.equal((await send('ned', shownCode, 540)).body.state, 'submitted');

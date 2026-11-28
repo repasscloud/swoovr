@@ -106,8 +106,9 @@ public static partial class Bff
             if (context.Connection.RemoteIpAddress is { } address) request.Headers.TryAddWithoutValidation("X-Forwarded-For", address.ToString());
             if (context.Request.ContentLength > 0 || context.Request.Headers.TransferEncoding.Count > 0)
             {
-                // D203, #41: only photo uploads (profile and chat) may carry a large body (10 MB plus the multipart overhead).
-                var limit = context.Request.Method == "POST" && (path == "api/me/photos" || ChatPhoto().IsMatch(path)) ? PhotoUploadLimit
+                // D203, #41: only photo uploads (profile, chat and, D424, the Photo Verified photo) may carry a large body (10 MB
+                // plus the multipart overhead).
+                var limit = context.Request.Method == "POST" && (path is "api/me/photos" or "api/me/verification/photo" || ChatPhoto().IsMatch(path)) ? PhotoUploadLimit
                     // Issue 220 (D330): support files go as multipart to the two upload routes, up to the owner's limits.
                     : context.Request.Method == "POST" && TicketUpload().IsMatch(path) ? Swoovr.Contracts.SupportAttachmentPolicy.MaxUploadRequestBytes
                     // Support requests carry up to 16,000 characters and three 64 KB text files as JSON (the API caps them at 300,000 bytes).
