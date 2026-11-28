@@ -80,4 +80,47 @@ Every PR that appends to DECISIONS.md is in one linear stack with base `main`, s
 
 ## Remaining work
 
-To be filled in as the run progresses.
+| Item | State | Why / next step |
+|---|---|---|
+| #543 slice 2: albums in chat (#431 §4–5) | Not built | The chat copy of an explicit album photo must keep its explicit rating whatever the screener says. Otherwise the per-view adult gate (D451, 182.4) could be skipped. Needs a reviewed change in `MediaPipeline` plus the F4 snapshot share record. Design noted on #543 |
+| #376 ClamAV freshness | Design posted on #376, not built | Needs a read-only `clamav-db` mount in the API and a fail-closed upload gate on UAT. Proposed observe-only first. Waiting for your OK |
+| #569 captions (F5) | Not built | Needs a new text-screening source (`PhotoCaption`) plus removal by staff in candidate review and content removal. The viewer, report and dedupe parts are already built (see #569) |
+| #450 prompts, #451 badges/completeness | Not started | #450 needs the same text-screening source work as captions. #451: members already see "n of m answered" privately (D458); the badge audit is open |
+| #373 ban evasion (F6) | Not started | Security-sensitive review queue on D191 HMAC matches; better as a reviewed slice |
+| #448 sensitive categories | Unavailable by design | Your privacy review, consent and notice wording come first (§5). Ids are reserved |
+| #448 free-text details | Not built | Occupation, music/films/TV, ideal first date, deal breakers and boundaries need text screening |
+| #500 | Suggested closing | Superseded by D443 and D458 (comment on #500) |
+| #570 | Covered by #633/#634 | Close after they merge |
+| #313 | Waiting for you | Repository still names `hello@repasscloud.com`; confirm the UAT host's sender |
+| #440 | Waiting for you | Fresh UAT date of birth session |
+
+## Morning handover
+
+### Executive summary
+- **Start:** one open PR (#627), uncommitted D454 work, two stale owned suites, 87 open issues.
+- **End:** 10 PRs open for review: #627 (yours, untouched), #628, #629 (this report), #630, #631, #632, #633, #634, #635, #636 (#571, if opened below). 7 issues closed with evidence (#257, #319, #372, #488, #509, plus #544/#452 once their PRs merge). Issue comments on #313, #376, #448, #500, #543, #544, #569, #570.
+- **Codex:** every finding fixed, replied to and resolved (#631: location as a reply, text-harm history; the same finding repeated on #632/#633). #628, #631 (re-review), #634 had no findings at the last review; #630, #632, #633, #635 were requested or pending at handover.
+- **Tests:** check.sh passed on every branch tip (855 PostgreSQL persistence cases). Owned suites: photo-verified, notifications (147), review-workflows, chat-location (36), chat-library (20), profile-details (40). Screenshots checked for the chat card and the profile editor.
+
+### Merge order (one linear stack, all base `main`, each appends to DECISIONS.md)
+1. #627 Privacy Notice 0.22 (D453)
+2. #628 Photo Verified decision notification (D454)
+3. #631 Share a location in chat (D455), closes #544
+4. #632 Chat + menu: library, upload, camera (D456), part of #543
+5. #633 Profile details slice 1 (D457), **migration `ProfileAttributes`**
+6. #634 Profile details slice 2: web (D458)
+7. #635 Shared interests (D459), closes #452
+8. #636 Travel on the profile (D460), part of #571
+
+Independent, any time: #630 (stale suites, test-only), #629 (this report).
+
+### Release considerations
+- **Migrations:** only `ProfileAttributes` (a new table). #631 and #632 need none.
+- **Flags:** none new. `Verification:PhotoVerified:Enabled` is already on in UAT (#627).
+- **Privacy Notice:** after #627 is deployed, an operator stages and publishes the "0.22, 28 November 2026" policy-update notice. Location sharing (#631) and Photo Verified depend on 0.22 being in force.
+- **Member communications:** the 0.22 notice only. Nothing else in this batch emails or pushes anyone.
+- **UAT checks after deploy:** share a location both ways (current location and a pasted link); send a library photo; Photo Verified approve/reject leaves one notification; add details on /me/profile, publish to one mode, check from another account in that mode and another; "You both like…"; a trip to your area on a visitor's profile.
+- **Rollback:** all code-only except `ProfileAttributes` (a new table; its Down drops it). Rolling back #631 leaves any shared locations as text messages starting `geo:` (shown as plain text by older clients).
+
+### Your decisions (applied as DEFAULTs; change any)
+F1 0.22 effective 28 November 2026 · F2 Photo Verified decisions in the notification centre only · F3 location chosen from the current location or a pasted link, no map provider · F4 album share snapshot (not built yet) · F5 captions per photo, 150 characters (not built yet) · F6 ban-evasion review on HMAC match only (not built yet) · F7 housekeeping closures done. Also D457 option lists, nationality/causes/accessibility treated as sensitive, D459 opt-in by publishing, D460 only trips to your area.
