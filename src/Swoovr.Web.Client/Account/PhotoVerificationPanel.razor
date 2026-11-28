@@ -1,0 +1,108 @@
+@* D424/D427/D452 (issue 530): Photo Verified on the verification page. A code and today's date on paper, one photo holding
+   it, and a person compares it with the member's profile photos. Not an ID check. Shown only where the host offers it
+   (it stays off until Privacy Notice 0.22 is in force). *@
+@inject MemberClient Members
+@if (view is { Available: true })
+{
+    <section class="card account-section photo-check" aria-labelledby="photo-check-heading" data-photo-check="@view.State">
+        <h2 id="photo-check-heading">Photo Verified</h2>
+        <p class="field-help">Optional and free. It shows your profile photos are of you. A person at Swoovr compares one photo of you holding a code with your profile photos. It isn't an ID check and doesn't verify your age or name.</p>
+        @switch (view.State)
+        {
+            case "verified":
+                <p data-photo-check-verified>Your profile photos are Photo Verified@(view.VerifiedUntil is { } until ? $" until {until.ToLocalTime():d MMMM yyyy}" : "").</p>
+                <p class="field-help">Changing a verified profile photo removes it. You can verify again after that.</p>
+                break;
+            case "submitted":
+                <p data-photo-check-submitted>We're checking your photo. A person compares it with your profile photos, and this page will show the result.</p>
+                break;
+            case "issued":
+                <p>Write this code and today's date on a piece of paper:</p>
+                <div class="photo-check-code" data-photo-check-code>
+                    <span class="photo-check-value" aria-label="Code @string.Join(" ", view.Code!.ToCharArray())">@view.Code</span>
+                    <span class="photo-check-date" data-photo-check-date>@view.WrittenDate?.ToString("d MMMM yyyy")</span>
+                </div>
+                <ol class="photo-check-steps">
+                    <li>Hold the paper next to your face.</li>
+                    <li>Take a clear photo where your face, the code and the date can all be read.</li>
+                    <li>Choose that photo here. Only Swoovr staff see it, and it's deleted 30 days after the decision.</li>
+                </ol>
+                <div class="verification-actions">
+                    <label class="button photo-check-send" for="photo-check-file">Choose the photo</label>
+                    <InputFile id="photo-check-file" class="visually-hidden" OnChange="SendAsync" accept="image/jpeg,image/png,image/webp" disabled="@busy" data-photo-check-file />
+                    <button type="button" class="button button-secondary" disabled="@busy" @onclick="CodeAsync" data-photo-check-new>Get a new code</button>
+                </div>
+                <p class="field-help verification-help">The code works once, for a day. @Left</p>
+                break;
+            default:
+                @if (view.State == "rejected") { <p data-photo-check-rejected>Photo Verified wasn't awarded. @view.Reason</p> }
+                @if (view.State == "expired") { <p data-photo-check-expired>Your Photo Verified has ended.</p> }
+                @if (!view.HasProfilePhoto)
+                {
+                    <p class="field-help" data-photo-check-needs-photo>Add a profile photo first. <a class="link" href="/me/photos">Your photos</a></p>
+                }
+                else if (view.AttemptsLeft == 0)
+                {
+                    <p class="field-help" data-photo-check-limit>You can send up to 3 photos in 30 days. Try again later.</p>
+                }
+                else
+                {
+                    <div class="verification-actions"><button type="button" class="button" disabled="@busy" @onclick="CodeAsync" data-photo-check-start>Get my code</button></div>
+                    <p class="field-help verification-help">@Left</p>
+                }
+                break;
+        }
+        <p role="status" aria-live="polite" class="field-help verification-help" data-photo-check-message="@messageCode">@message</p>
+    </section>
+}
+@code {
+    private PhotoVerificationView? view;
+    private bool busy;
+    private string? message, messageCode;
+
+    private string Left => view?.AttemptsLeft switch { 1 => "You can send 1 more photo in the next 30 days.", { } n => $"You can send {n} more photos in the next 30 days.", _ => "" };
+
+    protected override async Task OnInitializedAsync() => view = (await Members.PhotoVerificationAsync()).Value;
+
+    private async Task CodeAsync()
+    {
+        busy = true;
+        try
+        {
+            // The member's own date goes on the paper (the API accepts a day either side of its own).
+            var result = await Members.PhotoVerificationCodeAsync(DateOnly.FromDateTime(DateTime.Now));
+            Apply(result.Value, result.Code);
+        }
+        finally { busy = false; }
+    }
+
+    private async Task SendAsync(InputFileChangeEventArgs e)
+    {
+        if (view?.Code is not { } code) return;
+        busy = true;
+        try
+        {
+            if (e.File.Size > 10 * 1024 * 1024) { (messageCode, message) = ("photo-too-big", PhotoText.Refusal("photo-too-big")); return; }
+            using var stream = e.File.OpenReadStream(10 * 1024 * 1024);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+            var result = await Members.SendPhotoVerificationAsync(code, buffer.ToArray(), e.File.Name, e.File.ContentType);
+            Apply(result.Value, result.Code);
+        }
+        finally { busy = false; }
+    }
+
+    private void Apply(PhotoVerificationView? next, string? code)
+    {
+        if (next is not null) { view = next; (messageCode, message) = (null, null); return; }
+        messageCode = code ?? "failed";
+        message = code switch
+        {
+            ProblemCodes.PhotoVerificationNeedsPhoto => "Add a profile photo first. We compare it with the photo you send.",
+            ProblemCodes.PhotoVerificationLimit => "You can send up to 3 photos in 30 days. Try again later.",
+            ProblemCodes.PhotoVerificationPending => "Your photo is being checked.",
+            ProblemCodes.PhotoVerificationCode => "That code isn't current. Get a new code and write that one down.",
+            _ => PhotoText.Refusal(code),
+        };
+    }
+}

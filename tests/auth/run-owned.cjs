@@ -100,7 +100,7 @@ async function main(){
    }catch{res.statusCode=400;res.end('{}');}
   });await new Promise(resolve=>provider.listen(0,'127.0.0.1',resolve));
   env={...cleanEnv,TMPDIR:folder,DOTNET_ENVIRONMENT:'Development',ASPNETCORE_ENVIRONMENT:'Development',ConnectionStrings__Swoovr:`Host=127.0.0.1;Port=5433;Database=${manifest.database};Username=swoovr;Password=${config.SWOOVR_DB_PASSWORD}`,
-   ...(selected.includes('deletion')?{Accounts__ReauthSeconds:'45',SWOOVR_REAUTH_SECONDS:'45'}:{}),...await helpdeskSettings(),...(process.env.SWOOVR_OWNED_ONLINE_STATUS==='0'?{}:{Explore__OnlineStatus:'true'}),
+   ...(selected.includes('deletion')?{Accounts__ReauthSeconds:'45',SWOOVR_REAUTH_SECONDS:'45'}:{}),...(selected.includes('photo-verified')?{Verification__PhotoVerified__Enabled:'true'}:{}),...await helpdeskSettings(),...(process.env.SWOOVR_OWNED_ONLINE_STATUS==='0'?{}:{Explore__OnlineStatus:'true'}),
    Keycloak__BaseUrl:'http://localhost:8180',Keycloak__RequireHttpsMetadata:'false',Mfa__StaffClientId:manifest.staffClient,Staff__LocalPasswords:'true',Phone__Required:'false',Founders__Secrets__1:synthetic.SWOOVR_FOUNDER_SECRET_V1,
    MemberAdmin__ClientSecret:synthetic.SWOOVR_MEMBERS_API_ADMIN_SECRET,MemberAdmin__ContactRetirementEnabled:'false',MemberAdmin__ContactRetirementWorker:'false',
    Didit__ApiKey:'synthetic-owned-only',Didit__WorkflowId:synthetic.SWOOVR_DIDIT_WORKFLOW_ID,Didit__WebhookSecret:synthetic.SWOOVR_DIDIT_WEBHOOK_SECRET,Didit__BaseUrl:'http://127.0.0.1:'+provider.address().port+'/',Didit__Callbacks__Web:manifest.web+'/me/verification/return',Didit__IdImages__Enabled:'true',Didit__IdImages__Hosts:'127.0.0.1:'+provider.address().port,

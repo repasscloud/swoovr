@@ -285,6 +285,21 @@ public sealed partial class MemberClient(HttpClient transport)
         return SendAsync<MessageView>(new HttpRequestMessage(HttpMethod.Post, $"api/conversations/{conversationId}/photos") { Content = form }, cancellationToken);
     }
 
+    /// <summary>D424 (#530): the member's Photo Verified state, a fresh code for their own date, and the photo holding it.</summary>
+    public Task<ApiResult<PhotoVerificationView>> PhotoVerificationAsync(CancellationToken cancellationToken = default) =>
+        SendAsync<PhotoVerificationView>(new HttpRequestMessage(HttpMethod.Get, "api/me/verification/photo"), cancellationToken);
+    public Task<ApiResult<PhotoVerificationView>> PhotoVerificationCodeAsync(DateOnly date, CancellationToken cancellationToken = default) =>
+        SendAsync<PhotoVerificationView>(new HttpRequestMessage(HttpMethod.Post, "api/me/verification/photo/code") { Content = JsonContent.Create(new PhotoVerificationCodeRequest(date)) }, cancellationToken);
+    public Task<ApiResult<PhotoVerificationView>> SendPhotoVerificationAsync(string code, byte[] data, string fileName, string contentType, CancellationToken cancellationToken = default)
+    {
+        var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(data);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType);
+        form.Add(file, "file", string.IsNullOrWhiteSpace(fileName) ? "photo" : fileName);
+        form.Add(new StringContent(code), "code");
+        return SendAsync<PhotoVerificationView>(new HttpRequestMessage(HttpMethod.Post, "api/me/verification/photo") { Content = form }, cancellationToken);
+    }
+
     /// <summary>#41, Q85: ends the conversation politely (an optional fixed closing message), disconnecting every mode.</summary>
     public Task<ApiResult<ConversationView>> EndConversationAsync(Guid conversationId, string? closing, CancellationToken cancellationToken = default) =>
         SendAsync<ConversationView>(new HttpRequestMessage(HttpMethod.Post, $"api/conversations/{conversationId}/end") { Content = JsonContent.Create(new EndConversation(closing)) }, cancellationToken);

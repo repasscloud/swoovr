@@ -9,7 +9,7 @@
                 <td>@Source(Account.IdStatus == "verified", Verification?.IdManual == true, "Didit")</td><td><span class="ui-sub">@(Verification?.IdCheckedAt?.ToString("d MMM yyyy") ?? "—")</span></td>
                 <td class="ad-right">@Action("idVerified", Account.IdStatus == "verified")</td></tr>
             <tr data-badge="photoVerified"><td><strong>Photo Verified</strong></td><td>@Pill(Verification?.PhotoStatus == "verified")</td>
-                <td>@Source(Verification?.PhotoStatus == "verified", Verification?.PhotoManual == true, "Selfie match")</td><td><span class="ui-sub">@(Verification?.PhotoCheckedAt?.ToString("d MMM yyyy") ?? "—")</span></td>
+                <td>@Source(Verification?.PhotoStatus == "verified", Verification?.PhotoManual == true, "Photo compared with the profile photos")</td><td><span class="ui-sub">@(Verification?.PhotoCheckedAt?.ToString("d MMM yyyy") ?? "—")</span></td>
                 <td class="ad-right">@Action("photoVerified", Verification?.PhotoStatus == "verified")</td></tr>
             <tr data-badge="didit"><td><strong>Didit check</strong></td><td><span class="ui-pill" data-tone="quiet">@AccountLabels.Id(Account.IdStatus)</span></td><td>Didit</td>
                 <td><span class="ui-sub">@(attempts is { Attempts.Count: > 0 } list ? $"{list.Attempts.Count} attempt{(list.Attempts.Count == 1 ? "" : "s")}" : "No attempts")</span></td>

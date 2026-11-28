@@ -669,3 +669,9 @@
 .favourite-mode { color: var(--text); text-decoration: none; }
 .favourite-mode:hover, .favourite-mode:focus-visible { border-color: var(--text); text-decoration: underline; }
 .favourite-row .button { flex: none; }
+/* D452 (issue 530): the Photo Verified code and date, large enough to copy onto paper. */
+.photo-check-code { display: inline-flex; flex-direction: column; gap: 4px; margin: 4px 0 12px; padding: 14px 22px; border: 2px dashed var(--border); border-radius: var(--radius); }
+.photo-check-value { font: 800 2.5rem/1 var(--font); letter-spacing: .35em; font-variant-numeric: tabular-nums; }
+.photo-check-date { font: 600 1rem/1.3 var(--font); color: var(--muted); }
+.photo-check-steps { margin: 0 0 4px; padding-left: 1.25rem; display: grid; gap: 4px; }
+.photo-check-send { cursor: pointer; }
